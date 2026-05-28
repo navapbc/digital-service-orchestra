@@ -27,6 +27,14 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from dso_ci_review.dispatch_ratelimit import (
+    DispatchContext,
+    calculate_backoff,
+    extract_anthropic_ratelimit_headers,
+    parse_retry_after,
+    should_retry,
+)
+
 logger = logging.getLogger(__name__)
 
 _PLUGIN_ROOT = pathlib.Path(
@@ -117,6 +125,68 @@ _USAGE_LOCK_MAX_RETRIES = 20
 _USAGE_LOCK_RETRY_DELAY_SEC = 0.05
 
 
+def _locked_append_usage_record(entry: dict[str, object]) -> None:
+    """Append ``entry`` to ``${ARTIFACTS_DIR}/review-cycle-usage.json`` under
+    fcntl.LOCK_EX with bounded non-blocking retry, then atomic temp+rename.
+
+    Shared by ``_write_usage_entry`` (per-call usage) and
+    ``_write_cooldown_event`` (cross-cluster cooldown engagement). Both
+    callers use the same lock file so writers serialize across paths.
+
+    Fail-open: any exception is swallowed so observability writes never
+    interrupt review dispatch. Dead lock-holders are bounded by
+    ``_USAGE_LOCK_MAX_RETRIES * _USAGE_LOCK_RETRY_DELAY_SEC`` total wait,
+    after which the function returns without writing.
+
+    SYNCHRONOUS — this function calls ``time.sleep`` in its retry loop and
+    MUST be invoked from a worker thread (via ``asyncio.to_thread``) when
+    called from an async context. ``_write_usage_entry`` is already invoked
+    only from synchronous ``dispatch_review`` (which itself runs inside
+    ``asyncio.to_thread``); ``_write_cooldown_event`` callers must wrap
+    explicitly.
+    """
+    try:
+        from dso_ci_review.cycle_ledger import _resolve_artifacts_dir  # noqa: PLC0415
+
+        artifacts_dir = _resolve_artifacts_dir()
+        usage_path = os.path.join(artifacts_dir, _USAGE_FILE_NAME)
+        lock_path = os.path.join(artifacts_dir, _USAGE_LOCK_FILE_NAME)
+
+        lock_fd = open(lock_path, "w")  # noqa: WPS515
+        try:
+            for _attempt in range(_USAGE_LOCK_MAX_RETRIES):
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except (BlockingIOError, OSError):
+                    if _attempt + 1 >= _USAGE_LOCK_MAX_RETRIES:
+                        raise
+                    time.sleep(_USAGE_LOCK_RETRY_DELAY_SEC)
+            if os.path.exists(usage_path):
+                try:
+                    with open(usage_path, encoding="utf-8") as _f:
+                        data = json.load(_f)
+                except (json.JSONDecodeError, OSError):
+                    data = {"schema_version": _USAGE_SCHEMA_VERSION, "cycles": []}
+            else:
+                data = {"schema_version": _USAGE_SCHEMA_VERSION, "cycles": []}
+            if not isinstance(data.get("cycles"), list):
+                data["cycles"] = []
+            data["cycles"].append(entry)
+            tmp_path = usage_path + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as _f:
+                json.dump(data, _f, indent=2)
+            os.replace(tmp_path, usage_path)
+        finally:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            lock_fd.close()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _write_usage_entry(
     *,
     agent_id: str,
@@ -128,102 +198,52 @@ def _write_usage_entry(
     exception_class: str | None = None,
     exception_message: str | None = None,
 ) -> None:
-    """Append one usage entry to ``${ARTIFACTS_DIR}/review-cycle-usage.json``.
-
-    Uses ``fcntl.LOCK_EX | fcntl.LOCK_NB`` (non-blocking) with a bounded retry
-    loop for concurrent-write safety. Bounding the wait protects the review
-    dispatch from hanging if the lock holder process dies without releasing
-    the flock advisory lock — the outer ``try / except Exception: pass``
-    cannot rescue an indefinite block, so the function would otherwise stall
-    the entire review on a stale lock. After ``_USAGE_LOCK_MAX_RETRIES``
-    failed attempts spaced by ``_USAGE_LOCK_RETRY_DELAY_SEC`` the function
-    fails open via the outer suppression — losing one usage entry but
-    keeping the review pipeline moving.
+    """Append one usage entry to the cycle usage JSONL.
 
     Usage fields are read from ``response.usage`` using the litellm
-    OpenAI-shape (``prompt_tokens`` / ``completion_tokens``).  Cache fields
-    are extracted defensively via ``getattr``.
+    OpenAI-shape (``prompt_tokens`` / ``completion_tokens``); cache fields
+    are extracted defensively via ``getattr``. Delegates the locked write
+    to ``_locked_append_usage_record`` so the on-disk format and atomicity
+    invariants are shared with ``_write_cooldown_event``.
     """
-    try:
-        from dso_ci_review.cycle_ledger import _resolve_artifacts_dir  # noqa: PLC0415
+    usage_obj = getattr(response, "usage", None) if response is not None else None
+    if usage_obj is not None:
+        input_tokens = getattr(usage_obj, "prompt_tokens", None)
+        output_tokens = getattr(usage_obj, "completion_tokens", None)
+        cache_read = getattr(usage_obj, "cache_read_input_tokens", None)
+        cache_creation = getattr(usage_obj, "cache_creation_input_tokens", None)
+    else:
+        input_tokens = None
+        output_tokens = None
+        cache_read = None
+        cache_creation = None
 
-        artifacts_dir = _resolve_artifacts_dir()
-        usage_path = os.path.join(artifacts_dir, _USAGE_FILE_NAME)
-        lock_path = os.path.join(artifacts_dir, _USAGE_LOCK_FILE_NAME)
+    rate_limit_headers = (
+        extract_anthropic_ratelimit_headers(response)
+        if response is not None
+        else {}
+    )
 
-        usage_obj = getattr(response, "usage", None) if response is not None else None
-
-        if usage_obj is not None:
-            # litellm OpenAI-shape: prompt_tokens / completion_tokens
-            input_tokens = getattr(usage_obj, "prompt_tokens", None)
-            output_tokens = getattr(usage_obj, "completion_tokens", None)
-            cache_read = getattr(usage_obj, "cache_read_input_tokens", None)
-            cache_creation = getattr(usage_obj, "cache_creation_input_tokens", None)
-        else:
-            input_tokens = None
-            output_tokens = None
-            cache_read = None
-            cache_creation = None
-
-        entry: dict[str, object] = {
-            "agent_id": agent_id,
-            "cycle": cycle,
-            "call_index": call_index,
-            "model": model,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "cache_read_input_tokens": cache_read,
-            "cache_creation_input_tokens": cache_creation,
-            "timestamp_iso": datetime.now(timezone.utc).isoformat(),
-        }
-        if review_outcome is not None:
-            entry["review_outcome"] = review_outcome
-        if exception_class is not None:
-            entry["exception_class"] = exception_class
-        if exception_message is not None:
-            entry["exception_message"] = exception_message
-
-        # fcntl.LOCK_EX read-modify-write with bounded non-blocking retry.
-        # A dead lock-holder cannot hang us: after
-        # _USAGE_LOCK_MAX_RETRIES * _USAGE_LOCK_RETRY_DELAY_SEC seconds we
-        # raise OSError which the outer try/except converts to a no-op
-        # (usage-capture is fail-open by design).
-        lock_fd = open(lock_path, "w")  # noqa: WPS515 — intentional open without with
-        try:
-            for _attempt in range(_USAGE_LOCK_MAX_RETRIES):
-                try:
-                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except (BlockingIOError, OSError):
-                    if _attempt + 1 >= _USAGE_LOCK_MAX_RETRIES:
-                        raise
-                    time.sleep(_USAGE_LOCK_RETRY_DELAY_SEC)
-            # Read existing data
-            if os.path.exists(usage_path):
-                try:
-                    with open(usage_path, encoding="utf-8") as _f:
-                        data = json.load(_f)
-                except (json.JSONDecodeError, OSError):
-                    data = {"schema_version": _USAGE_SCHEMA_VERSION, "cycles": []}
-            else:
-                data = {"schema_version": _USAGE_SCHEMA_VERSION, "cycles": []}
-
-            if not isinstance(data.get("cycles"), list):
-                data["cycles"] = []
-
-            data["cycles"].append(entry)
-
-            # Write atomically (temp file + rename within same dir)
-            tmp_path = usage_path + ".tmp"
-            with open(tmp_path, "w", encoding="utf-8") as _f:
-                json.dump(data, _f, indent=2)
-            os.replace(tmp_path, usage_path)
-        finally:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-            lock_fd.close()
-    except Exception:  # noqa: BLE001
-        # Never let usage-capture failures interrupt review dispatch
-        pass
+    entry: dict[str, object] = {
+        "agent_id": agent_id,
+        "cycle": cycle,
+        "call_index": call_index,
+        "model": model,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cache_read_input_tokens": cache_read,
+        "cache_creation_input_tokens": cache_creation,
+        "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+    }
+    if rate_limit_headers:
+        entry["anthropic_ratelimit"] = rate_limit_headers
+    if review_outcome is not None:
+        entry["review_outcome"] = review_outcome
+    if exception_class is not None:
+        entry["exception_class"] = exception_class
+    if exception_message is not None:
+        entry["exception_message"] = exception_message
+    _locked_append_usage_record(entry)
 
 
 def _next_call_index() -> int:
@@ -1016,10 +1036,26 @@ async def _call_single_agent(
     provider_chain: list[str] | None = None,
     tier: str = "standard",
     review_context: str | None = None,
+    dispatch_context: "DispatchContext | None" = None,
 ) -> dict:
-    """Dispatch one reviewer agent. Returns findings dict or error entry on any exception."""
+    """Dispatch one reviewer agent. Returns findings dict or error entry on any exception.
+
+    Runs the synchronous dispatch_review on a worker thread via asyncio.to_thread
+    so that sibling specialists in async_dispatch_specialists' gather() can run
+    in parallel. Without this, the gather is a no-op — sync work blocks the
+    event loop and serializes all siblings (spike_01_serialization.py).
+
+    When dispatch_context is provided, the coroutine awaits its cooldown_event
+    before submitting work, and signals cooldown if the call raises a rate-limit
+    error. The cooldown gates new submissions; in-flight to_thread calls cannot
+    be interrupted but their failures will configure the cooldown for retries
+    and follow-on submissions.
+    """
+    if dispatch_context is not None:
+        await dispatch_context.cooldown_event.wait()
     try:
-        result = dispatch_review(
+        result = await asyncio.to_thread(
+            dispatch_review,
             diff_text=diff_text,
             agent_id=agent_id,
             primary_model=model,
@@ -1029,6 +1065,24 @@ async def _call_single_agent(
         )
         return result
     except Exception as exc:  # noqa: BLE001
+        if dispatch_context is not None and should_retry(exc):
+            headers = getattr(exc, "litellm_response_headers", None)
+            retry_after = parse_retry_after(headers) if headers is not None else None
+            delay = calculate_backoff(0, retry_after)
+            dispatch_context.signal_cooldown(delay)
+            # Offload the synchronous locked-write to a worker thread so we
+            # don't block the event loop on lock contention. _write_cooldown_
+            # event calls _locked_append_usage_record which contains a
+            # time.sleep retry loop (up to ~1s under heavy contention with
+            # _write_usage_entry workers).
+            await asyncio.to_thread(
+                _write_cooldown_event,
+                agent_id=agent_id,
+                delay_s=delay,
+                retry_after_header=retry_after,
+                cooldown_index=dispatch_context.cooldown_count,
+                exception_class=type(exc).__name__,
+            )
         return {
             "findings": [
                 {
@@ -1041,6 +1095,37 @@ async def _call_single_agent(
                 }
             ]
         }
+
+
+def _write_cooldown_event(
+    *,
+    agent_id: str,
+    delay_s: float,
+    retry_after_header: float | None,
+    cooldown_index: int,
+    exception_class: str,
+) -> None:
+    """Append a cooldown_engaged record to the usage JSONL.
+
+    Captures cross-cluster cooldown engagement events for post-mortem
+    analysis of 429 storms under Phase 2 shared-context dispatch — what
+    logger.warning emits but doesn't structure.
+
+    SYNCHRONOUS — invokes the shared atomic write helper which calls
+    ``time.sleep`` under lock contention. Callers in async contexts MUST
+    wrap this via ``asyncio.to_thread`` to avoid blocking the event loop.
+    """
+    entry: dict[str, object] = {
+        "event": "cooldown_engaged",
+        "agent_id": agent_id,
+        "cycle": int(os.environ.get("DSO_REVIEW_CYCLE", "1") or "1"),
+        "delay_s": delay_s,
+        "retry_after_header": retry_after_header,
+        "cooldown_index": cooldown_index,
+        "exception_class": exception_class,
+        "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+    }
+    _locked_append_usage_record(entry)
 
 
 def dispatch_arch_synthesis(
@@ -1534,6 +1619,8 @@ def dispatch_schema_correction(
 
 async def async_dispatch_specialists(
     agents: list[dict],
+    *,
+    dispatch_context: "DispatchContext | None" = None,
 ) -> list[dict]:
     """Dispatch all specialist agents concurrently via asyncio.gather.
 
@@ -1550,22 +1637,34 @@ async def async_dispatch_specialists(
             - provider_chain (list[str] | None): Optional provider chain override.
             - tier (str | None): Review tier — propagated to dispatch_review so
               light tier skips the augmentation loop.
+        dispatch_context: Per-asyncio.run rate-limit coordination state. When
+            None, a fresh context is created and cleaned up for this call. Phase 2
+            cluster-level dispatch passes a shared context so cooldowns coordinate
+            across clusters within a single asyncio.run.
     """
     if not agents:
         return []
 
-    tasks = [
-        _call_single_agent(
-            agent_id=a["agent_id"],
-            diff_text=a["diff_text"],
-            model=a["model"],
-            provider_chain=a.get("provider_chain"),
-            tier=a.get("tier", "standard"),
-            review_context=a.get("review_context"),
-        )
-        for a in agents
-    ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    owns_context = dispatch_context is None
+    if owns_context:
+        dispatch_context = DispatchContext.create()
+    try:
+        tasks = [
+            _call_single_agent(
+                agent_id=a["agent_id"],
+                diff_text=a["diff_text"],
+                model=a["model"],
+                provider_chain=a.get("provider_chain"),
+                tier=a.get("tier", "standard"),
+                review_context=a.get("review_context"),
+                dispatch_context=dispatch_context,
+            )
+            for a in agents
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    finally:
+        if owns_context:
+            dispatch_context.cleanup()
 
     findings_list = []
     for i, result in enumerate(results):

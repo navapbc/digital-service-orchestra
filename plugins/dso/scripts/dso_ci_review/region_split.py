@@ -80,6 +80,8 @@ class RegionSplitInvariantError(Exception):
 _LOC_THRESHOLD_DEFAULT = 3000
 _FILE_COUNT_THRESHOLD_DEFAULT = 40
 _MAX_CLUSTERS_DEFAULT = 5
+_CLUSTER_CONCURRENCY_DEFAULT = 2
+_CLUSTER_CONCURRENCY_HARD_CAP = 3
 
 
 def _loc_threshold() -> int:
@@ -116,6 +118,25 @@ def _max_clusters() -> int:
         "review.region_split.max_clusters", _MAX_CLUSTERS_DEFAULT
     )
     return value if value >= 1 else _MAX_CLUSTERS_DEFAULT
+
+
+def _cluster_concurrency() -> int:
+    """Resolved per-cycle max concurrent cluster dispatches (default 2).
+
+    Capped at min(max_clusters(), 3) to keep in-flight LLM calls within the
+    Anthropic concurrent-connection ceiling (anthropic-sdk-python #496:
+    ~10+ concurrent AsyncAnthropic calls 429 even under quota). With ~3
+    specialists per cluster, concurrency=2 → 6 in-flight calls. The hard cap
+    of 3 keeps deep-tier (4 specialists) safely under the wall at 3 × 4 = 12.
+
+    Values < 1 from config fall back to the default.
+    """
+    value = read_config_int(
+        "review.region_split.cluster_concurrency", _CLUSTER_CONCURRENCY_DEFAULT
+    )
+    if value < 1:
+        value = _CLUSTER_CONCURRENCY_DEFAULT
+    return min(value, _max_clusters(), _CLUSTER_CONCURRENCY_HARD_CAP)
 
 
 def _extract_filenames(diff_text: str) -> list[str]:
