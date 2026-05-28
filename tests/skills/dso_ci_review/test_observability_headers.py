@@ -128,3 +128,124 @@ def test_hidden_params_wrong_type_warns_once(caplog):
     assert result == {}
     relevant = [r for r in caplog.records if "header shape changed" in r.message]
     assert len(relevant) == 1
+
+
+class TestUsageEntryIntegration:
+    """End-to-end: _write_usage_entry attaches anthropic_ratelimit to its
+    written entry when the response carries populated additional_headers,
+    and omits the field when no anthropic-ratelimit-* headers are present.
+    This was claimed by the module docstring but unverified until cycle-3
+    verification review caught the gap.
+    """
+
+    @staticmethod
+    def _capture_entry(captured: dict):
+        def _record(entry):
+            captured["entry"] = entry
+
+        return _record
+
+    def test_response_with_ratelimit_headers_attaches_field(self):
+        from dso_ci_review.dispatch import _write_usage_entry
+
+        class _Usage:
+            prompt_tokens = 100
+            completion_tokens = 5
+            cache_read_input_tokens = 200
+            cache_creation_input_tokens = 50
+
+        class _Resp:
+            usage = _Usage()
+            _hidden_params = {
+                "additional_headers": {
+                    "llm_provider-anthropic-ratelimit-tokens-remaining": "38500",
+                    "llm_provider-anthropic-ratelimit-requests-remaining": "47",
+                }
+            }
+
+        captured: dict = {}
+        from unittest.mock import patch
+
+        with patch(
+            "dso_ci_review.dispatch._locked_append_usage_record",
+            side_effect=self._capture_entry(captured),
+        ):
+            _write_usage_entry(
+                agent_id="test-agent",
+                cycle=1,
+                call_index=0,
+                model="claude-sonnet-4-5",
+                response=_Resp(),
+            )
+
+        assert captured.get("entry") is not None, (
+            "_write_usage_entry did not delegate to _locked_append_usage_record"
+        )
+        entry = captured["entry"]
+        assert "anthropic_ratelimit" in entry, (
+            f"anthropic_ratelimit field missing from entry: {entry}"
+        )
+        assert (
+            entry["anthropic_ratelimit"][
+                "llm_provider-anthropic-ratelimit-tokens-remaining"
+            ]
+            == "38500"
+        )
+        assert entry["cache_read_input_tokens"] == 200
+        assert entry["cache_creation_input_tokens"] == 50
+
+    def test_response_without_ratelimit_headers_omits_field(self):
+        from dso_ci_review.dispatch import _write_usage_entry
+
+        class _Usage:
+            prompt_tokens = 100
+            completion_tokens = 5
+            cache_read_input_tokens = None
+            cache_creation_input_tokens = None
+
+        class _Resp:
+            usage = _Usage()
+            _hidden_params = {"additional_headers": {}}
+
+        captured: dict = {}
+        from unittest.mock import patch
+
+        with patch(
+            "dso_ci_review.dispatch._locked_append_usage_record",
+            side_effect=self._capture_entry(captured),
+        ):
+            _write_usage_entry(
+                agent_id="test-agent",
+                cycle=1,
+                call_index=0,
+                model="claude-sonnet-4-5",
+                response=_Resp(),
+            )
+
+        assert captured.get("entry") is not None
+        assert "anthropic_ratelimit" not in captured["entry"], (
+            f"anthropic_ratelimit must be omitted when headers absent; "
+            f"got {captured['entry']}"
+        )
+
+    def test_response_none_omits_ratelimit_field(self):
+        from dso_ci_review.dispatch import _write_usage_entry
+
+        captured: dict = {}
+        from unittest.mock import patch
+
+        with patch(
+            "dso_ci_review.dispatch._locked_append_usage_record",
+            side_effect=self._capture_entry(captured),
+        ):
+            _write_usage_entry(
+                agent_id="test-agent",
+                cycle=1,
+                call_index=0,
+                model="claude-sonnet-4-5",
+                response=None,
+            )
+
+        assert captured.get("entry") is not None
+        assert "anthropic_ratelimit" not in captured["entry"]
+        assert captured["entry"]["input_tokens"] is None
