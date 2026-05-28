@@ -606,7 +606,7 @@ flowchart TB
     g2[Epic-level dispatch<br/>dso:completion-verifier]
     g3{P1 verdict?}
     g4[planner-dispatch:<br/>dso:verification-<br/>remediation-planner]
-    g5[/dso:validate-work]
+    g5["/dso:validate-work"]
     g6[Epic-specific<br/>validation agent<br/>UI vs backend]
     g1 --> g2 --> g3
     g3 -->|non-PASS| g4 --> gRemed[Remediation]
@@ -622,7 +622,7 @@ flowchart TB
     i1[Remove .sprint-active]
     i2[Verify merged to main]
     i3[Close epic]
-    i4[/dso:end-session<br/>--bump minor]
+    i4["/dso:end-session<br/>--bump minor"]
     i1 --> i2 --> i3 --> i4
   end
 
