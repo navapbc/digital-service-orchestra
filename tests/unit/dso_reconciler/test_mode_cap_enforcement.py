@@ -239,7 +239,7 @@ def test_target_mode_threaded_to_applier(tmp_path, applier_mod, mode_mod, mutati
     # importlib-loaded module after first triggering the load. Easiest: stub
     # reconcile_once itself to invoke our fake_apply.
 
-    def _fake_reconcile_once(pass_id, repo_root=None, target_mode=None):
+    def _fake_reconcile_once(pass_id, repo_root=None, target_mode=None, **kwargs):
         # Mirror the real signature; forward target_mode as the mode= kwarg
         # the way the real reconcile_once does.
         _fake_apply([], pass_id, repo_root, mode=target_mode)

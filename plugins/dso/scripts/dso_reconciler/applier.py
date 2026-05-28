@@ -175,7 +175,7 @@ def _apply_outbound_create(mutation, *, client=None, repo_root=None) -> ApplyRes
 # fields in the changed_fields set are silently dropped — pushing arbitrary
 # fields outbound is a higher-blast-radius change that lands in a follow-up
 # story. Status is governed separately by DSO_RECONCILER_STATUS_GATING.
-_OUTBOUND_UPDATE_ALLOWLIST = frozenset({"title", "description", "assignee", "priority"})
+_OUTBOUND_UPDATE_ALLOWLIST = frozenset({"summary", "description", "assignee", "priority"})
 
 
 def _route_status_via_draft5(mutation, *, client=None):

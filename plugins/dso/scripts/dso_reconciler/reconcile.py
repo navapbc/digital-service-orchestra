@@ -302,8 +302,42 @@ def _read_local_tickets(repo_root: Path) -> list[dict]:
         return []
 
 
+def _build_filter_target_set(
+    filter_local_ids: set[str],
+    binding_store: Any,
+) -> set[str]:
+    """Build the full set of targets that match *filter_local_ids*.
+
+    Returns the union of the local IDs themselves and their bound Jira keys
+    (if any).  A mutation matches the filter when its ``target``,
+    ``provenance.local_id``, or ``provenance.jira_key`` intersects this set.
+    """
+    targets = set(filter_local_ids)
+    for lid in filter_local_ids:
+        jira_key = binding_store.get_jira_key(lid)
+        if jira_key:
+            targets.add(jira_key)
+    return targets
+
+
+def _mutation_matches_filter(mutation: Any, target_set: set[str]) -> bool:
+    """Return True if *mutation* targets a ticket in *target_set*."""
+    if getattr(mutation, "target", None) in target_set:
+        return True
+    prov = getattr(mutation, "provenance", None) or {}
+    if isinstance(prov, Mapping):
+        if prov.get("local_id") in target_set:
+            return True
+        if prov.get("jira_key") in target_set:
+            return True
+    return False
+
+
 def reconcile_once(
-    pass_id: str, repo_root: Path | None = None, target_mode=None
+    pass_id: str,
+    repo_root: Path | None = None,
+    target_mode=None,
+    filter_local_ids: set[str] | None = None,
 ) -> dict:
     """Run one reconciler pass: fetch → diff → apply.
 
@@ -320,10 +354,17 @@ def reconcile_once(
       5. Binding store persistence at pass end
 
     Args:
-        pass_id:   Unique identifier for this reconciliation pass.
-        repo_root: Repository root directory.  Defaults to four levels above
-                   this file (dso_reconciler/ → scripts/ → dso/ → plugins/ →
-                   repo root).
+        pass_id:       Unique identifier for this reconciliation pass.
+        repo_root:     Repository root directory.  Defaults to four levels
+                       above this file (dso_reconciler/ → scripts/ → dso/ →
+                       plugins/ → repo root).
+        filter_local_ids:
+                       When set, restricts which mutations reach the applier.
+                       All three differs run on their full, unfiltered inputs
+                       (same code paths as production).  Only mutations whose
+                       target or provenance matches a local ID in this set
+                       (or its bound Jira key) are dispatched.  ``None``
+                       (default) means no filtering — full reconciliation.
 
     Returns:
         ``{"pass_id": pass_id, "mutation_count": N, "manifest_path": str}``
@@ -351,7 +392,14 @@ def reconcile_once(
         "sync_pass_start",
         pass_id=pass_id,
         mode=target_mode.value if target_mode else "live",
+        filtered=bool(filter_local_ids),
+        filter_count=len(filter_local_ids) if filter_local_ids else 0,
     )
+    if filter_local_ids:
+        print(  # noqa: T201
+            f"FILTERED PASS: scope restricted to {len(filter_local_ids)} "
+            f"local IDs — not a production reconciliation."
+        )
 
     # Ensure snapshots directory exists
     snapshots_dir = repo_root / "bridge_state" / "snapshots"
@@ -392,20 +440,35 @@ def reconcile_once(
     # at 5 per pass — see invariants._CAP_PER_PASS), so the prior log line's
     # "violations" and "filed" numbers were identical by construction. F11: log
     # filed count with the cap for clarity.
-    filed = invariants_mod.check_at_most_one_dso_local_id(
-        curr_snapshot, repo_root=repo_root
-    )
-    print(  # noqa: T201
-        f"invariants: scanned={len(curr_snapshot)} filed={len(filed)} (cap=5)"
-    )
+    #
+    # Filtered passes skip invariant bug-filing to avoid side effects on
+    # pre-existing violations outside the test scope.
+    if filter_local_ids:
+        print(  # noqa: T201
+            f"invariants: skipped (filtered pass, {len(curr_snapshot)} issues in snapshot)"
+        )
+    else:
+        filed = invariants_mod.check_at_most_one_dso_local_id(
+            curr_snapshot, repo_root=repo_root
+        )
+        print(  # noqa: T201
+            f"invariants: scanned={len(curr_snapshot)} filed={len(filed)} (cap=5)"
+        )
 
     # Invariant phase: verify dual-identity round-trip on the post-fetch
     # snapshot before diffing. Quarantine one-sided keys (skipped by the
     # differ) and seed repair_property mutations for one-sided dso_local_id
     # rows so the differ emits the repair in this same pass.
-    quarantine_keys, seed_repair_property_mutations = (
-        invariants_mod.check_dual_identity_complete(prev_snapshot, curr_snapshot)
-    )
+    #
+    # Filtered passes skip this to avoid seeding repair mutations for
+    # non-test tickets that would leak outside the filter scope.
+    if filter_local_ids:
+        quarantine_keys: set[str] = set()
+        seed_repair_property_mutations: list = []
+    else:
+        quarantine_keys, seed_repair_property_mutations = (
+            invariants_mod.check_dual_identity_complete(prev_snapshot, curr_snapshot)
+        )
 
     # Compute mutations (pure function, no I/O). The invariant signals are
     # passed through so the differ honors quarantine + seed mutations.
@@ -500,14 +563,17 @@ def reconcile_once(
     # the unified applier.apply() dispatch (cap enforcement, direction-aware
     # routing).
     # -------------------------------------------------------------------
-    try:
-        binding_store.recover_pending_bindings(applier)
-    except Exception as exc:  # noqa: BLE001
-        # Recovery failure is non-fatal — log and continue.
-        print(  # noqa: T201
-            f"reconcile: binding recovery failed ({exc}), continuing",
-            file=sys.stderr,
-        )
+    # Filtered passes skip pending-binding recovery to avoid finalizing
+    # bindings for non-test tickets (scope leak).
+    if not filter_local_ids:
+        try:
+            binding_store.recover_pending_bindings(applier)
+        except Exception as exc:  # noqa: BLE001
+            # Recovery failure is non-fatal — log and continue.
+            print(  # noqa: T201
+                f"reconcile: binding recovery failed ({exc}), continuing",
+                file=sys.stderr,
+            )
 
     outbound_raw = outbound_differ_mod.compute_outbound_mutations(
         local_tickets,
@@ -604,6 +670,28 @@ def reconcile_once(
         )
         mutations.append(typed)
 
+    # -------------------------------------------------------------------
+    # Post-filter: when filter_local_ids is set, discard mutations that
+    # target tickets outside the filter scope.  All three differs ran on
+    # their full, unfiltered inputs (same code paths as production); only
+    # the dispatch set is narrowed.
+    # -------------------------------------------------------------------
+    unfiltered_count = len(mutations)
+    if filter_local_ids:
+        target_set = _build_filter_target_set(filter_local_ids, binding_store)
+        mutations = [m for m in mutations if _mutation_matches_filter(m, target_set)]
+        print(  # noqa: T201
+            f"filter: {unfiltered_count} mutations computed, "
+            f"{len(mutations)} match filter ({len(filter_local_ids)} local IDs, "
+            f"{len(target_set)} target keys)"
+        )
+        sync_logger.log(
+            "filter_applied",
+            unfiltered=unfiltered_count,
+            filtered=len(mutations),
+            target_keys=len(target_set),
+        )
+
     # Preflight: abort the pass if any update mutation references a status
     # not present in config.local_to_jira_status. Runs exactly once per pass,
     # before any applier dispatch, so unmapped statuses cannot reach Jira.
@@ -696,8 +784,13 @@ def reconcile_once(
     )
     sync_logger.close()
 
-    return {
+    result = {
         "pass_id": pass_id,
         "mutation_count": len(mutations),
         "manifest_path": str(manifest_path),
     }
+    if filter_local_ids:
+        result["filtered"] = True
+        result["filter_local_ids"] = sorted(filter_local_ids)
+        result["unfiltered_mutation_count"] = unfiltered_count
+    return result
