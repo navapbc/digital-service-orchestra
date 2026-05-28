@@ -40,10 +40,11 @@ _run_sut_with_json() {
     # Run SUT with a mock TICKET_CMD that returns the given JSON
     local json_output="$1"
     local tmpscript
-    tmpscript=$(mktemp /tmp/mock-ticket-XXXXXX)
+    tmpscript=$(mktemp "${TMPDIR:-/tmp}/mock-ticket-XXXXXX")
     mv "$tmpscript" "${tmpscript}.sh"
     tmpscript="${tmpscript}.sh"
     _TMPSCRIPTS+=("$tmpscript")
+    # shellcheck disable=SC2064  # intentional: $tmpscript resolves at function scope, single-quote loses it
     trap "rm -f '$tmpscript'" RETURN
     cat > "$tmpscript" <<'MOCKEOF'
 #!/usr/bin/env bash

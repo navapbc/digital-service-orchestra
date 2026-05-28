@@ -40,7 +40,7 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 # Make a fresh git fixture and cd into it. Returns the dir path on stdout.
 _mkfixture() {
     local d
-    d="$(mktemp -d /tmp/mtm-pr-title.XXXXXX)"
+    d="$(mktemp -d "${TMPDIR:-/tmp}/mtm-pr-title.XXXXXX")"
     (
         cd "$d" || exit 1
         git init -q -b main

@@ -31,7 +31,7 @@ trap 'rm -rf "${_TEST_TMPDIRS[@]:-}"' EXIT INT TERM
 # Helper: create a new isolated temp dir and echo its path
 _mktmp() {
     local d
-    d=$(mktemp -d /tmp/test-xb-api.XXXXXX)
+    d=$(mktemp -d "${TMPDIR:-/tmp}/test-xb-api.XXXXXX")
     _TEST_TMPDIRS+=("$d")
     echo "$d"
 }
@@ -319,7 +319,7 @@ test_g2_rebase_orphan_fetchable_but_not_ancestor() {
     git -C "$remote_dir" symbolic-ref HEAD refs/heads/main
 
     local ws
-    ws=$(mktemp -d /tmp/xb-ws-g2.XXXXXX)
+    ws=$(mktemp -d "${TMPDIR:-/tmp}/xb-ws-g2.XXXXXX")
     _TEST_TMPDIRS+=("$ws")
     git -C "$ws" init -q -b main
     git -C "$ws" config user.email "t@t.local"
@@ -380,7 +380,7 @@ EOF
     out="$(
         export PATH="$tmp/fixtures/bin:$PATH"
         export DSO_GH_FIXTURE_DIR="$tmp/fixtures"
-        cd "$ws"
+        cd "$ws" || return
         GITHUB_REPOSITORY="test/repo" HEAD_REF="worktree-test" BASE_REF="main" \
         ARTIFACT_DIR="$tmp" CROSS_BRANCH_FILE="$cbf" \
         bash "$SCRIPT" 2>&1
@@ -577,7 +577,7 @@ test_m_multi_epic_both_derived() {
     git -C "$remote_dir" symbolic-ref HEAD refs/heads/main
 
     local ws
-    ws=$(mktemp -d /tmp/xb-ws.XXXXXX)
+    ws=$(mktemp -d "${TMPDIR:-/tmp}/xb-ws.XXXXXX")
     _TEST_TMPDIRS+=("$ws")
     git -C "$ws" init -q -b main
     git -C "$ws" config user.email "t@t.local"
@@ -639,7 +639,7 @@ EOF
     out="$(
         export PATH="$tmp/fixtures/bin:$PATH"
         export DSO_GH_FIXTURE_DIR="$tmp/fixtures"
-        cd "$session_dir"
+        cd "$session_dir" || return
         GITHUB_REPOSITORY="test/repo" HEAD_REF="worktree-test" BASE_REF="main" \
         ARTIFACT_DIR="$tmp" CROSS_BRANCH_FILE="$cbf" \
         bash "$SCRIPT" 2>&1
@@ -668,7 +668,7 @@ test_n_zero_merge_commits_soft_exit() {
     git -C "$remote_dir" symbolic-ref HEAD refs/heads/main
 
     local ws
-    ws=$(mktemp -d /tmp/xb-ws-n.XXXXXX)
+    ws=$(mktemp -d "${TMPDIR:-/tmp}/xb-ws-n.XXXXXX")
     _TEST_TMPDIRS+=("$ws")
     git -C "$ws" init -q -b main
     git -C "$ws" config user.email "t@t.local"
@@ -696,7 +696,7 @@ test_n_zero_merge_commits_soft_exit() {
     local out
     out="$(
         export PATH="$FIXTURE_DIR/bin:$PATH"
-        cd "$session_dir"
+        cd "$session_dir" || return
         GITHUB_REPOSITORY="test/repo" HEAD_REF="worktree-test" BASE_REF="main" \
         ARTIFACT_DIR="$tmp" CROSS_BRANCH_FILE="$cbf" \
         bash "$SCRIPT" 2>&1
@@ -726,7 +726,7 @@ test_o_non_story_branch_excluded() {
     git -C "$remote_dir" symbolic-ref HEAD refs/heads/main
 
     local ws
-    ws=$(mktemp -d /tmp/xb-ws-o.XXXXXX)
+    ws=$(mktemp -d "${TMPDIR:-/tmp}/xb-ws-o.XXXXXX")
     _TEST_TMPDIRS+=("$ws")
     git -C "$ws" init -q -b main
     git -C "$ws" config user.email "t@t.local"
@@ -755,7 +755,7 @@ test_o_non_story_branch_excluded() {
     local out
     out="$(
         export PATH="$FIXTURE_DIR/bin:$PATH"
-        cd "$session_dir"
+        cd "$session_dir" || return
         GITHUB_REPOSITORY="test/repo" HEAD_REF="worktree-test" BASE_REF="main" \
         ARTIFACT_DIR="$tmp" CROSS_BRANCH_FILE="$cbf" \
         bash "$SCRIPT" 2>&1
@@ -780,7 +780,7 @@ test_p_shallow_clone_unshallow() {
     git -C "$remote_dir" symbolic-ref HEAD refs/heads/main
 
     local ws
-    ws=$(mktemp -d /tmp/xb-ws-p.XXXXXX)
+    ws=$(mktemp -d "${TMPDIR:-/tmp}/xb-ws-p.XXXXXX")
     _TEST_TMPDIRS+=("$ws")
     git -C "$ws" init -q -b main
     git -C "$ws" config user.email "t@t.local"
@@ -838,7 +838,7 @@ EOF
     out="$(
         export PATH="$tmp/fixtures/bin:$PATH"
         export DSO_GH_FIXTURE_DIR="$tmp/fixtures"
-        cd "$session_dir"
+        cd "$session_dir" || return
         GITHUB_REPOSITORY="test/repo" HEAD_REF="worktree-test" BASE_REF="main" \
         ARTIFACT_DIR="$tmp" CROSS_BRANCH_FILE="$cbf" \
         bash "$SCRIPT" 2>&1
@@ -861,7 +861,7 @@ test_q_multi_epic_dedup_sorted_unique() {
     git -C "$remote_dir" symbolic-ref HEAD refs/heads/main
 
     local ws
-    ws=$(mktemp -d /tmp/xb-ws-q.XXXXXX)
+    ws=$(mktemp -d "${TMPDIR:-/tmp}/xb-ws-q.XXXXXX")
     _TEST_TMPDIRS+=("$ws")
     git -C "$ws" init -q -b main
     git -C "$ws" config user.email "t@t.local"
@@ -905,7 +905,7 @@ test_q_multi_epic_dedup_sorted_unique() {
     out="$(
         export PATH="$tmp/fixtures/bin:$PATH"
         export DSO_GH_FIXTURE_DIR="$tmp/fixtures"
-        cd "$session_dir"
+        cd "$session_dir" || return
         GITHUB_REPOSITORY="test/repo" HEAD_REF="worktree-test" BASE_REF="main" \
         ARTIFACT_DIR="$tmp" CROSS_BRANCH_FILE="$cbf" \
         bash "$SCRIPT" 2>&1
@@ -960,7 +960,7 @@ test_s_renamed_session_branch_graceful_degradation() {
     git -C "$remote_dir" symbolic-ref HEAD refs/heads/main
 
     local ws
-    ws=$(mktemp -d /tmp/xb-ws-s.XXXXXX)
+    ws=$(mktemp -d "${TMPDIR:-/tmp}/xb-ws-s.XXXXXX")
     _TEST_TMPDIRS+=("$ws")
     git -C "$ws" init -q -b main
     git -C "$ws" config user.email "t@t.local"
@@ -1011,7 +1011,7 @@ EOF
     out="$(
         export PATH="$tmp/fixtures/bin:$PATH"
         export DSO_GH_FIXTURE_DIR="$tmp/fixtures"
-        cd "$session_dir"
+        cd "$session_dir" || return
         GITHUB_REPOSITORY="test/repo" HEAD_REF="new-session-name" BASE_REF="main" \
         ARTIFACT_DIR="$tmp" CROSS_BRANCH_FILE="$cbf" \
         bash "$SCRIPT" 2>&1

@@ -113,7 +113,7 @@ assert_eq "test_cascade_breaker_allows_tmp_files_at_threshold" "0" "$EXIT_CODE"
 # current worktree.
 #
 # We create a second fake root explicitly under /tmp/ to exercise this path.
-TMP_FAKE_ROOT=$(mktemp -d "/tmp/test-cascade-tmp-wt-XXXXXX")
+TMP_FAKE_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/test-cascade-tmp-wt-XXXXXX")
 TMP_FAKE_ROOT_CLEANUP="$TMP_FAKE_ROOT"
 git init -q "$TMP_FAKE_ROOT"
 # On macOS /tmp is a symlink to /private/tmp; resolve to the canonical path

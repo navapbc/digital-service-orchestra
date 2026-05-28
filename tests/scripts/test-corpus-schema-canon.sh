@@ -50,7 +50,7 @@ fi
 # ---------------------------------------------------------------------------
 _make_fixture_dir() {
     local tmpdir
-    tmpdir=$(mktemp -d /tmp/canon-schema-test.XXXXXX)
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/canon-schema-test.XXXXXX")
     cp "$SCHEMA" "$tmpdir/_schema.yaml"
     echo "$tmpdir"
 }

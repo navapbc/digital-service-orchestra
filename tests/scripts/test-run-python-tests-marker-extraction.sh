@@ -27,7 +27,7 @@ echo "=== test-run-python-tests-marker-extraction.sh ==="
 # any change to that pattern is reflected here. Returns one marker per line.
 extract_markers_from_lines() {
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-index-snippet.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-index-snippet.XXXXXX")
     printf '%s\n' "$@" > "$tmpfile"
 
     local red_markers=()

@@ -16,15 +16,15 @@ SUT="$REPO_ROOT/plugins/dso/scripts/resolve-default-branch.sh"
 # ── Scaffolding ──────────────────────────────────────────────────────────────
 TMPDIR_TEST=""
 _setup() {
-    TMPDIR_TEST=$(mktemp -d /tmp/test-resolve-default-branch.XXXXXX)
-    cd "$TMPDIR_TEST"
+    TMPDIR_TEST=$(mktemp -d "${TMPDIR:-/tmp}/test-resolve-default-branch.XXXXXX")
+    cd "$TMPDIR_TEST" || return
     git init -b main --quiet
     git config user.email "test@test.example"
     git config user.name "Test"
     mkdir -p .claude
 }
 _teardown() {
-    [[ -n "$TMPDIR_TEST" ]] && { cd /tmp; rm -rf "$TMPDIR_TEST"; }
+    [[ -n "$TMPDIR_TEST" ]] && { cd /tmp || true; rm -rf "$TMPDIR_TEST"; }
     TMPDIR_TEST=""
 }
 trap _teardown EXIT
@@ -40,7 +40,7 @@ test_config_takes_precedence_over_symbolic_ref() {
               DSO_DEFAULT_BRANCH_TEST_SYMBOLIC_REF="origin/master" \
               bash "$SUT" --no-warn 2>/dev/null)
     assert_eq "config beats symbolic-ref" "trunk" "$_result"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -52,7 +52,7 @@ test_symbolic_ref_used_when_config_absent() {
               DSO_DEFAULT_BRANCH_TEST_SYMBOLIC_REF="origin/master" \
               bash "$SUT" --no-warn 2>/dev/null)
     assert_eq "symbolic-ref used when config absent" "master" "$_result"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -63,7 +63,7 @@ test_symbolic_ref_strips_origin_prefix() {
               DSO_DEFAULT_BRANCH_TEST_SYMBOLIC_REF="origin/develop" \
               bash "$SUT" --no-warn 2>/dev/null)
     assert_eq "origin/ prefix stripped from symbolic-ref" "develop" "$_result"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -75,7 +75,7 @@ test_gh_used_when_symbolic_ref_empty() {
               DSO_DEFAULT_BRANCH_TEST_GH_OUTPUT="release" \
               bash "$SUT" --no-warn 2>/dev/null)
     assert_eq "gh output used when symbolic-ref empty" "release" "$_result"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -87,7 +87,7 @@ test_fallback_to_main_when_all_steps_fail() {
               DSO_DEFAULT_BRANCH_TEST_GH_OUTPUT="" \
               bash "$SUT" --no-warn 2>/dev/null)
     assert_eq "fallback to main when all steps fail" "main" "$_result"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -99,7 +99,7 @@ test_warning_emitted_on_fallback() {
               DSO_DEFAULT_BRANCH_TEST_GH_OUTPUT="" \
               bash "$SUT" 2>&1 1>/dev/null)
     assert_contains "warning emitted on fallback" "Falling back to 'main'" "$_stderr"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -111,7 +111,7 @@ test_no_warn_suppresses_warning() {
               DSO_DEFAULT_BRANCH_TEST_GH_OUTPUT="" \
               bash "$SUT" --no-warn 2>&1 1>/dev/null)
     assert_eq "--no-warn suppresses warning" "" "$_stderr"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -123,7 +123,7 @@ test_always_exits_zero() {
         DSO_DEFAULT_BRANCH_TEST_GH_OUTPUT="" \
         bash "$SUT" --no-warn >/dev/null 2>&1 || _rc=$?
     assert_eq "always exits 0" "0" "$_rc"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -135,7 +135,7 @@ test_config_empty_value_falls_through() {
               DSO_DEFAULT_BRANCH_TEST_SYMBOLIC_REF="origin/master" \
               bash "$SUT" --no-warn 2>/dev/null)
     assert_eq "empty config falls through to symbolic-ref" "master" "$_result"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -171,7 +171,7 @@ test_cache_invalidation_in_dispatcher() {
     fi
 
     assert_eq "cache deleted by dispatcher snippet" "0" "$([[ -f "${_git_dir}/dso-default-branch" ]] && echo 1 || echo 0)"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 

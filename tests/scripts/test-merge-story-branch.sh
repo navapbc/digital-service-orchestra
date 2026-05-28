@@ -38,13 +38,13 @@ fi
 # Sets globals: _TEST_DIR
 # =============================================================================
 _setup_scratch_repo() {
-    _TEST_DIR=$(mktemp -d /tmp/test-merge-story-branch.XXXXXX)
+    _TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-story-branch.XXXXXX")
 
     git init "$_TEST_DIR" --initial-branch=main --quiet 2>/dev/null \
         || git init "$_TEST_DIR" --quiet 2>/dev/null  # fallback for older git
 
     (
-        cd "$_TEST_DIR"
+        cd "$_TEST_DIR" || return
         git config user.email "test@test.com"
         git config user.name "Test"
 
@@ -77,9 +77,9 @@ _snapshot_fail
 _setup_scratch_repo
 
 _T1_RC=0
-_T1_STDERR=$(mktemp /tmp/test-merge-story-t1-stderr.XXXXXX)
+_T1_STDERR=$(mktemp "${TMPDIR:-/tmp}/test-merge-story-t1-stderr.XXXXXX")
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     bash "$MERGE_STORY_SCRIPT" "story/test-epic/test-story-id" "test-story-id" 2>"$_T1_STDERR"
 ) || _T1_RC=$?
 
@@ -108,9 +108,9 @@ _snapshot_fail
 _setup_scratch_repo
 
 _T2_RC=0
-_T2_STDERR=$(mktemp /tmp/test-merge-story-t2-stderr.XXXXXX)
+_T2_STDERR=$(mktemp "${TMPDIR:-/tmp}/test-merge-story-t2-stderr.XXXXXX")
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     bash "$MERGE_STORY_SCRIPT" "story/test-epic/test-story-id" "test-story-id" 2>"$_T2_STDERR"
 ) || _T2_RC=$?
 
@@ -137,9 +137,9 @@ _snapshot_fail
 _setup_scratch_repo
 
 _T3_RC=0
-_T3_STDERR=$(mktemp /tmp/test-merge-story-t3-stderr.XXXXXX)
+_T3_STDERR=$(mktemp "${TMPDIR:-/tmp}/test-merge-story-t3-stderr.XXXXXX")
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     bash "$MERGE_STORY_SCRIPT" "story/does-not-exist/nonexistent-id" "nonexistent-id" 2>"$_T3_STDERR"
 ) || _T3_RC=$?
 
@@ -166,9 +166,9 @@ _snapshot_fail
 _setup_scratch_repo
 
 _T4_RC=0
-_T4_STDERR=$(mktemp /tmp/test-merge-story-t4-stderr.XXXXXX)
+_T4_STDERR=$(mktemp "${TMPDIR:-/tmp}/test-merge-story-t4-stderr.XXXXXX")
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     bash "$MERGE_STORY_SCRIPT" 2>"$_T4_STDERR"
 ) || _T4_RC=$?
 
@@ -190,11 +190,11 @@ echo ""
 echo "--- test_no_diff_same_tip_emits_empty_trailer_commit ---"
 _snapshot_fail
 
-_TEST_DIR=$(mktemp -d /tmp/test-merge-story-no-diff.XXXXXX)
+_TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-story-no-diff.XXXXXX")
 git init "$_TEST_DIR" --initial-branch=main --quiet 2>/dev/null \
     || git init "$_TEST_DIR" --quiet 2>/dev/null
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "init" > README.md
@@ -207,9 +207,9 @@ git init "$_TEST_DIR" --initial-branch=main --quiet 2>/dev/null \
 
 _T5_HEAD_BEFORE=$(cd "$_TEST_DIR" && git rev-parse HEAD)
 _T5_RC=0
-_T5_STDERR=$(mktemp /tmp/test-merge-story-t5-stderr.XXXXXX)
+_T5_STDERR=$(mktemp "${TMPDIR:-/tmp}/test-merge-story-t5-stderr.XXXXXX")
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     bash "$MERGE_STORY_SCRIPT" "story/no-diff-epic/no-diff-story" "no-diff-story" 2>"$_T5_STDERR"
 ) || _T5_RC=$?
 

@@ -13,7 +13,7 @@ assert_exit_contains() {
   local desc="$1" expected_exit="$2" expected_output="$3"
   shift 3
   local tmpfile
-  tmpfile=$(mktemp /tmp/post-batch-test.XXXXXX)
+  tmpfile=$(mktemp "${TMPDIR:-/tmp}/post-batch-test.XXXXXX")
   if "$@" >"$tmpfile" 2>&1; then
     actual=0
   else
@@ -48,7 +48,7 @@ assert_exit_contains \
   bash "$POST_BATCH" "src/main.py" "lib/utils.py"
 
 # Controlled environment tests
-WORK_DIR=$(mktemp -d /tmp/post-batch-work.XXXXXX)
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/post-batch-work.XXXXXX")
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
@@ -91,7 +91,7 @@ PRECOND
 chmod +x "$WORK_DIR/fake-plugin/scripts/sprint/visual-eval-preconditions.sh"
 
 # Create a fake capture-screenshots.sh that produces large files
-FAKE_CAPTURE_DIR=$(mktemp -d /tmp/fake-capture.XXXXXX)
+FAKE_CAPTURE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/fake-capture.XXXXXX")
 for i in $(seq 1 10); do
   dd if=/dev/zero of="$FAKE_CAPTURE_DIR/page_${i}.png" bs=1024 count=500 2>/dev/null
 done

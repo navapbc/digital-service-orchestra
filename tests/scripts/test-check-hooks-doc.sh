@@ -41,7 +41,7 @@ test_undocumented_wrapper_flagged() {
     local _hook_name="test-injected-undocumented-hook-$$"
     local _hook_file="$HOOKS_DIR/$_hook_name.sh"
     local stderr_file
-    stderr_file=$(mktemp /tmp/test-check-hooks-doc-undoc.XXXXXX)
+    stderr_file=$(mktemp "${TMPDIR:-/tmp}/test-check-hooks-doc-undoc.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$_hook_file' '$stderr_file'" RETURN
     printf '%s\n' "#!/usr/bin/env bash" "# Synthetic test fixture — should be flagged by check-hooks-doc" "exit 0" > "$_hook_file"

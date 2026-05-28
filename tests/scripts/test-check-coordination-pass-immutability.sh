@@ -83,8 +83,8 @@ YAML
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- test 1: pass case — hard-constraint items identical ---"
-_FIRST="$(mktemp /tmp/coord-first.XXXXXX.yaml)"
-_SECOND="$(mktemp /tmp/coord-second.XXXXXX.yaml)"
+_FIRST="$(mktemp "${TMPDIR:-/tmp}/coord-first.XXXXXX".yaml)"
+_SECOND="$(mktemp "${TMPDIR:-/tmp}/coord-second.XXXXXX".yaml)"
 
 write_first_pass "$_FIRST"
 # Second pass: both items unchanged
@@ -129,8 +129,8 @@ rm -f "$_FIRST" "$_SECOND"
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- test 2: fail case — hard-constraint item values.label mutated ---"
-_FIRST="$(mktemp /tmp/coord-first.XXXXXX.yaml)"
-_SECOND="$(mktemp /tmp/coord-second.XXXXXX.yaml)"
+_FIRST="$(mktemp "${TMPDIR:-/tmp}/coord-first.XXXXXX".yaml)"
+_SECOND="$(mktemp "${TMPDIR:-/tmp}/coord-second.XXXXXX".yaml)"
 
 write_first_pass "$_FIRST"
 # Second pass: hard-constraint item 'field-name' has label changed
@@ -160,7 +160,7 @@ items:
       deviations: []
 YAML
 
-_STDERR_OUT="$(mktemp /tmp/coord-stderr.XXXXXX.txt)"
+_STDERR_OUT="$(mktemp "${TMPDIR:-/tmp}/coord-stderr.XXXXXX".txt)"
 if bash "$DIFF_CHECK" "$_FIRST" "$_SECOND" >/dev/null 2>"$_STDERR_OUT"; then
   fail "hard-constraint item.label mutated → diff-check should exit non-zero but exited 0"
 else
@@ -187,8 +187,8 @@ rm -f "$_FIRST" "$_SECOND" "$_STDERR_OUT"
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- test 3: pass case — only soft (non-hard-constraint) item mutated ---"
-_FIRST="$(mktemp /tmp/coord-first.XXXXXX.yaml)"
-_SECOND="$(mktemp /tmp/coord-second.XXXXXX.yaml)"
+_FIRST="$(mktemp "${TMPDIR:-/tmp}/coord-first.XXXXXX".yaml)"
+_SECOND="$(mktemp "${TMPDIR:-/tmp}/coord-second.XXXXXX".yaml)"
 
 write_first_pass "$_FIRST"
 # Second pass: hard-constraint item 'field-name' is UNCHANGED; soft item 'field-description'
@@ -236,8 +236,8 @@ rm -f "$_FIRST" "$_SECOND"
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- test 4: fail case — hard-constraint item values.errors mutated ---"
-_FIRST="$(mktemp /tmp/coord-first.XXXXXX.yaml)"
-_SECOND="$(mktemp /tmp/coord-second.XXXXXX.yaml)"
+_FIRST="$(mktemp "${TMPDIR:-/tmp}/coord-first.XXXXXX".yaml)"
+_SECOND="$(mktemp "${TMPDIR:-/tmp}/coord-second.XXXXXX".yaml)"
 
 write_first_pass "$_FIRST"
 # Second pass: hard-constraint item 'field-name' has errors.required changed
@@ -280,8 +280,8 @@ rm -f "$_FIRST" "$_SECOND"
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- test 5: pass case — govuk hard-constraint item identical ---"
-_FIRST="$(mktemp /tmp/coord-first.XXXXXX.yaml)"
-_SECOND="$(mktemp /tmp/coord-second.XXXXXX.yaml)"
+_FIRST="$(mktemp "${TMPDIR:-/tmp}/coord-first.XXXXXX".yaml)"
+_SECOND="$(mktemp "${TMPDIR:-/tmp}/coord-second.XXXXXX".yaml)"
 
 cat > "$_FIRST" <<'YAML'
 schema_version: 1

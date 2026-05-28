@@ -70,7 +70,7 @@ _DEFEND_FIXTURE_COMMENTS_TOPLEVEL='[
 # GH_INLINE_FAIL=1 causes the inline (pulls/comments/*/replies) POST to fail.
 _make_stub_dir() {
     local stub_dir
-    stub_dir=$(mktemp -d "/tmp/dso-defend-stubs.XXXXXX")
+    stub_dir=$(mktemp -d "${TMPDIR:-/tmp}/dso-defend-stubs.XXXXXX")
     _cleanup_dirs+=("$stub_dir")
 
     cat > "$stub_dir/gh" << 'GHEOF'
@@ -205,9 +205,9 @@ test_defend_posts_review_comment_and_writes_defense_comment_id() {
     echo "=== test_defend_posts_review_comment_and_writes_defense_comment_id ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defend-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defend-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defend-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defend-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
 
     _make_defend_json_inline null > "$out_json"
@@ -251,9 +251,9 @@ test_defend_top_level_uses_issues_endpoint() {
     echo "=== test_defend_top_level_uses_issues_endpoint ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defend-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defend-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defend-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defend-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
 
     _make_defend_json_toplevel null > "$out_json"
@@ -301,9 +301,9 @@ test_defend_retry_skips_review_comment_when_defense_id_present() {
     echo "=== test_defend_retry_skips_review_comment_when_defense_id_present ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defend-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defend-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defend-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defend-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
 
     # Pre-populate defense_comment_id (retry case)
@@ -350,9 +350,9 @@ test_defend_422_fallback_uses_issues_endpoint() {
     echo "=== test_defend_422_fallback_uses_issues_endpoint ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defend-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defend-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defend-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defend-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
 
     _make_defend_json_inline null > "$out_json"
@@ -399,9 +399,9 @@ test_defend_reply_body_includes_sentinel_and_defense_comment_id() {
     echo "=== test_defend_reply_body_includes_sentinel_and_defense_comment_id ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defend-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defend-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defend-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defend-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
 
     _make_defend_json_inline null > "$out_json"

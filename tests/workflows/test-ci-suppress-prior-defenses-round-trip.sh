@@ -40,7 +40,7 @@ echo "=== test-ci-suppress-prior-defenses-round-trip.sh ==="
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
-_TMPDIR=$(mktemp -d /tmp/test-suppress-round-trip.XXXXXX)
+_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/test-suppress-round-trip.XXXXXX")
 
 # Minimal unified diff fixture (use echo to avoid printf flag confusion with leading dashes)
 {

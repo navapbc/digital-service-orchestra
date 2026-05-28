@@ -304,6 +304,13 @@ jobs:
       - name: Run script tests
         if: needs.changes.outputs.code_changed == 'true'
         shell: bash
+        env:
+          # bug a556 + INC-006: enable suite-engine's isolation check so any
+          # test that writes to a known shared /tmp path (bypassing the per-test
+          # TMPDIR sandbox) is reported as a violation. Tests that follow the
+          # documented mktemp "${TMPDIR:-/tmp}/<prefix>.XXXXXX" pattern are
+          # unaffected (their writes land inside the per-test sandbox).
+          SUITE_ISOLATION_CHECK: '1'
         run: |
           set -o pipefail
           bash tests/scripts/run-script-tests.sh 2>&1 | tee /tmp/test-scripts.log

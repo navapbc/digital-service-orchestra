@@ -116,7 +116,7 @@ _snapshot_fail
 # IMPORTANT: the script exits non-zero with a diagnostic if it can't find
 # the sub-PR ruleset object. This prevents the "all parses failed → empty
 # output → vacuous test pass" failure mode the prior awk approach had.
-_extract_stderr=$(mktemp /tmp/dso-extract-stderr.XXXXXX)
+_extract_stderr=$(mktemp "${TMPDIR:-/tmp}/dso-extract-stderr.XXXXXX")
 sub_pr_patterns=$(echo "$dryrun_output" | python3 -c '
 import sys, json
 text = sys.stdin.read()

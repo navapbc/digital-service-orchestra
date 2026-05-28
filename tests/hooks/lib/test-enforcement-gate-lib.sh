@@ -26,7 +26,7 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 _make_tmpdir_with_strategy() {
     local strategy="$1"
     local t
-    t="$(mktemp -d /tmp/test-enforcement-gate-lib.XXXXXX)"
+    t="$(mktemp -d "${TMPDIR:-/tmp}/test-enforcement-gate-lib.XXXXXX")"
     mkdir -p "$t/.claude"
     if [[ -n "$strategy" ]]; then
         printf 'dso.workflow=%s\n' "$strategy" > "$t/.claude/dso-config.conf"

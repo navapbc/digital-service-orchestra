@@ -13,7 +13,7 @@ assert_exit() {
   local desc="$1" expected_exit="$2"
   shift 2
   local tmpfile
-  tmpfile=$(mktemp /tmp/inline-test.XXXXXX)
+  tmpfile=$(mktemp "${TMPDIR:-/tmp}/inline-test.XXXXXX")
   if "$@" >"$tmpfile" 2>&1; then
     actual=0
   else
@@ -36,7 +36,7 @@ assert_exit_stderr() {
   local desc="$1" expected_exit="$2" expected_stderr="$3"
   shift 3
   local tmpfile
-  tmpfile=$(mktemp /tmp/inline-test.XXXXXX)
+  tmpfile=$(mktemp "${TMPDIR:-/tmp}/inline-test.XXXXXX")
   if "$@" 2>"$tmpfile" >/dev/null; then
     actual=0
   else
@@ -61,7 +61,7 @@ assert_exit_stderr() {
 }
 
 # Setup controlled environment
-WORK_DIR=$(mktemp -d /tmp/inline-test-work.XXXXXX)
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/inline-test-work.XXXXXX")
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 
@@ -122,7 +122,7 @@ chmod +x "$WORK_DIR/fake-plugin/scripts/sprint/visual-eval-preconditions.sh"
 # Create fake capture-screenshots.sh that creates a fresh dir each call
 cat > "$WORK_DIR/fake-plugin/scripts/capture-screenshots.sh" << 'CAPTURE'
 #!/usr/bin/env bash
-DIR=$(mktemp -d /tmp/fake-inline-capture.XXXXXX)
+DIR=$(mktemp -d "${TMPDIR:-/tmp}/fake-inline-capture.XXXXXX")
 printf '\x89PNG\r\n\x1a\n' > "$DIR/index.png"
 echo "$DIR"
 CAPTURE

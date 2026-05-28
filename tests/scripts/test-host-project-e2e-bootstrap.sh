@@ -85,7 +85,7 @@ set_config_kv() {
         return 1
     fi
     local tmp
-    tmp="$(mktemp /tmp/dso-cfg-patch.XXXXXX)"
+    tmp="$(mktemp "${TMPDIR:-/tmp}/dso-cfg-patch.XXXXXX")"
     local key_re
     key_re="$(printf '%s' "$key" | sed 's/\./\\./g')"
     if grep -qE "^${key_re}=" "$file"; then
@@ -179,7 +179,7 @@ _test_host_bootstrap_and_config_patch_body() {
     if [ -n "${RUNNER_TEMP:-}" ]; then
         base_temp="$RUNNER_TEMP"
     else
-        base_temp="$(mktemp -d /tmp/dso-host-e2e-XXXXXX)"
+        base_temp="$(mktemp -d "${TMPDIR:-/tmp}/dso-host-e2e-XXXXXX")"
     fi
     mkdir -p "$base_temp"
     local workdir="$base_temp/dso-host-e2e"

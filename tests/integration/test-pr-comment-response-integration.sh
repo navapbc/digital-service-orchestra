@@ -121,7 +121,7 @@ _FIXTURE_COMMENTS_JSON='[
 # ---------------------------------------------------------------------------
 _make_stub_dir() {
     local d
-    d=$(mktemp -d "/tmp/dso-pr-comment-response-stubs.XXXXXX")
+    d=$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-comment-response-stubs.XXXXXX")
     _TEST_TMPDIRS+=("$d")
 
     cat > "$d/gh" <<'GHEOF'
@@ -264,7 +264,7 @@ test_fetch_produces_normalized_json_schema() {
     export STUB_GH_SCENARIO
 
     local out_file
-    out_file=$(mktemp "/tmp/pr-comment-response-output.XXXXXX")
+    out_file=$(mktemp "${TMPDIR:-/tmp}/pr-comment-response-output.XXXXXX")
     _TEST_TMPDIRS+=("$out_file")  # cleaned up on exit
 
     local rc=0
@@ -312,7 +312,7 @@ test_reply_in_thread_root_comment_id_resolved() {
     export STUB_GH_SCENARIO
 
     local out_file
-    out_file=$(mktemp "/tmp/pr-comment-response-output.XXXXXX")
+    out_file=$(mktemp "${TMPDIR:-/tmp}/pr-comment-response-output.XXXXXX")
     _TEST_TMPDIRS+=("$out_file")
 
     if [[ "$_script_missing" == true ]]; then
@@ -362,7 +362,7 @@ test_empty_pr_exits_0_and_writes_empty_json() {
     export STUB_GH_SCENARIO
 
     local out_file
-    out_file=$(mktemp "/tmp/pr-comment-response-output.XXXXXX")
+    out_file=$(mktemp "${TMPDIR:-/tmp}/pr-comment-response-output.XXXXXX")
     _TEST_TMPDIRS+=("$out_file")
 
     local rc=0
@@ -444,7 +444,7 @@ test_defend_comment_defense_comment_id_non_null() {
     export STUB_GH_SCENARIO
 
     local out_file
-    out_file=$(mktemp "/tmp/pr-comment-response-output.XXXXXX")
+    out_file=$(mktemp "${TMPDIR:-/tmp}/pr-comment-response-output.XXXXXX")
     _TEST_TMPDIRS+=("$out_file")
 
     if [[ "$_script_missing" == true ]]; then
@@ -495,7 +495,7 @@ test_defer_comment_ticket_id_in_json() {
     export STUB_GH_SCENARIO
 
     local out_file
-    out_file=$(mktemp "/tmp/pr-comment-response-output.XXXXXX")
+    out_file=$(mktemp "${TMPDIR:-/tmp}/pr-comment-response-output.XXXXXX")
     _TEST_TMPDIRS+=("$out_file")
 
     if [[ "$_script_missing" == true ]]; then
@@ -546,7 +546,7 @@ test_no_real_api_calls_escape() {
     export STUB_GH_SCENARIO
 
     local out_file
-    out_file=$(mktemp "/tmp/pr-comment-response-output.XXXXXX")
+    out_file=$(mktemp "${TMPDIR:-/tmp}/pr-comment-response-output.XXXXXX")
     _TEST_TMPDIRS+=("$out_file")
 
     if [[ "$_script_missing" == true ]]; then
@@ -577,7 +577,7 @@ test_all_three_comments_get_replies() {
     export STUB_GH_SCENARIO
 
     local out_file
-    out_file=$(mktemp "/tmp/pr-comment-response-output.XXXXXX")
+    out_file=$(mktemp "${TMPDIR:-/tmp}/pr-comment-response-output.XXXXXX")
     _TEST_TMPDIRS+=("$out_file")
 
     if [[ "$_script_missing" == true ]]; then

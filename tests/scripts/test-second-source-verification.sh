@@ -27,7 +27,7 @@ echo "=== test-second-source-verification.sh ==="
 run_checker() {
     local json="$1"
     local tmp
-    tmp=$(mktemp /tmp/second-source-report.XXXXXX)
+    tmp=$(mktemp "${TMPDIR:-/tmp}/second-source-report.XXXXXX")
     printf '%s\n' "$json" > "$tmp"
     local rc=0
     bash "$CHECKER" "$tmp" >/dev/null 2>&1 || rc=$?

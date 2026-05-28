@@ -25,7 +25,7 @@ source "$LIB_DIR/assert.sh"
 _TEST_TMPDIRS=()
 make_tmpdir() {
     local d
-    d=$(mktemp -d /tmp/test-cycle-ledger-migration.XXXXXX)
+    d=$(mktemp -d "${TMPDIR:-/tmp}/test-cycle-ledger-migration.XXXXXX")
     _TEST_TMPDIRS+=("$d")
     echo "$d"
 }

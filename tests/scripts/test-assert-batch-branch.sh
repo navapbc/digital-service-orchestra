@@ -32,7 +32,7 @@ echo "=== test-assert-batch-branch.sh ==="
 _make_config() {
     local workflow="$1"
     local cfg
-    cfg=$(mktemp /tmp/test-assert-batch-cfg.XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/test-assert-batch-cfg.XXXXXX")
     _CLEANUP_FILES+=("$cfg")
     printf 'dso.workflow=%s\n' "$workflow" >"$cfg"
     echo "$cfg"
@@ -72,7 +72,7 @@ test_local_mode_is_noop() {
     cfg=$(_make_config local)
     repo=$(_make_repo_with_remote)
     (
-        cd "$repo"
+        cd "$repo" || return
         WORKFLOW_CONFIG_FILE="$cfg" bash "$SCRIPT" >/dev/null 2>&1
     ) || exit_code=$?
     if [ "$exit_code" -eq 0 ]; then
@@ -92,7 +92,7 @@ test_ci_pr_missing_arg_fails() {
     cfg=$(_make_config ci-pr)
     repo=$(_make_repo_with_remote)
     stderr_output=$(
-        cd "$repo"
+        cd "$repo" || return
         WORKFLOW_CONFIG_FILE="$cfg" bash "$SCRIPT" 2>&1
     ) || exit_code=$?
     if [ "$exit_code" -ne 0 ] && echo "$stderr_output" | grep -qE "git checkout -b .*bug-batch"; then
@@ -114,7 +114,7 @@ test_ci_pr_wrong_prefix_fails() {
     repo=$(_make_repo_with_remote)
     git -C "$repo" checkout -b "story/some-epic/some-story" >/dev/null 2>&1
     stderr_output=$(
-        cd "$repo"
+        cd "$repo" || return
         WORKFLOW_CONFIG_FILE="$cfg" bash "$SCRIPT" "story/some-epic/some-story" 2>&1
     ) || exit_code=$?
     if [ "$exit_code" -ne 0 ] && echo "$stderr_output" | grep -qiE "bug-batch.*prefix|prefix"; then
@@ -135,7 +135,7 @@ test_ci_pr_branch_not_exists_fails() {
     cfg=$(_make_config ci-pr)
     repo=$(_make_repo_with_remote)
     (
-        cd "$repo"
+        cd "$repo" || return
         WORKFLOW_CONFIG_FILE="$cfg" \
             bash "$SCRIPT" "bug-batch/nonexistent-session/tier-3-batch-1" >/dev/null 2>&1
     ) || exit_code=$?
@@ -157,7 +157,7 @@ test_ci_pr_branch_not_pushed_fails() {
     repo=$(_make_repo_with_remote)
     git -C "$repo" checkout -b "bug-batch/sess-abc/tier-3-batch-1" >/dev/null 2>&1
     stderr_output=$(
-        cd "$repo"
+        cd "$repo" || return
         WORKFLOW_CONFIG_FILE="$cfg" \
             bash "$SCRIPT" "bug-batch/sess-abc/tier-3-batch-1" 2>&1
     ) || exit_code=$?
@@ -181,7 +181,7 @@ test_ci_pr_branch_pushed_passes() {
     git -C "$repo" checkout -b "bug-batch/sess-abc/tier-3-batch-1" >/dev/null 2>&1
     git -C "$repo" push -u origin "bug-batch/sess-abc/tier-3-batch-1" >/dev/null 2>&1
     (
-        cd "$repo"
+        cd "$repo" || return
         WORKFLOW_CONFIG_FILE="$cfg" \
             bash "$SCRIPT" "bug-batch/sess-abc/tier-3-batch-1" >/dev/null 2>&1
     ) || exit_code=$?

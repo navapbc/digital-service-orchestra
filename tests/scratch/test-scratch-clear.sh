@@ -33,7 +33,7 @@ trap _cleanup EXIT
 # ── Helper: make a temp scratch base directory ────────────────────────────────
 _make_scratch_base() {
     local tmp
-    tmp=$(mktemp -d /tmp/scratch-clear-test-XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/scratch-clear-test-XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     echo "$tmp"
 }

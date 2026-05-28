@@ -326,13 +326,13 @@ test_setup_precommit_config_contains_review_gate() {
 # Refs: bugs 5f8b-2a22-4e2e-4e1f, b74b-40cb-3d97-4edb
 test_setup_precommit_stack_aware_generic_for_non_python() {
     local T
-    T=$(mktemp -d /tmp/test-dso-setup.XXXXXX)
+    T=$(mktemp -d "${TMPDIR:-/tmp}/test-dso-setup.XXXXXX")
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
     # Simulate non-Python stack detection output
     local detect_file
-    detect_file=$(mktemp /tmp/test-dso-setup.XXXXXX)
+    detect_file=$(mktemp "${TMPDIR:-/tmp}/test-dso-setup.XXXXXX")
     TMPDIRS+=("$detect_file")
     printf 'stack=ruby-rails\nframework=rails\n' > "$detect_file"
 

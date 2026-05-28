@@ -48,7 +48,7 @@ fi
 #   * A  (rebase target)
 _create_paused_rebase_repo() {
     local tmp
-    tmp=$(mktemp -d /tmp/test-ticket-fsck-recover.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-fsck-recover.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
 
     git init -q -b main "$tmp/repo"
@@ -124,7 +124,7 @@ test_no_op_when_no_rebase() {
     fi
 
     local tmp
-    tmp=$(mktemp -d /tmp/test-ticket-fsck-no-rebase.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-fsck-no-rebase.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     git init -q -b main "$tmp/repo"
     cd "$tmp/repo" || exit 1
@@ -192,7 +192,7 @@ test_drains_recoverable_rebase() {
 
     # Build a simpler fixture where rebase --continue actually succeeds
     local tmp
-    tmp=$(mktemp -d /tmp/test-ticket-fsck-drainable.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-fsck-drainable.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     git init -q -b main "$tmp/repo"
     cd "$tmp/repo" || exit 1
@@ -253,7 +253,7 @@ test_cherry_pick_fallback() {
     # Build a fixture where a rebase will conflict, but the dangling commits
     # match the ticket commit message pattern.
     local tmp
-    tmp=$(mktemp -d /tmp/test-ticket-fsck-cherry.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-fsck-cherry.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     git init -q -b main "$tmp/repo"
     cd "$tmp/repo" || exit 1

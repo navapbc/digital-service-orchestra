@@ -344,7 +344,7 @@ print(json.dumps(ticket))
 
     # Create a TICKET_CMD stub returning the fake ticket JSON
     local stub_ticket_cmd
-    stub_ticket_cmd=$(mktemp /tmp/dso-ticket-stub.XXXXXX)
+    stub_ticket_cmd=$(mktemp "${TMPDIR:-/tmp}/dso-ticket-stub.XXXXXX")
     chmod +x "$stub_ticket_cmd"
     printf '#!/usr/bin/env bash\nprintf '"'"'%%s\n'"'"' '"'"'%s'"'"'\n' "$ticket_json" > "$stub_ticket_cmd"
 
@@ -454,7 +454,7 @@ print(json.dumps(ticket))
 
     # Create a TICKET_CMD stub returning the fake ticket JSON
     local stub_ticket_cmd
-    stub_ticket_cmd=$(mktemp /tmp/dso-ticket-stub.XXXXXX)
+    stub_ticket_cmd=$(mktemp "${TMPDIR:-/tmp}/dso-ticket-stub.XXXXXX")
     chmod +x "$stub_ticket_cmd"
     printf '#!/usr/bin/env bash\nprintf '"'"'%%s\n'"'"' '"'"'%s'"'"'\n' "$ticket_json" > "$stub_ticket_cmd"
 

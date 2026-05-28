@@ -33,7 +33,7 @@ test_rejects_value_below_minimum() {
     _snapshot_fail
 
     local tmp_conf exit_code stderr_out
-    tmp_conf=$(mktemp /tmp/test-planning-config.XXXXXX)
+    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/test-planning-config.XXXXXX")
     printf 'planning.max_remediation_cycles=1\n' > "$tmp_conf"
 
     exit_code=0
@@ -75,7 +75,7 @@ test_defaults_to_3_when_absent() {
     _snapshot_fail
 
     local tmp_conf result exit_code
-    tmp_conf=$(mktemp /tmp/test-planning-config.XXXXXX)
+    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/test-planning-config.XXXXXX")
     printf 'paths.app_dir=app\n' > "$tmp_conf"
 
     exit_code=0
@@ -103,7 +103,7 @@ test_returns_valid_value_5() {
     _snapshot_fail
 
     local tmp_conf result exit_code
-    tmp_conf=$(mktemp /tmp/test-planning-config.XXXXXX)
+    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/test-planning-config.XXXXXX")
     printf 'planning.max_remediation_cycles=5\n' > "$tmp_conf"
 
     exit_code=0
@@ -131,7 +131,7 @@ test_empty_value_treated_as_absent() {
     _snapshot_fail
 
     local tmp_conf result exit_code
-    tmp_conf=$(mktemp /tmp/test-planning-config.XXXXXX)
+    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/test-planning-config.XXXXXX")
     printf 'planning.max_remediation_cycles=\n' > "$tmp_conf"
 
     exit_code=0
@@ -159,7 +159,7 @@ test_rejects_value_zero() {
     _snapshot_fail
 
     local tmp_conf exit_code stderr_out
-    tmp_conf=$(mktemp /tmp/test-planning-config.XXXXXX)
+    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/test-planning-config.XXXXXX")
     printf 'planning.max_remediation_cycles=0\n' > "$tmp_conf"
 
     exit_code=0
@@ -194,7 +194,7 @@ test_minimum_value_2_accepted() {
     _snapshot_fail
 
     local tmp_conf result exit_code
-    tmp_conf=$(mktemp /tmp/test-planning-config.XXXXXX)
+    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/test-planning-config.XXXXXX")
     printf 'planning.max_remediation_cycles=2\n' > "$tmp_conf"
 
     exit_code=0

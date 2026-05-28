@@ -14,7 +14,7 @@ assert_exit_contains() {
   local desc="$1" expected_exit="$2" expected_stderr="$3"
   shift 3
   local tmpfile
-  tmpfile=$(mktemp /tmp/capture-test.XXXXXX)
+  tmpfile=$(mktemp "${TMPDIR:-/tmp}/capture-test.XXXXXX")
   if "$@" >"$tmpfile" 2>&1; then
     actual=0
   else
@@ -39,7 +39,7 @@ assert_exit_contains() {
 }
 
 # Setup: work in a temp directory to avoid polluting the repo
-WORK_DIR=$(mktemp -d /tmp/capture-test-work.XXXXXX)
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/capture-test-work.XXXXXX")
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 cd "$WORK_DIR"

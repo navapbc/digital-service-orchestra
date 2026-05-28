@@ -46,7 +46,7 @@ else
 fi
 
 # Test 3: no ANTHROPIC_API_KEY → soft-fail with structured preview_error
-TMP_OUT=$(mktemp /tmp/test-preview.XXXXXX.json)
+TMP_OUT=$(mktemp "${TMPDIR:-/tmp}/test-preview.XXXXXX".json)
 trap 'rm -f "$TMP_OUT"' EXIT
 out=$(ANTHROPIC_API_KEY="" "$PREVIEW_SCRIPT" --limit 1 --output "$TMP_OUT" 2>&1)
 rc=$?

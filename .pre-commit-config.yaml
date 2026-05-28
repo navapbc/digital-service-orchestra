@@ -23,6 +23,14 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      - id: mktemp-tmpdir-check
+        name: mktemp /tmp/ Anti-Pattern Check (30s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh mktemp-tmpdir-check 30 "plugins/dso/scripts/check-mktemp-tmpdir.sh"
+        language: system
+        pass_filenames: true
+        stages: [pre-commit]
+        files: ^tests/(.*/)?test-[^/]*\.sh$
+
       # Note (3aaa-0238 boundary): check-precondition-emit.sh only scans staged diff;
       # no interaction with CI gate manifest or pre-commit-wrapper.sh timeout mechanism.
       - id: precondition-emit-check

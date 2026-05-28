@@ -64,7 +64,7 @@ MIRROR_SCRIPT="$REPO_ROOT/plugins/dso/scripts/review-mirror-defenses.sh"
 # ---------------------------------------------------------------------------
 _make_stub_dir() {
     local d
-    d=$(mktemp -d "/tmp/dso-mirror-defenses-stubs.XXXXXX")
+    d=$(mktemp -d "${TMPDIR:-/tmp}/dso-mirror-defenses-stubs.XXXXXX")
     _TEST_TMPDIRS+=("$d")
 
     cat > "$d/gh" <<'GHEOF'

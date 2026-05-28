@@ -64,7 +64,7 @@ else
 fi
 
 # Test 4: --manifest produces a structured manifest with 6 chunks
-TMP_MANIFEST=$(mktemp /tmp/test-cw-manifest.XXXXXX.json)
+TMP_MANIFEST=$(mktemp "${TMPDIR:-/tmp}/test-cw-manifest.XXXXXX".json)
 trap 'rm -f "$TMP_MANIFEST"' EXIT
 ANTHROPIC_API_KEY="" "$ORCH_SCRIPT" \
     --epic-id "$SYNTHETIC_EPIC" \

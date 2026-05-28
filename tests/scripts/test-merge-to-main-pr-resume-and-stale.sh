@@ -102,7 +102,7 @@ test_phase_merge_fetches_before_push() {
     # an extracted helper (_fetch_and_rebase_branch — Finding 2 refactor).
     # Detect either pattern: literal `git fetch` in the function body, OR
     # a call to a *_fetch_*rebase* helper before the push.
-    _detect_tmp=$(mktemp /tmp/phase-merge-detect.XXXXXX)
+    _detect_tmp=$(mktemp "${TMPDIR:-/tmp}/phase-merge-detect.XXXXXX")
     awk '
         /^_phase_merge\(\) \{/ { in_func = 1; next }
         in_func && /^\}/ { in_func = 0 }
@@ -151,7 +151,7 @@ test_phase_merge_reuses_existing_draft_pr() {
     # line continuations), so detect them independently within the function body.
     # Accept: `gh pr list` appearing before `gh pr create` within _phase_merge,
     # AND `isDraft` appearing anywhere in the function before `gh pr create`.
-    _detect_tmp=$(mktemp /tmp/phase-merge-draft-detect.XXXXXX)
+    _detect_tmp=$(mktemp "${TMPDIR:-/tmp}/phase-merge-draft-detect.XXXXXX")
     awk '
         /^_phase_merge\(\) \{/ { in_func = 1; next }
         in_func && /^\}$/ { in_func = 0 }
@@ -187,7 +187,7 @@ test_phase_resolve_threads_local_escalation_on_missing_llm_cmd() {
     #   2. A _dso_is_ci_environment guard
     #   3. A _dso_emit_local_escalation call
     local _detect_tmp
-    _detect_tmp=$(mktemp /tmp/phase-resolve-llm-escalation.XXXXXX)
+    _detect_tmp=$(mktemp "${TMPDIR:-/tmp}/phase-resolve-llm-escalation.XXXXXX")
     awk '
         /^_phase_resolve_threads\(\) \{/ { in_func = 1; next }
         in_func && /^\}$/ { in_func = 0 }

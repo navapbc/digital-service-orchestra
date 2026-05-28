@@ -368,7 +368,7 @@ fi
 # workflow does NOT upload it (host project may not have configured artifact
 # upload yet), this assertion is informational only — it does not flip the
 # overall result, since assertions 1 + 2 already prove the overlay blocked.
-artifact_dir="$(mktemp -d /tmp/dso-e2e-verify-artifacts.XXXXXX)"
+artifact_dir="$(mktemp -d "${TMPDIR:-/tmp}/dso-e2e-verify-artifacts.XXXXXX")"
 run_id="$(printf '%s' "$last_checks_json" \
     | python3 -c '
 import json, sys

@@ -41,7 +41,7 @@ trap _cleanup_test_tmpdirs EXIT
 # Sets _TMPDIR and creates .claude/dso-config.conf with dso.workflow=ci-pr
 _make_ci_tmpdir() {
     local _t
-    _t="$(mktemp -d /tmp/test-enforcement-gate.XXXXXX)"
+    _t="$(mktemp -d "${TMPDIR:-/tmp}/test-enforcement-gate.XXXXXX")"
     _TEST_TMPDIRS+=("$_t")
     mkdir -p "$_t/.claude"
     printf 'dso.workflow=ci-pr\n' > "$_t/.claude/dso-config.conf"

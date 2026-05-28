@@ -267,7 +267,7 @@ test_monthly_idempotency_skip_duplicate() {
 
     # Build a temp dir for the DSO stub and tracking file
     local tmp_dir
-    tmp_dir=$(mktemp -d /tmp/cal-idempotency.XXXXXX)
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/cal-idempotency.XXXXXX")
     local comment_call_log="${tmp_dir}/comment_calls.log"
     local stub="${tmp_dir}/dso"
 
@@ -580,7 +580,7 @@ test_idempotency_guard_uses_ticket_show() {
     fi
 
     local tmp_dir comment_log stub
-    tmp_dir=$(mktemp -d /tmp/cal-red-idempotency.XXXXXX)
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/cal-red-idempotency.XXXXXX")
     comment_log="${tmp_dir}/comment_calls.log"
     stub="${tmp_dir}/dso"
 
@@ -640,7 +640,7 @@ test_health_ticket_lookup_uses_default_format() {
     fi
 
     local tmp_dir comment_log stub
-    tmp_dir=$(mktemp -d /tmp/cal-red-lookup.XXXXXX)
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/cal-red-lookup.XXXXXX")
     comment_log="${tmp_dir}/comment_calls.log"
     stub="${tmp_dir}/dso"
 
@@ -702,7 +702,7 @@ test_monthly_cli_filters_by_period() {
     fi
 
     local tmp_dir comment_log stub
-    tmp_dir=$(mktemp -d /tmp/cal-red-period.XXXXXX)
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/cal-red-period.XXXXXX")
     comment_log="${tmp_dir}/comment_calls.log"
     stub="${tmp_dir}/dso"
 
@@ -778,7 +778,7 @@ test_mutation_append_exits_1_on_missing_health_ticket() {
 
     local tmp_dir stub
     local exit_code=0
-    tmp_dir=$(mktemp -d /tmp/cal-test.XXXXXX)
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/cal-test.XXXXXX")
     stub="$tmp_dir/dso"
 
     # Stub returns empty list — no calibration-program-health ticket
@@ -815,7 +815,7 @@ test_monthly_exits_1_on_missing_health_ticket() {
 
     local tmp_dir stub
     local exit_code=0
-    tmp_dir=$(mktemp -d /tmp/cal-test.XXXXXX)
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/cal-test.XXXXXX")
     stub="$tmp_dir/dso"
 
     # Stub returns empty list — no calibration-program-health ticket
@@ -852,7 +852,7 @@ test_quarterly_exits_1_on_missing_health_ticket() {
 
     local tmp_dir stub
     local exit_code=0
-    tmp_dir=$(mktemp -d /tmp/cal-test.XXXXXX)
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/cal-test.XXXXXX")
     stub="$tmp_dir/dso"
 
     # Stub returns empty list — no calibration-program-health ticket
@@ -889,7 +889,7 @@ test_churn_append_exits_1_on_missing_health_ticket() {
 
     local tmp_dir stub
     local exit_code=0
-    tmp_dir=$(mktemp -d /tmp/cal-test.XXXXXX)
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/cal-test.XXXXXX")
     stub="$tmp_dir/dso"
 
     cat >"$stub" <<'STUB'

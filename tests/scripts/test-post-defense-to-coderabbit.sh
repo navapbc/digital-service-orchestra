@@ -17,7 +17,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-post-defense-to-coderabbit.sh ==="
 
 # ── Setup ────────────────────────────────────────────────────────────────────
-TMPDIR_TEST="$(mktemp -d /tmp/test-post-defense.XXXXXX)"
+TMPDIR_TEST="$(mktemp -d "${TMPDIR:-/tmp}/test-post-defense.XXXXXX")"
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 MOCK_BIN="$TMPDIR_TEST/bin"

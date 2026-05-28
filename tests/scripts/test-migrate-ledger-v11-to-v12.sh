@@ -34,7 +34,7 @@ trap 'rm -rf "${_TMP_DIRS[@]:-}"' EXIT
 
 _make_tmpdir() {
     local d
-    d="$(mktemp -d /tmp/test-migrate-ledger-v11-to-v12.XXXXXX)"
+    d="$(mktemp -d "${TMPDIR:-/tmp}/test-migrate-ledger-v11-to-v12.XXXXXX")"
     _TMP_DIRS+=("$d")
     echo "$d"
 }

@@ -27,7 +27,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-lock-acquire-ticket-format.sh ==="
 
 # ── Setup: create a temp dir with mock bin and fake git ─────────────────────
-TMPDIR_ROOT=$(mktemp -d /tmp/test-lock-acquire.XXXXXX)
+TMPDIR_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/test-lock-acquire.XXXXXX")
 FAKE_REPO="$TMPDIR_ROOT/repo"
 MOCK_BIN="$TMPDIR_ROOT/mock-bin"
 TICKET_LOG_FILE="$TMPDIR_ROOT/ticket.log"
@@ -83,7 +83,7 @@ exit 0
 MOCKEOF
 chmod +x "$MOCK_BIN/ticket"
 
-> "$TICKET_LOG_FILE"
+: > "$TICKET_LOG_FILE"
 
 status_out=""
 status_out=$(_run_lifecycle lock-status "debug-everything") || true
@@ -115,7 +115,7 @@ exit 0
 MOCKEOF
 chmod +x "$MOCK_BIN/ticket"
 
-> "$TICKET_LOG_FILE"
+: > "$TICKET_LOG_FILE"
 
 closed_status_out=""
 closed_status_out=$(_run_lifecycle lock-status "debug-everything") || true
@@ -150,7 +150,7 @@ exit 0
 MOCKEOF2
 chmod +x "$MOCK_BIN/ticket"
 
-> "$TICKET_LOG_FILE"
+: > "$TICKET_LOG_FILE"
 
 acquire_out=""
 acquire_exit=0
@@ -194,7 +194,7 @@ exit 0
 MOCKEOF3
 chmod +x "$MOCK_BIN/ticket"
 
-> "$TICKET_LOG_FILE"
+: > "$TICKET_LOG_FILE"
 
 acquire_out2=""
 acquire_exit2=0

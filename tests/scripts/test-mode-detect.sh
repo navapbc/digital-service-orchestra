@@ -38,7 +38,7 @@ _make_config() {
     local tmpdir="$1" content="$2"
     local cfg
     # mktemp on macOS requires suffix via -t prefix.XXXXXX (no inline path template with suffix)
-    cfg="$(mktemp /tmp/dso-config.XXXXXX)"
+    cfg="$(mktemp "${TMPDIR:-/tmp}/dso-config.XXXXXX")"
     mv "$cfg" "${cfg}.conf"
     cfg="${cfg}.conf"
     printf '%s\n' "$content" > "$cfg"

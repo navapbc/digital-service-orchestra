@@ -45,7 +45,7 @@ assert_contains \
 echo "Test 3: Script exits 0 when squash commit has DSO-Story-Merge trailer"
 
 # Create an isolated temp git repo for this test
-_tmp_dir="$(mktemp -d /tmp/cafb-test.XXXXXX)"
+_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/cafb-test.XXXXXX")"
 trap 'rm -rf "$_tmp_dir"' EXIT
 
 _test_repo="$_tmp_dir/repo"
@@ -71,7 +71,7 @@ _session_head="$(git -C "$_test_repo" rev-parse HEAD)"
 # DSO_SESSION_HEAD → the squash commit (simulates the PR branch tip)
 # DSO_REPO_PATH  → the synthetic repo
 # DSO_ARTIFACT_DIR → temp dir to avoid polluting real /tmp
-_artifact_dir="$(mktemp -d /tmp/cafb-artifacts.XXXXXX)"
+_artifact_dir="$(mktemp -d "${TMPDIR:-/tmp}/cafb-artifacts.XXXXXX")"
 trap 'rm -rf "$_tmp_dir" "$_artifact_dir"' EXIT
 
 actual_exit=0
@@ -90,7 +90,7 @@ assert_eq \
 echo "Test 4: Script exits 1 when squash commit has no DSO-Story-Merge trailer"
 
 # Create a second temp repo where the squash commit does NOT carry the trailer
-_tmp_dir2="$(mktemp -d /tmp/cafb-test2.XXXXXX)"
+_tmp_dir2="$(mktemp -d "${TMPDIR:-/tmp}/cafb-test2.XXXXXX")"
 _test_repo2="$_tmp_dir2/repo"
 mkdir -p "$_test_repo2"
 git -C "$_test_repo2" init -q
@@ -104,7 +104,7 @@ _base_sha2="$(git -C "$_test_repo2" rev-parse HEAD)"
 git -C "$_test_repo2" commit --allow-empty -m "feat: implement story (squash, no trailer)" -q
 _session_head2="$(git -C "$_test_repo2" rev-parse HEAD)"
 
-_artifact_dir2="$(mktemp -d /tmp/cafb-artifacts2.XXXXXX)"
+_artifact_dir2="$(mktemp -d "${TMPDIR:-/tmp}/cafb-artifacts2.XXXXXX")"
 
 actual_exit2=0
 # Disable gh API calls by pointing GH_REPO to a bogus value and limiting budget to 0

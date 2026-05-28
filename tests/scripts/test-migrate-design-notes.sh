@@ -45,7 +45,7 @@ trap _cleanup EXIT
 # ── Helper: create a temp project dir with .claude/ structure ─────────────────
 _make_target() {
     local tmp
-    tmp=$(mktemp -d /tmp/test-migrate-design-notes.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-migrate-design-notes.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     mkdir -p "$tmp/.claude"
     echo "$tmp"

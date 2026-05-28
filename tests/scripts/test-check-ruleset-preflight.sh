@@ -25,7 +25,7 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 echo "=== test-check-ruleset-preflight.sh ==="
 
 # ── Setup: shared temp dir, cleaned on exit ───────────────────────────────────
-TMPDIR_BASE="$(mktemp -d /tmp/test-ruleset-preflight.XXXXXX)"
+TMPDIR_BASE="$(mktemp -d "${TMPDIR:-/tmp}/test-ruleset-preflight.XXXXXX")"
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
 # Helper: build a stub bin directory with a `gh` stub that returns the given

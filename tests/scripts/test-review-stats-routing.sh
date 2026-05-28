@@ -36,14 +36,14 @@ trap cleanup EXIT
 
 make_tmpdir() {
     local d
-    d="$(mktemp -d /tmp/review-stats-routing-test.XXXXXX)"
+    d="$(mktemp -d "${TMPDIR:-/tmp}/review-stats-routing-test.XXXXXX")"
     _TEST_TMPDIRS+=("$d")
     echo "$d"
 }
 
 make_tmpfile() {
     local f
-    f="$(mktemp /tmp/review-stats-routing-test.XXXXXX)"
+    f="$(mktemp "${TMPDIR:-/tmp}/review-stats-routing-test.XXXXXX")"
     _TEST_TMPDIRS+=("$f")
     echo "$f"
 }

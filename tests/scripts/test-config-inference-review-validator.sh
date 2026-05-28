@@ -65,7 +65,7 @@ test_validator_rejects_high_stakes_below_100() {
     fi
 
     local tmp_config
-    tmp_config=$(mktemp /tmp/dso-test-config.XXXXXX)
+    tmp_config=$(mktemp "${TMPDIR:-/tmp}/dso-test-config.XXXXXX")
     printf 'preconditions.inference_review.rate_high_stakes=99\n' > "$tmp_config"
 
     local exit_code=0
@@ -94,7 +94,7 @@ test_validator_accepts_high_stakes_100() {
     fi
 
     local tmp_config
-    tmp_config=$(mktemp /tmp/dso-test-config.XXXXXX)
+    tmp_config=$(mktemp "${TMPDIR:-/tmp}/dso-test-config.XXXXXX")
     printf 'preconditions.inference_review.rate_high_stakes=100\n' > "$tmp_config"
 
     local exit_code=0
@@ -123,7 +123,7 @@ test_validator_rejects_high_stakes_50() {
     fi
 
     local tmp_config
-    tmp_config=$(mktemp /tmp/dso-test-config.XXXXXX)
+    tmp_config=$(mktemp "${TMPDIR:-/tmp}/dso-test-config.XXXXXX")
     printf 'preconditions.inference_review.rate_high_stakes=50\n' > "$tmp_config"
 
     local exit_code=0
@@ -152,7 +152,7 @@ test_validator_accepts_rate_rationale_0() {
     fi
 
     local tmp_config
-    tmp_config=$(mktemp /tmp/dso-test-config.XXXXXX)
+    tmp_config=$(mktemp "${TMPDIR:-/tmp}/dso-test-config.XXXXXX")
     printf 'preconditions.inference_review.rate_rationale=0\n' > "$tmp_config"
 
     local exit_code=0

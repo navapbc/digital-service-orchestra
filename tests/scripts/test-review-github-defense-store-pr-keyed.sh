@@ -59,7 +59,7 @@ trap _cleanup EXIT
 
 make_tmpdir() {
     local d
-    d=$(mktemp -d /tmp/test-gh-defense-pr-keyed.XXXXXX)
+    d=$(mktemp -d "${TMPDIR:-/tmp}/test-gh-defense-pr-keyed.XXXXXX")
     _TEST_TMPDIRS+=("$d")
     echo "$d"
 }

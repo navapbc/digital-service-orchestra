@@ -28,7 +28,7 @@ _write_config() {
 # ---------------------------------------------------------------------------
 test_session_worktree_pushes_session_branch() {
     local _T _push_log
-    _T="$(mktemp -d /tmp/dso-session-push-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-session-push-test.XXXXXX")"
     _push_log="$_T/git-push.log"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
@@ -100,7 +100,7 @@ SSTUB
 # ---------------------------------------------------------------------------
 test_non_session_worktree_no_extra_push() {
     local _T _push_log
-    _T="$(mktemp -d /tmp/dso-session-push-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-session-push-test.XXXXXX")"
     _push_log="$_T/git-push.log"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN

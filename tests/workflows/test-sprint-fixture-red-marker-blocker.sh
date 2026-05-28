@@ -54,7 +54,7 @@ trap '_cleanup' EXIT
 # it must: (a) exit non-zero, (b) name the marker in stderr.
 _snapshot_fail
 
-FIXTURE_REPO=$(mktemp -d /tmp/sprint-fixture-red-marker.XXXXXX)
+FIXTURE_REPO=$(mktemp -d "${TMPDIR:-/tmp}/sprint-fixture-red-marker.XXXXXX")
 _WORK_DIRS+=("$FIXTURE_REPO")
 
 (

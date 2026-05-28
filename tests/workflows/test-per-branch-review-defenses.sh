@@ -29,7 +29,7 @@ echo "=== test-per-branch-review-defenses.sh ==="
 # Rationale: runner should not fail on presence of the new env var; dry-run mode
 # returns empty findings immediately and validates no unknown-flag rejection.
 _snapshot_fail
-_tmpdir=$(mktemp -d /tmp/test-defenses.XXXXXX)
+_tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/test-defenses.XXXXXX")
 _diff_path="$_tmpdir/test.diff"
 _fixture_path="$_tmpdir/prior-defenses.json"
 

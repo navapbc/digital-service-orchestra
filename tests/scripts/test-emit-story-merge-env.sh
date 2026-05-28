@@ -45,7 +45,7 @@ fi
 _make_tmp_with_stub() {
     local stub_body="$1"
     local tmp
-    tmp=$(mktemp -d /tmp/test-emit-story-merge-env.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-emit-story-merge-env.XXXXXX")
     mkdir -p "$tmp/.claude/scripts"
     cat > "$tmp/.claude/scripts/dso" <<STUB
 #!/usr/bin/env bash
@@ -130,7 +130,7 @@ echo "--- test_executed_directly_exits_1_with_error_message ---"
 _snapshot_fail
 
 (
-    tmp=$(mktemp -d /tmp/test-emit-story-merge-env.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-emit-story-merge-env.XXXXXX")
     trap 'rm -rf "$tmp"' EXIT
 
     rc=0

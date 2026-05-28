@@ -66,7 +66,7 @@ _setup_validate_env() {
 
     # Minimal git repo so _phase_validate git operations succeed
     (
-        cd "$_MAIN_REPO"
+        cd "$_MAIN_REPO" || return
         git init -b main --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
@@ -108,7 +108,7 @@ MOCK_EOF
 # Returns exit code of _phase_validate
 _run_phase_validate_wrapper() {
     local wrapper rc
-    wrapper=$(mktemp /tmp/run-validate.XXXXXX.sh)
+    wrapper=$(mktemp "${TMPDIR:-/tmp}/run-validate.XXXXXX".sh)
     cat > "$wrapper" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1
@@ -140,7 +140,7 @@ echo ""
 echo "--- test_merge_validate_uses_custom_format_check_from_config ---"
 _snapshot_fail
 
-_T1_BASE=$(mktemp -d /tmp/test-merge-config-t1.XXXXXX)
+_T1_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-config-t1.XXXXXX")
 _setup_validate_env "$_T1_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
@@ -167,7 +167,7 @@ echo ""
 echo "--- test_merge_validate_uses_custom_lint_from_config ---"
 _snapshot_fail
 
-_T2_BASE=$(mktemp -d /tmp/test-merge-config-t2.XXXXXX)
+_T2_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-config-t2.XXXXXX")
 _setup_validate_env "$_T2_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
@@ -194,7 +194,7 @@ echo ""
 echo "--- test_merge_validate_does_not_invoke_hardcoded_make_format_check ---"
 _snapshot_fail
 
-_T3_BASE=$(mktemp -d /tmp/test-merge-config-t3.XXXXXX)
+_T3_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-config-t3.XXXXXX")
 _setup_validate_env "$_T3_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
@@ -229,7 +229,7 @@ echo ""
 echo "--- test_merge_validate_does_not_invoke_hardcoded_make_lint ---"
 _snapshot_fail
 
-_T4_BASE=$(mktemp -d /tmp/test-merge-config-t4.XXXXXX)
+_T4_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-config-t4.XXXXXX")
 _setup_validate_env "$_T4_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
@@ -264,7 +264,7 @@ echo ""
 echo "--- test_merge_validate_default_format_check_is_make_format_check ---"
 _snapshot_fail
 
-_T5_BASE=$(mktemp -d /tmp/test-merge-config-t5.XXXXXX)
+_T5_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-config-t5.XXXXXX")
 _setup_validate_env "$_T5_BASE" ""  # empty config — no commands overrides
 
 _T5_RC=0
@@ -290,7 +290,7 @@ echo ""
 echo "--- test_merge_validate_default_lint_is_make_lint ---"
 _snapshot_fail
 
-_T6_BASE=$(mktemp -d /tmp/test-merge-config-t6.XXXXXX)
+_T6_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-config-t6.XXXXXX")
 _setup_validate_env "$_T6_BASE" ""  # empty config — no commands overrides
 
 _T6_RC=0
@@ -316,7 +316,7 @@ echo ""
 echo "--- test_merge_validate_fails_when_lint_command_exits_nonzero ---"
 _snapshot_fail
 
-_T7_BASE=$(mktemp -d /tmp/test-merge-config-t7.XXXXXX)
+_T7_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-config-t7.XXXXXX")
 _setup_validate_env "$_T7_BASE" "commands.format_check=custom-fmt-check
 commands.lint=failing-lint"
 

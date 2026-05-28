@@ -155,7 +155,7 @@ test_defense_store_merge_survival() {
 
     # Build a temp git repo with a merge commit
     local tmpdir
-    tmpdir=$(mktemp -d /tmp/dso-merge-test.XXXXXX)
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/dso-merge-test.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -rf '$tmpdir'" RETURN
 
@@ -207,7 +207,7 @@ print(json.dumps({
 
     # Create a TICKET_CMD stub that returns the fake ticket JSON
     local stub_ticket_cmd
-    stub_ticket_cmd=$(mktemp /tmp/dso-ticket-stub.XXXXXX)
+    stub_ticket_cmd=$(mktemp "${TMPDIR:-/tmp}/dso-ticket-stub.XXXXXX")
     chmod +x "$stub_ticket_cmd"
     printf '#!/usr/bin/env bash\nprintf '"'"'%%s\n'"'"' '"'"'%s'"'"'\n' "$ticket_json" > "$stub_ticket_cmd"
 
@@ -291,7 +291,7 @@ test_defense_store_excludes_unrelated_sha() {
 
     # Build a temp git repo with a merge commit
     local tmpdir
-    tmpdir=$(mktemp -d /tmp/dso-merge-test.XXXXXX)
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/dso-merge-test.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -rf '$tmpdir'" RETURN
 
@@ -340,7 +340,7 @@ print(json.dumps({
 
     # Create a TICKET_CMD stub that returns the fake ticket JSON
     local stub_ticket_cmd
-    stub_ticket_cmd=$(mktemp /tmp/dso-ticket-stub.XXXXXX)
+    stub_ticket_cmd=$(mktemp "${TMPDIR:-/tmp}/dso-ticket-stub.XXXXXX")
     chmod +x "$stub_ticket_cmd"
     printf '#!/usr/bin/env bash\nprintf '"'"'%%s\n'"'"' '"'"'%s'"'"'\n' "$ticket_json" > "$stub_ticket_cmd"
 

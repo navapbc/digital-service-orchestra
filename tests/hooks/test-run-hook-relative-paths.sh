@@ -20,7 +20,7 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 # We test this by creating a temp hook that echoes "OK" and passing it as
 # a relative path.
 # ─────────────────────────────────────────────────────────────
-TMPDIR_TEST=$(mktemp -d /tmp/test-run-hook-rel.XXXXXX)
+TMPDIR_TEST=$(mktemp -d "${TMPDIR:-/tmp}/test-run-hook-rel.XXXXXX")
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 # Create a minimal hook script in a relative subdir mirroring the dispatcher pattern

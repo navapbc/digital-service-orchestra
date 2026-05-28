@@ -143,7 +143,7 @@ print(json.dumps({
 
     # Stub: TICKET_CMD returns our fake ticket JSON
     local stub_ticket_cmd
-    stub_ticket_cmd=$(mktemp /tmp/dso-ticket-stub.XXXXXX)
+    stub_ticket_cmd=$(mktemp "${TMPDIR:-/tmp}/dso-ticket-stub.XXXXXX")
     chmod +x "$stub_ticket_cmd"
     printf '#!/usr/bin/env bash\nprintf '"'"'%%s\n'"'"' '"'"'%s'"'"'\n' "$ticket_json" > "$stub_ticket_cmd"
 
@@ -260,7 +260,7 @@ print(json.dumps({
     ticket_json=$(_build_ticket_json "$record_json")
 
     local stub_ticket_cmd
-    stub_ticket_cmd=$(mktemp /tmp/dso-ticket-stub.XXXXXX)
+    stub_ticket_cmd=$(mktemp "${TMPDIR:-/tmp}/dso-ticket-stub.XXXXXX")
     chmod +x "$stub_ticket_cmd"
     printf '#!/usr/bin/env bash\nprintf '"'"'%%s\n'"'"' '"'"'%s'"'"'\n' "$ticket_json" > "$stub_ticket_cmd"
 
@@ -410,7 +410,7 @@ print(json.dumps({
     ticket_json=$(_build_ticket_json "$record_json")
 
     local stub_ticket_cmd
-    stub_ticket_cmd=$(mktemp /tmp/dso-ticket-stub.XXXXXX)
+    stub_ticket_cmd=$(mktemp "${TMPDIR:-/tmp}/dso-ticket-stub.XXXXXX")
     chmod +x "$stub_ticket_cmd"
     printf '#!/usr/bin/env bash\nprintf '"'"'%%s\n'"'"' '"'"'%s'"'"'\n' "$ticket_json" > "$stub_ticket_cmd"
     # shellcheck disable=SC2064
@@ -418,8 +418,8 @@ print(json.dumps({
 
     # Capture stdout and stderr to separate temp files so both can be inspected
     local out_file stderr_file
-    out_file=$(mktemp /tmp/dso-test-out.XXXXXX)
-    stderr_file=$(mktemp /tmp/dso-test-err.XXXXXX)
+    out_file=$(mktemp "${TMPDIR:-/tmp}/dso-test-out.XXXXXX")
+    stderr_file=$(mktemp "${TMPDIR:-/tmp}/dso-test-err.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$out_file' '$stderr_file' '$stub_ticket_cmd'" RETURN
 
