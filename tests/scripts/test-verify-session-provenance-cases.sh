@@ -183,12 +183,36 @@ rc=$?
 _expect "t5 exit code 1 (merge_commit_sha==feature → not covering)" "[[ '$rc' == '1' ]]"
 rm -rf "$MOCK_DIR" "$ARTIFACT_DIR" "$REPO"
 
-# ─── t6: sibling merged PR with distinct merge_commit_sha → provenanced (positive) ─
+# ─── t6: sibling merged PR with distinct merge_commit_sha + passed review → provenanced ─
 echo
 echo "=== t6: merged sibling PR with distinct merge_commit_sha → provenanced (exit 0) ==="
-output=$(_run_verifier '[{"number":300,"state":"closed","merged_at":"2026-05-19T00:00:00Z","head":{"sha":"otherSha"},"merge_commit_sha":"thirdSha"}]' "253")
-rc=$(echo "$output" | grep -oE 'RC=[0-9]+' | head -1 | cut -d= -f2)
+# F2 hardening: covering PRs must have a passing review check to count as covered.
+# Use a multi-endpoint mock that returns PR data for /pulls and review-sub-pr=success for /check-runs.
+read -r BASE6 FEAT6 REPO6 < <(_make_fake_repo)
+MOCK6=$(mktemp -d "${TMPDIR:-/tmp}/mock-gh-t6.XXXXXX")
+cat > "$MOCK6/gh" <<'MOCK_T6_EOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == *"/pulls" ]]; then
+        echo '[{"number":300,"state":"closed","merged_at":"2026-05-19T00:00:00Z","head":{"sha":"otherSha"},"merge_commit_sha":"thirdSha"}]'
+        exit 0
+    fi
+    if [[ "$arg" == *"/check-runs" ]]; then
+        echo '{"check_runs":[{"name":"review-sub-pr","conclusion":"success"}]}'
+        exit 0
+    fi
+done
+echo '[]'
+exit 0
+MOCK_T6_EOF
+chmod +x "$MOCK6/gh"
+ARTIFACT6=$(mktemp -d)
+PATH="$MOCK6:$PATH" DSO_REPO_PATH="$REPO6" DSO_BASE_SHA="$BASE6" DSO_SESSION_HEAD="$FEAT6" \
+    DSO_ARTIFACT_DIR="$ARTIFACT6" DSO_GH_REPO="navapbc/test-repo" PR_NUMBER=253 GH_RETRY_MAX=1 \
+    bash "$SCRIPT" > /dev/null 2>&1
+rc=$?
 _expect "t6 exit code 0 (distinct merged PR covers)" "[[ '$rc' == '0' ]]"
+rm -rf "$MOCK6" "$ARTIFACT6" "$REPO6"
 
 # ─── t7: PR_NUMBER unset + head.sha == feature_sha self-match → unprovenanced (push-event case) ─
 echo
