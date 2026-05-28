@@ -302,7 +302,7 @@ test_docs_excluded_via_symlink() {
 
     local _repo _tmplink
     _repo=$(make_test_repo)
-    _tmplink=$(mktemp /tmp/check-tickets-boundary-XXXXXX.sh)
+    _tmplink=$(mktemp "${TMPDIR:-/tmp}/check-tickets-boundary-XXXXXX".sh)
     rm -f "$_tmplink"
     ln -s "$HOOK" "$_tmplink"
     _TEST_TMPDIRS+=("$_tmplink")

@@ -13,7 +13,7 @@ WAIT="$REPO_ROOT/plugins/dso/scripts/wait-for-pr.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
-TMPDIR_T=$(mktemp -d /tmp/test-wait-for-pr.XXXXXX)
+TMPDIR_T=$(mktemp -d "${TMPDIR:-/tmp}/test-wait-for-pr.XXXXXX")
 trap 'rm -rf "$TMPDIR_T"' EXIT
 
 # Stub gh that prints the contents of $TMPDIR_T/payload.json when invoked.

@@ -91,12 +91,12 @@ echo ""
 echo "--- test_self_healing_push_succeeds_when_push_clean ---"
 _snapshot_fail
 
-_TEST_BASE=$(mktemp -d /tmp/dso-self-healing-clean.XXXXXX)
+_TEST_BASE=$(mktemp -d "${TMPDIR:-/tmp}/dso-self-healing-clean.XXXXXX")
 trap 'rm -rf "$_TEST_BASE"' EXIT
 
 (
     set -e
-    cd "$_TEST_BASE"
+    cd "$_TEST_BASE" || return
     git init --bare -q --initial-branch=main bare.git 2>/dev/null || git init --bare -q bare.git
     git clone -q bare.git work
     cd work
@@ -152,7 +152,7 @@ echo ""
 echo "--- test_self_healing_push_aborts_rebase_on_conflict ---"
 _snapshot_fail
 
-_TEST_BASE=$(mktemp -d /tmp/dso-self-healing-conflict.XXXXXX)
+_TEST_BASE=$(mktemp -d "${TMPDIR:-/tmp}/dso-self-healing-conflict.XXXXXX")
 trap 'rm -rf "$_TEST_BASE"' EXIT
 
 # set -e inside the subshell so a failed cd/git command aborts the fixture
@@ -162,7 +162,7 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
 # test result).
 (
     set -e
-    cd "$_TEST_BASE"
+    cd "$_TEST_BASE" || return
     git init --bare -q --initial-branch=main bare.git 2>/dev/null || git init --bare -q bare.git
     git clone -q bare.git work
     cd work
@@ -176,7 +176,7 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
 
     # Simulate a concurrent foreign version bump on origin/main:
     # clone the bare repo separately, push a divergent commit touching version.txt.
-    cd "$_TEST_BASE"
+    cd "$_TEST_BASE" || return
     git clone -q bare.git foreign
     cd foreign
     git config user.email "f@f.com"

@@ -53,7 +53,7 @@ DEFENSE_STORE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/review-github-defense-store
 # ---------------------------------------------------------------------------
 _make_stub_dir() {
     local d
-    d=$(mktemp -d "/tmp/dso-defense-store-stubs.XXXXXX")
+    d=$(mktemp -d "${TMPDIR:-/tmp}/dso-defense-store-stubs.XXXXXX")
     _TEST_TMPDIRS+=("$d")
 
     cat > "$d/gh" <<'GHEOF'

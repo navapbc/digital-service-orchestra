@@ -370,7 +370,7 @@ rm -rf "$FAIL_MOCK_DIR" "$ARTIFACT_DIR_T12" "$REPO"
 echo
 echo "=== t14: git diff-tree -m exposes files from merge commit ==="
 T14_REPO=$(mktemp -d "${TMPDIR:-/tmp}/t14-merge.XXXXXX")
-T14_MSHA_FILE=$(mktemp /tmp/t14-msha.XXXXXX)
+T14_MSHA_FILE=$(mktemp "${TMPDIR:-/tmp}/t14-msha.XXXXXX")
 (
     cd "$T14_REPO" || exit
     git init -q -b main

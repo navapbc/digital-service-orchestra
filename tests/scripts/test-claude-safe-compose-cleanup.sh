@@ -22,7 +22,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-claude-safe-compose-cleanup.sh ==="
 
 # ── Setup: shared tmpdir, cleaned on EXIT ─────────────────────────────────────
-TMPDIR_BASE=$(mktemp -d /tmp/test-claude-safe-cleanup.XXXXXX)
+TMPDIR_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-claude-safe-cleanup.XXXXXX")
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
 # ── Helper: extract and run _cleanup_docker_for_worktree in a subshell ────────

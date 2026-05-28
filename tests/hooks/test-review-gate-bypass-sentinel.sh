@@ -18,7 +18,7 @@ source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 # When enforcement.strategy=ci (as in this repo after the 8e5f story), hook_review_bypass_sentinel()
 # returns 0 immediately, breaking all block tests. Tests that check ci behavior use
 # call_sentinel_with_config() which manages WORKFLOW_CONFIG_FILE independently.
-_TEST_ISOLATION_DIR=$(mktemp -d /tmp/sentinel-test-isolation.XXXXXX)
+_TEST_ISOLATION_DIR=$(mktemp -d "${TMPDIR:-/tmp}/sentinel-test-isolation.XXXXXX")
 printf 'enforcement.strategy=local\n' > "$_TEST_ISOLATION_DIR/dso-config.conf"
 WORKFLOW_CONFIG_FILE="$_TEST_ISOLATION_DIR/dso-config.conf"
 trap 'rm -rf "$_TEST_ISOLATION_DIR"' EXIT
@@ -364,7 +364,7 @@ call_sentinel_with_config_stderr() {
 # When dso.workflow=ci-pr, hook_review_bypass_sentinel should return 0 (allow)
 # even for --no-verify commands — the CI enforcement strategy short-circuits before
 # pattern matching.
-_CI_TMPDIR=$(mktemp -d /tmp/sentinel-ci-test.XXXXXX)
+_CI_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/sentinel-ci-test.XXXXXX")
 mkdir -p "$_CI_TMPDIR/.claude"
 printf 'dso.workflow=ci-pr\n' > "$_CI_TMPDIR/.claude/dso-config.conf"
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'
@@ -374,7 +374,7 @@ rm -rf "$_CI_TMPDIR"
 
 # test_sentinel_emits_hook_gate_skipped_under_ci_strategy
 # When dso.workflow=ci-pr, stderr must contain the canonical HOOK_GATE message.
-_CI_TMPDIR=$(mktemp -d /tmp/sentinel-ci-test.XXXXXX)
+_CI_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/sentinel-ci-test.XXXXXX")
 mkdir -p "$_CI_TMPDIR/.claude"
 printf 'dso.workflow=ci-pr\n' > "$_CI_TMPDIR/.claude/dso-config.conf"
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'
@@ -387,7 +387,7 @@ rm -rf "$_CI_TMPDIR"
 # test_sentinel_blocks_noverify_under_local_strategy
 # Regression test: dso.workflow=local must still block --no-verify (return 2).
 # GREEN: existing behavior — verifies the ci-pr path doesn't accidentally affect local.
-_LOCAL_TMPDIR=$(mktemp -d /tmp/sentinel-ci-test.XXXXXX)
+_LOCAL_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/sentinel-ci-test.XXXXXX")
 mkdir -p "$_LOCAL_TMPDIR/.claude"
 printf 'dso.workflow=local\n' > "$_LOCAL_TMPDIR/.claude/dso-config.conf"
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'

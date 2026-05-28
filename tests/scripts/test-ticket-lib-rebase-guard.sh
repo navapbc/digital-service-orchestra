@@ -50,7 +50,7 @@ _make_paused_tracker() {
     local marker_kind="$1"   # "rebase-merge" | "rebase-apply" | "MERGE_HEAD"
 
     local tmp
-    tmp=$(mktemp -d /tmp/test-ticket-rebase-guard.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-rebase-guard.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
 
     git init -q -b main "$tmp/tracker"
@@ -190,7 +190,7 @@ test_allows_commit_when_clean() {
         return
     fi
     local tmp
-    tmp=$(mktemp -d /tmp/test-ticket-rebase-clean.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-rebase-clean.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     git init -q -b main "$tmp/tracker"
     cd "$tmp/tracker" || exit 1

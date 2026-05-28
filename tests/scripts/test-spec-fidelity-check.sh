@@ -67,8 +67,8 @@ test_exact_match_exits_0() {
     _snapshot_fail
     local rc=0
     local pil_tmp dd_tmp
-    pil_tmp=$(mktemp /tmp/test-pil-criteria.XXXXXX)
-    dd_tmp=$(mktemp /tmp/test-story-dds.XXXXXX)
+    pil_tmp=$(mktemp "${TMPDIR:-/tmp}/test-pil-criteria.XXXXXX")
+    dd_tmp=$(mktemp "${TMPDIR:-/tmp}/test-story-dds.XXXXXX")
 
     _write_pil_json "$pil_tmp" \
         "user can upload a document and see its classification within 30 seconds"
@@ -92,8 +92,8 @@ test_dropped_pil_criterion_exits_1_with_json() {
     _snapshot_fail
     local rc=0
     local pil_tmp dd_tmp stderr_out
-    pil_tmp=$(mktemp /tmp/test-pil-criteria.XXXXXX)
-    dd_tmp=$(mktemp /tmp/test-story-dds.XXXXXX)
+    pil_tmp=$(mktemp "${TMPDIR:-/tmp}/test-pil-criteria.XXXXXX")
+    dd_tmp=$(mktemp "${TMPDIR:-/tmp}/test-story-dds.XXXXXX")
 
     _write_pil_json "$pil_tmp" \
         "system processes documents up to 100 pages without timeout"
@@ -123,8 +123,8 @@ test_mutated_pil_criterion_exits_1() {
     _snapshot_fail
     local rc=0
     local pil_tmp dd_tmp stderr_out
-    pil_tmp=$(mktemp /tmp/test-pil-criteria.XXXXXX)
-    dd_tmp=$(mktemp /tmp/test-story-dds.XXXXXX)
+    pil_tmp=$(mktemp "${TMPDIR:-/tmp}/test-pil-criteria.XXXXXX")
+    dd_tmp=$(mktemp "${TMPDIR:-/tmp}/test-story-dds.XXXXXX")
 
     # PIL says "reviewed rules persist across sessions"
     # DD says something completely different — key terms dropped, mutated
@@ -154,8 +154,8 @@ test_enrichment_allowed_exits_0() {
     _snapshot_fail
     local rc=0
     local pil_tmp dd_tmp
-    pil_tmp=$(mktemp /tmp/test-pil-criteria.XXXXXX)
-    dd_tmp=$(mktemp /tmp/test-story-dds.XXXXXX)
+    pil_tmp=$(mktemp "${TMPDIR:-/tmp}/test-pil-criteria.XXXXXX")
+    dd_tmp=$(mktemp "${TMPDIR:-/tmp}/test-story-dds.XXXXXX")
 
     _write_pil_json "$pil_tmp" \
         "user can view all extracted rules for a document"
@@ -180,8 +180,8 @@ test_all_pil_fields_present_exits_0() {
     _snapshot_fail
     local rc=0
     local pil_tmp dd_tmp
-    pil_tmp=$(mktemp /tmp/test-pil-criteria.XXXXXX)
-    dd_tmp=$(mktemp /tmp/test-story-dds.XXXXXX)
+    pil_tmp=$(mktemp "${TMPDIR:-/tmp}/test-pil-criteria.XXXXXX")
+    dd_tmp=$(mktemp "${TMPDIR:-/tmp}/test-story-dds.XXXXXX")
 
     _write_pil_json "$pil_tmp" \
         "user can upload a document and see classification within 30 seconds" \

@@ -30,7 +30,7 @@ echo "=== test-architectural-probe-gate.sh ==="
 
 # ── Helper: make a temp output file path ────────────────────────────────────
 _make_tmpfile() {
-    mktemp /tmp/arch-probe-test.XXXXXX
+    mktemp "${TMPDIR:-/tmp}/arch-probe-test.XXXXXX"
 }
 
 # Deleted: test_gate_script_exists — solo existence/executable check. The

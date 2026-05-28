@@ -213,7 +213,7 @@ assert_eq \
 
 # ── (e) Missing registry file — exits non-zero with stderr message ─────────────
 
-missing_registry="$(mktemp /tmp/missing-registry.XXXXXX)"
+missing_registry="$(mktemp "${TMPDIR:-/tmp}/missing-registry.XXXXXX")"
 rm -f "$missing_registry"   # ensure it does not exist
 
 exit_code_missing=0

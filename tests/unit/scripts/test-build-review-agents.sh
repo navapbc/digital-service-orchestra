@@ -914,7 +914,7 @@ test_light_tier_agent_has_unambiguous_context_request_guidance() {
 
     local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
     local out_dir
-    out_dir="$(mktemp -d /tmp/test-build-review-agents-light.XXXXXX)"
+    out_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-build-review-agents-light.XXXXXX")"
 
     local build_rc=0
     bash "$BUILD_SCRIPT" \

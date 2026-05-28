@@ -44,7 +44,7 @@ fi
 # into detached HEAD: refs/heads/tickets is stale, HEAD has unpushed work.
 _make_detached_head_fixture() {
     local tmp
-    tmp=$(mktemp -d /tmp/test-push-detached.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-push-detached.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
 
     # Bare remote on `tickets` branch

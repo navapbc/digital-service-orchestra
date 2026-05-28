@@ -41,7 +41,7 @@ trap _cleanup EXIT
 # Returns the path to the temp repo root via stdout.
 _make_isolated_repo() {
     local tmpdir
-    tmpdir=$(mktemp -d /tmp/test-scratch-gitignore.XXXXXX)
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/test-scratch-gitignore.XXXXXX")
     _CLEANUP_DIRS+=("$tmpdir")
 
     git -C "$tmpdir" init -q

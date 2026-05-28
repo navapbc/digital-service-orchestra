@@ -39,7 +39,7 @@ echo "=== test-rollback-sub-pr-cutover.sh ==="
 _TEST_TMPDIRS=()
 make_tmpdir() {
     local d
-    d=$(mktemp -d /tmp/test-rollback-sub-pr-cutover.XXXXXX)
+    d=$(mktemp -d "${TMPDIR:-/tmp}/test-rollback-sub-pr-cutover.XXXXXX")
     _TEST_TMPDIRS+=("$d")
     echo "$d"
 }

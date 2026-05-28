@@ -288,8 +288,72 @@ source "$_REACHABILITY_LIB"
 assert_sha_reachable "$BASE_SHA" "BASE_SHA" "$GIT_REPO_PATH" || exit 4
 assert_sha_reachable "$SESSION_HEAD" "SESSION_HEAD" "$GIT_REPO_PATH" || exit 4
 
+# ── Determine the upstream "already-shipped" ref for filter exclusion ─────────
+# Mirror PR-1d's dispatcher-side filter on the verifier side: commits already
+# reachable from origin/main (or whatever base ref is set) have already been
+# walked when they were originally landed. Walking them here is wasteful —
+# for feature branches based on older main snapshots, this can add thousands
+# of commits to the walk that each require cache lookups or GitHub API calls.
+#
+# The filter uses `git log A..B ^C` (equivalent to --not C) to exclude any
+# commit reachable from C. C defaults to origin/main; honor DSO_UPSTREAM_REF
+# when callers need a different base. Empty-string DSO_UPSTREAM_REF is
+# treated as an explicit disable signal (callers who want unfiltered walk).
+#
+# SCOPE LIMITATION: this filter is SHA-identity-based. It correctly excludes
+# commits whose SHAs are reachable from upstream (merge-commit workflows).
+# It does NOT exclude:
+#   - Squash-merged commits — original branch SHAs are unreachable from the
+#     squash commit; the covering-PR detection (lines ~310-580) still handles
+#     those via DSO-Story-Merge trailer or PR API lookup.
+#   - Rebase-merged commits — similar to squash; new SHAs on main differ from
+#     original branch SHAs.
+#   - Cherry-picked commits — the patch is on main but as a different SHA,
+#     so the original SHA on the feature branch is still walked. Correct
+#     behavior — the feature-branch version may have subsequent changes.
+# This is consistent with PR-1d's dispatcher-side filter (same env var).
+#
+# Robustness:
+#   - Unresolvable upstream ref → fallback to unfiltered walk (safe; the worst
+#     case is the prior O(N) behavior, not a correctness gap).
+#   - Shallow repository → fallback to unfiltered walk (`git rev-list` would
+#     return truncated history → randomly partial filter).
+#   - Empty DSO_UPSTREAM_REF → explicit disable (no fallback to origin/main).
+# Defense-in-depth: PR-1d's dispatcher filter still provides giant-diff
+# protection downstream even when the verifier walks unfiltered.
+#
+# Side effect: commits excluded by this filter no longer get cache entries
+# written. If a future run faces a rewritten history where one of those
+# SHAs falls back into BASE..HEAD without an upstream entry, the verifier
+# pays cold-cache cost re-classifying it. Acceptable tradeoff vs. the
+# steady-state walk cost reduction (6000+ → 3-10 commits per PR typically).
+# Default mirrors the dispatcher's _MAIN_REF resolution
+# (llm-review-dispatch-or-skip.sh line 307): `origin/${GITHUB_BASE_REF:-main}`.
+# This keeps verifier and dispatcher filters aligned by default so PR-mode
+# targeting a non-main base branch doesn't cause provenance/dispatch mismatch.
+# DSO_UPSTREAM_REF overrides for tests or non-standard layouts.
+if [[ -z "${DSO_UPSTREAM_REF+x}" ]]; then
+    _UPSTREAM_REF="origin/${GITHUB_BASE_REF:-main}"
+else
+    _UPSTREAM_REF="$DSO_UPSTREAM_REF"  # may be empty → explicit disable below
+fi
+_UPSTREAM_EXCLUDE_ARGS=()
+if [[ -n "$_UPSTREAM_REF" ]]; then
+    if git -C "$GIT_REPO_PATH" rev-parse --verify --quiet "$_UPSTREAM_REF" >/dev/null 2>&1; then
+        # Skip filtering on shallow repos — git rev-list would return
+        # truncated history and the filter would be partially/randomly active.
+        # CI's "Verify session provenance" step now does a full fetch of the
+        # base ref (ci.yml line ~466); this check remains as defense-in-depth
+        # for non-CI callers running in shallow contexts.
+        if [[ "$(git -C "$GIT_REPO_PATH" rev-parse --is-shallow-repository 2>/dev/null)" != "true" ]]; then
+            _UPSTREAM_EXCLUDE_ARGS=("^${_UPSTREAM_REF}")
+        fi
+    fi
+fi
+
 # ── Walk commits ──────────────────────────────────────────────────────────────
-# Get all commits in range BASE_SHA..SESSION_HEAD
+# Get all commits in range BASE_SHA..SESSION_HEAD, EXCLUDING commits already
+# reachable from the upstream ref (already-shipped via prior PRs).
 while IFS=' ' read -r sha subject; do
     [[ -z "$sha" ]] && continue
 
@@ -571,7 +635,7 @@ else:
         _cache_set "$sha" "unprovenanced" || true
     fi
 
-done < <(git -C "$GIT_REPO_PATH" log "${BASE_SHA}..${SESSION_HEAD}" --format="%H %s")
+done < <(git -C "$GIT_REPO_PATH" log "${BASE_SHA}..${SESSION_HEAD}" "${_UPSTREAM_EXCLUDE_ARGS[@]}" --format="%H %s")
 
 # ── Write unprovenanced SHAs to artifact file ─────────────────────────────────
 if (( ${#_unprovenanced_shas[@]} > 0 )); then

@@ -54,7 +54,7 @@ assert_pass_if_clean "test_no_temp_without_cleanup_passes_with_trap"
 # ── test_no_temp_without_cleanup_ignores_non_bash_files ──────────────────────
 # Create a temp Python file with mktemp string — should not trigger
 _snapshot_fail
-TEMP_PY=$(mktemp /tmp/test-isolation-XXXXXX.py)
+TEMP_PY=$(mktemp "${TMPDIR:-/tmp}/test-isolation-XXXXXX".py)
 trap 'rm -f "$TEMP_PY"' EXIT
 cat > "$TEMP_PY" << 'EOF'
 import subprocess
@@ -69,7 +69,7 @@ assert_pass_if_clean "test_no_temp_without_cleanup_ignores_non_bash_files"
 # ── test_no_temp_without_cleanup_no_mktemp_no_violation ──────────────────────
 # A bash file with no mktemp usage should produce no violations
 _snapshot_fail
-TEMP_CLEAN=$(mktemp /tmp/test-isolation-XXXXXX.sh)
+TEMP_CLEAN=$(mktemp "${TMPDIR:-/tmp}/test-isolation-XXXXXX".sh)
 cat > "$TEMP_CLEAN" << 'EOF'
 #!/usr/bin/env bash
 echo "hello world"

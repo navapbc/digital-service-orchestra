@@ -161,7 +161,7 @@ GIT_SHIM
 # ===========================================================================
 t_inject_trailer_ephemeral_worktree_cleanup() {
     local _T _story _rc _out _worktree_gone
-    _T="$(mktemp -d /tmp/dso-trailer-a.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-a.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s001"
@@ -217,7 +217,7 @@ t_inject_trailer_ephemeral_worktree_cleanup
 # ===========================================================================
 t_inject_trailer_nonempty_amends_tip_with_trailer() {
     local _T _story _out _rc _tip_trailer
-    _T="$(mktemp -d /tmp/dso-trailer-b.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-b.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s002"
@@ -275,7 +275,7 @@ t_inject_trailer_nonempty_amends_tip_with_trailer
 # ===========================================================================
 t_inject_trailer_empty_story_creates_empty_commit() {
     local _T _story _out _rc _tip_trailer _parent_count
-    _T="$(mktemp -d /tmp/dso-trailer-c.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-c.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s003"
@@ -339,7 +339,7 @@ t_inject_trailer_empty_story_creates_empty_commit
 # ===========================================================================
 t_inject_trailer_rc1_worktree_add_fail() {
     local _T _story _out _rc _worktree_gone
-    _T="$(mktemp -d /tmp/dso-trailer-d.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-d.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s004"
@@ -396,7 +396,7 @@ t_inject_trailer_rc1_worktree_add_fail
 # ===========================================================================
 t_inject_trailer_rc2_commit_fail() {
     local _T _story _out _rc _worktree_gone
-    _T="$(mktemp -d /tmp/dso-trailer-e.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-e.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s005"
@@ -458,7 +458,7 @@ t_inject_trailer_rc2_commit_fail
 # ===========================================================================
 t_inject_trailer_rc3_push_fail() {
     local _T _story _out _rc _worktree_gone
-    _T="$(mktemp -d /tmp/dso-trailer-f.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-f.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s006"
@@ -518,7 +518,7 @@ t_inject_trailer_rc3_push_fail
 # ===========================================================================
 t_inject_trailer_cleanup_on_sigterm() {
     local _T _story _worktree_gone _pid _child_pid
-    _T="$(mktemp -d /tmp/dso-trailer-g.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-g.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s007"
@@ -589,7 +589,7 @@ t_inject_trailer_cleanup_on_sigterm
 # ===========================================================================
 t_force_push_protection_blocks_on_false() {
     local _T _story _out _rc _has_error
-    _T="$(mktemp -d /tmp/dso-trailer-h.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-h.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s008"
@@ -662,7 +662,7 @@ t_force_push_protection_blocks_on_false
 # ===========================================================================
 t_force_push_protection_404_proceeds() {
     local _T _story _out _rc
-    _T="$(mktemp -d /tmp/dso-trailer-i.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-i.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s009"
@@ -705,7 +705,7 @@ t_force_push_protection_404_proceeds
 # ===========================================================================
 t_inject_and_enable_automerge_stateA_no_automerge_no_trailer() {
     local _T _story _out _rc _gh_log _inject_pos _automerge_pos
-    _T="$(mktemp -d /tmp/dso-trailer-j.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-j.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s010"
@@ -797,7 +797,7 @@ t_inject_and_enable_automerge_stateA_no_automerge_no_trailer
 # ===========================================================================
 t_inject_and_enable_automerge_stateB_automerge_enabled_no_trailer() {
     local _T _story _out _rc _inject_sentinel
-    _T="$(mktemp -d /tmp/dso-trailer-k.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-k.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s011"
@@ -893,7 +893,7 @@ t_inject_and_enable_automerge_stateB_automerge_enabled_no_trailer
 # ===========================================================================
 t_inject_and_enable_automerge_stateC_trailer_present_noop() {
     local _T _story _out _rc _inject_sentinel
-    _T="$(mktemp -d /tmp/dso-trailer-l.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-l.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s012"
@@ -983,7 +983,7 @@ t_inject_and_enable_automerge_stateC_trailer_present_noop
 # ===========================================================================
 t_trailer_injection_mode_enabled_calls_inject() {
     local _T _story _out _rc _inject_sentinel
-    _T="$(mktemp -d /tmp/dso-trailer-m.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-m.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s013"
@@ -1028,7 +1028,7 @@ t_trailer_injection_mode_enabled_calls_inject
 # ===========================================================================
 t_trailer_injection_mode_disabled_skips_inject() {
     local _T _story _out _rc _inject_sentinel _gh_log
-    _T="$(mktemp -d /tmp/dso-trailer-n.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-n.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s014"
@@ -1087,7 +1087,7 @@ t_trailer_injection_mode_disabled_skips_inject
 # ===========================================================================
 t_trailer_injection_mode_dryrun_no_amend() {
     local _T _story _out _rc _git_log _gh_log
-    _T="$(mktemp -d /tmp/dso-trailer-o.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-o.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s015"
@@ -1148,7 +1148,7 @@ t_trailer_injection_mode_dryrun_no_amend
 # ===========================================================================
 t_concurrent_push_warning_and_proceed() {
     local _T _story _out _rc _gh_log
-    _T="$(mktemp -d /tmp/dso-trailer-p.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-p.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s016"
@@ -1207,7 +1207,7 @@ t_concurrent_push_warning_and_proceed
 # ===========================================================================
 t_inject_trailer_pid_collision_avoidance() {
     local _T _story_a _story_b _pid_a _pid_b _path_a _path_b _out_a _out_b
-    _T="$(mktemp -d /tmp/dso-trailer-q.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-q.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story_a="story/epic1/qa01"
@@ -1300,7 +1300,7 @@ t_inject_trailer_pid_collision_avoidance
 # ===========================================================================
 t_inject_and_enable_automerge_force_push_blocked_aborts() {
     local _T _story _out _rc
-    _T="$(mktemp -d /tmp/dso-trailer-m.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-trailer-m.XXXXXX")"
     trap "rm -rf '$_T'" RETURN
 
     _story="story/epic1/s013"

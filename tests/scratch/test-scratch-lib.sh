@@ -40,7 +40,7 @@ source "$TICKET_LIB"
 # ── Helper: make a temp scratch base directory ────────────────────────────────
 _make_scratch_base() {
     local tmp
-    tmp=$(mktemp -d /tmp/scratch-test-XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/scratch-test-XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     echo "$tmp"
 }

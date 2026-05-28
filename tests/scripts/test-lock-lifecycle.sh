@@ -24,7 +24,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-lock-lifecycle.sh ==="
 
 # ── Setup: create a temp dir with mock bin and fake git ─────────────────────
-TMPDIR_ROOT=$(mktemp -d /tmp/test-lock-lifecycle.XXXXXX)
+TMPDIR_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/test-lock-lifecycle.XXXXXX")
 FAKE_REPO="$TMPDIR_ROOT/repo"
 MOCK_BIN="$TMPDIR_ROOT/mock-bin"
 TICKET_LOG_FILE="$TMPDIR_ROOT/ticket.log"
@@ -90,7 +90,7 @@ exit 0
 MOCKEOF_001C
 chmod +x "$MOCK_BIN/ticket"
 
-> "$TICKET_LOG_FILE"
+: > "$TICKET_LOG_FILE"
 
 acquire_out_001c=""
 acquire_exit_001c=0
@@ -118,7 +118,7 @@ _snapshot_fail
 
 # Track which tickets get transitioned to 'closed'
 CLOSED_FILE="$TMPDIR_ROOT/closed-tickets.log"
-> "$CLOSED_FILE"
+: > "$CLOSED_FILE"
 
 # Mock: 3 LOCK tickets exist for "debug-everything":
 #   dso-orphan1: open (crashed session 1)
@@ -172,8 +172,8 @@ exit 0
 MOCKEOF_B066
 chmod +x "$MOCK_BIN/ticket"
 
-> "$TICKET_LOG_FILE"
-> "$CLOSED_FILE"
+: > "$TICKET_LOG_FILE"
+: > "$CLOSED_FILE"
 
 release_out=""
 release_exit=0

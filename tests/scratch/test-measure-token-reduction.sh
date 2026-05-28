@@ -93,7 +93,7 @@ make_snapshot_dir() {
 # ── Test 1: --check-config with valid epic id → exit 0 ───────────────────────
 test_check_config_valid_epic() {
     local cfg
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
     _CLEANUP_FILES+=("$cfg")
 
     # 98f0-54cf-8bad-467f is the task ticket for the harness foundation —
@@ -117,7 +117,7 @@ EOF
 # ── Test 2: --check-config with missing epic id → exit non-zero ──────────────
 test_check_config_missing_epic() {
     local cfg
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
     _CLEANUP_FILES+=("$cfg")
 
     # Use a clearly bogus ticket id that will never exist.
@@ -160,8 +160,8 @@ test_example_config_exists() {
 # ── Test 5: Tokenizer.count is deterministic for same input ──────────────────
 test_tokenizer_count_deterministic() {
     local cfg snap_dir
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
     _CLEANUP_FILES+=("$cfg")
     _CLEANUP_DIRS+=("$snap_dir")
 
@@ -188,8 +188,8 @@ test_tokenizer_count_deterministic() {
 # ── Test 6: Unknown tokenizer name rejected ───────────────────────────────────
 test_unknown_tokenizer_rejected() {
     local cfg snap_dir
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
     _CLEANUP_FILES+=("$cfg")
     _CLEANUP_DIRS+=("$snap_dir")
 
@@ -212,8 +212,8 @@ test_unknown_tokenizer_rejected() {
 # ── Test 7: Tokenizer name exposed and matches config ────────────────────────
 test_tokenizer_name_matches_config() {
     local cfg snap_dir
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
     _CLEANUP_FILES+=("$cfg")
     _CLEANUP_DIRS+=("$snap_dir")
 
@@ -265,8 +265,8 @@ PYEOF
 # ── Test 8: All 5 sites captured pre and post via snapshot mode ───────────────
 test_five_sites_captured() {
     local cfg snap_dir
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
     _CLEANUP_FILES+=("$cfg")
     _CLEANUP_DIRS+=("$snap_dir")
 
@@ -304,8 +304,8 @@ test_five_sites_captured() {
 # ── Test 9: Per-site record carries both HEAD SHAs verbatim ──────────────────
 test_per_site_record_shas() {
     local cfg snap_dir
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
     _CLEANUP_FILES+=("$cfg")
     _CLEANUP_DIRS+=("$snap_dir")
 
@@ -368,9 +368,9 @@ make_snapshot_dir_ratio() {
 # ── Test 11: compute_aggregate >=70% → status=pass ───────────────────────────
 test_aggregate_pass_threshold() {
     local cfg snap_dir output_file
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
-    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
+    output_file=$(mktemp "${TMPDIR:-/tmp}/measure-report-XXXXXX")
     _CLEANUP_FILES+=("$cfg" "$output_file")
     _CLEANUP_DIRS+=("$snap_dir")
 
@@ -398,9 +398,9 @@ EOF
 # ── Test 12: compute_aggregate 50-70% → status=partial ───────────────────────
 test_aggregate_partial_threshold() {
     local cfg snap_dir output_file
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
-    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
+    output_file=$(mktemp "${TMPDIR:-/tmp}/measure-report-XXXXXX")
     _CLEANUP_FILES+=("$cfg" "$output_file")
     _CLEANUP_DIRS+=("$snap_dir")
 
@@ -428,9 +428,9 @@ EOF
 # ── Test 13: compute_aggregate <50% → status=fail, non-zero exit ─────────────
 test_aggregate_fail_threshold() {
     local cfg snap_dir output_file
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
-    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
+    output_file=$(mktemp "${TMPDIR:-/tmp}/measure-report-XXXXXX")
     _CLEANUP_FILES+=("$cfg" "$output_file")
     _CLEANUP_DIRS+=("$snap_dir")
 
@@ -462,9 +462,9 @@ EOF
 # ── Test 14: JSON report has all required fields ──────────────────────────────
 test_report_has_required_fields() {
     local cfg snap_dir output_file
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
-    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
+    output_file=$(mktemp "${TMPDIR:-/tmp}/measure-report-XXXXXX")
     _CLEANUP_FILES+=("$cfg" "$output_file")
     _CLEANUP_DIRS+=("$snap_dir")
 
@@ -528,10 +528,10 @@ PYEOF
 # ── Test 15: --commit-to-epic invokes scratch CLI ─────────────────────────────
 test_commit_to_epic_invokes_scratch() {
     local cfg snap_dir output_file scratch_base
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
-    output_file=$(mktemp /tmp/measure-report-XXXXXX)
-    scratch_base=$(mktemp -d /tmp/measure-scratch-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
+    output_file=$(mktemp "${TMPDIR:-/tmp}/measure-report-XXXXXX")
+    scratch_base=$(mktemp -d "${TMPDIR:-/tmp}/measure-scratch-XXXXXX")
     _CLEANUP_FILES+=("$cfg" "$output_file")
     _CLEANUP_DIRS+=("$snap_dir" "$scratch_base")
 
@@ -568,10 +568,10 @@ EOF
 # ── Test 16: Without --commit-to-epic, no scratch write ──────────────────────
 test_no_commit_without_flag() {
     local cfg snap_dir output_file scratch_base
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
-    output_file=$(mktemp /tmp/measure-report-XXXXXX)
-    scratch_base=$(mktemp -d /tmp/measure-scratch-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
+    output_file=$(mktemp "${TMPDIR:-/tmp}/measure-report-XXXXXX")
+    scratch_base=$(mktemp -d "${TMPDIR:-/tmp}/measure-scratch-XXXXXX")
     _CLEANUP_FILES+=("$cfg" "$output_file")
     _CLEANUP_DIRS+=("$snap_dir" "$scratch_base")
 
@@ -606,8 +606,8 @@ EOF
 # ── Test 10: Missing snapshot → non-zero exit with clear error ───────────────
 test_missing_snapshot_nonzero_exit() {
     local cfg snap_dir
-    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
-    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    cfg=$(mktemp "${TMPDIR:-/tmp}/measure-config-test-XXXXXX")
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/measure-snap-XXXXXX")
     _CLEANUP_FILES+=("$cfg")
     _CLEANUP_DIRS+=("$snap_dir")
 

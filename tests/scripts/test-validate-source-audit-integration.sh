@@ -217,7 +217,7 @@ test_steady_state_full_bucket_comparison() {
     fi
 
     local tempdir
-    tempdir=$(mktemp -d "/tmp/test-validate-source-audit-steady.XXXXXX")
+    tempdir=$(mktemp -d "${TMPDIR:-/tmp}/test-validate-source-audit-steady.XXXXXX")
     _CLEANUP_DIRS+=("$tempdir")
 
     # Fixture tree spanning multiple buckets so the comparison exercises

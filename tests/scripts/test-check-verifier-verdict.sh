@@ -103,7 +103,7 @@ test_unrecognized_p1_exits_1_with_warning() {
     _snapshot_fail
     local rc=0
     local stderr_file
-    stderr_file=$(mktemp /tmp/test-check-verifier-verdict-stderr.XXXXXX)
+    stderr_file=$(mktemp "${TMPDIR:-/tmp}/test-check-verifier-verdict-stderr.XXXXXX")
     echo '{"schema_version": 2, "P1": "WAFFLE"}' | bash "$SCRIPT" 2>"$stderr_file" || rc=$?
     local stderr_content
     stderr_content=$(cat "$stderr_file")

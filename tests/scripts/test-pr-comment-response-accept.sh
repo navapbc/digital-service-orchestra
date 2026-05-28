@@ -53,7 +53,7 @@ _ACCEPT_FIXTURE_COMMENTS='[
 
 _make_stub_dir() {
     local stub_dir
-    stub_dir=$(mktemp -d "/tmp/dso-accept-stubs.XXXXXX")
+    stub_dir=$(mktemp -d "${TMPDIR:-/tmp}/dso-accept-stubs.XXXXXX")
     _cleanup_dirs+=("$stub_dir")
 
     # gh stub — records calls to GH_CALL_LOG; routes responses by call type:
@@ -205,11 +205,11 @@ test_accept_commits_and_replies_with_sha() {
     echo "=== test_accept_commits_and_replies_with_sha ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-accept-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-accept-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-accept-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-accept-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local git_log; git_log=$(mktemp "/tmp/dso-accept-git.XXXXXX")
+    local git_log; git_log=$(mktemp "${TMPDIR:-/tmp}/dso-accept-git.XXXXXX")
     _cleanup_dirs+=("$git_log")
 
     _make_accept_json > "$out_json"
@@ -250,11 +250,11 @@ test_accept_reply_body_contains_sentinel_and_sha() {
     echo "=== test_accept_reply_body_contains_sentinel_and_sha ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-accept-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-accept-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-accept-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-accept-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local git_log; git_log=$(mktemp "/tmp/dso-accept-git.XXXXXX")
+    local git_log; git_log=$(mktemp "${TMPDIR:-/tmp}/dso-accept-git.XXXXXX")
     _cleanup_dirs+=("$git_log")
 
     _make_accept_json > "$out_json"
@@ -286,11 +286,11 @@ test_accept_reverts_on_non_fast_forward_push() {
     echo "=== test_accept_reverts_on_non_fast_forward_push ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-accept-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-accept-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-accept-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-accept-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local git_log; git_log=$(mktemp "/tmp/dso-accept-git.XXXXXX")
+    local git_log; git_log=$(mktemp "${TMPDIR:-/tmp}/dso-accept-git.XXXXXX")
     _cleanup_dirs+=("$git_log")
 
     _make_accept_json > "$out_json"
@@ -327,11 +327,11 @@ test_accept_rejects_multi_file_scope() {
     echo "=== test_accept_rejects_multi_file_scope ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-accept-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-accept-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-accept-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-accept-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local git_log; git_log=$(mktemp "/tmp/dso-accept-git.XXXXXX")
+    local git_log; git_log=$(mktemp "${TMPDIR:-/tmp}/dso-accept-git.XXXXXX")
     _cleanup_dirs+=("$git_log")
 
     _make_accept_json > "$out_json"

@@ -14,7 +14,7 @@ SUT="$REPO_ROOT/plugins/dso/hooks/lib/gate-unavailable.sh"
 # ── Scaffolding ──────────────────────────────────────────────────────────────
 TMPHOME=""
 _setup() {
-    TMPHOME=$(mktemp -d /tmp/test-gate-unavailable.XXXXXX)
+    TMPHOME=$(mktemp -d "${TMPDIR:-/tmp}/test-gate-unavailable.XXXXXX")
     export HOME="$TMPHOME"
     mkdir -p "$HOME/.claude/logs"
     unset _DSO_GATE_UNAVAILABLE_LIB

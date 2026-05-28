@@ -12,7 +12,7 @@ PREP="$REPO_ROOT/plugins/dso/scripts/cross-epic-scan-prep.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
-TMPDIR_T=$(mktemp -d /tmp/test-cross-epic-prep.XXXXXX)
+TMPDIR_T=$(mktemp -d "${TMPDIR:-/tmp}/test-cross-epic-prep.XXXXXX")
 trap 'rm -rf "$TMPDIR_T"' EXIT
 
 # --- Stub ticket CLI: emits canned ticket list / ticket show responses ---

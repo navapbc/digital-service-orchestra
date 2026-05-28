@@ -55,7 +55,7 @@ fi
 echo ""
 echo "=== test_cli_user_tag_prohibited_for_autonomous_bugs ==="
 
-_py_script=$(mktemp /tmp/cli-user-tag-check.XXXXXX.py)
+_py_script=$(mktemp "${TMPDIR:-/tmp}/cli-user-tag-check.XXXXXX".py)
 cat > "$_py_script" << 'PYEOF'
 import sys, re
 

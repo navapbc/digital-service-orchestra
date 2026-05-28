@@ -22,7 +22,7 @@ echo "=== test-emit-missing-trailer-warning.sh ==="
 _make_repo() {
     local commits="$1"  # number of non-merge commits to put past origin/main
     local tmp
-    tmp=$(mktemp -d /tmp/emit-warn-test.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/emit-warn-test.XXXXXX")
     (
         cd "$tmp" || exit 1
         git init -q -b main

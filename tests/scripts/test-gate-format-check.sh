@@ -24,7 +24,7 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 echo "=== test-gate-format-check.sh ==="
 
 # Shared temp dir for all test artifacts
-_GFC_DIR=$(mktemp -d /tmp/test-gate-format-check-XXXXXX)
+_GFC_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-gate-format-check-XXXXXX")
 trap 'rm -rf "$_GFC_DIR"' EXIT
 
 # Stub file to analyze — gate scripts need a real file arg

@@ -55,7 +55,7 @@ trap _cleanup EXIT
 
 _make_scratch_base() {
     local tmp
-    tmp=$(mktemp -d /tmp/scratch-dispatcher-test-XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/scratch-dispatcher-test-XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     echo "$tmp"
 }

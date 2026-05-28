@@ -38,7 +38,7 @@ assert_exit_reason() {
 }
 
 # Setup controlled environment
-WORK_DIR=$(mktemp -d /tmp/precond-test.XXXXXX)
+WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/precond-test.XXXXXX")
 cleanup() { rm -rf "$WORK_DIR"; }
 trap cleanup EXIT
 cd "$WORK_DIR"

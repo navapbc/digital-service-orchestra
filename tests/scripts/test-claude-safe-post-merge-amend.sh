@@ -24,7 +24,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-claude-safe-post-merge-amend.sh ==="
 
-TMPDIR_BASE=$(mktemp -d /tmp/test-claude-safe-post-merge-amend.XXXXXX)
+TMPDIR_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-claude-safe-post-merge-amend.XXXXXX")
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
 # ── Resolve Python with pyyaml for read-config.sh ────────────────────────────
@@ -157,7 +157,7 @@ read -r _main_repo _wt_path _wt_name <<< "$(_setup_merged_worktree | tr '\n' ' '
 
 # Simulate the orchestrator amending the worktree branch after timeout
 (
-    cd "$_wt_path"
+    cd "$_wt_path" || return
     # Touch a file and amend (simulates ruff format + git commit --amend)
     echo "# amended" >> feature.txt
     git add feature.txt
@@ -199,7 +199,7 @@ _unmerged_origin="$TMPDIR_BASE/unmerged-origin.git"
 git init --bare -b main -q "$_unmerged_origin"
 git clone -q "$_unmerged_origin" "$_unmerged_main" 2>/dev/null
 (
-    cd "$_unmerged_main"
+    cd "$_unmerged_main" || return
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "init" > file.txt
@@ -208,7 +208,7 @@ git clone -q "$_unmerged_origin" "$_unmerged_main" 2>/dev/null
 )
 git -C "$_unmerged_main" worktree add "$_unmerged_wt" -b "unmerged-branch" -q
 (
-    cd "$_unmerged_wt"
+    cd "$_unmerged_wt" || return
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "unmerged work" > unmerged.txt

@@ -54,7 +54,7 @@ trap _cleanup EXIT
 _make_target_with_content() {
     local _content="$1"
     local _dir
-    _dir=$(mktemp -d /tmp/test-check-rule-anchors.XXXXXX)
+    _dir=$(mktemp -d "${TMPDIR:-/tmp}/test-check-rule-anchors.XXXXXX")
     _CLEANUP_DIRS+=("$_dir")
     printf '%s\n' "$_content" > "$_dir/target.md"
     echo "$_dir/target.md"
@@ -114,7 +114,7 @@ test_mixed_valid_and_invalid_exits_1() {
     local _target
     _target=$(_make_target_with_content 'Cite `rule:fabrication` (valid) and `rule:nonexistent-totally` (invalid).')
     local stderr_file
-    stderr_file=$(mktemp /tmp/test-check-rule-anchors-mixed-stderr.XXXXXX)
+    stderr_file=$(mktemp "${TMPDIR:-/tmp}/test-check-rule-anchors-mixed-stderr.XXXXXX")
     local rc=0
     bash "$SCRIPT" "$_target" >/dev/null 2>"$stderr_file" || rc=$?
     local stderr_content

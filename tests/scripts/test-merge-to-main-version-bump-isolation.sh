@@ -17,7 +17,7 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 # Source the SUT's helpers without executing its tests.
 # Stop right after _cleanup_state_file is defined to avoid running the actual
 # tests at source time.
-_TMP_SUT=$(mktemp /tmp/sut-prefix.XXXXXX)
+_TMP_SUT=$(mktemp "${TMPDIR:-/tmp}/sut-prefix.XXXXXX")
 trap 'rm -f "$_TMP_SUT"' EXIT
 # Extract everything up to and including _cleanup_state_file's closing brace.
 awk '

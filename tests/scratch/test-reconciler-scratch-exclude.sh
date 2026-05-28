@@ -51,7 +51,7 @@ fi
 #   <root>/.tickets-tracker/.scratch/aaaa-bbbb-cccc-dddd/plan.json (scratch data)
 _make_fixture_root() {
     local tmpdir
-    tmpdir=$(mktemp -d /tmp/test-reconciler-scratch.XXXXXX)
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/test-reconciler-scratch.XXXXXX")
     _CLEANUP_DIRS+=("$tmpdir")
 
     local tracker="$tmpdir/.tickets-tracker"
@@ -138,7 +138,7 @@ test_count_open_excludes_scratch() {
     root=$(_make_fixture_root)
 
     local py_tmp
-    py_tmp=$(mktemp /tmp/test-reconciler-count.XXXXXX.py)
+    py_tmp=$(mktemp "${TMPDIR:-/tmp}/test-reconciler-count.XXXXXX".py)
     cat > "$py_tmp" <<PYEOF
 import sys, importlib.util, json
 from pathlib import Path
@@ -187,7 +187,7 @@ test_capture_baseline_excludes_scratch() {
     root=$(_make_fixture_root)
 
     local py_tmp
-    py_tmp=$(mktemp /tmp/test-reconciler-baseline.XXXXXX.py)
+    py_tmp=$(mktemp "${TMPDIR:-/tmp}/test-reconciler-baseline.XXXXXX".py)
     cat > "$py_tmp" <<PYEOF
 import sys, importlib.util, json
 from pathlib import Path

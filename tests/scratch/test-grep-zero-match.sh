@@ -141,7 +141,7 @@ echo "── Test 4: synthetic regression — gate detects injected bare --artif
 _snapshot_fail
 
 # Create a tmpfile with an injected bare --artifact line (no python3/helper context)
-_tmpfile=$(mktemp /tmp/test-grep-zero-match-XXXXXX.md)
+_tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-grep-zero-match-XXXXXX".md)
 cat > "$_tmpfile" <<'FIXTURE'
 # Synthetic fixture for SC-2 regression test
 ## Phase A
@@ -169,7 +169,7 @@ echo "── Test 5: synthetic negative — carve-out (append_review_cycle.py) i
 _snapshot_fail
 
 # Create a tmpfile with only a legitimate helper-script --artifact reference
-_tmpfile=$(mktemp /tmp/test-grep-zero-match-XXXXXX.md)
+_tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-grep-zero-match-XXXXXX".md)
 cat > "$_tmpfile" <<'FIXTURE'
 # Synthetic fixture — helper-script carve-out only
 ## Review cycle update

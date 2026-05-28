@@ -55,7 +55,7 @@ test_recall_result_has_sc4_gate_semantics_section() {
 # ---------------------------------------------------------------------------
 
 test_recall_all_at_threshold() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-test.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-test.XXXXXX")
   # Create 10 synthetic incidents
   for i in $(seq 1 10); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"test inference %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"source %d"}\n' \
@@ -82,7 +82,7 @@ test_recall_all_at_threshold() {
 }
 
 test_recall_all_below_threshold_fails() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-test.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-test.XXXXXX")
   # Create 10 incidents
   for i in $(seq 1 10); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"test inference %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"source %d"}\n' \
@@ -113,7 +113,7 @@ STUB
 }
 
 test_recall_holdout_threshold() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-test.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-test.XXXXXX")
   # Create 10 incidents; 3 are in holdout subset
   for i in $(seq 1 10); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"holdout test %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"source %d"}\n' \
@@ -141,7 +141,7 @@ test_recall_holdout_threshold() {
 }
 
 test_precision_at_threshold() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-test.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-test.XXXXXX")
   # 5 real incidents (outcome=user_corrected) + 3 non-incidents (outcome=accepted)
   for i in $(seq 1 5); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"real %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"src %d"}\n' \
@@ -172,7 +172,7 @@ test_precision_at_threshold() {
 }
 
 test_precision_below_threshold_fails() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-test.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-test.XXXXXX")
   # 4 real incidents + 6 non-incidents; challenge all 10 → precision = 4/10 = 0.4 < 0.5
   for i in $(seq 1 4); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"real %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"src %d"}\n' \
@@ -200,7 +200,7 @@ test_precision_below_threshold_fails() {
 }
 
 test_recall_result_signal_in_stdout() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-test.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-test.XXXXXX")
   for i in $(seq 1 10); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"test %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"src %d"}\n' \
       "$i" "$i" "$i" >> "$tmpdir/incidents.jsonl"
@@ -229,7 +229,7 @@ test_recall_result_signal_in_stdout() {
 # ---------------------------------------------------------------------------
 
 test_valid_corpus_no_exclusions() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-cq.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-cq.XXXXXX")
   # All 10 incidents have valid ticket_ids (test-* → stub exits 0)
   for i in $(seq 1 10); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"valid %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"src %d"}\n' \
@@ -263,7 +263,7 @@ STUBEOF
 }
 
 test_invalid_ticket_ids_excluded_with_warning() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-cq.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-cq.XXXXXX")
   # 10 valid + 2 invalid ticket_ids
   for i in $(seq 1 10); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"valid %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"src %d"}\n' \
@@ -302,7 +302,7 @@ STUBEOF
 }
 
 test_tiny_corpus_after_exclusion_emits_corpus_insufficient() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-cq.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-cq.XXXXXX")
   # 8 valid + 3 invalid; after exclusion only 8 remain → < 10 → CORPUS_INSUFFICIENT
   for i in $(seq 1 8); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"valid %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"src %d"}\n' \
@@ -344,7 +344,7 @@ STUBEOF
 # ---------------------------------------------------------------------------
 
 test_empty_corpus_emits_corpus_insufficient() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-ci.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-ci.XXXXXX")
   # Empty corpus
   touch "$tmpdir/incidents.jsonl"
   touch "$tmpdir/holdout.txt"
@@ -365,7 +365,7 @@ test_empty_corpus_emits_corpus_insufficient() {
 }
 
 test_nine_incidents_corpus_insufficient() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-ci.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-ci.XXXXXX")
   # 9 incidents — below minimum of 10
   for i in $(seq 1 9); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"test %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"src %d"}\n' \
@@ -389,7 +389,7 @@ test_nine_incidents_corpus_insufficient() {
 }
 
 test_ten_incidents_no_corpus_insufficient() {
-  local tmpdir; tmpdir=$(mktemp -d /tmp/recall-ci.XXXXXX)
+  local tmpdir; tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/recall-ci.XXXXXX")
   # Exactly 10 incidents — meets minimum threshold
   for i in $(seq 1 10); do
     printf '{"ticket_id":"test-%04x","inferred_decision_text":"test %d","affects_fields":"description","outcome":"user_corrected","source_decision_text":"src %d"}\n' \

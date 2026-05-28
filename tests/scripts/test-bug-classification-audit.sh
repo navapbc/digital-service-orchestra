@@ -56,7 +56,7 @@ test_verify_registry_flag() {
 # combined output references the expected count (27), "count", or "total".
 test_count_mismatch() {
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-audit-count.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-audit-count.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
@@ -89,7 +89,7 @@ print(json.dumps(data, indent=2))
 # Test 4: An entry with an empty slug causes a non-zero exit.
 test_missing_required_field() {
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-audit-missing-field.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-audit-missing-field.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
@@ -113,7 +113,7 @@ print(json.dumps(data, indent=2))
 # a non-zero exit.
 test_broken_defense_artifact_ref() {
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-audit-broken-ref.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-audit-broken-ref.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
@@ -140,7 +140,7 @@ print(json.dumps(data, indent=2))
 # must mention "scope-drift" so engineers know which entry failed.
 test_broken_ref_names_slug() {
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-audit-broken-ref-slug.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-audit-broken-ref-slug.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$tmpfile'" RETURN
 
@@ -171,7 +171,7 @@ print(json.dumps(data, indent=2))
 _make_mock_ticket_cmd() {
     local json_payload="$1"
     local tmpscript
-    tmpscript=$(mktemp /tmp/test-audit-mock-ticket.XXXXXX)
+    tmpscript=$(mktemp "${TMPDIR:-/tmp}/test-audit-mock-ticket.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$tmpscript'" RETURN
     # Write a minimal script: ignore all arguments, just print the JSON.
@@ -190,7 +190,7 @@ test_check_tags_unknown_slug_fails() {
     json_payload='[{"ticket_id":"test-0001","ticket_type":"bug","title":"Test bug","status":"closed","tags":["bug-type-definitely-nonexistent-slug"],"priority":2,"author":"Test","created_at":1779000000000000000,"env_id":"00000000-0000-0000-0000-000000000000","parent_id":null,"alias":"test-alias","description":"","comments":[],"deps":[],"bridge_alerts":[],"reverts":[],"file_impact":[],"preconditions_summary":{"status":"pre-manifest"}}]'
 
     local tmpscript
-    tmpscript=$(mktemp /tmp/test-audit-mock-ticket.XXXXXX)
+    tmpscript=$(mktemp "${TMPDIR:-/tmp}/test-audit-mock-ticket.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$tmpscript'" RETURN
 
@@ -215,7 +215,7 @@ test_check_tags_valid_slug_passes() {
     json_payload='[{"ticket_id":"test-0002","ticket_type":"bug","title":"Test bug","status":"closed","tags":["bug-type-scope-drift"],"priority":2,"author":"Test","created_at":1779000000000000000,"env_id":"00000000-0000-0000-0000-000000000000","parent_id":null,"alias":"test-alias2","description":"","comments":[],"deps":[],"bridge_alerts":[],"reverts":[],"file_impact":[],"preconditions_summary":{"status":"pre-manifest"}}]'
 
     local tmpscript
-    tmpscript=$(mktemp /tmp/test-audit-mock-ticket.XXXXXX)
+    tmpscript=$(mktemp "${TMPDIR:-/tmp}/test-audit-mock-ticket.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$tmpscript'" RETURN
 
@@ -236,7 +236,7 @@ test_check_tags_no_bug_type_tags_passes() {
     json_payload='[{"ticket_id":"test-0003","ticket_type":"bug","title":"Test bug","status":"closed","tags":["review:complete"],"priority":2,"author":"Test","created_at":1779000000000000000,"env_id":"00000000-0000-0000-0000-000000000000","parent_id":null,"alias":"test-alias3","description":"","comments":[],"deps":[],"bridge_alerts":[],"reverts":[],"file_impact":[],"preconditions_summary":{"status":"pre-manifest"}}]'
 
     local tmpscript
-    tmpscript=$(mktemp /tmp/test-audit-mock-ticket.XXXXXX)
+    tmpscript=$(mktemp "${TMPDIR:-/tmp}/test-audit-mock-ticket.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$tmpscript'" RETURN
 
@@ -257,7 +257,7 @@ test_check_tags_unknown_slug_named_in_output() {
     json_payload='[{"ticket_id":"test-0004","ticket_type":"bug","title":"Test bug","status":"closed","tags":["bug-type-definitely-nonexistent-slug"],"priority":2,"author":"Test","created_at":1779000000000000000,"env_id":"00000000-0000-0000-0000-000000000000","parent_id":null,"alias":"test-alias4","description":"","comments":[],"deps":[],"bridge_alerts":[],"reverts":[],"file_impact":[],"preconditions_summary":{"status":"pre-manifest"}}]'
 
     local tmpscript
-    tmpscript=$(mktemp /tmp/test-audit-mock-ticket.XXXXXX)
+    tmpscript=$(mktemp "${TMPDIR:-/tmp}/test-audit-mock-ticket.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$tmpscript'" RETURN
 

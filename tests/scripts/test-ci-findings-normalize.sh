@@ -65,8 +65,8 @@ JSON
 t_normalize_tier1_output_schema() {
     local _input _output _result _check
 
-    _input="$(mktemp /tmp/findings-input.XXXXXX)"
-    _output="$(mktemp /tmp/findings-output.XXXXXX)"
+    _input="$(mktemp "${TMPDIR:-/tmp}/findings-input.XXXXXX")"
+    _output="$(mktemp "${TMPDIR:-/tmp}/findings-output.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_input' '$_output'" RETURN
 
@@ -107,8 +107,8 @@ t_normalize_tier1_output_schema
 t_normalize_tier1_schema_conformance() {
     local _input _output _result _conformant
 
-    _input="$(mktemp /tmp/findings-input.XXXXXX)"
-    _output="$(mktemp /tmp/findings-output.XXXXXX)"
+    _input="$(mktemp "${TMPDIR:-/tmp}/findings-input.XXXXXX")"
+    _output="$(mktemp "${TMPDIR:-/tmp}/findings-output.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_input' '$_output'" RETURN
 
@@ -149,9 +149,9 @@ t_normalize_tier1_schema_conformance
 t_normalize_tier1_missing_findings_key_returns_nonzero() {
     local _tmpf _tmpout _exit_code _is_domain_nonzero _ec_file
 
-    _tmpf="$(mktemp /tmp/no-findings.XXXXXX)"
-    _tmpout="$(mktemp /tmp/out.XXXXXX)"
-    _ec_file="$(mktemp /tmp/ec.XXXXXX)"
+    _tmpf="$(mktemp "${TMPDIR:-/tmp}/no-findings.XXXXXX")"
+    _tmpout="$(mktemp "${TMPDIR:-/tmp}/out.XXXXXX")"
+    _ec_file="$(mktemp "${TMPDIR:-/tmp}/ec.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_tmpf' '$_tmpout' '$_ec_file'" RETURN
 
@@ -189,8 +189,8 @@ t_normalize_tier1_missing_findings_key_returns_nonzero
 t_normalize_tier1_empty_findings_array_emits_valid_schema() {
     local _input _output _result _findings_val
 
-    _input="$(mktemp /tmp/findings-empty.XXXXXX)"
-    _output="$(mktemp /tmp/findings-out.XXXXXX)"
+    _input="$(mktemp "${TMPDIR:-/tmp}/findings-empty.XXXXXX")"
+    _output="$(mktemp "${TMPDIR:-/tmp}/findings-out.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_input' '$_output'" RETURN
 
@@ -256,8 +256,8 @@ t_lib_mode_guard
 t_normalize_tier2_output_schema() {
     local _input _output _result _check
 
-    _input="$(mktemp /tmp/tier2-input.XXXXXX)"
-    _output="$(mktemp /tmp/tier2-output.XXXXXX)"
+    _input="$(mktemp "${TMPDIR:-/tmp}/tier2-input.XXXXXX")"
+    _output="$(mktemp "${TMPDIR:-/tmp}/tier2-output.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_input' '$_output'" RETURN
 
@@ -296,8 +296,8 @@ t_normalize_tier2_output_schema
 # ---------------------------------------------------------------------------
 t_normalize_tier1_missing_input_exits_3() {
     local _output _ec_file _exit_code
-    _output="$(mktemp /tmp/tier1-out.XXXXXX)"
-    _ec_file="$(mktemp /tmp/tier1-ec.XXXXXX)"
+    _output="$(mktemp "${TMPDIR:-/tmp}/tier1-out.XXXXXX")"
+    _ec_file="$(mktemp "${TMPDIR:-/tmp}/tier1-ec.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_output' '$_ec_file'" RETURN
 
@@ -321,8 +321,8 @@ t_normalize_tier1_missing_input_exits_3
 t_normalize_tier2_missing_input_exits_3() {
     local _output _ec_file _exit_code
 
-    _output="$(mktemp /tmp/tier2-out.XXXXXX)"
-    _ec_file="$(mktemp /tmp/tier2-ec.XXXXXX)"
+    _output="$(mktemp "${TMPDIR:-/tmp}/tier2-out.XXXXXX")"
+    _ec_file="$(mktemp "${TMPDIR:-/tmp}/tier2-ec.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_output' '$_ec_file'" RETURN
 
@@ -347,8 +347,8 @@ t_normalize_tier2_missing_input_exits_3
 t_normalize_tier2_log_parses_pytest_output() {
     local _input _output _result _found
 
-    _input="$(mktemp /tmp/tier2-pytest.XXXXXX)"
-    _output="$(mktemp /tmp/tier2-pytest-out.XXXXXX)"
+    _input="$(mktemp "${TMPDIR:-/tmp}/tier2-pytest.XXXXXX")"
+    _output="$(mktemp "${TMPDIR:-/tmp}/tier2-pytest-out.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_input' '$_output'" RETURN
 
@@ -387,8 +387,8 @@ t_normalize_tier2_log_parses_pytest_output
 t_normalize_tier3_output_schema() {
     local _input _output _result _check
 
-    _input="$(mktemp /tmp/tier3-input.XXXXXX)"
-    _output="$(mktemp /tmp/tier3-output.XXXXXX)"
+    _input="$(mktemp "${TMPDIR:-/tmp}/tier3-input.XXXXXX")"
+    _output="$(mktemp "${TMPDIR:-/tmp}/tier3-output.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_input' '$_output'" RETURN
 
@@ -428,8 +428,8 @@ t_normalize_tier3_output_schema
 t_normalize_tier3_missing_input_exits_3() {
     local _output _ec_file _exit_code
 
-    _output="$(mktemp /tmp/tier3-out.XXXXXX)"
-    _ec_file="$(mktemp /tmp/tier3-ec.XXXXXX)"
+    _output="$(mktemp "${TMPDIR:-/tmp}/tier3-out.XXXXXX")"
+    _ec_file="$(mktemp "${TMPDIR:-/tmp}/tier3-ec.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_output' '$_ec_file'" RETURN
 
@@ -454,8 +454,8 @@ t_normalize_tier3_missing_input_exits_3
 t_normalize_tier4_output_schema() {
     local _input _output _result _check
 
-    _input="$(mktemp /tmp/tier4-input.XXXXXX)"
-    _output="$(mktemp /tmp/tier4-output.XXXXXX)"
+    _input="$(mktemp "${TMPDIR:-/tmp}/tier4-input.XXXXXX")"
+    _output="$(mktemp "${TMPDIR:-/tmp}/tier4-output.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_input' '$_output'" RETURN
 
@@ -495,8 +495,8 @@ t_normalize_tier4_output_schema
 t_normalize_tier4_missing_input_exits_3() {
     local _output _ec_file _exit_code
 
-    _output="$(mktemp /tmp/tier4-out.XXXXXX)"
-    _ec_file="$(mktemp /tmp/tier4-ec.XXXXXX)"
+    _output="$(mktemp "${TMPDIR:-/tmp}/tier4-out.XXXXXX")"
+    _ec_file="$(mktemp "${TMPDIR:-/tmp}/tier4-ec.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_output' '$_ec_file'" RETURN
 
@@ -521,8 +521,8 @@ t_normalize_tier4_missing_input_exits_3
 t_fetch_ci_log_calls_gh_run_view() {
     local _output _ec_file _exit_code _content
 
-    _output="$(mktemp /tmp/fetch-ci-out.XXXXXX)"
-    _ec_file="$(mktemp /tmp/fetch-ci-ec.XXXXXX)"
+    _output="$(mktemp "${TMPDIR:-/tmp}/fetch-ci-out.XXXXXX")"
+    _ec_file="$(mktemp "${TMPDIR:-/tmp}/fetch-ci-ec.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -f '$_output' '$_ec_file'" RETURN
 

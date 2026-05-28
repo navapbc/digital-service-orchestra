@@ -25,7 +25,7 @@ echo "=== test-bypass-log-enforcement.sh ==="
 make_artifact() {
     local json="$1"
     local tmpfile
-    tmpfile=$(mktemp /tmp/bypass-log-test-artifact.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/bypass-log-test-artifact.XXXXXX")
     printf '%s' "$json" > "$tmpfile"
     echo "$tmpfile"
 }

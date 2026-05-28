@@ -44,7 +44,7 @@ trap 'rm -f "${_CLEANUP_FILES[@]:-}"' EXIT
 _resolve_ci_workflow_name() {
     local config_file="$1"
     local wrapper rc
-    wrapper=$(mktemp /tmp/ci-wfname.XXXXXX.sh)
+    wrapper=$(mktemp "${TMPDIR:-/tmp}/ci-wfname.XXXXXX".sh)
     cat > "$wrapper" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1
@@ -70,7 +70,7 @@ WRAPPER_EOF
 echo ""
 echo "--- test_merge_to_main_reads_ci_workflow_name ---"
 
-_T1_CONFIG=$(mktemp /tmp/dso-config-t1.XXXXXX.conf)
+_T1_CONFIG=$(mktemp "${TMPDIR:-/tmp}/dso-config-t1.XXXXXX".conf)
 _CLEANUP_FILES+=("$_T1_CONFIG")
 printf 'ci.workflow_name=my-ci-workflow\n' > "$_T1_CONFIG"
 
@@ -89,7 +89,7 @@ rm -f "$_T1_CONFIG"
 echo ""
 echo "--- test_merge_to_main_fallback_to_merge_ci_workflow_name ---"
 
-_T2_CONFIG=$(mktemp /tmp/dso-config-t2.XXXXXX.conf)
+_T2_CONFIG=$(mktemp "${TMPDIR:-/tmp}/dso-config-t2.XXXXXX".conf)
 _CLEANUP_FILES+=("$_T2_CONFIG")
 printf 'merge.ci_workflow_name=legacy-workflow\n' > "$_T2_CONFIG"
 
@@ -108,11 +108,11 @@ rm -f "$_T2_CONFIG"
 echo ""
 echo "--- test_merge_to_main_deprecation_warning ---"
 
-_T3_CONFIG=$(mktemp /tmp/dso-config-t3.XXXXXX.conf)
+_T3_CONFIG=$(mktemp "${TMPDIR:-/tmp}/dso-config-t3.XXXXXX".conf)
 _CLEANUP_FILES+=("$_T3_CONFIG")
 printf 'merge.ci_workflow_name=legacy-workflow\n' > "$_T3_CONFIG"
 
-_T3_WRAPPER=$(mktemp /tmp/ci-wfname-t3.XXXXXX.sh)
+_T3_WRAPPER=$(mktemp "${TMPDIR:-/tmp}/ci-wfname-t3.XXXXXX".sh)
 _CLEANUP_FILES+=("$_T3_WRAPPER")
 cat > "$_T3_WRAPPER" << WRAPPER_EOF
 #!/usr/bin/env bash
@@ -143,7 +143,7 @@ rm -f "$_T3_WRAPPER" "$_T3_CONFIG"
 echo ""
 echo "--- test_merge_to_main_both_keys_absent_resolves_to_empty ---"
 
-_T4_CONFIG=$(mktemp /tmp/dso-config-t4.XXXXXX.conf)
+_T4_CONFIG=$(mktemp "${TMPDIR:-/tmp}/dso-config-t4.XXXXXX".conf)
 _CLEANUP_FILES+=("$_T4_CONFIG")
 printf '' > "$_T4_CONFIG"  # empty config — no workflow name keys
 

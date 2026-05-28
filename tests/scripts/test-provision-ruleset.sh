@@ -305,32 +305,13 @@ assert_eq "test_dry_run_includes_session_branch_ruleset: session branch pattern 
 assert_eq "test_dry_run_includes_session_branch_ruleset: worktree branch pattern present" "present" "$sub_pr_has_worktree"
 assert_pass_if_clean "test_dry_run_includes_session_branch_ruleset"
 
-# ── test_session_branch_patterns_match_workflow_triggers (F1) ────────────────
-# The branch patterns in the session-branch ruleset must cover the same
-# namespace as review-sub-pr.yml's pull_request trigger branches.
-_snapshot_fail
-workflow_file="$REPO_ROOT/.github/workflows/review-sub-pr.yml"
-workflow_patterns_ok="yes"
-
-if [[ -f "$workflow_file" ]]; then
-    # Extract trigger branch patterns from the workflow file
-    for pattern in "session/**" "session-**" "session_**" "bug-batch/**" "worktree-**"; do
-        if ! grep -Fq "$pattern" "$workflow_file"; then
-            workflow_patterns_ok="no"
-            break
-        fi
-        refs_pattern="refs/heads/${pattern}"
-        if ! grep -Fq "$refs_pattern" "$PROVISION_SCRIPT"; then
-            workflow_patterns_ok="no"
-            break
-        fi
-    done
-else
-    workflow_patterns_ok="no"
-fi
-
-assert_eq "test_session_branch_patterns_match_workflow_triggers: all patterns aligned" "yes" "$workflow_patterns_ok"
-assert_pass_if_clean "test_session_branch_patterns_match_workflow_triggers"
+# test_session_branch_patterns_match_workflow_triggers removed (PR-2):
+# Superseded by tests/scripts/test-branch-pattern-alignment.sh which validates
+# alignment between the source-of-truth file
+# (plugins/dso/config/sub-pr-branch-patterns.txt) and both consumers
+# (provision-ruleset.sh, llm-review-dispatch-or-skip.sh). The original test
+# hardcoded a 5-pattern subset against literal grep — now obsolete since
+# patterns are read dynamically.
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

@@ -1014,6 +1014,264 @@ MOCKEOF
     rm -rf "$repo" "$artifact_dir"
 }
 
+# ── Test PR-2-followup-a: upstream ref filter excludes already-merged commits
+# When DSO_UPSTREAM_REF is reachable and the repo is non-shallow, commits
+# already on the upstream (already-shipped via prior PRs) must NOT be walked
+# by the verifier. This is the verifier-side analog of PR-1d's dispatcher
+# filter — both prevent wasted work on commits that no longer need review.
+test_upstream_ref_excludes_already_merged_commits() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_upstream_ref_excludes: script must exist" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+
+    # Build: base → A (will become "main") → B (on PR branch only)
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+    make_commit "$repo" "Already merged to main" > /dev/null
+    local already_merged_sha
+    already_merged_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Set the upstream ref to point at already_merged_sha (simulating
+    # "this commit is on origin/main")
+    git -C "$repo" update-ref refs/remotes/origin/main "$already_merged_sha"
+
+    # Add a NEW commit on the PR branch (not on origin/main)
+    make_commit "$repo" "PR-only commit needing review" > /dev/null
+    local pr_only_sha
+    pr_only_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    # Mock gh: return empty pulls so the only un-trailered commit (pr_only)
+    # is classified as unprovenanced.
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    local exit_code=0
+    local output
+    output=$(PATH="$MOCK_BIN:$PATH" \
+        DSO_REPO_PATH="$repo" \
+        DSO_BASE_SHA="$base_sha" \
+        DSO_SESSION_HEAD="$pr_only_sha" \
+        DSO_UPSTREAM_REF="refs/remotes/origin/main" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+        DSO_GH_REPO="test/repo" \
+        PR_NUMBER=999 \
+            bash "$SCRIPT" 2>&1) || exit_code=$?
+
+    # Both commits in BASE..HEAD range, but already_merged_sha must be
+    # filtered out by the upstream-exclusion — only pr_only_sha should
+    # appear in unprovenanced output.
+    local unprov_content=""
+    if [[ -f "${artifact_dir}/unprovenanced-shas.txt" ]]; then
+        unprov_content="$(cat "${artifact_dir}/unprovenanced-shas.txt")"
+    fi
+
+    assert_contains "test_upstream_filter: PR-only SHA in unprovenanced" \
+        "$pr_only_sha" "$unprov_content"
+    assert_not_contains "test_upstream_filter: already-merged SHA EXCLUDED from unprovenanced" \
+        "$already_merged_sha" "$unprov_content"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test PR-2-followup-b: unresolvable upstream ref → unfiltered walk ─────────
+# When the upstream ref can't be resolved, the verifier must fall back to the
+# unfiltered walk. Stronger assertion than just "pr_sha appears": we set up
+# both an already-merged SHA (that WOULD be filtered if the filter ran) and
+# a pr_only SHA, then assert BOTH are in the output (proving filter is off).
+test_unresolvable_upstream_ref_falls_back_to_unfiltered() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_unresolvable_upstream_ref: script must exist" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+    make_commit "$repo" "Already on main" > /dev/null
+    local would_be_filtered_sha
+    would_be_filtered_sha="$(git -C "$repo" rev-parse HEAD)"
+    # Mark it as on origin/main — but we'll point UPSTREAM_REF to a bogus
+    # ref so the filter falls back to unfiltered.
+    git -C "$repo" update-ref refs/remotes/origin/main "$would_be_filtered_sha"
+    local pr_sha
+    pr_sha="$(make_commit "$repo" "PR commit on branch")"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    PATH="$MOCK_BIN:$PATH" \
+        DSO_REPO_PATH="$repo" \
+        DSO_BASE_SHA="$base_sha" \
+        DSO_SESSION_HEAD="$pr_sha" \
+        DSO_UPSTREAM_REF="refs/remotes/origin/does-not-exist" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+        DSO_GH_REPO="test/repo" \
+        PR_NUMBER=999 \
+            bash "$SCRIPT" 2>/dev/null || true
+
+    local unprov_content=""
+    if [[ -f "${artifact_dir}/unprovenanced-shas.txt" ]]; then
+        unprov_content="$(cat "${artifact_dir}/unprovenanced-shas.txt")"
+    fi
+    # Both SHAs must appear (filter is off due to unresolvable ref)
+    assert_contains "test_unresolvable_upstream_ref: pr SHA in unprovenanced" \
+        "$pr_sha" "$unprov_content"
+    assert_contains "test_unresolvable_upstream_ref: would-be-filtered SHA also walked (filter inactive)" \
+        "$would_be_filtered_sha" "$unprov_content"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test PR-2-followup-c: cherry-picked equivalent NOT excluded ──────────────
+# Important coverage: a feature branch may carry a commit whose patch
+# content is also on main (via cherry-pick) but with a DIFFERENT SHA. The
+# filter operates on SHA identity, so the feature-branch version is NOT
+# excluded — correct behavior because (a) the feature-branch version may
+# have subsequent changes building on it, (b) the cherry-pick on main was
+# reviewed separately. Document this in the test so future readers see the
+# expected behavior.
+test_cherry_picked_equivalent_still_walked() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_cherry_picked_equivalent: script must exist" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+
+    # Setup: base → feature commit A (on PR branch only)
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+    # Add a commit to the branch (this stays on the branch only)
+    local fname="cherry-test-$$.txt"
+    printf 'feature content\n' > "$repo/$fname"
+    git -C "$repo" add "$fname" > /dev/null 2>&1
+    git -C "$repo" commit -m "Feature commit (branch only)" > /dev/null 2>&1
+    local branch_sha
+    branch_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Simulate a cherry-pick: create a different commit on a different
+    # branch with the same content, and point origin/main at it.
+    git -C "$repo" checkout -q "$base_sha"
+    printf 'feature content\n' > "$repo/$fname"
+    git -C "$repo" add "$fname" > /dev/null 2>&1
+    GIT_COMMITTER_DATE="$(date -u +%Y-%m-%dT%H:%M:%S)Z" \
+        git -C "$repo" commit -m "Cherry-picked from feature branch" > /dev/null 2>&1
+    local cherry_sha
+    cherry_sha="$(git -C "$repo" rev-parse HEAD)"
+    git -C "$repo" update-ref refs/remotes/origin/main "$cherry_sha"
+    # Return to branch_sha so the verifier walks branch_sha
+    git -C "$repo" checkout -q "$branch_sha"
+
+    [[ "$branch_sha" != "$cherry_sha" ]] || \
+        { echo "TEST SETUP FAILURE: branch and cherry SHAs should differ" >&2; return; }
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    PATH="$MOCK_BIN:$PATH" \
+        DSO_REPO_PATH="$repo" \
+        DSO_BASE_SHA="$base_sha" \
+        DSO_SESSION_HEAD="$branch_sha" \
+        DSO_UPSTREAM_REF="refs/remotes/origin/main" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+        DSO_GH_REPO="test/repo" \
+        PR_NUMBER=999 \
+            bash "$SCRIPT" 2>/dev/null || true
+
+    local unprov_content=""
+    if [[ -f "${artifact_dir}/unprovenanced-shas.txt" ]]; then
+        unprov_content="$(cat "${artifact_dir}/unprovenanced-shas.txt")"
+    fi
+    # branch_sha is NOT reachable from origin/main (cherry_sha is) — so the
+    # SHA-identity filter does NOT exclude it. Verifier walks it normally.
+    assert_contains "test_cherry_picked_equivalent: feature-branch SHA still walked despite cherry-pick on main" \
+        "$branch_sha" "$unprov_content"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test PR-2-followup-d: empty DSO_UPSTREAM_REF disables the filter ─────────
+# Empty-string env var is the explicit-disable signal. Verifier must NOT
+# fall back to origin/main when the caller explicitly set the var to "".
+test_empty_upstream_ref_disables_filter() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_empty_upstream_ref_disables_filter: script must exist" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+    make_commit "$repo" "On main" > /dev/null
+    local merged_sha
+    merged_sha="$(git -C "$repo" rev-parse HEAD)"
+    git -C "$repo" update-ref refs/remotes/origin/main "$merged_sha"
+    local pr_sha
+    pr_sha="$(make_commit "$repo" "PR commit")"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    # Explicit empty disables the filter
+    PATH="$MOCK_BIN:$PATH" \
+        DSO_REPO_PATH="$repo" \
+        DSO_BASE_SHA="$base_sha" \
+        DSO_SESSION_HEAD="$pr_sha" \
+        DSO_UPSTREAM_REF="" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+        DSO_GH_REPO="test/repo" \
+        PR_NUMBER=999 \
+            bash "$SCRIPT" 2>/dev/null || true
+
+    local unprov_content=""
+    if [[ -f "${artifact_dir}/unprovenanced-shas.txt" ]]; then
+        unprov_content="$(cat "${artifact_dir}/unprovenanced-shas.txt")"
+    fi
+    # Both SHAs must appear because filter is disabled
+    assert_contains "test_empty_upstream_ref: pr SHA walked (filter disabled)" \
+        "$pr_sha" "$unprov_content"
+    assert_contains "test_empty_upstream_ref: merged SHA also walked (filter explicitly disabled)" \
+        "$merged_sha" "$unprov_content"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_script_exists
 test_all_provenanced_exits_zero
@@ -1032,5 +1290,9 @@ test_covering_pr_no_review_check_is_unprovenanced
 test_covering_pr_failure_then_rerun_success_is_unprovenanced
 test_unrelated_check_runs_do_not_affect_classification
 test_cache_version_mismatch_entries_discarded
+test_upstream_ref_excludes_already_merged_commits
+test_unresolvable_upstream_ref_falls_back_to_unfiltered
+test_cherry_picked_equivalent_still_walked
+test_empty_upstream_ref_disables_filter
 
 print_summary

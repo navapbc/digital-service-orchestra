@@ -30,11 +30,11 @@ if [[ ! -f "$VERIFY_SCRIPT" ]]; then
 fi
 
 _setup_repo_with_base() {
-    _TEST_DIR=$(mktemp -d /tmp/test-verify-story-trailer.XXXXXX)
+    _TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-verify-story-trailer.XXXXXX")
     git init "$_TEST_DIR" --initial-branch=main --quiet 2>/dev/null \
         || git init "$_TEST_DIR" --quiet 2>/dev/null
     (
-        cd "$_TEST_DIR"
+        cd "$_TEST_DIR" || return
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "init" > README.md
@@ -51,7 +51,7 @@ echo "--- T1: trailer_present_in_range_exits_zero ---"
 _snapshot_fail
 _setup_repo_with_base
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     echo "work" > work.txt
     git add work.txt
     git commit -m "story work
@@ -60,7 +60,7 @@ DSO-Story-Merge: story-aaaa" --quiet
 )
 _T1_RC=0
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     bash "$VERIFY_SCRIPT" "story-aaaa" --base=base-ref >/dev/null 2>&1
 ) || _T1_RC=$?
 assert_eq "T1_exit_zero_when_trailer_present" "0" "$_T1_RC"
@@ -73,15 +73,15 @@ echo "--- T2: trailer_absent_exits_nonzero_with_stderr ---"
 _snapshot_fail
 _setup_repo_with_base
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     echo "x" > x.txt
     git add x.txt
     git commit -m "no trailer here" --quiet
 )
-_T2_STDERR=$(mktemp /tmp/test-verify-t2-stderr.XXXXXX)
+_T2_STDERR=$(mktemp "${TMPDIR:-/tmp}/test-verify-t2-stderr.XXXXXX")
 _T2_RC=0
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     bash "$VERIFY_SCRIPT" "story-bbbb" --base=base-ref 2>"$_T2_STDERR"
 ) || _T2_RC=$?
 assert_ne "T2_exit_nonzero_when_absent" "0" "$_T2_RC"
@@ -97,7 +97,7 @@ echo "--- T3: wrong_story_id_trailer_does_not_match ---"
 _snapshot_fail
 _setup_repo_with_base
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     echo "y" > y.txt
     git add y.txt
     git commit -m "other story
@@ -106,7 +106,7 @@ DSO-Story-Merge: story-other" --quiet
 )
 _T3_RC=0
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     bash "$VERIFY_SCRIPT" "story-target" --base=base-ref >/dev/null 2>&1
 ) || _T3_RC=$?
 assert_ne "T3_exit_nonzero_for_wrong_id" "0" "$_T3_RC"
@@ -139,14 +139,14 @@ echo "--- T6: empty_commit_with_trailer_counts ---"
 _snapshot_fail
 _setup_repo_with_base
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     git commit --allow-empty -m "Merge story branch (no-diff)
 
 DSO-Story-Merge: story-empty" --quiet
 )
 _T6_RC=0
 (
-    cd "$_TEST_DIR"
+    cd "$_TEST_DIR" || return
     bash "$VERIFY_SCRIPT" "story-empty" --base=base-ref >/dev/null 2>&1
 ) || _T6_RC=$?
 assert_eq "T6_exit_zero_for_empty_commit_with_trailer" "0" "$_T6_RC"

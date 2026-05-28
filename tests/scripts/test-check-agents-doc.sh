@@ -49,7 +49,7 @@ test_file_only_agent_flagged() {
     local _agent_name="test-injected-orphan-agent-$$"
     local _agent_file="$AGENTS_DIR/$_agent_name.md"
     local stderr_file
-    stderr_file=$(mktemp /tmp/test-check-agents-doc-fo.XXXXXX)
+    stderr_file=$(mktemp "${TMPDIR:-/tmp}/test-check-agents-doc-fo.XXXXXX")
     # shellcheck disable=SC2064
     trap "rm -f '$_agent_file' '$stderr_file'" RETURN
     printf '%s\n' "---" "name: $_agent_name" "description: synthetic test fixture" "---" "Test content." > "$_agent_file"
@@ -77,10 +77,10 @@ test_doc_only_agent_flagged() {
     # synthetic row leaks into the real doc and corrupts the next run).
     local _agent_name="test-orphan-doc-row-only-$$"
     local _backup
-    _backup=$(mktemp /tmp/test-check-agents-doc-do-backup.XXXXXX)
+    _backup=$(mktemp "${TMPDIR:-/tmp}/test-check-agents-doc-do-backup.XXXXXX")
     cp "$AGENTS_MD" "$_backup"
     local stderr_file
-    stderr_file=$(mktemp /tmp/test-check-agents-doc-do.XXXXXX)
+    stderr_file=$(mktemp "${TMPDIR:-/tmp}/test-check-agents-doc-do.XXXXXX")
     # shellcheck disable=SC2064
     trap "cp '$_backup' '$AGENTS_MD'; rm -f '$_backup' '$stderr_file'" RETURN
     printf '| `dso:%s` | sonnet | synthetic test fixture (no file) |\n' "$_agent_name" >> "$AGENTS_MD"

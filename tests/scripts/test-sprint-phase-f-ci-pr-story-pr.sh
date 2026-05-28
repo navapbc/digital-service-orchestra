@@ -163,8 +163,8 @@ echo ""
 echo "--- test_sprint_phase_f_sets_story_pr_base_from_resolve ---"
 _snapshot_fail
 
-_T5_TMP_BIN="$(mktemp -d /tmp/test-sprint-phase-f-bin.XXXXXX)"
-_T5_GH_CALL_LOG="$(mktemp /tmp/test-sprint-phase-f-calls.XXXXXX)"
+_T5_TMP_BIN="$(mktemp -d "${TMPDIR:-/tmp}/test-sprint-phase-f-bin.XXXXXX")"
+_T5_GH_CALL_LOG="$(mktemp "${TMPDIR:-/tmp}/test-sprint-phase-f-calls.XXXXXX")"
 
 _cleanup_t5() {
     rm -rf "$_T5_TMP_BIN" "$_T5_GH_CALL_LOG" 2>/dev/null || true

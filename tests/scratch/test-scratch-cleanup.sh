@@ -54,7 +54,7 @@ source "$TICKET_LIB"
 # ── Helpers ───────────────────────────────────────────────────────────────────
 _make_scratch_base() {
     local tmp
-    tmp=$(mktemp -d /tmp/scratch-cleanup-test-XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/scratch-cleanup-test-XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     echo "$tmp"
 }

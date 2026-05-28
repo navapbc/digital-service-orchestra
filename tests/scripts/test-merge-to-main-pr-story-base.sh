@@ -161,7 +161,7 @@ GIT_SHIM
 # ---------------------------------------------------------------------------
 test_story_pr_uses_session_branch_as_base() {
     local _T branch _argv _has_session_base _has_main_base
-    _T="$(mktemp -d /tmp/dso-story-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-story-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -214,7 +214,7 @@ test_story_pr_uses_session_branch_as_base
 # ---------------------------------------------------------------------------
 test_story_pr_base_unset_defaults_to_main() {
     local _T branch _argv _has_main_base
-    _T="$(mktemp -d /tmp/dso-story-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-story-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -255,7 +255,7 @@ test_story_pr_base_unset_defaults_to_main
 # ---------------------------------------------------------------------------
 test_story_pr_base_empty_defaults_to_main() {
     local _T branch _argv _has_main_base _has_empty_base
-    _T="$(mktemp -d /tmp/dso-story-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-story-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 

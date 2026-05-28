@@ -43,7 +43,7 @@ trap _cleanup EXIT
 # ticket-show.sh can reduce the ticket without a real repo.
 _make_tracker_and_scratch() {
     local tmp_tracker
-    tmp_tracker=$(mktemp -d /tmp/show-flag-tracker-XXXXXX)
+    tmp_tracker=$(mktemp -d "${TMPDIR:-/tmp}/show-flag-tracker-XXXXXX")
     _CLEANUP_DIRS+=("$tmp_tracker")
 
     local ticket_id="aaaa-1111-bbbb-2222"
@@ -85,7 +85,7 @@ PYEOF
 
 _make_scratch_base() {
     local tmp
-    tmp=$(mktemp -d /tmp/show-flag-scratch-XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/show-flag-scratch-XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     echo "$tmp"
 }

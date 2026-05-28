@@ -45,7 +45,7 @@ trap _cleanup EXIT
 # ── Helper: create a minimal git repo fixture and run ticket-init.sh in it ──
 _make_fixture_repo() {
     local tmp
-    tmp=$(mktemp -d /tmp/scratch-iso-XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/scratch-iso-XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
 
     # Minimal git repo setup

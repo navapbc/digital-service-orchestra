@@ -65,7 +65,7 @@ fi
 # Test 4: empty items[] is valid (degenerate case)
 echo ""
 echo "--- test: empty items[] fixture ---"
-_EMPTY_TMP="$(mktemp /tmp/gov-copy-empty.XXXXXX.yaml)"
+_EMPTY_TMP="$(mktemp "${TMPDIR:-/tmp}/gov-copy-empty.XXXXXX".yaml)"
 cat > "$_EMPTY_TMP" <<'YAML'
 schema_version: 1
 items: []
@@ -93,7 +93,7 @@ fi
 # string. This fixture exercises that rejection (round-3 verification finding).
 echo ""
 echo "--- test: wrong checks.source rejected ---"
-_WRONG_SRC_OUT=$(mktemp /tmp/wrong-src-out.XXXXXX)
+_WRONG_SRC_OUT=$(mktemp "${TMPDIR:-/tmp}/wrong-src-out.XXXXXX")
 if "$VALIDATOR" "$FIXTURE_DIR/gov-copy-fail-wrong-source.yaml" >"$_WRONG_SRC_OUT" 2>&1; then
   fail "validator should reject checks.source != 'deterministic-post-processor'"
 else
@@ -112,7 +112,7 @@ rm -f "$_WRONG_SRC_OUT"
 # readability/banned/voice scorers downstream. Validator must reject.
 echo ""
 echo "--- test: nested-dict errors value rejected ---"
-_NESTED_OUT=$(mktemp /tmp/nested-out.XXXXXX)
+_NESTED_OUT=$(mktemp "${TMPDIR:-/tmp}/nested-out.XXXXXX")
 if "$VALIDATOR" "$FIXTURE_DIR/gov-copy-fail-errors-nested-dict.yaml" >"$_NESTED_OUT" 2>&1; then
   fail "validator should reject errors.<key> being a nested dict"
 else

@@ -54,7 +54,7 @@ if [[ "${_RUN_ALL_ACTIVE:-0}" = "1" ]] && [[ ! -f "$AGENT_FILE" || ! -f "$PROTOC
     exit 0
 fi
 
-_SUITE_TMP=$(mktemp -d /tmp/test-e26d-verifier.XXXXXX)
+_SUITE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/test-e26d-verifier.XXXXXX")
 trap 'rm -rf "$_SUITE_TMP"' EXIT
 
 assert_anchor() {

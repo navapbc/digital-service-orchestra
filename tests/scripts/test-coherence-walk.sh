@@ -52,7 +52,7 @@ fi
 # ── Helper: create a fresh temp repo ─────────────────────────────────────────
 _make_test_repo() {
     local tmp
-    tmp=$(mktemp -d /tmp/test-coherence-walk.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-coherence-walk.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     clone_ticket_repo "$tmp/repo"
     echo "$tmp/repo"
@@ -457,7 +457,7 @@ test_handles_missing_tracker() {
     fi
 
     local tmp
-    tmp=$(mktemp -d /tmp/test-coherence-walk-missing.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-coherence-walk-missing.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
 
     local exit_code=0

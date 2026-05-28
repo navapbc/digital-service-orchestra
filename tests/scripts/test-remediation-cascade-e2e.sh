@@ -30,7 +30,7 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 
 # ── Temp directory setup + cleanup ───────────────────────────────────────────
 
-tmpdir="$(mktemp -d /tmp/cascade-e2e.XXXXXX)"
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/cascade-e2e.XXXXXX")"
 ORIG_PATH="$PATH"
 
 cleanup() {

@@ -53,7 +53,7 @@ trap '_cleanup' EXIT
 # ── Helper: create an isolated git repo ───────────────────────────────────────
 _make_git_repo() {
     local repo
-    repo="$(mktemp -d /tmp/test-provenance-e2e.XXXXXX)"
+    repo="$(mktemp -d "${TMPDIR:-/tmp}/test-provenance-e2e.XXXXXX")"
     _CLEANUP_DIRS+=("$repo")
     git init -q "$repo" 2>/dev/null
     git -C "$repo" config user.email "test@example.com"
@@ -135,7 +135,7 @@ test_verifier_exits_0_for_large_all_provenanced_diff() {
     _build_large_provenanced_fixture
 
     local artifact_dir
-    artifact_dir="$(mktemp -d /tmp/test-provenance-artifacts.XXXXXX)"
+    artifact_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-provenance-artifacts.XXXXXX")"
     _CLEANUP_DIRS+=("$artifact_dir")
 
     local exit_code=0
@@ -183,7 +183,7 @@ test_e2e_large_provenanced_pr_runner_never_invoked() {
 
     # Mock ci-llm-review-runner.sh via DSO_RUNNER_PATH; record any invocation.
     local mock_dir
-    mock_dir="$(mktemp -d /tmp/test-mock-runner.XXXXXX)"
+    mock_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-mock-runner.XXXXXX")"
     _CLEANUP_DIRS+=("$mock_dir")
 
     local runner_call_log="$mock_dir/runner-invocations.log"
@@ -197,7 +197,7 @@ MOCKEOF
     chmod +x "$mock_runner"
 
     local artifact_dir
-    artifact_dir="$(mktemp -d /tmp/test-provenance-artifacts2.XXXXXX)"
+    artifact_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-provenance-artifacts2.XXXXXX")"
     _CLEANUP_DIRS+=("$artifact_dir")
 
     # bug 8a77 v2 (Change B): the dispatcher consumes verifier-written
@@ -254,7 +254,7 @@ test_e2e_large_provenanced_pr_emits_skipped_conclusion() {
     _build_large_provenanced_fixture
 
     local mock_dir
-    mock_dir="$(mktemp -d /tmp/test-mock-runner2.XXXXXX)"
+    mock_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-mock-runner2.XXXXXX")"
     _CLEANUP_DIRS+=("$mock_dir")
 
     local mock_runner="$mock_dir/ci-llm-review-runner.sh"
@@ -266,7 +266,7 @@ MOCKEOF
     chmod +x "$mock_runner"
 
     local artifact_dir
-    artifact_dir="$(mktemp -d /tmp/test-provenance-artifacts3.XXXXXX)"
+    artifact_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-provenance-artifacts3.XXXXXX")"
     _CLEANUP_DIRS+=("$artifact_dir")
 
     # bug 8a77 v2: pre-run verifier to populate artifact dir (see Test 2 note).
@@ -314,7 +314,7 @@ test_e2e_output_contains_covered_by_sub_pr_reviews_with_list() {
     _build_large_provenanced_fixture
 
     local mock_dir
-    mock_dir="$(mktemp -d /tmp/test-mock-runner3.XXXXXX)"
+    mock_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-mock-runner3.XXXXXX")"
     _CLEANUP_DIRS+=("$mock_dir")
 
     local mock_runner="$mock_dir/ci-llm-review-runner.sh"
@@ -325,7 +325,7 @@ MOCKEOF
     chmod +x "$mock_runner"
 
     local artifact_dir
-    artifact_dir="$(mktemp -d /tmp/test-provenance-artifacts4.XXXXXX)"
+    artifact_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-provenance-artifacts4.XXXXXX")"
     _CLEANUP_DIRS+=("$artifact_dir")
 
     # bug 8a77 v2: pre-run verifier to populate artifact dir (see Test 2 note).
@@ -401,7 +401,7 @@ test_e2e_mixed_diff_invokes_runner() {
     head_sha="$(git -C "$repo" rev-parse HEAD)"
 
     local mock_dir
-    mock_dir="$(mktemp -d /tmp/test-mock-runner4.XXXXXX)"
+    mock_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-mock-runner4.XXXXXX")"
     _CLEANUP_DIRS+=("$mock_dir")
 
     local runner_call_log="$mock_dir/runner-neg-calls.log"
@@ -433,7 +433,7 @@ MOCKEOF
     chmod +x "$mock_bin/gh"
 
     local artifact_dir
-    artifact_dir="$(mktemp -d /tmp/test-provenance-artifacts5.XXXXXX)"
+    artifact_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-provenance-artifacts5.XXXXXX")"
     _CLEANUP_DIRS+=("$artifact_dir")
 
     # bug 8a77 v2: pre-run verifier so the dispatcher has artifacts to consume

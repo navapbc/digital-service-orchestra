@@ -51,13 +51,13 @@ assert_eq "test_bash_syntax_still_passes" "pass" "$SYNTAX_OK"
 # Helper: set up a git pair (bare origin + working clone)
 # Sets globals: _TEST_BASE, _ORIGIN_DIR, _WORK_DIR
 _setup_git_pair_ucq2() {
-    _TEST_BASE=$(mktemp -d /tmp/merge-to-main-ucq2.XXXXXX)
+    _TEST_BASE=$(mktemp -d "${TMPDIR:-/tmp}/merge-to-main-ucq2.XXXXXX")
     _ORIGIN_DIR="$_TEST_BASE/origin.git"
     _WORK_DIR="$_TEST_BASE/work"
     git init --bare "$_ORIGIN_DIR" -b main --quiet 2>/dev/null
     git clone "$_ORIGIN_DIR" "$_WORK_DIR" --quiet 2>/dev/null
     (
-        cd "$_WORK_DIR"
+        cd "$_WORK_DIR" || return
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "init" > README.md
@@ -81,7 +81,7 @@ _setup_git_pair_ucq2
 
 _T2_RC=0
 _T2_OUTPUT=$(
-    cd "$_WORK_DIR"
+    cd "$_WORK_DIR" || return
     # When origin/main IS an ancestor of HEAD, the ancestor-guard must
     # detect this and indicate pull should be skipped.
     if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
@@ -113,7 +113,7 @@ _setup_git_pair_ucq2
 _WORK2="$_TEST_BASE/work2"
 git clone "$_ORIGIN_DIR" "$_WORK2" --quiet 2>/dev/null
 (
-    cd "$_WORK2"
+    cd "$_WORK2" || return
     git config user.email "test@test.com"
     git config user.name "Test2"
     echo "origin change" > origin-file.txt
@@ -141,7 +141,7 @@ if [[ "$_T3_IS_ANCESTOR" -eq 0 ]] && [[ "$_T3_MB_RC" -le 1 ]]; then
     # Set up state and run git merge origin/main as the _phase_sync diverged path would
     _HELPERS_BODY=$(cat "$MERGE_HELPERS_LIB")
     _T3_OUTPUT=$(
-        cd "$_WORK_DIR"
+        cd "$_WORK_DIR" || return
         export BRANCH="main"
         eval "$_HELPERS_BODY" 2>/dev/null || true
         _state_init 2>/dev/null || true
@@ -185,14 +185,14 @@ _extract_fn() {
 # --- Helper: create a bare "origin" repo and a cloned working repo ---
 # Sets globals: _TEST_BASE, _ORIGIN_DIR, _WORK_DIR
 _setup_git_pair() {
-    _TEST_BASE=$(mktemp -d /tmp/merge-to-main-ucq2.XXXXXX)
+    _TEST_BASE=$(mktemp -d "${TMPDIR:-/tmp}/merge-to-main-ucq2.XXXXXX")
     _ORIGIN_DIR="$_TEST_BASE/origin.git"
     _WORK_DIR="$_TEST_BASE/work"
 
     git init --bare "$_ORIGIN_DIR" -b main --quiet 2>/dev/null
     git clone "$_ORIGIN_DIR" "$_WORK_DIR" --quiet 2>/dev/null
     (
-        cd "$_WORK_DIR"
+        cd "$_WORK_DIR" || return
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "init" > README.md
@@ -245,7 +245,7 @@ _snapshot_fail
 
 _setup_git_pair
 (
-    cd "$_WORK_DIR"
+    cd "$_WORK_DIR" || return
     echo "new content" > newfile.txt
     git add newfile.txt
     git commit -m "local-only commit" --quiet
@@ -275,7 +275,7 @@ _setup_git_pair
 _WORK2="$_TEST_BASE/work2"
 git clone "$_ORIGIN_DIR" "$_WORK2" --quiet 2>/dev/null
 (
-    cd "$_WORK2"
+    cd "$_WORK2" || return
     git config user.email "test@test.com"
     git config user.name "Test2"
     echo "origin change" > README.md
@@ -286,7 +286,7 @@ git clone "$_ORIGIN_DIR" "$_WORK2" --quiet 2>/dev/null
 
 # Make a conflicting local commit (same file, different content)
 (
-    cd "$_WORK_DIR"
+    cd "$_WORK_DIR" || return
     echo "local change" > README.md
     git add README.md
     git commit -m "local diverge" --quiet
@@ -301,7 +301,7 @@ _STATE_FILE=$(_state_file_path)
 
 # Simulate the conflict path from merge-to-main.sh _phase_sync
 _T15_OUTPUT=$(
-    cd "$_WORK_DIR"
+    cd "$_WORK_DIR" || return
     _abort_stale_rebase
     if ! git pull --rebase 2>&1; then
         _abort_stale_rebase
@@ -342,7 +342,7 @@ _snapshot_fail
 
 _setup_git_pair
 (
-    cd "$_WORK_DIR"
+    cd "$_WORK_DIR" || return
     _GIT_DIR=$(git rev-parse --git-dir)
     # Create minimal rebase state so git rebase --abort can proceed
     mkdir -p "$_GIT_DIR/rebase-merge"

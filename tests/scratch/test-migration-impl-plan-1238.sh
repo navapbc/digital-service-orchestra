@@ -209,7 +209,7 @@ test_receipt_roundtrip() {
     payload='{"ticket_id":"abcd-1234-efgh-5678","key":"implementation-plan:step6:gap-analysis-draft","byte_count":142}'
 
     local stdout stderr exit_code=0
-    _tmpfile=$(mktemp /tmp/receipt-parse-test-XXXXXX.txt)
+    _tmpfile=$(mktemp "${TMPDIR:-/tmp}/receipt-parse-test-XXXXXX".txt)
     stdout=$(printf '%s' "$payload" | bash "$RECEIPT_PARSE" "implementation-plan:step6" "dso:task-decomposer" 2>"$_tmpfile") \
         || exit_code=$?
     stderr=$(cat "$_tmpfile")
@@ -234,7 +234,7 @@ test_extra_field_rejected() {
     payload='{"ticket_id":"abcd-1234-efgh-5678","key":"implementation-plan:step6:gap-analysis-draft","byte_count":142,"n":1,"verdict":"fail"}'
 
     local stderr exit_code=0
-    _tmpfile=$(mktemp /tmp/receipt-parse-test-XXXXXX.txt)
+    _tmpfile=$(mktemp "${TMPDIR:-/tmp}/receipt-parse-test-XXXXXX".txt)
     printf '%s' "$payload" | bash "$RECEIPT_PARSE" "implementation-plan:step6" "dso:task-decomposer" >/dev/null 2>"$_tmpfile" \
         || exit_code=$?
     stderr=$(cat "$_tmpfile")

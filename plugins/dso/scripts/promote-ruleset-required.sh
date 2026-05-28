@@ -36,17 +36,43 @@ CHECKS_FILE=""
 DRY_RUN="${DSO_DRY_RUN:-0}"
 NON_INTERACTIVE=0
 
-# The check-contexts that this script manages (staged rollout targets).
-# Both were added to .github/required-checks.txt by update-required-checks-manifest.sh.
-STAGED_CHECKS=(
-    "review-sub-pr"
+# The check-contexts that this script manages, partitioned by target ruleset.
+# Each ruleset gets only the checks that are emitted on PRs it covers:
+#
+#   merge-pipeline-checks → fires on session→main PRs, belongs on the
+#                           main-branch ruleset.
+#   review-sub-pr         → fires only on PRs targeting sub-PR branches,
+#                           belongs on the sub-PR ruleset.
+#
+# Adding review-sub-pr to the main-branch ruleset would deadlock every PR
+# to main (the check never reports on those PRs).
+MAIN_STAGED_CHECKS=(
     "merge-pipeline-checks"
+)
+SUB_PR_STAGED_CHECKS=(
+    "review-sub-pr"
 )
 
 RULESET_NAMES=(
     "DSO CI Enforcement"
     "DSO Sub-PR Review Enforcement"
 )
+
+# Emit (one per line) the staged check-contexts for a given ruleset name.
+# Returns exit 1 if the ruleset name is not recognized.
+_staged_checks_for_ruleset() {
+    case "$1" in
+        "DSO CI Enforcement")
+            printf '%s\n' "${MAIN_STAGED_CHECKS[@]}"
+            ;;
+        "DSO Sub-PR Review Enforcement")
+            printf '%s\n' "${SUB_PR_STAGED_CHECKS[@]}"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
 
 # Resolve repo root (git root relative to script location or cwd)
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null \
@@ -189,7 +215,13 @@ if [[ "$SUBCOMMAND" == "list-status" ]]; then
         echo "  Ruleset ID: $_RS_ID"
         echo "  Check-context status:"
 
-        for check in "${STAGED_CHECKS[@]}"; do
+        mapfile -t _RS_STAGED < <(_staged_checks_for_ruleset "$_rs_name")
+        if [[ ${#_RS_STAGED[@]} -eq 0 ]]; then
+            echo "    WARNING: no staged checks configured for '$_rs_name'"
+            echo ""
+            continue
+        fi
+        for check in "${_RS_STAGED[@]}"; do
             if echo "$_RS_JSON" | jq -e --arg ctx "$check" '
                 .rules[]? | select(.type == "required_status_checks")
                 | .parameters.required_status_checks[]? | select(.context == $ctx)' \
@@ -209,17 +241,22 @@ if [[ "$SUBCOMMAND" == "list-status" ]]; then
     exit 0
 fi
 
-# ── Build staged-checks JSON (used by both stage and promote) ─────────────────
-STAGED_JSON="$(printf '%s\n' "${STAGED_CHECKS[@]}" | jq -R '{context: .}' | jq -s '.')"
-
 # ── Subcommand: stage-as-non-required ─────────────────────────────────────────
 # GitHub Rulesets API: checks listed under required_status_checks are enforced
 # once the ruleset enforcement is "active". To provide a non-blocking
 # observation window, we add the checks to a SEPARATE ruleset named
 # "DSO Observation Window" (or update it) with enforcement="evaluate".
 # "evaluate" means checks are tracked and visible in the PR UI but do NOT block.
+#
+# The observation-window ruleset targets the default branch (main), so it stages
+# only the main-branch staged checks. Sub-PR ruleset checks are promoted directly
+# via --promote-to-required (no observation window).
 if [[ "$SUBCOMMAND" == "stage-as-non-required" ]]; then
     OBS_RULESET_NAME="DSO Observation Window"
+
+    # Use main-branch staged checks for the observation ruleset (which targets main).
+    STAGED_CHECKS=("${MAIN_STAGED_CHECKS[@]}")
+    STAGED_JSON="$(printf '%s\n' "${STAGED_CHECKS[@]}" | jq -R '{context: .}' | jq -s '.')"
 
     # Build observation-window ruleset payload
     OBS_PAYLOAD="$(jq -n \
@@ -324,6 +361,14 @@ if [[ "$SUBCOMMAND" == "promote-to-required" ]]; then
 
         echo "Ruleset ID: $RULESET_ID"
         RULESET_JSON="$(_fetch_ruleset "$REPO" "$RULESET_ID")"
+
+        # Per-ruleset staged checks — see MAIN_STAGED_CHECKS / SUB_PR_STAGED_CHECKS above.
+        mapfile -t STAGED_CHECKS < <(_staged_checks_for_ruleset "$_rs_name")
+        if [[ ${#STAGED_CHECKS[@]} -eq 0 ]]; then
+            echo "WARNING: no staged checks configured for ruleset '$_rs_name' — skipping." >&2
+            continue
+        fi
+        STAGED_JSON="$(printf '%s\n' "${STAGED_CHECKS[@]}" | jq -R '{context: .}' | jq -s '.')"
 
         EXISTING_CHECKS_JSON="$(echo "$RULESET_JSON" | jq '
             [.rules[]? | select(.type == "required_status_checks")

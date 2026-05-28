@@ -49,7 +49,7 @@ _run_pre_verify() {
     local ticket_id="$2"
     # Create a wrapper script that the pre-verifier can call as DSO_TICKET_CMD
     local wrapper
-    wrapper=$(mktemp /tmp/ticket-wrapper.XXXXXX)
+    wrapper=$(mktemp "${TMPDIR:-/tmp}/ticket-wrapper.XXXXXX")
     cat > "$wrapper" <<WRAPPER_EOF
 #!/usr/bin/env bash
 _TICKET_TEST_NO_SYNC=1 DSO_TICKET_LEGACY=0 exec bash "$TICKET_SCRIPT" "\$@"
@@ -332,7 +332,7 @@ test_timeout_outcome() {
 
     # Create wrapper with 2s timeout override
     local wrapper
-    wrapper=$(mktemp /tmp/ticket-wrapper.XXXXXX)
+    wrapper=$(mktemp "${TMPDIR:-/tmp}/ticket-wrapper.XXXXXX")
     cat > "$wrapper" <<WRAPPER_EOF
 #!/usr/bin/env bash
 _TICKET_TEST_NO_SYNC=1 DSO_TICKET_LEGACY=0 exec bash "$TICKET_SCRIPT" "\$@"

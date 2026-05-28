@@ -210,7 +210,7 @@ PR_JSON=""
 # ---------------------------------------------------------------------------
 test_direct_mode_emits_canonical_conflict_data_schema() {
     local _T _out _line_count _json _keys
-    _T="$(mktemp -d /tmp/dso-conflict-parity-direct.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-conflict-parity-direct.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -252,7 +252,7 @@ test_direct_mode_emits_canonical_conflict_data_schema
 # ---------------------------------------------------------------------------
 test_pr_mode_emits_canonical_conflict_data_schema() {
     local _T _out _ec _line_count _json _keys _branch _branch_safe _state_file
-    _T="$(mktemp -d /tmp/dso-conflict-parity-pr.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-conflict-parity-pr.XXXXXX")"
     _branch="feature-pr-conflict-parity"
     _branch_safe="${_branch//\//-}"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
@@ -353,7 +353,7 @@ test_both_modes_emit_identical_key_sets
 # ---------------------------------------------------------------------------
 test_recovery_failed_fallback_uses_squash_rebase_conflicts() {
     local _T _out _json _keys _line_count _files_type _branch
-    _T="$(mktemp -d /tmp/dso-conflict-parity-recovery.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-conflict-parity-recovery.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 

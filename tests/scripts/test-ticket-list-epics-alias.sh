@@ -39,7 +39,7 @@ echo "=== test-ticket-list-epics-alias.sh ==="
 #   title:     Epic With Alias
 make_tracker_with_aliased_epic() {
     local tracker_dir
-    tracker_dir=$(mktemp -d /tmp/test-ticket-list-epics-alias.XXXXXX)
+    tracker_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-list-epics-alias.XXXXXX")
     _CLEANUP_DIRS+=("$tracker_dir")
 
     mkdir -p "$tracker_dir/epic-alias-1"
@@ -75,7 +75,7 @@ with open('$tracker_dir/epic-alias-1/001-CREATE.json', 'w') as f:
 # that has NO alias set (alias computed from ticket_id by reducer).
 make_tracker_no_alias() {
     local tracker_dir
-    tracker_dir=$(mktemp -d /tmp/test-ticket-list-epics-alias.XXXXXX)
+    tracker_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-list-epics-alias.XXXXXX")
     _CLEANUP_DIRS+=("$tracker_dir")
 
     mkdir -p "$tracker_dir/epic-noalias-1"

@@ -62,7 +62,7 @@ if [[ "${_RUN_ALL_ACTIVE:-0}" = "1" ]] && [[ ! -f "$VSC" || ! -f "$BS_SKILL" || 
 fi
 
 # ── Per-suite temp ─────────────────────────────────────────────────────────────
-_SUITE_TMP=$(mktemp -d /tmp/test-e26d-routing.XXXXXX)
+_SUITE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/test-e26d-routing.XXXXXX")
 trap 'rm -rf "$_SUITE_TMP"' EXIT
 
 # ── Assertion helpers ──────────────────────────────────────────────────────────

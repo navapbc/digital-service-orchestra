@@ -43,7 +43,7 @@ assert_pass_if_clean "test_passes_mktemp_in_tmp"
 
 # ── test_ignores_non_bash_files ──────────────────────────────────────────────
 _snapshot_fail
-_TEMP_PY=$(mktemp /tmp/test-isolation-XXXXXX.py)
+_TEMP_PY=$(mktemp "${TMPDIR:-/tmp}/test-isolation-XXXXXX".py)
 trap 'rm -f "$_TEMP_PY"' EXIT
 cat > "$_TEMP_PY" << 'PYEOF'
 import os
@@ -55,7 +55,7 @@ assert_pass_if_clean "test_ignores_non_bash_files"
 
 # ── test_respects_isolation_ok_comment ───────────────────────────────────────
 _snapshot_fail
-_TEMP_SH=$(mktemp /tmp/test-isolation-XXXXXX)
+_TEMP_SH=$(mktemp "${TMPDIR:-/tmp}/test-isolation-XXXXXX")
 mv "$_TEMP_SH" "${_TEMP_SH}.sh"
 _TEMP_SH="${_TEMP_SH}.sh"
 cat > "$_TEMP_SH" << 'SHEOF'

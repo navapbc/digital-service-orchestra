@@ -30,7 +30,7 @@ trap _cleanup EXIT
 # make_allow_hook: write a hook function that exits 0 (allow)
 make_allow_hook() {
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-dispatcher-allow-XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-dispatcher-allow-XXXXXX")
     _CLEANUP_DIRS+=("$tmpfile")
     cat >"$tmpfile" <<'EOF'
 #!/usr/bin/env bash
@@ -44,7 +44,7 @@ EOF
 make_block_hook() {
     local name="$1"
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-dispatcher-block-XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-dispatcher-block-XXXXXX")
     _CLEANUP_DIRS+=("$tmpfile")
     cat >"$tmpfile" <<EOF
 #!/usr/bin/env bash
@@ -58,7 +58,7 @@ EOF
 # make_deny_hook: write a hook that exits 2 and outputs permissionDecision JSON to stdout
 make_deny_hook() {
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-dispatcher-deny-XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-dispatcher-deny-XXXXXX")
     _CLEANUP_DIRS+=("$tmpfile")
     cat >"$tmpfile" <<'EOF'
 #!/usr/bin/env bash
@@ -118,12 +118,12 @@ rm -f "$_h_deny"
 # if the file is created, the second hook ran (failure).
 # ============================================================
 echo "--- test_run_hooks_stops_at_first_block ---"
-_sentinel=$(mktemp /tmp/test-dispatcher-sentinel.XXXXXX)
+_sentinel=$(mktemp "${TMPDIR:-/tmp}/test-dispatcher-sentinel.XXXXXX")
 _CLEANUP_DIRS+=("$_sentinel")
 rm -f "$_sentinel"   # ensure it doesn't exist yet
 
 _h_block_first=$(make_block_hook "first")
-_h_sentinel=$(mktemp /tmp/test-dispatcher-sentinel-hook-XXXXXX)
+_h_sentinel=$(mktemp "${TMPDIR:-/tmp}/test-dispatcher-sentinel-hook-XXXXXX")
 _CLEANUP_DIRS+=("$_h_sentinel")
 cat >"$_h_sentinel" <<EOF
 #!/usr/bin/env bash
