@@ -43,7 +43,7 @@ Run from the orchestrator context (sprint, commit, or standalone) before committ
 **IMPORTANT**: Do NOT call the Skill tool again or re-invoke `/dso:review` recursively. Instead:
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-WORKFLOW.md` now.
-2. Execute its steps verbatim — starting from Step 1 (Capture Diff Hash).
+2. Execute its steps verbatim — starting from Step 0 (Clear Stale Review Artifacts).
 3. Follow all HARD-GATE sections and workflow enforcement gates.
 
 The workflow file is the complete specification. If `dso.workflow=ci-pr` is set, the workflow will instruct you to skip local review and emit .skipped markers instead.
