@@ -27,6 +27,12 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from dso_ci_review.dispatch_ratelimit import (
+    DispatchContext,
+    calculate_backoff,
+    parse_retry_after,
+)
+
 logger = logging.getLogger(__name__)
 
 _PLUGIN_ROOT = pathlib.Path(
@@ -1016,10 +1022,26 @@ async def _call_single_agent(
     provider_chain: list[str] | None = None,
     tier: str = "standard",
     review_context: str | None = None,
+    dispatch_context: "DispatchContext | None" = None,
 ) -> dict:
-    """Dispatch one reviewer agent. Returns findings dict or error entry on any exception."""
+    """Dispatch one reviewer agent. Returns findings dict or error entry on any exception.
+
+    Runs the synchronous dispatch_review on a worker thread via asyncio.to_thread
+    so that sibling specialists in async_dispatch_specialists' gather() can run
+    in parallel. Without this, the gather is a no-op — sync work blocks the
+    event loop and serializes all siblings (spike_01_serialization.py).
+
+    When dispatch_context is provided, the coroutine awaits its cooldown_event
+    before submitting work, and signals cooldown if the call raises a rate-limit
+    error. The cooldown gates new submissions; in-flight to_thread calls cannot
+    be interrupted but their failures will configure the cooldown for retries
+    and follow-on submissions.
+    """
+    if dispatch_context is not None:
+        await dispatch_context.cooldown_event.wait()
     try:
-        result = dispatch_review(
+        result = await asyncio.to_thread(
+            dispatch_review,
             diff_text=diff_text,
             agent_id=agent_id,
             primary_model=model,
@@ -1029,6 +1051,11 @@ async def _call_single_agent(
         )
         return result
     except Exception as exc:  # noqa: BLE001
+        if dispatch_context is not None and _is_rate_limit_error(exc):
+            headers = getattr(exc, "litellm_response_headers", None)
+            retry_after = parse_retry_after(headers) if headers is not None else None
+            delay = calculate_backoff(0, retry_after)
+            dispatch_context.signal_cooldown(delay)
         return {
             "findings": [
                 {
@@ -1041,6 +1068,18 @@ async def _call_single_agent(
                 }
             ]
         }
+
+
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    if type(exc).__name__ == "RateLimitError":
+        return True
+    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if isinstance(status, str):
+        try:
+            status = int(status)
+        except ValueError:
+            status = None
+    return status == 429
 
 
 def dispatch_arch_synthesis(
@@ -1534,6 +1573,8 @@ def dispatch_schema_correction(
 
 async def async_dispatch_specialists(
     agents: list[dict],
+    *,
+    dispatch_context: "DispatchContext | None" = None,
 ) -> list[dict]:
     """Dispatch all specialist agents concurrently via asyncio.gather.
 
@@ -1550,22 +1591,34 @@ async def async_dispatch_specialists(
             - provider_chain (list[str] | None): Optional provider chain override.
             - tier (str | None): Review tier — propagated to dispatch_review so
               light tier skips the augmentation loop.
+        dispatch_context: Per-asyncio.run rate-limit coordination state. When
+            None, a fresh context is created and cleaned up for this call. Phase 2
+            cluster-level dispatch passes a shared context so cooldowns coordinate
+            across clusters within a single asyncio.run.
     """
     if not agents:
         return []
 
-    tasks = [
-        _call_single_agent(
-            agent_id=a["agent_id"],
-            diff_text=a["diff_text"],
-            model=a["model"],
-            provider_chain=a.get("provider_chain"),
-            tier=a.get("tier", "standard"),
-            review_context=a.get("review_context"),
-        )
-        for a in agents
-    ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    owns_context = dispatch_context is None
+    if owns_context:
+        dispatch_context = DispatchContext.create()
+    try:
+        tasks = [
+            _call_single_agent(
+                agent_id=a["agent_id"],
+                diff_text=a["diff_text"],
+                model=a["model"],
+                provider_chain=a.get("provider_chain"),
+                tier=a.get("tier", "standard"),
+                review_context=a.get("review_context"),
+                dispatch_context=dispatch_context,
+            )
+            for a in agents
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    finally:
+        if owns_context:
+            dispatch_context.cleanup()
 
     findings_list = []
     for i, result in enumerate(results):

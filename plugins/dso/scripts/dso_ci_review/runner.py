@@ -2013,7 +2013,24 @@ def _post_cycle_marker_comment(
 
 
 def main() -> int:
-    """Run the CI review and return an exit code."""
+    """Run the CI review and return an exit code.
+
+    CLI-only entry point. The four asyncio.run() invocations inside this
+    function (and inside region_split.review_oversized_clusters) assume no
+    host event loop is already running. Importing and calling main() from a
+    context with a running loop will trip the assertion below — see
+    tests/skills/dso_ci_review/litellm_contract_spikes/spike_05_nested_loop_assertion.py
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError(
+            "runner.main() is CLI-only and cannot be invoked from a context "
+            "with a running event loop. Run as a subprocess instead."
+        )
+
     dry_run = os.environ.get("DSO_CI_REVIEW_DRY_RUN") == "1"
 
     if dry_run:
