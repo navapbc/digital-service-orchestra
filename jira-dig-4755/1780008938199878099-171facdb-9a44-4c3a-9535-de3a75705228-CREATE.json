@@ -1,0 +1,1 @@
+{"timestamp": 1780008938199878099, "uuid": "171facdb-9a44-4c3a-9535-de3a75705228", "event_type": "CREATE", "env_id": "reconciler", "author": "reconciler", "data": {"id": "jira-dig-4755", "ticket_type": "task", "title": "test-probe-h6-update", "description": "", "parent_id": "", "tags": ["imported:reconciler-bootstrap"], "priority": 3}}
