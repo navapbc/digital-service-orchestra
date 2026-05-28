@@ -148,6 +148,135 @@ def test_inbound_conflict_leaf_does_not_invoke_subprocess(
     assert "description" in pending
 
 
+def _make_fake_acli_mod():
+    """Build a minimal stub acli module so apply() can construct its client
+    without importing the real acli-integration.py (which has a known
+    `dso_reconciler.adf` ModuleNotFoundError under test load)."""
+    import types
+
+    fake = types.ModuleType("acli_integration_stub")
+    fake.AcliClient = lambda **_: types.SimpleNamespace(
+        update_issue=lambda *a, **kw: {},
+        add_label=lambda *a, **kw: None,
+        remove_label=lambda *a, **kw: None,
+        add_comment=lambda *a, **kw: None,
+        search_issues=lambda *a, **kw: [],
+        create_issue=lambda *a, **kw: {"key": "DIG-MOCK"},
+    )
+    return fake
+
+
+def test_apply_files_pending_bug_tickets_after_apply_batch_returns(
+    applier, mut_mod, fixture_repo, monkeypatch
+):
+    """Positive postcondition: when apply() processes an inbound conflict
+    mutation, it MUST call _file_conflict_bug_ticket for the resulting
+    pending_bug_ticket directive AFTER _apply_batch returns.
+
+    Complements `test_inbound_conflict_leaf_does_not_invoke_subprocess`
+    which verifies the leaf does NOT call directly. Without this positive
+    test, the deferred-filing block at applier.py:apply() could be silently
+    deleted and the negative test would still pass."""
+    call_log: list[dict] = []
+
+    def _capture_filing(cli_path, title, description, parent_id):
+        call_log.append(
+            {
+                "title": title,
+                "description": description,
+                "parent_id": parent_id,
+            }
+        )
+        return "bug-id-mocked"
+
+    monkeypatch.setattr(applier, "_file_conflict_bug_ticket", _capture_filing)
+    monkeypatch.setattr(applier, "_apply_batch", lambda *a, **kw: None)
+    monkeypatch.setattr(applier, "_load_acli", lambda: _make_fake_acli_mod())
+
+    mutation = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.conflict,
+        target="DIG-101",
+        payload={"local_id": "local-101", "reason": "test divergence"},
+    )
+
+    applier.apply([mutation], "test-pass", repo_root=fixture_repo)
+
+    assert len(call_log) == 1, (
+        f"apply() must call _file_conflict_bug_ticket exactly once for one "
+        f"inbound conflict, got {len(call_log)} call(s). Without this call, "
+        f"the deferred-filing block in apply() is broken — conflicts are "
+        f"silently suppressed without an audit ticket."
+    )
+    assert "DIG-101" in call_log[0]["title"]
+    assert "local-101" in call_log[0]["title"]
+
+
+def test_apply_files_pending_bug_tickets_when_apply_batch_raises(
+    applier, mut_mod, fixture_repo, monkeypatch
+):
+    """Critical correctness postcondition: if _apply_batch raises (e.g.
+    HeadDriftError, RescheduleError), the deferred bug-filing block MUST
+    still execute. Otherwise the conflict audit ticket is silently dropped
+    — the conflict was already suppressed by the leaf's follow_on, but the
+    operator loses visibility.
+
+    Regression guard for the important finding in deep review of PR #425:
+    "Deferred bug-filing is not guaranteed to execute when _apply_batch
+    raises ... All collected pending_bug_ticket directives are silently
+    dropped."
+
+    The fix wraps _apply_batch in try/finally so the deferred-filing block
+    runs unconditionally before the exception propagates."""
+    call_log: list[dict] = []
+
+    def _capture_filing(cli_path, title, description, parent_id):
+        call_log.append({"title": title})
+        return "bug-id-mocked"
+
+    class _SimulatedDriftError(Exception):
+        pass
+
+    def _raising_apply_batch(*a, **kw):
+        raise _SimulatedDriftError("simulated HeadDriftError")
+
+    monkeypatch.setattr(applier, "_file_conflict_bug_ticket", _capture_filing)
+    monkeypatch.setattr(applier, "_apply_batch", _raising_apply_batch)
+    monkeypatch.setattr(applier, "_load_acli", lambda: _make_fake_acli_mod())
+
+    # Pair an inbound conflict (produces pending_bug_ticket) with an
+    # outbound mutation (forces _apply_batch into the call path).
+    conflict_mut = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.conflict,
+        target="DIG-202",
+        payload={"local_id": "local-202", "reason": "exception path test"},
+    )
+    outbound_mut = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.outbound,
+        action=mut_mod.MutationAction.create,
+        target="local-203",
+        payload={"summary": "outbound", "local_id": "local-203"},
+    )
+
+    # apply() should re-raise the SimulatedDriftError after deferred filing.
+    with pytest.raises(_SimulatedDriftError):
+        applier.apply([conflict_mut, outbound_mut], "test-pass", repo_root=fixture_repo)
+
+    # The deferred-filing block MUST have run in the finally clause despite
+    # the exception.
+    assert len(call_log) == 1, (
+        f"apply() did NOT file the pending bug ticket on the _apply_batch "
+        f"exception path. Without try/finally, audit tickets are silently "
+        f"dropped when the apply pipeline fails. Got {len(call_log)} "
+        f"call(s) to _file_conflict_bug_ticket."
+    )
+    assert "DIG-202" in call_log[0]["title"]
+
+
 def test_inbound_conflict_still_emits_suppress_pair_follow_on(
     applier, mut_mod, fixture_repo, monkeypatch
 ):

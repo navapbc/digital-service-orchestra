@@ -2083,40 +2083,52 @@ def apply(
     # In DRY_RUN, skip the legacy batch dispatcher entirely so the test
     # contract ("neither _apply_typed nor _apply_batch is invoked") holds.
     # The renderer block below writes the asymmetric manifest from scratch.
-    if mode_mod is not None and mode == mode_mod.Mode.DRY_RUN:
-        manifest_path = None
-    else:
-        manifest_path = _apply_batch(
-            outbound_list, pass_id, repo_root=repo_root, binding_store=binding_store
-        )
-
-    # -------------------------------------------------------------------------
-    # Deferred bug-filing for inbound conflicts (bug d822).
     #
-    # File pending bug tickets AFTER _apply_batch returns so the bug-filing
-    # CLI's commits to the tickets branch happen outside the drift-guarded
-    # loop. Skip in DRY_RUN — that mode must not produce any side effects.
-    # -------------------------------------------------------------------------
-    if pending_bug_tickets and not (
-        mode_mod is not None and mode == mode_mod.Mode.DRY_RUN
-    ):
-        cli_path = Path(__file__).parents[4] / ".claude" / "scripts" / "dso"
-        for pending in pending_bug_tickets:
-            try:
-                _file_conflict_bug_ticket(
-                    cli_path,
-                    pending.get("title", ""),
-                    pending.get("description", ""),
-                    pending.get("parent_id", ""),
-                )
-            except Exception as exc:  # noqa: BLE001
-                # Bug-filing failure is non-fatal — the conflict is still
-                # suppressed via the follow_on; only the audit ticket is lost.
-                print(  # noqa: T201
-                    f"deferred_bug_filing_failed: local_id={pending.get('local_id')!r} "
-                    f"jira_key={pending.get('jira_key')!r} err={exc!r}",
-                    file=sys.stderr,
-                )
+    # Wrap _apply_batch in try/finally so deferred bug-filing runs even when
+    # _apply_batch raises (HeadDriftError, RescheduleError, etc.). Without
+    # this guarantee, an apply-batch exception unwinds apply() and the
+    # collected pending_bug_ticket directives are silently dropped — losing
+    # the operator's audit trail for conflicts that were already suppressed
+    # by the leaf's follow_on emission. The deferred-filing block runs
+    # outside the drift-guarded loop so its own commits cannot re-trigger
+    # the drift detector.
+    is_dry_run = mode_mod is not None and mode == mode_mod.Mode.DRY_RUN
+    manifest_path = None
+    try:
+        if not is_dry_run:
+            manifest_path = _apply_batch(
+                outbound_list,
+                pass_id,
+                repo_root=repo_root,
+                binding_store=binding_store,
+            )
+    finally:
+        # Deferred bug-filing for inbound conflicts (bug d822). Skipped in
+        # DRY_RUN — that mode must not produce any side effects, and
+        # pending_bug_tickets is always empty there (inbound dispatch loop
+        # runs over an empty list under DRY_RUN). The is_dry_run guard is
+        # defense-in-depth.
+        if pending_bug_tickets and not is_dry_run:
+            cli_path = Path(__file__).parents[4] / ".claude" / "scripts" / "dso"
+            for pending in pending_bug_tickets:
+                try:
+                    _file_conflict_bug_ticket(
+                        cli_path,
+                        pending.get("title", ""),
+                        pending.get("description", ""),
+                        pending.get("parent_id", ""),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    # Bug-filing failure is non-fatal — the conflict is
+                    # still suppressed via the follow_on; only the audit
+                    # ticket is lost. Per-iteration except prevents one
+                    # failed filing from blocking the others.
+                    print(  # noqa: T201
+                        f"deferred_bug_filing_failed: "
+                        f"local_id={pending.get('local_id')!r} "
+                        f"jira_key={pending.get('jira_key')!r} err={exc!r}",
+                        file=sys.stderr,
+                    )
 
     # -------------------------------------------------------------------------
     # Mode-specific manifest emission (story 286b).
