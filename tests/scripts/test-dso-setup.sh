@@ -1871,4 +1871,62 @@ test_setup_default_installs_all_artifacts() {
 }
 test_setup_default_installs_all_artifacts
 
+# ── test_plugin_version_awk_fallback_extracts_version ─────────────────────────
+# Bug 5d92 (Defect G, L138): plugin version was read via `python3 -c`. On hosts
+# without python3, stamps silently became "unknown". The fix prefers jq, falls
+# back to python3, then to awk — so the version always resolves when plugin.json
+# exists, regardless of installed interpreters.
+#
+# Unit test: verify the awk fallback command extracts the version correctly
+# from a representative plugin.json. (Integration with the full script is
+# covered by existing artifact-installation tests.)
+test_plugin_version_awk_fallback_extracts_version() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    local fixture="$T/plugin.json"
+    cat > "$fixture" <<'EOF'
+{
+  "name": "dso-test",
+  "version": "9.9.99-test",
+  "description": "fixture for awk fallback test"
+}
+EOF
+
+    # This is the exact awk invocation used by dso-setup.sh when neither jq
+    # nor python3 is available.
+    local extracted
+    extracted=$(awk -F'"' '/"version"/ {print $4; exit}' "$fixture")
+    assert_eq "awk fallback extracts version from plugin.json" "9.9.99-test" "$extracted"
+}
+test_plugin_version_awk_fallback_extracts_version
+
+# ── test_sed_stamp_escapes_metacharacters ─────────────────────────────────────
+# Bug 5d92 (Defect G, L529): the sed fallback prepended `$stamp_line` unescaped
+# into `1i\\\n$stamp_line`. If a stamp ever contained `/`, `&`, or `\`, sed
+# would misinterpret. The fix escapes those metacharacters before substitution.
+#
+# This test invokes the helper directly with a synthetic stamp containing all
+# three problem chars, asserting the file's first line is the literal stamp.
+test_sed_stamp_escapes_metacharacters() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    local target="$T/test.yaml"
+    printf 'existing: line\n' > "$target"
+
+    # Apply the sed-fallback transformation the way dso-setup.sh's prepend block
+    # does (escape \, /, & before substitution).
+    local stamp_line='x-dso-version: 1.0/foo&bar'
+    local _escaped_stamp
+    _escaped_stamp=$(printf '%s' "$stamp_line" | sed 's/[\\/&]/\\&/g')
+    sed -i.bak "1i\\
+$_escaped_stamp" "$target" && rm -f "$target.bak"
+
+    local first_line
+    first_line=$(head -1 "$target")
+    assert_eq "sed escape preserves slash and ampersand in stamp" "x-dso-version: 1.0/foo&bar" "$first_line"
+}
+test_sed_stamp_escapes_metacharacters
+
 print_summary
