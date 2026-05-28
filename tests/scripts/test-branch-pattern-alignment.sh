@@ -111,19 +111,20 @@ assert_pass_if_clean "test_dryrun_payload_contains_all_patterns"
 # matching which would silently yield zero patterns (false pass) if the
 # section header text changed.
 _snapshot_fail
-# Extract every well-formed JSON object from the dry-run output via Python
-# (more robust than awk text matching). Find the one with the sub-PR ruleset
-# name, then return its include array members.
+# Extract every well-formed JSON object from the dry-run output via Python.
+# Find the one with the sub-PR ruleset name, then return its include array.
+# IMPORTANT: the script exits non-zero with a diagnostic if it can't find
+# the sub-PR ruleset object. This prevents the "all parses failed → empty
+# output → vacuous test pass" failure mode the prior awk approach had.
+_extract_stderr=$(mktemp /tmp/dso-extract-stderr.XXXXXX)
 sub_pr_patterns=$(echo "$dryrun_output" | python3 -c '
-import sys, json, re
+import sys, json
 text = sys.stdin.read()
-# Find all top-level JSON object start positions (lines starting with "{").
-# For each candidate "{", attempt incremental JSON parse to find a complete object.
-start_positions = [i for i, line in enumerate(text.split("\n")) if line.strip() == "{"]
 lines = text.split("\n")
-patterns = []
+start_positions = [i for i, line in enumerate(lines) if line.strip() == "{"]
+parse_errors = 0
+parses_attempted = 0
 for start in start_positions:
-    # Find matching closing brace by counting depth
     depth = 0
     for j in range(start, len(lines)):
         for ch in lines[j]:
@@ -133,19 +134,29 @@ for start in start_positions:
                 depth -= 1
                 if depth == 0:
                     candidate = "\n".join(lines[start:j+1])
+                    parses_attempted += 1
                     try:
                         obj = json.loads(candidate)
                         if isinstance(obj, dict) and obj.get("name") == "DSO Sub-PR Review Enforcement":
                             inc = obj.get("conditions", {}).get("ref_name", {}).get("include", [])
-                            patterns.extend(p.replace("refs/heads/", "") for p in inc if isinstance(p, str))
+                            patterns = [p.replace("refs/heads/", "") for p in inc if isinstance(p, str)]
                             print("\n".join(patterns))
                             sys.exit(0)
                     except json.JSONDecodeError:
-                        pass
+                        parse_errors += 1
                     break
         if depth == 0 and j > start:
             break
-' 2>/dev/null)
+# Fall-through: did not find the sub-PR ruleset object. Exit non-zero so the
+# caller fails closed rather than treating the empty output as "no drift."
+print(
+    f"ERROR: failed to extract sub-PR ruleset object from dry-run output "
+    f"(parses_attempted={parses_attempted}, parse_errors={parse_errors})",
+    file=sys.stderr,
+)
+sys.exit(1)
+' 2>"$_extract_stderr") || true
+_extract_rc=$?
 
 unexpected_patterns=""
 while IFS= read -r _candidate; do
@@ -164,11 +175,16 @@ done <<< "$sub_pr_patterns"
 
 # Drift-check robustness guard: extraction returned non-empty content (proving
 # we actually parsed the sub-PR ruleset, not silently matching nothing).
+# Layered check: (a) Python exit code 0, (b) output non-empty.
 extraction_worked="yes"
-if [[ -z "$sub_pr_patterns" ]]; then
+if [[ "$_extract_rc" -ne 0 ]] || [[ -z "$sub_pr_patterns" ]]; then
     extraction_worked="no"
     echo "ERROR: failed to extract sub-PR ruleset patterns from dry-run output" >&2
+    if [[ -s "$_extract_stderr" ]]; then
+        cat "$_extract_stderr" >&2
+    fi
 fi
+rm -f "$_extract_stderr"
 assert_eq "test_no_drift_extraction_worked: sub-PR payload extracted from dry-run JSON" \
     "yes" "$extraction_worked"
 
