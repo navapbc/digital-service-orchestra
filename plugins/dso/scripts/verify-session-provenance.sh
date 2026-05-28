@@ -340,6 +340,40 @@ fi
 _UPSTREAM_EXCLUDE_ARGS=()
 if [[ -n "$_UPSTREAM_REF" ]]; then
     if git -C "$GIT_REPO_PATH" rev-parse --verify --quiet "$_UPSTREAM_REF" >/dev/null 2>&1; then
+        # Self-heal shallow state. ci.yml's "Verify session provenance" step
+        # explicitly does `git fetch --no-tags --depth=1 origin <base_ref>`
+        # which marks origin/<base_ref> as shallow. In that state:
+        #   - git rev-list origin/main returns just the tip (filter no-op)
+        #   - even worse, BASE_SHA..SESSION_HEAD pulls in historical merge
+        #     commits because git can't determine their reachability from
+        #     the shallow origin/main
+        # Mirror the dispatcher's R3a v4.1 self-heal: try `git fetch --unshallow`
+        # or a full fetch of the upstream ref before relying on it.
+        if [[ "$(git -C "$GIT_REPO_PATH" rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]]; then
+            echo "INFO: provenance verifier: repository is shallow — attempting fetch --unshallow" >&2
+            set +e
+            git -C "$GIT_REPO_PATH" fetch --unshallow 2>&1 | tail -3 >&2
+            set -e
+        fi
+        # Even when the repo overall isn't shallow, the explicit --depth=1
+        # fetch of origin/main creates a shallow ref boundary. Try to deepen
+        # the upstream ref's history specifically. Extract remote+branch from
+        # `origin/<branch>` form; skip otherwise (test fixtures use refs/remotes/*).
+        if [[ "$_UPSTREAM_REF" =~ ^origin/([^/]+)$ ]]; then
+            _UPSTREAM_REMOTE_BRANCH="${BASH_REMATCH[1]}"
+            # Check if the upstream ref's history is suspiciously short (≤ 1
+            # commit suggests it was shallow-fetched). Deepen if so.
+            _upstream_depth=$(git -C "$GIT_REPO_PATH" rev-list --count "$_UPSTREAM_REF" 2>/dev/null || echo 0)
+            if (( _upstream_depth <= 1 )); then
+                echo "INFO: provenance verifier: upstream ref $_UPSTREAM_REF history is shallow (count=$_upstream_depth) — re-fetching with full depth" >&2
+                set +e
+                git -C "$GIT_REPO_PATH" fetch --no-tags origin "$_UPSTREAM_REMOTE_BRANCH" 2>&1 | tail -3 >&2
+                set -e
+                _upstream_depth=$(git -C "$GIT_REPO_PATH" rev-list --count "$_UPSTREAM_REF" 2>/dev/null || echo 0)
+                echo "INFO: provenance verifier: post-fetch upstream depth=$_upstream_depth" >&2
+            fi
+        fi
+        # Final non-shallow check before activating the filter
         if [[ "$(git -C "$GIT_REPO_PATH" rev-parse --is-shallow-repository 2>/dev/null)" != "true" ]]; then
             _UPSTREAM_EXCLUDE_ARGS=("^${_UPSTREAM_REF}")
         fi
