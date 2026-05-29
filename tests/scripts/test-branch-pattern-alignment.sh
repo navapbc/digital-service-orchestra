@@ -85,7 +85,7 @@ for start in [i for i, l in enumerate(lines) if l.strip() == "{"]:
                         obj = json.loads("\n".join(lines[start:j+1]))
                         if isinstance(obj, dict) and obj.get("name") == "DSO Sub-PR Review Enforcement":
                             inc = obj.get("conditions", {}).get("ref_name", {}).get("include", [])
-                            sys.exit(0 if "~ALL" in inc else 1)
+                            sys.exit(0 if "refs/heads/staged-*" in inc else 1)
                     except json.JSONDecodeError:
                         pass
                     break
@@ -94,13 +94,16 @@ sys.exit(1)
 ' 2>/dev/null; then
     has_all_include="yes"
 fi
-assert_eq "test_provisioner_emits_all_include: sub-PR ruleset include is [\"~ALL\"]" \
+assert_eq "test_provisioner_emits_staged_include: sub-PR ruleset include is [\"refs/heads/staged-*\"]" \
     "yes" "$has_all_include"
-assert_pass_if_clean "test_provisioner_emits_all_include"
+assert_pass_if_clean "test_provisioner_emits_staged_include"
 
-# ── Test 4: provisioner emits refs/heads/main exclude ─────────────────────────
+# ── Test 4: provisioner emits an empty exclude list ──────────────────────────
+# Under the two-tier promotion model, the sub-PR ruleset's include is just
+# refs/heads/staged-* and no excludes are needed (main and tickets are not
+# captured by staged-* in the first place).
 _snapshot_fail
-has_main_exclude="no"
+has_empty_exclude="no"
 if echo "$dryrun_output" | python3 -c '
 import sys, json
 text = sys.stdin.read()
@@ -117,18 +120,18 @@ for start in [i for i, l in enumerate(lines) if l.strip() == "{"]:
                         obj = json.loads("\n".join(lines[start:j+1]))
                         if isinstance(obj, dict) and obj.get("name") == "DSO Sub-PR Review Enforcement":
                             exc = obj.get("conditions", {}).get("ref_name", {}).get("exclude", [])
-                            sys.exit(0 if "refs/heads/main" in exc else 1)
+                            sys.exit(0 if not exc else 1)
                     except json.JSONDecodeError:
                         pass
                     break
         if depth == 0 and j > start: break
 sys.exit(1)
 ' 2>/dev/null; then
-    has_main_exclude="yes"
+    has_empty_exclude="yes"
 fi
-assert_eq "test_provisioner_emits_main_exclude: sub-PR ruleset exclude contains refs/heads/main" \
-    "yes" "$has_main_exclude"
-assert_pass_if_clean "test_provisioner_emits_main_exclude"
+assert_eq "test_provisioner_emits_empty_exclude: sub-PR ruleset exclude list is empty" \
+    "yes" "$has_empty_exclude"
+assert_pass_if_clean "test_provisioner_emits_empty_exclude"
 
 # ── Test 5: workflow trigger uses branches-ignore: [main] ─────────────────────
 # review-sub-pr.yml must trigger on every PR not targeting main. Asserting the
