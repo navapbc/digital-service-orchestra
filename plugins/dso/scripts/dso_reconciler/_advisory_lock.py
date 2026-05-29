@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import os
+import random
 import subprocess
 import sys
 import time
@@ -59,6 +61,58 @@ def _rebase_retry(repo_root: Path, write_fn, **kwargs):
 
 _LOCK_FILE = ".reconciler-pass-lock"
 _GATE_FILE = ".reconciler-phase-gate"
+
+# ---------------------------------------------------------------------------
+# Retry/jitter band-aid for lock contention (bug b859-8fa1).
+#
+# acquire_pass_lock wraps _rebase_retry with an outer retry loop so that
+# concurrent harness writes (autosaves, ticket comments) do not exhaust the
+# inner 3-attempt drift budget on the first try. Production CI sees no
+# harness contention, so the default of 5 outer attempts keeps the failure
+# envelope tight while unblocking dev probes.
+# ---------------------------------------------------------------------------
+
+_LOCK_RETRY_BUDGET_ENV = "DSO_RECONCILER_LOCK_RETRY_BUDGET"
+_LOCK_RETRY_BUDGET_DEFAULT = 5
+_BACKOFF_BASE_SECONDS = 0.2  # 200ms
+_BACKOFF_FACTOR = 2.0
+_BACKOFF_CAP_SECONDS = 5.0
+_BACKOFF_JITTER_FRACTION = 0.3  # ±30%
+
+
+def _resolve_retry_budget() -> int:
+    """Return the outer retry budget (>=1) from env var or default."""
+    raw = os.environ.get(_LOCK_RETRY_BUDGET_ENV)
+    if raw is None or raw == "":
+        return _LOCK_RETRY_BUDGET_DEFAULT
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning(
+            "%s=%r is not an integer; falling back to default %d",
+            _LOCK_RETRY_BUDGET_ENV,
+            raw,
+            _LOCK_RETRY_BUDGET_DEFAULT,
+        )
+        return _LOCK_RETRY_BUDGET_DEFAULT
+    # Treat 0 as "disable outer retry" — equivalent to 1 attempt (today's behaviour).
+    return max(1, value)
+
+
+def _compute_backoff_seconds(retry_index: int) -> float:
+    """Return jittered backoff for the *retry_index*-th retry (0-indexed).
+
+    Schedule: base * factor**retry_index, capped at cap, then multiplied by
+    a uniform factor in [1 - jitter, 1 + jitter]. Stdlib only (random.uniform).
+    """
+    base = min(
+        _BACKOFF_BASE_SECONDS * (_BACKOFF_FACTOR**retry_index),
+        _BACKOFF_CAP_SECONDS,
+    )
+    jitter = random.uniform(
+        1.0 - _BACKOFF_JITTER_FRACTION, 1.0 + _BACKOFF_JITTER_FRACTION
+    )
+    return base * jitter
 
 
 # ---------------------------------------------------------------------------
@@ -163,13 +217,43 @@ def acquire_pass_lock(pass_id: str, repo_root: Path) -> None:
             repo_root, _LOCK_FILE, lock_contents, f"acquire lock pass_id={pass_id}"
         )
 
-    result = _rebase_retry(repo_root, _write)
-    if not result.ok:
-        raise ReconcileLockError(
-            f"acquire_pass_lock failed for pass_id={pass_id!r}: "
-            f"{result.event.kind if result.event else 'unknown'}: "
-            f"{result.event.message if result.event else ''}"
+    # Bug b859-8fa1 band-aid: wrap _rebase_retry in an outer retry loop with
+    # exponential backoff + jitter so that concurrent harness writes (autosaves,
+    # ticket comments) do not blow out the inner drift budget on first attempt.
+    # Non-drift errors (abort_due_to_error) still fail fast — only the
+    # reject_and_reschedule outcome triggers the outer retry.
+    budget = _resolve_retry_budget()
+    last_result = None
+    for attempt in range(1, budget + 1):
+        result = _rebase_retry(repo_root, _write)
+        if result.ok:
+            return
+        last_result = result
+        kind = result.event.kind if result.event else "unknown"
+        # Fail-fast for non-drift errors; only retry reject_and_reschedule.
+        if kind != "reject_and_reschedule":
+            break
+        if attempt >= budget:
+            break
+        backoff = _compute_backoff_seconds(attempt - 1)
+        logger.info(
+            "acquire_pass_lock: drift retry %d/%d for pass_id=%r — "
+            "sleeping %.3fs before next attempt (last: %s)",
+            attempt,
+            budget,
+            pass_id,
+            backoff,
+            result.event.message if result.event else "",
         )
+        time.sleep(backoff)
+
+    # Exhausted budget or hit non-drift error.
+    event = last_result.event if last_result else None
+    raise ReconcileLockError(
+        f"acquire_pass_lock failed for pass_id={pass_id!r}: "
+        f"{event.kind if event else 'unknown'}: "
+        f"{event.message if event else ''}"
+    )
 
 
 def release_pass_lock(pass_id: str, repo_root: Path) -> None:
