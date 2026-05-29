@@ -158,11 +158,24 @@ class TestReconcileOnceFiltered:
             out_dir = repo_root / "bridge_state" / "snapshots"
             out_dir.mkdir(parents=True, exist_ok=True)
             snapshot_path = out_dir / f"{pass_id}.json"
-            snapshot_path.write_text(json.dumps({
-                "DIG-100": {"summary": "test ticket", "status": {"name": "To Do"}},
-                "DIG-200": {"summary": "other ticket", "status": {"name": "To Do"}},
-                "DIG-300": {"summary": "third ticket", "status": {"name": "Done"}},
-            }))
+            snapshot_path.write_text(
+                json.dumps(
+                    {
+                        "DIG-100": {
+                            "summary": "test ticket",
+                            "status": {"name": "To Do"},
+                        },
+                        "DIG-200": {
+                            "summary": "other ticket",
+                            "status": {"name": "To Do"},
+                        },
+                        "DIG-300": {
+                            "summary": "third ticket",
+                            "status": {"name": "Done"},
+                        },
+                    }
+                )
+            )
             return snapshot_path
 
         fetcher.fetch_snapshot = fetch_snapshot
@@ -198,7 +211,8 @@ class TestReconcileOnceFiltered:
             return [
                 # Match by provenance.local_id (target outside filter set)
                 M(
-                    direction=D.inbound, action=A.create,
+                    direction=D.inbound,
+                    action=A.create,
                     target="DIG-100",
                     payload={"summary": "test"},
                     provenance={"source": "differ", "local_id": "test-id-1"},
@@ -206,20 +220,23 @@ class TestReconcileOnceFiltered:
                 # Match by provenance.jira_key only (target and local_id both
                 # outside filter set — exercises the jira_key match arm)
                 M(
-                    direction=D.outbound, action=A.update,
+                    direction=D.outbound,
+                    action=A.update,
                     target="some-unrelated-key",
                     payload={"changed_fields": {"summary": "via-jira-key"}},
                     provenance={"source": "differ", "jira_key": "DIG-100"},
                 ),
                 # No match (target/local_id/jira_key all outside filter)
                 M(
-                    direction=D.inbound, action=A.create,
+                    direction=D.inbound,
+                    action=A.create,
                     target="DIG-200",
                     payload={"summary": "other"},
                     provenance={"source": "differ", "local_id": "other-id"},
                 ),
                 M(
-                    direction=D.inbound, action=A.create,
+                    direction=D.inbound,
+                    action=A.create,
                     target="DIG-300",
                     payload={"summary": "third"},
                     provenance={"source": "differ", "local_id": "third-id"},
@@ -271,7 +288,7 @@ class TestReconcileOnceFiltered:
 
         # Inbound differ stub — returns empty (legacy differ covers it)
         ib = types.ModuleType("reconcile_inbound_differ")
-        ib.compute_inbound_mutations = lambda *a, **kw: []
+        ib.compute_inbound_mutations = lambda *a, **kw: ([], 0)
         stubs["reconcile_inbound_differ"] = ib
 
         # Sync logger stub
@@ -398,5 +415,7 @@ class TestFilterLocalIdsArgParsing:
 
     def test_parse_none_produces_none(self):
         raw = None
-        result = None if raw is None else {s.strip() for s in raw.split(",") if s.strip()}
+        result = (
+            None if raw is None else {s.strip() for s in raw.split(",") if s.strip()}
+        )
         assert result is None
