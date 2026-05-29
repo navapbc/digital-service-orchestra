@@ -63,12 +63,12 @@ assert_eq "test_dispatcher_references_patterns_file: dispatcher reads source-of-
     "yes" "$dispatcher_reads_file"
 assert_pass_if_clean "test_dispatcher_references_patterns_file"
 
-# ── Test 3: provisioner emits ~ALL include in sub-PR ruleset payload ──────────
-# Behavioral test: run the provisioner in dry-run and assert that the sub-PR
-# ruleset payload contains "~ALL" as its include array.
+# ── Test 3: provisioner emits staged-* include in sub-PR ruleset payload ────
+# Under the two-tier promotion model, sub-PR review fires only on PRs into
+# staged-* branches. Feature branches (anything else) stay unrestricted.
 _snapshot_fail
 dryrun_output=$(DSO_DRY_RUN=1 bash "$PROVISIONER" 2>&1 || true)
-has_all_include="no"
+has_staged_include="no"
 if echo "$dryrun_output" | python3 -c '
 import sys, json
 text = sys.stdin.read()
@@ -85,22 +85,25 @@ for start in [i for i, l in enumerate(lines) if l.strip() == "{"]:
                         obj = json.loads("\n".join(lines[start:j+1]))
                         if isinstance(obj, dict) and obj.get("name") == "DSO Sub-PR Review Enforcement":
                             inc = obj.get("conditions", {}).get("ref_name", {}).get("include", [])
-                            sys.exit(0 if "~ALL" in inc else 1)
+                            sys.exit(0 if "refs/heads/staged-*" in inc else 1)
                     except json.JSONDecodeError:
                         pass
                     break
         if depth == 0 and j > start: break
 sys.exit(1)
 ' 2>/dev/null; then
-    has_all_include="yes"
+    has_staged_include="yes"
 fi
-assert_eq "test_provisioner_emits_all_include: sub-PR ruleset include is [\"~ALL\"]" \
-    "yes" "$has_all_include"
-assert_pass_if_clean "test_provisioner_emits_all_include"
+assert_eq "test_provisioner_emits_staged_include: sub-PR ruleset include is [\"refs/heads/staged-*\"]" \
+    "yes" "$has_staged_include"
+assert_pass_if_clean "test_provisioner_emits_staged_include"
 
-# ── Test 4: provisioner emits refs/heads/main exclude ─────────────────────────
+# ── Test 4: provisioner emits required_workflows rule (not required_status_checks) ──
+# Under the new model, the sub-PR ruleset uses `required_workflows` instead
+# of `required_status_checks` so the rule evaluates at PR-merge time (not at
+# ref-update time). This is what unblocks raw pushes to staged-* branches.
 _snapshot_fail
-has_main_exclude="no"
+has_workflows_rule="no"
 if echo "$dryrun_output" | python3 -c '
 import sys, json
 text = sys.stdin.read()
@@ -116,19 +119,20 @@ for start in [i for i, l in enumerate(lines) if l.strip() == "{"]:
                     try:
                         obj = json.loads("\n".join(lines[start:j+1]))
                         if isinstance(obj, dict) and obj.get("name") == "DSO Sub-PR Review Enforcement":
-                            exc = obj.get("conditions", {}).get("ref_name", {}).get("exclude", [])
-                            sys.exit(0 if "refs/heads/main" in exc else 1)
+                            rules = obj.get("rules", [])
+                            rule_types = [r.get("type") for r in rules]
+                            sys.exit(0 if "workflows" in rule_types else 1)
                     except json.JSONDecodeError:
                         pass
                     break
         if depth == 0 and j > start: break
 sys.exit(1)
 ' 2>/dev/null; then
-    has_main_exclude="yes"
+    has_workflows_rule="yes"
 fi
-assert_eq "test_provisioner_emits_main_exclude: sub-PR ruleset exclude contains refs/heads/main" \
-    "yes" "$has_main_exclude"
-assert_pass_if_clean "test_provisioner_emits_main_exclude"
+assert_eq "test_provisioner_emits_workflows_rule: sub-PR ruleset uses required_workflows rule type" \
+    "yes" "$has_workflows_rule"
+assert_pass_if_clean "test_provisioner_emits_workflows_rule"
 
 # ── Test 5: workflow trigger uses branches-ignore: [main] ─────────────────────
 # review-sub-pr.yml must trigger on every PR not targeting main. Asserting the

@@ -340,28 +340,44 @@ EOF
 #
 # SUB-PR RULESET SCOPING (negative-list, all-except-main):
 # The sub-PR ruleset's branch scope is hardcoded below as include="~ALL" plus
-# exclude=["refs/heads/main"]. The prior allowlist-of-patterns design (still
-# living in config/sub-pr-branch-patterns.txt under the plugin root for the
-# dispatcher's _FORCE_REVIEW regex) was brittle for ruleset scoping: every
-# new branch convention required updating three consumers (file, workflow
-# trigger, ruleset) and missing patterns silently bypassed enforcement. The
-# dispatcher still uses the patterns file for force-review-eligibility — a
-# narrower concern.
-SUB_PR_STATUS_JSON='[{"context": "review-sub-pr"}]'
-
-# The sub-PR ruleset enforces review-sub-pr on every PR whose base is NOT the
-# default branch (main). The prior allowlist-of-branch-patterns approach was
-# brittle: each new branch convention (feat-*, story-*, fix-*, future
-# release-*, hotfix-*, etc.) had to be added by hand to three places (this
-# file, the workflow trigger, and the live ruleset), and missing patterns
-# silently bypassed enforcement.
+# ── Sub-PR ruleset (16961402) ────────────────────────────────────────────────
+# Two-tier promotion model:
 #
-# The current invariant: any PR not targeting main should be reviewed before
-# merging. Express it directly via GitHub Ruleset's ~ALL include + an explicit
-# exclude. main is the only exclude because main has its own ruleset (15629023,
-# "DSO CI Enforcement") with its own required checks.
-SUB_PR_INCLUDE_JSON='["~ALL"]'
-SUB_PR_EXCLUDE_JSON="[\"refs/heads/${DEFAULT_BRANCH}\"]"
+#   feature-branch (unrestricted)
+#       ↓ PR — review-sub-pr workflow required (sub-PR ruleset, this block)
+#   staged-*
+#       ↓ PR — check-staged-head + main required checks (main ruleset)
+#   main
+#
+# Rule type: required_workflows (NOT required_status_checks).
+#
+# required_workflows evaluates at PR-MERGE time, not at ref-update time.
+# This is the critical property: pushes to staged-* branches are
+# UNRESTRICTED (fixup commits to a staged-* PR don't get blocked), but the
+# PR can't merge until the named workflow has run successfully on it.
+#
+# The prior required_status_checks{review-sub-pr} configuration had a
+# chicken-and-egg: pushing a new staged-* ref required the commit to
+# already have review-sub-pr passing, but review-sub-pr only fires on PR
+# events. Switching to required_workflows breaks the cycle.
+#
+# WORKFLOW REFERENCE PORTABILITY: the rule references the workflow by
+# repository_id + path. repository_id is numeric and not fork-portable; if
+# this script ever needs to provision rulesets in forks or renamed repos,
+# the ID must be resolved at runtime via `gh api repos/$REPO --jq .id`.
+# For single-repo use this is fine.
+_REVIEW_SUB_PR_WORKFLOW_PATH=".github/workflows/review-sub-pr.yml"
+# REPO_ID resolution: prefer gh api at runtime; fall back to the known
+# constant for navapbc/digital-service-orchestra if gh fails (e.g., in
+# air-gapped CI). Override via DSO_REPO_ID env var for testing.
+if [[ -n "${DSO_REPO_ID:-}" ]]; then
+  REPO_ID="$DSO_REPO_ID"
+else
+  REPO_ID=$(gh api "repos/${REPO}" --jq .id 2>/dev/null || echo "1183266892")
+fi
+
+SUB_PR_INCLUDE_JSON='["refs/heads/staged-*"]'
+SUB_PR_EXCLUDE_JSON='[]'
 
 SUB_PR_PAYLOAD_JSON=$(cat <<EOF
 {
@@ -383,10 +399,15 @@ SUB_PR_PAYLOAD_JSON=$(cat <<EOF
   ],
   "rules": [
     {
-      "type": "required_status_checks",
+      "type": "workflows",
       "parameters": {
-        "strict_required_status_checks_policy": false,
-        "required_status_checks": ${SUB_PR_STATUS_JSON}
+        "workflows": [
+          {
+            "repository_id": ${REPO_ID},
+            "path": "${_REVIEW_SUB_PR_WORKFLOW_PATH}",
+            "ref": "refs/heads/main"
+          }
+        ]
       }
     }
   ]

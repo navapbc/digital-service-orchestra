@@ -283,26 +283,22 @@ sub_pr_output=""
 sub_pr_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" 2>/dev/null) || true
 
 sub_pr_has_name="missing"
-sub_pr_has_check="missing"
-sub_pr_has_include_all="missing"
-sub_pr_has_exclude_main="missing"
+sub_pr_has_workflow_path="missing"
+sub_pr_has_include_staged="missing"
+sub_pr_has_workflows_rule="missing"
 if echo "$sub_pr_output" | grep -q 'DSO Sub-PR Review Enforcement'; then
     sub_pr_has_name="present"
 fi
-if echo "$sub_pr_output" | grep -q 'review-sub-pr'; then
-    sub_pr_has_check="present"
+if echo "$sub_pr_output" | grep -q '\.github/workflows/review-sub-pr\.yml'; then
+    sub_pr_has_workflow_path="present"
 fi
-# Tighten the include/exclude assertions: extract the sub-PR ruleset object
-# from the dry-run output via python3 and check ref_name.include / .exclude
-# directly. Plain grep on the output could pass even if "~ALL" or
-# "refs/heads/main" appeared somewhere unrelated (e.g., in a comment or in
-# the main ruleset's exclude). Structural extraction prevents that false-
-# positive class. CodeRabbit finding on PR #442.
+# Structural extraction of the sub-PR ruleset object from dry-run output.
+# Asserts the new two-tier-model shape: include=staged-*, exclude empty,
+# rule type = workflows (the required_workflows rule that evaluates at
+# PR-merge time, not at ref-update time).
 sub_pr_extraction=$(echo "$sub_pr_output" | python3 -c "
 import sys, json
 text = sys.stdin.read()
-# Find every well-formed JSON object in the output and pick the one named
-# 'DSO Sub-PR Review Enforcement'.
 lines = text.split('\n')
 for start in [i for i, l in enumerate(lines) if l.strip() == '{']:
     depth = 0
@@ -316,33 +312,34 @@ for start in [i for i, l in enumerate(lines) if l.strip() == '{']:
                         obj = json.loads('\n'.join(lines[start:j+1]))
                         if isinstance(obj, dict) and obj.get('name') == 'DSO Sub-PR Review Enforcement':
                             inc = obj.get('conditions', {}).get('ref_name', {}).get('include', [])
-                            exc = obj.get('conditions', {}).get('ref_name', {}).get('exclude', [])
-                            print('INCLUDE_HAS_ALL=' + ('1' if '~ALL' in inc else '0'))
-                            print('EXCLUDE_HAS_MAIN=' + ('1' if 'refs/heads/main' in exc else '0'))
+                            rules = obj.get('rules', [])
+                            rule_types = [r.get('type') for r in rules]
+                            print('INCLUDE_HAS_STAGED=' + ('1' if 'refs/heads/staged-*' in inc else '0'))
+                            print('HAS_WORKFLOWS_RULE=' + ('1' if 'workflows' in rule_types else '0'))
                             sys.exit(0)
                     except json.JSONDecodeError:
                         pass
                     break
         if depth == 0 and j > start: break
-print('INCLUDE_HAS_ALL=0')
-print('EXCLUDE_HAS_MAIN=0')
+print('INCLUDE_HAS_STAGED=0')
+print('HAS_WORKFLOWS_RULE=0')
 sys.exit(0)
-" 2>/dev/null || echo "INCLUDE_HAS_ALL=0
-EXCLUDE_HAS_MAIN=0")
-if echo "$sub_pr_extraction" | grep -q '^INCLUDE_HAS_ALL=1$'; then
-    sub_pr_has_include_all="present"
+" 2>/dev/null || echo "INCLUDE_HAS_STAGED=0
+HAS_WORKFLOWS_RULE=0")
+if echo "$sub_pr_extraction" | grep -q '^INCLUDE_HAS_STAGED=1$'; then
+    sub_pr_has_include_staged="present"
 fi
-if echo "$sub_pr_extraction" | grep -q '^EXCLUDE_HAS_MAIN=1$'; then
-    sub_pr_has_exclude_main="present"
+if echo "$sub_pr_extraction" | grep -q '^HAS_WORKFLOWS_RULE=1$'; then
+    sub_pr_has_workflows_rule="present"
 fi
 
 assert_eq "test_dry_run_includes_session_branch_ruleset: ruleset name present" "present" "$sub_pr_has_name"
-assert_eq "test_dry_run_includes_session_branch_ruleset: review-sub-pr check present" "present" "$sub_pr_has_check"
-# Negative-list shape: include=["~ALL"], exclude=["refs/heads/main"]. Replaces
-# the prior enumeration-of-branch-patterns assertions; the invariant is
-# "every PR not targeting main is in scope".
-assert_eq "test_dry_run_includes_session_branch_ruleset: include ~ALL present" "present" "$sub_pr_has_include_all"
-assert_eq "test_dry_run_includes_session_branch_ruleset: exclude refs/heads/main present" "present" "$sub_pr_has_exclude_main"
+assert_eq "test_dry_run_includes_session_branch_ruleset: review-sub-pr workflow path present" "present" "$sub_pr_has_workflow_path"
+# Two-tier promotion model: include=["refs/heads/staged-*"], rule type
+# `workflows` (the required_workflows rule that fires at PR-merge time,
+# not at ref-update time — this is what unblocks pushes to staged-*).
+assert_eq "test_dry_run_includes_session_branch_ruleset: include staged-* present" "present" "$sub_pr_has_include_staged"
+assert_eq "test_dry_run_includes_session_branch_ruleset: rule type is workflows" "present" "$sub_pr_has_workflows_rule"
 assert_pass_if_clean "test_dry_run_includes_session_branch_ruleset"
 
 # test_session_branch_patterns_match_workflow_triggers removed (PR-2):
