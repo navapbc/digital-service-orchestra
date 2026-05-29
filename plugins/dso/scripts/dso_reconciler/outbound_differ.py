@@ -227,6 +227,16 @@ def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[st
     local_mapped = _map_local_to_jira_fields(ticket)
     changed: dict[str, Any] = {}
     for field_name, local_val in local_mapped.items():
+        # Bug 36af: ticket_type/issuetype is governed by an approved sync
+        # exception — updates do NOT propagate in either direction once
+        # the ticket is bound. The local 'epic' type has no faithful Jira
+        # reverse-mapping and Jira workflows often reject issuetype edits
+        # cross-hierarchy (Bug<->Epic). issuetype IS still emitted at
+        # CREATE time (it's a Jira-required field for issue creation),
+        # but the diff loop here only runs for bound update mutations,
+        # so excluding the field here only affects updates.
+        if field_name == "issuetype":
+            continue
         if field_name == "assignee":
             if not _assignee_matches(local_val, jira_fields.get("assignee")):
                 changed[field_name] = local_val
