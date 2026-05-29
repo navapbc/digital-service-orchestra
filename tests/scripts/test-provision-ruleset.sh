@@ -284,25 +284,28 @@ sub_pr_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" 2>/dev/null) || true
 
 sub_pr_has_name="missing"
 sub_pr_has_check="missing"
-sub_pr_has_session="missing"
-sub_pr_has_worktree="missing"
+sub_pr_has_include_all="missing"
+sub_pr_has_exclude_main="missing"
 if echo "$sub_pr_output" | grep -q 'DSO Sub-PR Review Enforcement'; then
     sub_pr_has_name="present"
 fi
 if echo "$sub_pr_output" | grep -q 'review-sub-pr'; then
     sub_pr_has_check="present"
 fi
-if echo "$sub_pr_output" | grep -q 'refs/heads/session/'; then
-    sub_pr_has_session="present"
+if echo "$sub_pr_output" | grep -q '"~ALL"'; then
+    sub_pr_has_include_all="present"
 fi
-if echo "$sub_pr_output" | grep -q 'refs/heads/worktree-'; then
-    sub_pr_has_worktree="present"
+if echo "$sub_pr_output" | grep -q '"refs/heads/main"'; then
+    sub_pr_has_exclude_main="present"
 fi
 
 assert_eq "test_dry_run_includes_session_branch_ruleset: ruleset name present" "present" "$sub_pr_has_name"
 assert_eq "test_dry_run_includes_session_branch_ruleset: review-sub-pr check present" "present" "$sub_pr_has_check"
-assert_eq "test_dry_run_includes_session_branch_ruleset: session branch pattern present" "present" "$sub_pr_has_session"
-assert_eq "test_dry_run_includes_session_branch_ruleset: worktree branch pattern present" "present" "$sub_pr_has_worktree"
+# Negative-list shape: include=["~ALL"], exclude=["refs/heads/main"]. Replaces
+# the prior enumeration-of-branch-patterns assertions; the invariant is
+# "every PR not targeting main is in scope".
+assert_eq "test_dry_run_includes_session_branch_ruleset: include ~ALL present" "present" "$sub_pr_has_include_all"
+assert_eq "test_dry_run_includes_session_branch_ruleset: exclude refs/heads/main present" "present" "$sub_pr_has_exclude_main"
 assert_pass_if_clean "test_dry_run_includes_session_branch_ruleset"
 
 # test_session_branch_patterns_match_workflow_triggers removed (PR-2):
