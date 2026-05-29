@@ -1207,7 +1207,7 @@ The ticket system is append-only. All mutations write a new event JSON file. The
 - `dso ticket scratch clear <ticket_id> [<key>]` — removes one key, or (when key omitted) the whole per-ticket scratch directory. Idempotent.
 - `dso ticket show <ticket_id> --include-scratch` — adds a `scratch` object to the show JSON enumerating present keys + values.
 
-**Charset and limits:** invalid ticket_id / key chars (path traversal `..`, slash, control chars, null bytes, leading dot) are rejected with a structured error envelope and non-zero exit. Writes exceeding the 4096-byte ceiling are rejected with `{status:"error",code:"oversize",limit,actual}`.
+**Charset and limits:** invalid ticket_id / key chars (path traversal `..`, slash, control chars, null bytes, leading dot) are rejected with a structured error envelope and non-zero exit. Writes exceeding the 98304-byte ceiling are rejected with `{status:"error",code:"oversize",limit,actual}`.
 
 **Key-namespace convention:** `<skill>:<step>:<purpose>` — see **[ticket-scratch-cli.md](ticket-scratch-cli.md)** for the full reference, including the authoritative keys for the 5 migrated sub-agent-prompt handoff sites and the migration playbook.
 
