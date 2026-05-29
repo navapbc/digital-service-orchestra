@@ -2120,8 +2120,28 @@ async def _run_cluster(
             )
             findings: list[dict] = []
             for dr in dispatch_results:
-                if isinstance(dr, dict):
-                    findings.extend(dr.get("findings", []))
+                if not isinstance(dr, dict):
+                    continue
+                _raw = dr.get("findings", [])
+                # Bug 7f55: guard against degraded LLM responses where
+                # `findings` is a non-list (e.g. {"findings": "no issues"}).
+                # Without this guard, list.extend(str) flattens the string
+                # character-by-character into bogus per-char "findings",
+                # which then crash aggregator._deduplicate_findings (line 75)
+                # with AttributeError: 'str' object has no attribute 'get'.
+                # Established pattern at dispatch.py:1274 — applied here.
+                if not isinstance(_raw, list):
+                    print(
+                        f"WARNING: cluster {cluster_dir} dispatch result has "
+                        f"non-list findings ({type(_raw).__name__}); skipping. "
+                        f"preview: {str(_raw)[:200]!r}",
+                        file=sys.stderr,
+                    )
+                    continue
+                # Also filter per-item: an individual finding that isn't a
+                # dict cannot be aggregated; drop quietly to preserve the
+                # rest of the cluster's valid findings.
+                findings.extend(f for f in _raw if isinstance(f, dict))
             return {
                 "cluster_id": cluster_dir,
                 "file_paths": cluster_files,
@@ -3019,7 +3039,17 @@ def main() -> int:
 
         # DISPATCH_NEXT: fall through to existing severity gate below the try/except.
     except Exception as exc:  # noqa: BLE001
-        print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
+        # Bug 7f55: this except wraps the entire post-dispatch pipeline
+        # (LLM dispatch + aggregator + schema correction + telemetry —
+        # roughly 770 lines), not just the LLM HTTP call. Naming the log
+        # "LLM call failed" misleads operators who go hunting for an
+        # HTTP-call defect when the actual crash was in aggregation or
+        # schema. Surface the exception class so the call site is
+        # disambiguable in a single log line.
+        print(
+            f"ERROR: review pipeline crashed: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
         # c131-0f34 defense-in-depth: always write a findings record before
         # returning so the workflow-side liveness assertion has something to
         # observe. Without this, an unhandled exception between Step 1 and

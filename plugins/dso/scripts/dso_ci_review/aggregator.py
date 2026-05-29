@@ -126,7 +126,14 @@ def _synthesize_via_llm(
     # Try direct JSON parse.
     try:
         parsed = json.loads(raw_content)
-        return parsed.get("findings", [])
+        _f = parsed.get("findings", [])
+        # Bug 7f55: guard the synthesis LLM's response shape. If the model
+        # returns {"findings": "<string>"} (a common malformed shape), do
+        # NOT return the string — downstream consumers call .get() per
+        # item and would crash with AttributeError. Trigger the F4a
+        # un-aggregated fallback by returning None instead.
+        if isinstance(_f, list):
+            return _f
     except (json.JSONDecodeError, TypeError, AttributeError):
         pass
 
@@ -136,7 +143,9 @@ def _synthesize_via_llm(
         end = raw_content.rfind("}") + 1
         if start != -1 and end > start:
             parsed = json.loads(raw_content[start:end])
-            return parsed.get("findings", [])
+            _f = parsed.get("findings", [])
+            if isinstance(_f, list):
+                return _f
     except (json.JSONDecodeError, ValueError):
         pass
 
