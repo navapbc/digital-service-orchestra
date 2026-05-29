@@ -420,6 +420,9 @@ def reconcile_once(
     binding_store_mod = _load("reconcile_binding_store", "binding_store.py")
     outbound_differ_mod = _load("reconcile_outbound_differ", "outbound_differ.py")
     inbound_differ_mod = _load("reconcile_inbound_differ", "inbound_differ.py")
+    local_label_intent_mod = _load(
+        "reconcile_local_label_intent", "local_label_intent.py"
+    )
     sync_logger_mod = _load("reconcile_sync_logger", "sync_logger.py")
 
     # -----------------------------------------------------------------------
@@ -614,11 +617,28 @@ def reconcile_once(
                 file=sys.stderr,
             )
 
+    # Bug a06c: compute per-binding label-intent map BEFORE the differ
+    # runs. The outbound differ uses it to gate REMOVE emission so that
+    # labels Jira added side-band (which local never had) do not produce
+    # spurious REMOVEs — those spurious REMOVEs cancel legitimate
+    # inbound ADDs under the PR #457 local-wins bidir suppression
+    # contract, silently dropping the label on both sides (the T3 IB-ADD
+    # probe failure). Only bound tickets need intent; unbound tickets
+    # emit creates with their full tag set unconditionally.
+    bound_local_ids = [
+        t.get("ticket_id", t.get("id", ""))
+        for t in local_tickets
+        if binding_store.get_jira_key(t.get("ticket_id", t.get("id", ""))) is not None
+    ]
+    local_label_intent = local_label_intent_mod.compute_label_intent_map(
+        bound_local_ids, tracker_dir
+    )
     outbound_raw = outbound_differ_mod.compute_outbound_mutations(
         local_tickets,
         curr_snapshot,
         binding_store,
         excluded_statuses={"archived", "deleted"},
+        local_label_intent=local_label_intent,
     )
     sync_logger.log(
         "outbound_differ_complete",

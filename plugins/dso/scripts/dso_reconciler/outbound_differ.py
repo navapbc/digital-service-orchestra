@@ -367,9 +367,24 @@ _EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:")
 
 
 def _diff_labels(
-    ticket: dict[str, Any], jira_fields: dict[str, Any]
+    ticket: dict[str, Any],
+    jira_fields: dict[str, Any],
+    intent_set: set[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Compare local tags to Jira labels. Exclude bridge-internal labels."""
+    """Compare local tags to Jira labels. Exclude bridge-internal labels.
+
+    Bug a06c — REMOVE intent gating: when ``intent_set`` is provided
+    (non-None), a label in ``jira_labels - local_tags`` only produces a
+    REMOVE mutation when it appears in ``intent_set`` (the local
+    "ever-seen" set computed by ``local_label_intent``). This prevents
+    spurious REMOVEs for labels Jira side-added that local never had —
+    the root cause of T3 IB-ADD silently dropping under PR #457 bidir
+    suppression.
+
+    When ``intent_set`` is None, the legacy "remove anything in jira
+    but not in local" behavior is preserved (backwards compatible for
+    every existing test and call site).
+    """
     local_tags: set[str] = set(
         t
         for t in ticket.get("tags", [])
@@ -383,8 +398,17 @@ def _diff_labels(
 
     mutations: list[dict[str, Any]] = []
     for label in sorted(local_tags - jira_labels):
+        if intent_set is not None and label not in intent_set:
+            # Label is in local's current tag set but was never user-added
+            # (only inbound-applied). Suppress the outbound ADD so a
+            # subsequent Jira-side REMOVE is not cancelled by a spurious
+            # re-ADD (T4 IB-REMOVE regression). See bug a06c.
+            continue
         mutations.append({"action": "add", "label": label})
     for label in sorted(jira_labels - local_tags):
+        if intent_set is not None and label not in intent_set:
+            # Label was never in local's history -> suppress spurious REMOVE.
+            continue
         mutations.append({"action": "remove", "label": label})
     return mutations
 
@@ -399,6 +423,7 @@ def compute_outbound_mutations(
     jira_snapshot: dict[str, Any],
     binding_store: BindingStoreProtocol,
     excluded_statuses: set[str] | None = None,
+    local_label_intent: dict[str, set[str]] | None = None,
 ) -> list[OutboundMutation]:
     """Diff local tickets against Jira snapshot and return outbound mutations.
 
@@ -410,6 +435,15 @@ def compute_outbound_mutations(
         binding_store: A BindingStore instance providing get_jira_key(local_id),
             is_bound(local_id).
         excluded_statuses: Statuses to skip (default: {"archived", "deleted"}).
+        local_label_intent: Optional dict mapping local_id -> "ever-seen" tag
+            set (from ``local_label_intent.compute_label_intent_map``). When
+            provided, gates outbound label REMOVE emission to only labels
+            local user actually had at some point (bug a06c — prevents
+            spurious REMOVEs cancelling legitimate inbound ADDs under the
+            PR #457 local-wins bidir suppression contract). Tickets missing
+            from the map receive an empty intent set, which is the lazy
+            first-pass safety mode (suppress all REMOVEs for that ticket).
+            Legacy callers omit this argument and retain the pre-fix behavior.
 
     Returns:
         List of OutboundMutation objects describing changes to push to Jira.
@@ -449,7 +483,14 @@ def compute_outbound_mutations(
             jira_fields = jira_snapshot.get(jira_key, {})
             changed = _diff_fields(ticket, jira_fields)
             comment_mutations = _diff_comments(ticket, jira_key, jira_snapshot)
-            label_mutations = _diff_labels(ticket, jira_fields)
+            # bug a06c: intent-gated REMOVE. When local_label_intent is
+            # provided but lacks an entry for this local_id, fall back to
+            # an empty intent set (lazy first-pass safety: suppresses all
+            # REMOVEs for tickets we have no event-log evidence for).
+            intent_set: set[str] | None = None
+            if local_label_intent is not None:
+                intent_set = local_label_intent.get(local_id, set())
+            label_mutations = _diff_labels(ticket, jira_fields, intent_set)
 
             if changed or comment_mutations or label_mutations:
                 mutations.append(

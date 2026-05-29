@@ -837,8 +837,19 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
                     new_tags = [t for t in new_tags if t != label_name]
                     changed = True
             if changed:
+                # Bug a06c: mark this EDIT event with source=inbound so
+                # the local_label_intent computation skips it when
+                # building the "user-intent" tag set. Without the marker,
+                # a Jira-side ADD that the inbound differ applies locally
+                # would enter local's tag history and then look identical
+                # to user intent on the next pass — so a subsequent
+                # Jira-side REMOVE would be cancelled by a spurious
+                # outbound ADD (T4 IB-REMOVE regression).
                 path = _write_event_file(
-                    tracker_dir, local_id, "EDIT", {"fields": {"tags": new_tags}}
+                    tracker_dir,
+                    local_id,
+                    "EDIT",
+                    {"fields": {"tags": new_tags}, "source": "inbound"},
                 )
                 written.append(str(path))
 
