@@ -453,6 +453,20 @@ def _parse_response(response: Any) -> dict[str, Any]:
         "cannot parse as findings."
     )
     print(f"ERROR: {msg}", file=sys.stderr)
+    # R3 (bug f148): also log a sanitized preview of the raw response. Without
+    # the body, a 275-byte non-JSON failure is undiagnosable — operators can't
+    # distinguish a safety refusal from an overload string from a friendly
+    # preamble. Cap at 1024 bytes and escape control characters to keep the
+    # log line single-row and avoid leaking secrets unbounded.
+    import unicodedata
+    _preview_raw = raw_content[:1024]
+    _preview = ''.join(
+        ch if (ch in '\n\t' or not unicodedata.category(ch).startswith('C'))
+        else f'\\x{ord(ch):02x}'
+        for ch in _preview_raw
+    )
+    _preview = _preview.replace('\n', '\\n').replace('\t', '\\t')
+    print(f"ERROR [preview]: {_preview}", file=sys.stderr)
     raise ValueError(msg)
 
 
@@ -839,9 +853,25 @@ def dispatch_review(
             )
             continue
 
+        except ValueError as parse_exc:
+            # R2 (bug f148): parse failure re-raised from the inner _parse_response
+            # try/except above. The LLM call succeeded but returned non-JSON.
+            # The PRIOR behavior was to fall through to `except Exception` below
+            # and `break` — exhausting the entire context chain on the first
+            # parse failure, even when later models in the chain (or the same
+            # model on retry) would have produced parseable JSON. `continue`
+            # here so the next ctx_model is actually tried.
+            last_exc = parse_exc
+            logger.debug(
+                "Parse failure for model %s — trying next context model: %s",
+                ctx_model, parse_exc,
+            )
+            continue
+
         except Exception as exc:  # noqa: BLE001
-            # Non-context error (rate limit, auth, etc.) — break out; cross-provider
-            # fallbacks= will have already been attempted by the SDK within this call.
+            # Non-context, non-parse error (rate limit, auth, etc.) — break;
+            # cross-provider fallbacks= will have already been attempted by
+            # the SDK within this call.
             last_exc = exc
             # Populate attempted_cross_provider with all providers in the chain
             for provider in provider_chain[1:]:

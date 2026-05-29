@@ -871,15 +871,55 @@ def _format_finding_comment(idx: int, total: int, finding: dict) -> str:
 
 
 def _resolve_pr_head_sha(pr_number: int | str) -> str | None:
-    """Resolve the HEAD SHA of the PR branch.
+    """Resolve the HEAD SHA of the PR branch — event-aware.
 
-    Checks GITHUB_SHA env var first (set by Actions on both push and
-    pull_request events). Falls back to `gh pr view headRefOid`.
-    Returns None on any failure.
+    R1 (bug f148): on ``pull_request`` and ``pull_request_target`` events
+    GitHub Actions sets ``GITHUB_SHA`` to the SYNTHESIZED MERGE-COMMIT SHA
+    (refs/pull/N/merge), not the actual PR HEAD. The Reviews API rejects
+    a posted review whose ``commit_id`` is not on the PR's commit list,
+    so the prior "GITHUB_SHA-first" order produced HTTP 422 on every
+    session→main PR.
+
+    Resolution order:
+      1. ``pull_request`` / ``pull_request_target`` event → ``gh pr view
+         <pr> --json headRefOid -q .headRefOid`` (authoritative for these
+         events). Fall through to GITHUB_SHA only if gh is unavailable.
+      2. All other events (push, workflow_dispatch, schedule, …) →
+         ``GITHUB_SHA`` (correct for those events).
+      3. Last-resort: ``gh pr view headRefOid``.
     """
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "").strip()
+    pr_events = {"pull_request", "pull_request_target"}
+
+    if event_name in pr_events:
+        # Prefer gh for PR events: GITHUB_SHA is the merge-commit ref here,
+        # not the PR HEAD.
+        sha = _gh_pr_head_oid(pr_number)
+        if sha:
+            return sha
+        # Degraded: fall back to GITHUB_SHA with a warning so the operator
+        # can investigate the gh failure.
+        fallback = os.environ.get("GITHUB_SHA", "").strip()
+        if fallback:
+            print(
+                f"WARNING [_resolve_pr_head_sha]: gh pr view failed for "
+                f"PR #{pr_number}; falling back to GITHUB_SHA={fallback[:12]}… "
+                "(may be the merge-commit ref, not the PR HEAD — Reviews API may 422).",
+                file=sys.stderr,
+            )
+            return fallback
+        return None
+
+    # Non-PR events: GITHUB_SHA is the correct value.
     sha = os.environ.get("GITHUB_SHA", "").strip()
     if sha:
         return sha
+    # Last-resort: try gh.
+    return _gh_pr_head_oid(pr_number)
+
+
+def _gh_pr_head_oid(pr_number: int | str) -> str | None:
+    """Return the PR's head ref OID via gh, or None on any failure."""
     try:
         result = subprocess.run(
             [
@@ -901,7 +941,7 @@ def _resolve_pr_head_sha(pr_number: int | str) -> str | None:
             if sha:
                 return sha
     except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None  # gh not installed or timed out — caller handles None
+        return None
     return None
 
 
