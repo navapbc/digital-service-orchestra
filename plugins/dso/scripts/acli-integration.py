@@ -1043,7 +1043,15 @@ class AcliClient:
                 "--jql",
                 jql,
                 "-f",
-                "issuetype,key,assignee,priority,status,summary,description",
+                # Bug 5328: ``labels`` MUST be in this list. Without it the
+                # batch snapshot has labels=[] for every issue, which makes
+                # both differs hallucinate divergence symmetrically (outbound
+                # emits ADD-every-tag, inbound emits REMOVE-every-tag, and
+                # bidir suppression cancels them out). Any Jira-side label
+                # ADD on a bound ticket then becomes invisible to inbound
+                # because the snapshot pretends Jira has no labels at all.
+                # Mirrors the single-issue ``get_issue`` field list above.
+                "issuetype,key,assignee,priority,status,summary,description,labels",
                 "--paginate",
                 "--json",
             ]
