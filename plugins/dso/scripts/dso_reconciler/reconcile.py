@@ -194,11 +194,7 @@ def preflight_status_mapping(mutations) -> None:
         # OR VALUES (jira names). The preflight purpose is to catch
         # *unmapped* statuses before the applier dispatch; both shapes are
         # legitimately-mapped values.
-        if (
-            status
-            and status not in mapping
-            and status not in set(mapping.values())
-        ):
+        if status and status not in mapping and status not in set(mapping.values()):
             raise StatusMappingError(
                 f"local status {status!r} not in local_to_jira_status mapping "
                 f"(target={target})"
@@ -697,10 +693,14 @@ def reconcile_once(
     # path handles field-level updates for already-bound tickets.
     # -------------------------------------------------------------------
     local_by_id = {t.get("ticket_id", t.get("id", "")): t for t in local_tickets}
+    # Bug 3bf8: pass outbound mutations so the inbound differ can suppress
+    # emissions that would contradict (and clobber) a just-emitted outbound
+    # change for the same target in the same bidirectional pass.
     inbound_new = inbound_differ_mod.compute_inbound_mutations(
         curr_snapshot,
         binding_store,
         local_by_id,
+        outbound_mutations=outbound_raw,
     )
     sync_logger.log(
         "inbound_differ_complete",
@@ -708,13 +708,30 @@ def reconcile_once(
     )
     _ib_with_fields = sum(1 for m in inbound_new if m.fields)
     _ib_with_labels = sum(1 for m in inbound_new if m.labels)
-    _ib_with_comments = sum(
-        1 for m in inbound_new if getattr(m, "comments", [])
+    _ib_with_comments = sum(1 for m in inbound_new if getattr(m, "comments", []))
+    # Bug 3bf8: count of inbound items suppressed by outbound-context
+    # filtering — recompute inbound without coordination (the differ is pure
+    # / no I/O) and diff per-target field + label counts.
+    _ib_uncoordinated = inbound_differ_mod.compute_inbound_mutations(
+        curr_snapshot,
+        binding_store,
+        local_by_id,
     )
+    _coord_by_key = {m.jira_key: m for m in inbound_new}
+    _ib_suppressed = 0
+    for _u in _ib_uncoordinated:
+        _c = _coord_by_key.get(_u.jira_key)
+        _u_items = len(_u.fields) + len(_u.labels)
+        _c_items = (len(_c.fields) + len(_c.labels)) if _c is not None else 0
+        _ib_suppressed += max(0, _u_items - _c_items)
     print(  # noqa: T201
         f"RECON: inbound_differ total={len(inbound_new)} "
         f"with_fields={_ib_with_fields} with_labels={_ib_with_labels} "
         f"with_comments={_ib_with_comments}",
+        file=sys.stderr,
+    )
+    print(  # noqa: T201
+        f"RECON: bidir_suppressed inbound={_ib_suppressed}",
         file=sys.stderr,
     )
 

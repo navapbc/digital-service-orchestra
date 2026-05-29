@@ -286,10 +286,52 @@ def _diff_labels_inbound(
 # ---------------------------------------------------------------------------
 
 
+def _build_outbound_context(
+    outbound_mutations: list[Any] | None,
+) -> dict[str, dict[str, Any]]:
+    """Index outbound mutations by jira_key for fast lookup.
+
+    Bug 3bf8: in a single bidirectional pass, outbound and inbound differs
+    run against the same pre-pass snapshot. When the local side has just
+    diverged from Jira, the inbound differ would naively emit a mutation
+    that reverts the local-side change. This index lets the inbound differ
+    detect and suppress those contradictions.
+
+    Returns a dict keyed by jira_key with:
+      - "label_adds": set of labels being added outbound
+      - "label_removes": set of labels being removed outbound
+      - "fields": set of field names being updated outbound
+    """
+    ctx: dict[str, dict[str, Any]] = {}
+    if not outbound_mutations:
+        return ctx
+    for om in outbound_mutations:
+        jira_key = getattr(om, "jira_key", None)
+        if not jira_key:
+            continue
+        entry = ctx.setdefault(
+            jira_key,
+            {"label_adds": set(), "label_removes": set(), "fields": set()},
+        )
+        for lm in getattr(om, "labels", []) or []:
+            action = lm.get("action") if isinstance(lm, dict) else None
+            label = lm.get("label") if isinstance(lm, dict) else None
+            if not label:
+                continue
+            if action == "add":
+                entry["label_adds"].add(label)
+            elif action == "remove":
+                entry["label_removes"].add(label)
+        for field_name in (getattr(om, "fields", {}) or {}).keys():
+            entry["fields"].add(field_name)
+    return ctx
+
+
 def compute_inbound_mutations(
     jira_snapshot: dict[str, dict[str, Any]],
     binding_store: BindingStoreProtocol,
     local_tickets_by_id: dict[str, dict[str, Any]],
+    outbound_mutations: list[Any] | None = None,
 ) -> list[InboundMutation]:
     """Detect Jira-side changes for bound tickets.
 
@@ -301,24 +343,31 @@ def compute_inbound_mutations(
     - If local also changed -> skip (local wins, outbound differ handles it)
     - If only Jira changed -> emit inbound update
 
-    The "local also changed" detection requires a baseline snapshot (previous
-    sync state). Without a baseline, this implementation treats all local
-    values as the baseline — meaning any difference between Jira and local
-    is attributed to Jira having changed. The outbound differ's local-wins
-    semantics ensure correctness: if both changed, the outbound differ will
-    push the local value, and the inbound mutation (if emitted) will be
-    superseded.
+    Bidirectional coordination (bug 3bf8): when ``outbound_mutations`` is
+    provided, the inbound differ filters its emissions to suppress any
+    mutation that contradicts an outbound mutation just emitted for the
+    same target. The local-side change is fresher than the differ
+    snapshot, so it has authoritative priority for the pass:
+      - label ADD suppressed when outbound is REMOVING the same label
+      - label REMOVE suppressed when outbound is ADDING the same label
+      - scalar field update suppressed when outbound is updating the same field
+    The next pass converges both sides without a phase-2 snapshot refresh.
 
     Args:
         jira_snapshot: Dict of {jira_key: {fields...}} from the fetcher.
         binding_store: A BindingStore instance providing get_local_id(jira_key).
         local_tickets_by_id: Dict of {local_id: {ticket fields...}} for local
             ticket lookup.
+        outbound_mutations: Optional list of OutboundMutation objects emitted
+            in the same pass; used to suppress inbound mutations that would
+            contradict an outbound change for the same target. Defaults to
+            None (no coordination — legacy behaviour preserved).
 
     Returns:
         List of InboundMutation objects describing changes to apply locally.
     """
     mutations: list[InboundMutation] = []
+    outbound_ctx = _build_outbound_context(outbound_mutations)
 
     for jira_key, jira_fields in sorted(jira_snapshot.items()):
         local_id = binding_store.get_local_id(jira_key)
@@ -334,6 +383,30 @@ def compute_inbound_mutations(
         changed = _diff_jira_vs_local(jira_fields, local_ticket)
         label_mutations = _diff_labels_inbound(jira_fields, local_ticket)
         comment_mutations = _diff_comments_inbound(jira_fields, local_ticket)
+
+        # Bidirectional suppression (bug 3bf8): filter out inbound mutations
+        # that would clobber a just-emitted outbound change for this target.
+        ob_entry = outbound_ctx.get(jira_key)
+        if ob_entry is not None:
+            # Scalar fields: drop any inbound field update where outbound
+            # is updating the same field.
+            if changed:
+                changed = {
+                    k: v for k, v in changed.items() if k not in ob_entry["fields"]
+                }
+            # Labels: drop inbound ADD when outbound REMOVES the same label,
+            # and inbound REMOVE when outbound ADDS the same label.
+            if label_mutations:
+                filtered_labels: list[dict[str, Any]] = []
+                for lm in label_mutations:
+                    action = lm.get("action")
+                    label = lm.get("label")
+                    if action == "add" and label in ob_entry["label_removes"]:
+                        continue
+                    if action == "remove" and label in ob_entry["label_adds"]:
+                        continue
+                    filtered_labels.append(lm)
+                label_mutations = filtered_labels
 
         if changed or label_mutations or comment_mutations:
             mutations.append(
