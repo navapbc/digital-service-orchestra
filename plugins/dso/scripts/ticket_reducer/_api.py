@@ -241,8 +241,22 @@ def reduce_ticket(
 def reduce_all_tickets(
     tracker_dir: str | os.PathLike[str],
     exclude_archived: bool = False,
+    exclude_deleted: bool = False,
 ) -> list[dict]:
-    """Batch-reduce all tickets in tracker_dir."""
+    """Batch-reduce all tickets in tracker_dir.
+
+    Args:
+        tracker_dir: Path to the ``.tickets-tracker`` directory.
+        exclude_archived: When True, drop tickets whose net archival state is
+            archived (and clear stale ``.archived`` markers). Default False.
+        exclude_deleted: When True, drop tickets whose reduced ``status`` is
+            ``"deleted"`` (terminal tombstones). This is independent of
+            ``exclude_archived`` and defaults to False to preserve every
+            existing caller — notably ``ticket list --include-archived``, which
+            must still surface deleted tickets for tombstone inspection. Uses
+            the reduced ``status`` field (the authoritative net-deleted signal),
+            not an event re-scan; error dicts (no ``status``) are kept intact.
+    """
     tracker_path = os.path.normpath(str(tracker_dir))
     results: list[dict] = []
 
@@ -272,5 +286,10 @@ def reduce_all_tickets(
 
     if exclude_archived:
         results = [r for r in results if not r.get("archived")]
+
+    if exclude_deleted:
+        # Use the reduced status field as the authoritative net-deleted signal.
+        # Error dicts have no "status" key and are preserved intact.
+        results = [r for r in results if r.get("status") != "deleted"]
 
     return results
