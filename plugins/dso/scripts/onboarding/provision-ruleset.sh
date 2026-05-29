@@ -230,11 +230,28 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-# ── Resolve default branch ────────────────────────────────────────────────────
-# Auto-detect from the git remote when a repo is known; fall back to "main".
-# Resolved later after REPO is confirmed (see confirm-repo section).
-# Override with DSO_DEFAULT_BRANCH env var for repos using a non-main default.
-DEFAULT_BRANCH="${DSO_DEFAULT_BRANCH:-main}"
+# ── Resolve REPO (auto-detect when not provided) ─────────────────────────────
+# Run REPO auto-detection BEFORE DEFAULT_BRANCH resolution so the gh repo view
+# step has a target. Previously the auto-detection ran after payload
+# construction, which left DEFAULT_BRANCH resolution dependent on the slower
+# git-symbolic-ref / "main" fallbacks when --repo was omitted — wrong for
+# non-main hosts whose origin/HEAD was unset or stale.
+if [[ -z "$REPO" ]]; then
+  REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null || echo "")
+fi
+
+# ── Resolve default branch via shared helper ─────────────────────────────────
+# Four-tier fallback (DSO_DEFAULT_BRANCH env → gh repo view → git symbolic-ref
+# → "main") implemented in lib/default-branch.sh. Both this script and
+# sync-sub-pr-ruleset.sh source the same helper so the resolution chain stays
+# in sync — addresses llm-review finding 2/2 on PR #442 (duplicated logic).
+# Prefer CLAUDE_PLUGIN_ROOT when set; otherwise derive from BASH_SOURCE so
+# the helper is found regardless of env state.
+_PROV_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PROV_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_PROV_SCRIPT_DIR/../.." 2>/dev/null && pwd)}"
+# shellcheck source=../lib/default-branch.sh
+source "$_PROV_PLUGIN_ROOT/scripts/lib/default-branch.sh"
+DEFAULT_BRANCH=$(_dso_resolve_default_branch "$REPO")
 
 # ── Read check names from file ────────────────────────────────────────────────
 if [[ ! -f "$CHECKS_FILE" ]]; then
@@ -318,59 +335,30 @@ EOF
 # ── Build session-branch ruleset JSON payload (F1 mitigation) ────────────────
 # Second ruleset requiring review-sub-pr to pass on session/worktree branches.
 #
-# BRANCH-NAMING CROSS-REFERENCE (R8/R11 PR-2):
-# Branch patterns are read from the source-of-truth file at
-# ${CLAUDE_PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt. The dispatcher
-# (llm-review-dispatch-or-skip.sh) reads the SAME file to build its
-# _FORCE_REVIEW regex — keeping both consumers in sync.
-#
-# Validation: tests/scripts/test-branch-pattern-alignment.sh asserts both
-# consumers reference the file and emit consistent patterns. Drift between
-# the dispatcher and the ruleset would let sub-agent branches silently
-# bypass review enforcement.
+# SUB-PR RULESET SCOPING (negative-list, all-except-main):
+# The sub-PR ruleset's branch scope is hardcoded below as include="~ALL" plus
+# exclude=["refs/heads/main"]. The prior allowlist-of-patterns design (still
+# living in config/sub-pr-branch-patterns.txt under the plugin root for the
+# dispatcher's _FORCE_REVIEW regex) was brittle for ruleset scoping: every
+# new branch convention required updating three consumers (file, workflow
+# trigger, ruleset) and missing patterns silently bypassed enforcement. The
+# dispatcher still uses the patterns file for force-review-eligibility — a
+# narrower concern.
 SUB_PR_STATUS_JSON='[{"context": "review-sub-pr"}]'
 
-# Resolve patterns file via BASH_SOURCE-based plugin-root derivation.
-# The script lives at <plugin-root>/scripts/onboarding/provision-ruleset.sh
-# and the patterns file lives at <plugin-root>/config/sub-pr-branch-patterns.txt.
-# Resolving via BASH_SOURCE keeps the script and patterns file co-located
-# regardless of CLAUDE_PLUGIN_ROOT env state (which may point to a different
-# checkout in worktree-based development).
-_PROVISION_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Two levels up: scripts/onboarding → scripts → <plugin-root>. Use
-# CLAUDE_PLUGIN_ROOT-honoring pattern so the no-relative-paths lint excludes
-# the literal "../.." used to derive the plugin root from this script's dir.
-_PR_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_PROVISION_SCRIPT_DIR/../.." 2>/dev/null && pwd || echo '')}"
-_PATTERNS_FILE="${_PR_PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt"
-if [[ ! -f "$_PATTERNS_FILE" ]]; then
-    echo "ERROR: branch-patterns source-of-truth file not found at $_PATTERNS_FILE" >&2
-    exit 1
-fi
-
-# Count active (non-comment, non-blank) patterns. An empty file would produce
-# an empty JSON array, which would silently disable sub-PR review enforcement
-# (the ruleset's include filter would match no branches). Fail-closed instead.
-# `set +e ... set -e` brackets the grep so a zero-match (grep exit 1) under
-# `set -o pipefail` doesn't terminate the script before we can emit the
-# diagnostic. `|| true` alone wouldn't work because pipefail propagates the
-# inner exit code through the pipe.
-set +e
-_PATTERN_COUNT=$(grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$_PATTERNS_FILE" 2>/dev/null | wc -l | tr -d ' ')
-set -e
-_PATTERN_COUNT="${_PATTERN_COUNT:-0}"
-if (( _PATTERN_COUNT == 0 )); then
-    echo "ERROR: branch-patterns source-of-truth file contains zero active patterns: $_PATTERNS_FILE" >&2
-    echo "ERROR: refusing to provision a ruleset with empty include array — this would silently disable" >&2
-    echo "ERROR: sub-PR review enforcement (empty include matches no branches)" >&2
-    exit 1
-fi
-
-# Build the JSON include array from patterns file (one "refs/heads/<pattern>" per non-comment line).
-SUB_PR_INCLUDE_JSON=$(
-    grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$_PATTERNS_FILE" \
-        | jq -R '"refs/heads/" + .' \
-        | jq -s .
-)
+# The sub-PR ruleset enforces review-sub-pr on every PR whose base is NOT the
+# default branch (main). The prior allowlist-of-branch-patterns approach was
+# brittle: each new branch convention (feat-*, story-*, fix-*, future
+# release-*, hotfix-*, etc.) had to be added by hand to three places (this
+# file, the workflow trigger, and the live ruleset), and missing patterns
+# silently bypassed enforcement.
+#
+# The current invariant: any PR not targeting main should be reviewed before
+# merging. Express it directly via GitHub Ruleset's ~ALL include + an explicit
+# exclude. main is the only exclude because main has its own ruleset (15629023,
+# "DSO CI Enforcement") with its own required checks.
+SUB_PR_INCLUDE_JSON='["~ALL"]'
+SUB_PR_EXCLUDE_JSON="[\"refs/heads/${DEFAULT_BRANCH}\"]"
 
 SUB_PR_PAYLOAD_JSON=$(cat <<EOF
 {
@@ -380,7 +368,7 @@ SUB_PR_PAYLOAD_JSON=$(cat <<EOF
   "conditions": {
     "ref_name": {
       "include": ${SUB_PR_INCLUDE_JSON},
-      "exclude": []
+      "exclude": ${SUB_PR_EXCLUDE_JSON}
     }
   },
   "bypass_actors": [
@@ -447,20 +435,13 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-# ── Confirm repo ──────────────────────────────────────────────────────────────
+# ── Confirm repo (hard-fail gate for live POST mode) ─────────────────────────
+# REPO was already auto-detected earlier (before DEFAULT_BRANCH resolution).
+# This block enforces that auto-detection succeeded — required for live POST,
+# tolerated empty for dry-run mode (which already exited above).
 if [[ -z "$REPO" ]]; then
-  # Attempt to detect from git remote
-  REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null || echo "")
-  if [[ -z "$REPO" ]]; then
-    echo "ERROR: --repo <owner/repo> is required (or run from inside a git repo with a GitHub remote)." >&2
-    exit 1
-  fi
-fi
-
-# Auto-detect default branch now that REPO is confirmed
-_DETECTED_BRANCH=$(gh repo view "$REPO" --json defaultBranchRef -q '.defaultBranchRef.name' 2>/dev/null || echo "")
-if [[ -n "$_DETECTED_BRANCH" ]]; then
-  DEFAULT_BRANCH="$_DETECTED_BRANCH"
+  echo "ERROR: --repo <owner/repo> is required (or run from inside a git repo with a GitHub remote)." >&2
+  exit 1
 fi
 
 # ── Interactive confirmation ──────────────────────────────────────────────────

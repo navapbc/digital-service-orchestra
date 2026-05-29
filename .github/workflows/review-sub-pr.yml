@@ -1,26 +1,19 @@
 name: review-sub-pr
-# Branch trigger patterns MUST mirror plugins/dso/config/sub-pr-branch-patterns.txt
-# (the source-of-truth file consumed by the dispatcher and provisioner).
-# GitHub Actions YAML does NOT support dynamic includes; this list must be
-# updated by hand whenever the patterns file changes. The alignment test
-# tests/scripts/test-branch-pattern-alignment.sh enforces this invariant —
-# adding a pattern to the file but forgetting this trigger creates a merge
-# deadlock (sub-PR ruleset requires review-sub-pr, but workflow never fires).
+# Trigger: every PR whose base is NOT the host's default branch. Mirrors the
+# sub-PR ruleset (provision-ruleset.sh emits include="~ALL",
+# exclude=["refs/heads/<default-branch>"]), so the workflow runs exactly on
+# the PRs the ruleset enforces. Adding a new branch convention requires no
+# workflow change.
+#
+# HOST PROJECT NOTE: GitHub Actions YAML cannot dynamically read a host's
+# default branch, so the value below is a literal. If your host project's
+# default branch is not "main" (e.g., master, trunk, develop), change the
+# literal here AND run `provision-ruleset.sh` or `sync-sub-pr-ruleset.sh`
+# with `DSO_DEFAULT_BRANCH=<your-branch>` so the live ruleset matches.
 "on":
   pull_request:
-    branches:
-      - 'session/**'
-      - 'session-**'
-      - 'session_**'
-      - 'bug-batch/**'
-      - 'worktree-**'
-      - 'worktree-agent-**'
-      - 'feat-**'
-      - 'feat/**'
-      - 'story-**'
-      - 'story/**'
-      - 'fix-**'
-      - 'fix/**'
+    branches-ignore:
+      - main
 
 # R5 (PR-2): concurrency group prevents overlapping runs on rapid force-pushes.
 # cancel-in-progress is appropriate for review workflows — a stale review

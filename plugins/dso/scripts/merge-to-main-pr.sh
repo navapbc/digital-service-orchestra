@@ -452,9 +452,12 @@ _derive_pr_title() {
     # F-05: use resolved default branch (_DEFAULT_BRANCH) instead of literal "main"
     # so commit ranges work on host repos using master/develop/trunk.
     local _db="${_DEFAULT_BRANCH:-main}"
-    _subject=$(git log --no-merges -1 --pretty=%s "${_db}..HEAD" 2>/dev/null || true)
+    # Skip pipeline-emitted `chore: bump version to v...` commits (line 711 of this
+    # script emits them on the source branch before _derive_pr_title is called).
+    # Walk back to the latest non-merge non-bump subject. (bug dd0c-06cf-83ed-4941)
+    _subject=$(git log --no-merges --pretty=%s "${_db}..HEAD" 2>/dev/null | grep -v '^chore: bump version to ' | head -n 1 || true)
     if [[ -z "$_subject" ]]; then
-        _subject=$(git log --no-merges -1 --pretty=%s "origin/${_db}..HEAD" 2>/dev/null || true)
+        _subject=$(git log --no-merges --pretty=%s "origin/${_db}..HEAD" 2>/dev/null | grep -v '^chore: bump version to ' | head -n 1 || true)
     fi
 
     # 2. Already prefixed → return as-is.

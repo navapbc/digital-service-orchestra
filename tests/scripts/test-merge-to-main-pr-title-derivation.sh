@@ -223,6 +223,32 @@ t_fallback_when_only_merge_commit() {
 }
 
 # ---------------------------------------------------------------------------
+# Test D: latest commit is a chore: bump version → title skips it and uses
+#          the prior substantive commit subject (bug dd0c-06cf-83ed-4941)
+# ---------------------------------------------------------------------------
+t_skips_chore_bump_version_subject() {
+    local d branch title
+    d="$(_mkfixture)"
+    branch="feature/test-d"
+    (
+        cd "$d" || exit 1
+        git checkout -q -b "$branch"
+        # First: the substantive commit that should win the PR title.
+        echo a > a.txt && git add a.txt
+        git commit -q -m "fix(scratch): bump payload ceiling 4096 -> 98304"
+        # Second: a version-bump commit emitted by _phase_source_branch_version_bump
+        # (line 711 of merge-to-main-pr.sh). This subject must be skipped.
+        echo b > b.txt && git add b.txt
+        git commit -q -m "chore: bump version to v1.17.96"
+    ) >/dev/null 2>&1
+
+    title="$(_call_derive "$d" "$branch")"
+    assert_eq "D: skips chore:bump-version subject and uses prior substantive commit" \
+        "fix(scratch): bump payload ceiling 4096 -> 98304" "$title"
+    rm -rf "$d"
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 t_prefers_non_merge_subject
@@ -231,5 +257,6 @@ t_prefix_from_dso_task_trailer
 t_prefix_from_earlier_subject_prefix
 t_no_double_prefix
 t_fallback_when_only_merge_commit
+t_skips_chore_bump_version_subject
 
 print_summary

@@ -191,14 +191,14 @@ test_invalid_key_slash
 # Test 6: Oversize value — rejected with structured error
 # ══════════════════════════════════════════════════════════════════════════════
 echo ""
-echo "── Test 6: oversize value (> 4096 bytes envelope total) is rejected ──"
+echo "── Test 6: oversize value (> 98304 bytes envelope total) is rejected ──"
 test_oversize_value() {
     local base
     base=$(_make_scratch_base)
 
-    # Build a value that will exceed 4096 bytes when wrapped in the envelope
+    # Build a value that will exceed 98304 bytes when wrapped in the envelope
     local big_value
-    big_value=$(python3 -c "print('x' * 5000, end='')")
+    big_value=$(python3 -c "print('x' * 99000, end='')")
 
     local output exit_code=0
     output=$(SCRATCH_BASE_DIR="$base" bash "$SCRATCH_SET" "valid-ticket-id" "bigkey" "$big_value" 2>/dev/null) \
