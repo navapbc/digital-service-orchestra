@@ -33,8 +33,16 @@ Ticket tests (linux-bash4)
 Ticket tests (macos-bash3)
 Ticket tests (alpine-busybox)
 
-# NOTE: review-sub-pr is intentionally NOT listed here. That check fires only on
-# PRs whose base targets a sub-PR branch pattern (see plugins/dso/config/sub-pr-branch-patterns.txt
-# and .github/workflows/review-sub-pr.yml). On a session→main PR, the context never
-# reports, so requiring it on the main-branch ruleset would deadlock every PR to main.
-# Enforcement for review-sub-pr lives on the session/worktree-branch ruleset 16961402.
+# ── check-staged-head.yml check ─────────────────────────────────────────────
+# Enforces the two-tier promotion model: only branches matching `staged-*`
+# may merge into main. Workflow runs on every PR targeting main and fails
+# fast for non-staged-* head refs. Required to prevent feature branches
+# from bypassing the staged-* promotion path.
+check-staged-head
+
+# NOTE: review-sub-pr is intentionally NOT listed here. Enforcement for
+# review-sub-pr lives on the sub-PR ruleset 16961402 as a required_workflows
+# rule that evaluates at PR-merge time on PRs into staged-* branches.
+# Including it as a required_status_check on the main ruleset would deadlock
+# staged-*→main PRs (the workflow doesn't fire on those — its trigger is
+# `pull_request.branches != main`).
