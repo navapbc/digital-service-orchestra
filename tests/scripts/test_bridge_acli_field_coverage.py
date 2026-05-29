@@ -368,11 +368,20 @@ class TestAcliClientUpdateFieldExtraction:
         assert "content" in parsed, "ADF should have content field"
 
     def test_acli_update_sends_assignee(self, acli_mod: Any, acli_capture: Any) -> None:
-        """AcliClient.update_issue() should support sending assignee updates."""
+        """AcliClient.update_issue() should support sending assignee updates.
+
+        Bug 06a5: update_issue now pre-validates non-empty assignee values via
+        validate_assignee_exists (REST /assignable/search) before dispatching
+        to ACLI. Mock the validator so this test stays focused on ACLI flag
+        propagation rather than re-testing the validation path.
+        """
         client, captured_cmds, fake_run_acli = acli_capture
 
         with patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli):
-            client.update_issue("TEST-1", assignee="bob")
+            with patch.object(
+                client, "validate_assignee_exists", return_value="acct-bob"
+            ):
+                client.update_issue("TEST-1", assignee="bob")
 
         assert len(captured_cmds) >= 1
         edit_cmd = captured_cmds[0]

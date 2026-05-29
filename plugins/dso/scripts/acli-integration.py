@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -60,6 +61,16 @@ _LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
 #     Forge custom-field community thread 55277.
 _JIRA_SUMMARY_MAX_CHARS: int = 254
 _JIRA_LABEL_MAX_CHARS: int = 255
+
+
+class AssigneeNotFoundError(ValueError):
+    """Raised when a requested assignee does not resolve to any assignable Jira user.
+
+    Bug 06a5 / 85a1 (Gap 5 follow-up): mirrors the client-side pre-validation
+    pattern used by ``transition_issue_by_name`` (Gap 8). Caught before the
+    outbound mutation is dispatched so the bogus-assignee class does not
+    silently no-op via ACLI's exit-0-on-failure contract.
+    """
 
 
 class InvalidLabelError(ValueError):
@@ -860,18 +871,29 @@ class AcliClient:
         rather than passed to ACLI as ``--assignee ""``, which ACLI silently
         no-ops (the probe Phase 2 verify-assignee-unassigned regression).
 
+        Bug 06a5 (Gap 5 follow-up): non-empty assignee values are pre-validated
+        against ``/rest/api/3/user/assignable/search`` and normalised to the
+        matched ``accountId`` before the ACLI dispatch. Bogus assignees raise
+        ``AssigneeNotFoundError`` here rather than silently no-op via ACLI's
+        exit-0-on-failure contract.
+
         unassign_issue failures are caught and logged so a transient REST
         error does not abort the entire batch — the rest of the update_one
         body (label/comment dispatch, field edits) must still run.
         """
-        if "assignee" in kwargs and kwargs["assignee"] in (None, ""):
-            kwargs.pop("assignee")
-            try:
-                self.unassign_issue(jira_key)
-            except Exception as exc:  # noqa: BLE001
-                print(  # noqa: T201
-                    f"update_issue: unassign_issue({jira_key}) failed: {exc!r}",
-                    file=sys.stderr,
+        if "assignee" in kwargs:
+            if kwargs["assignee"] in (None, ""):
+                kwargs.pop("assignee")
+                try:
+                    self.unassign_issue(jira_key)
+                except Exception as exc:  # noqa: BLE001
+                    print(  # noqa: T201
+                        f"update_issue: unassign_issue({jira_key}) failed: {exc!r}",
+                        file=sys.stderr,
+                    )
+            else:
+                kwargs["assignee"] = self.validate_assignee_exists(
+                    kwargs["assignee"], issue_key=jira_key
                 )
         return update_issue(jira_key, acli_cmd=self._acli_cmd, **kwargs)
 
@@ -1302,6 +1324,67 @@ class AcliClient:
         self._direct_rest_post_raw(
             f"/rest/api/3/issue/{jira_key}/transitions",
             {"transition": {"id": str(match_id)}},
+        )
+
+    def validate_assignee_exists(
+        self,
+        assignee: str,
+        *,
+        issue_key: str | None = None,
+        project_key: str | None = None,
+    ) -> str:
+        """Validate *assignee* resolves to an assignable user; return accountId.
+
+        Mirrors the client-side pre-validation pattern from
+        ``transition_issue_by_name`` (Gap 8). GETs
+        ``/rest/api/3/user/assignable/search?query=<assignee>&issueKey=<key>``
+        (or ``&project=<project>`` when called from a CREATE path with no
+        issue key yet), then returns the matched ``accountId``. Callers should
+        forward this resolved accountId to ACLI rather than the raw input to
+        eliminate display-name/email ambiguity at the API boundary.
+
+        Raises ``AssigneeNotFoundError`` when no user matches. Raises
+        ``ValueError`` when neither scope arg is supplied.
+        """
+        if not (issue_key or project_key):
+            raise ValueError(
+                "validate_assignee_exists: issue_key or project_key required"
+            )
+        query_part = f"query={urllib.parse.quote(assignee)}"
+        scope_part = (
+            f"issueKey={urllib.parse.quote(issue_key)}"
+            if issue_key
+            else f"project={urllib.parse.quote(project_key or '')}"
+        )
+        path = f"/rest/api/3/user/assignable/search?{query_part}&{scope_part}"
+        users = self._direct_rest_get(path)
+        if not isinstance(users, list) or not users:
+            scope_label = (
+                f"issue={issue_key!r}" if issue_key else f"project={project_key!r}"
+            )
+            raise AssigneeNotFoundError(
+                f"validate_assignee_exists: no assignable user matches "
+                f"{assignee!r} for {scope_label}"
+            )
+        # Prefer exact match on emailAddress / accountId / displayName;
+        # fall back to the first result (Jira's relevance ordering).
+        for u in users:
+            if not isinstance(u, dict):
+                continue
+            if assignee in (
+                u.get("emailAddress"),
+                u.get("accountId"),
+                u.get("displayName"),
+            ):
+                acct = u.get("accountId")
+                if acct:
+                    return acct
+        first = users[0]
+        if isinstance(first, dict) and first.get("accountId"):
+            return first["accountId"]
+        raise AssigneeNotFoundError(
+            f"validate_assignee_exists: assignable search returned results "
+            f"with no accountId for {assignee!r}"
         )
 
     def unassign_issue(self, jira_key: str) -> None:
