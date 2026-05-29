@@ -326,3 +326,140 @@ def test_build_outbound_context_field_updates_populate_fields_set(
     assert entry["fields"] == {"description", "priority"}
     assert entry["label_adds"] == set()
     assert entry["label_removes"] == set()
+
+
+# ---------------------------------------------------------------------------
+# Cycle-2 finding 2: malformed label-entry edge cases for
+# _build_outbound_context (must skip gracefully, never raise).
+# ---------------------------------------------------------------------------
+
+
+def test_build_outbound_context_skips_label_entry_missing_action(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """Label entry without an 'action' key is ignored — neither set populated."""
+    om = _ob_mut(
+        outbound_differ,
+        jira_key="PROJ-MA",
+        labels=[{"label": "orphan-no-action"}],
+    )
+    ctx = inbound_differ._build_outbound_context([om])
+    entry = ctx["PROJ-MA"]
+    assert entry["label_adds"] == set()
+    assert entry["label_removes"] == set()
+
+
+def test_build_outbound_context_skips_label_entry_missing_label(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """Label entry without a 'label' key is skipped (current guard: `if not label: continue`)."""
+    om = _ob_mut(
+        outbound_differ,
+        jira_key="PROJ-ML",
+        labels=[{"action": "add"}, {"action": "remove"}],
+    )
+    ctx = inbound_differ._build_outbound_context([om])
+    entry = ctx["PROJ-ML"]
+    assert entry["label_adds"] == set()
+    assert entry["label_removes"] == set()
+
+
+def test_build_outbound_context_mixed_valid_and_malformed_entries(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """Valid entries index correctly; malformed entries are skipped without raising."""
+    om = _ob_mut(
+        outbound_differ,
+        jira_key="PROJ-MIX",
+        labels=[
+            {"action": "add", "label": "good-add"},
+            {"label": "no-action"},  # malformed: missing action
+            {"action": "remove"},  # malformed: missing label
+            {"action": "remove", "label": "good-remove"},
+            {},  # entirely empty
+            "not-a-dict",  # not a dict at all
+        ],
+    )
+    ctx = inbound_differ._build_outbound_context([om])
+    entry = ctx["PROJ-MIX"]
+    assert entry["label_adds"] == {"good-add"}
+    assert entry["label_removes"] == {"good-remove"}
+
+
+# ---------------------------------------------------------------------------
+# Cycle-2 finding 1: combined field + label suppression on same jira_key —
+# verify suppression_count sums across mutation types.
+# ---------------------------------------------------------------------------
+
+
+def test_combined_field_and_label_suppression_same_jira_key(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """When outbound is updating both a scalar field AND adding+removing labels
+    on the same jira_key, suppression_count must equal the sum of every
+    inbound mutation type suppressed (field + label-add + label-remove).
+    """
+    # Local just: changed description, added 'ob-added', removed 'ib-add'.
+    # Jira snapshot: old description, lacks 'ob-added', still has 'ib-add'.
+    jira_snapshot = {
+        "PROJ-C": {
+            "summary": "T",
+            "description": "old jira desc",
+            "issuetype": "Task",
+            "priority": "Medium",
+            "status": "To Do",
+            "assignee": "alice",
+            "labels": ["keep", "ib-add"],
+        }
+    }
+    local_tickets = {
+        "local-c": {
+            "title": "T",
+            "description": "new local desc",
+            "ticket_type": "task",
+            "priority": 2,
+            "status": "open",
+            "assignee": "alice",
+            "tags": ["keep", "ob-added"],
+        }
+    }
+    store = StubBindingStore({"PROJ-C": "local-c"})
+
+    outbound_mutations = [
+        outbound_differ.OutboundMutation(
+            local_id="local-c",
+            jira_key="PROJ-C",
+            action="update",
+            fields={"description": "new local desc"},
+            labels=[
+                {"action": "add", "label": "ob-added"},
+                {"action": "remove", "label": "ib-add"},
+            ],
+        )
+    ]
+
+    result, suppressed = inbound_differ.compute_inbound_mutations(
+        jira_snapshot=jira_snapshot,
+        binding_store=store,
+        local_tickets_by_id=local_tickets,
+        outbound_mutations=outbound_mutations,
+    )
+
+    # No contradictory inbound emissions survive.
+    for m in result:
+        assert "description" not in m.fields, (
+            f"Inbound emitted contradictory description update: {m}"
+        )
+        for lm in m.labels:
+            assert not (
+                lm.get("action") == "remove" and lm.get("label") == "ob-added"
+            ), f"Inbound emitted contradictory REMOVE ob-added: {m}"
+            assert not (lm.get("action") == "add" and lm.get("label") == "ib-add"), (
+                f"Inbound emitted contradictory ADD ib-add: {m}"
+            )
+
+    # Three distinct suppressions on the same jira_key:
+    #   1 scalar field (description) + 1 label REMOVE (ob-added) + 1 label ADD (ib-add).
+    assert suppressed == 3, (
+        f"Expected 3 suppressions (field + label-add + label-remove), got {suppressed}"
+    )
