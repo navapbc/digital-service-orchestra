@@ -1259,3 +1259,55 @@ def test_call_with_backoff_retries_on_503(acli: ModuleType) -> None:
     assert call_count == 2, (
         f"Expected 2 calls (initial 503 + successful retry), got {call_count}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 25 (RED — bug 5328): AcliClient.search_issues must request the
+# ``labels`` field. Without it, the batch fetcher returns a snapshot with
+# no labels for any issue. Both differs then see Jira labels as []:
+#   - outbound diff: emits spurious ADDs for every local tag (Jira looks empty)
+#   - inbound diff:  emits spurious REMOVEs for every local tag (Jira looks empty)
+#   - bidir suppression: outbound ADD + inbound REMOVE on the same label
+#     cancel each other out -> with_labels=0, bidir_suppressed=N (huge),
+#     and any Jira-side ADD never reaches local because the inbound differ
+#     can't even SEE the new Jira label.
+# The fix: append "labels" to the -f flag in search_issues.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_search_issues_requests_labels_field(acli: ModuleType) -> None:
+    """search_issues must include ``labels`` in the ACLI ``-f`` field list.
+
+    The single-issue path (``get_issue``) already requests labels (see
+    acli-integration.py ~line 795). The batch path (``search_issues``,
+    ~line 1046) omits it, so the fetcher snapshot has no labels for any
+    bound ticket — bug 5328 (inbound label adds never propagate).
+    """
+    client = acli.AcliClient(
+        jira_url="https://test.atlassian.net",
+        user="test@example.com",
+        api_token="fake-token",
+        jira_project="DSO",
+    )
+
+    captured_cmd: list[list[str]] = []
+
+    def fake_run(cmd, *args, **kwargs):
+        captured_cmd.append(list(cmd))
+        return MagicMock(returncode=0, stdout=json.dumps([]), stderr="")
+
+    with patch("subprocess.run", side_effect=fake_run):
+        client.search_issues(jql="project = DSO")
+
+    assert captured_cmd, "search_issues did not invoke subprocess.run"
+    cmd = captured_cmd[0]
+    assert "-f" in cmd, f"Expected -f flag in ACLI search command: {cmd!r}"
+    f_idx = cmd.index("-f")
+    field_arg = cmd[f_idx + 1]
+    fields = [f.strip() for f in field_arg.split(",")]
+    assert "labels" in fields, (
+        f"search_issues must request the 'labels' field for bidirectional "
+        f"label sync (bug 5328); got fields={fields!r}"
+    )
