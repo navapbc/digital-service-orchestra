@@ -2798,17 +2798,9 @@ fi
 # branch/PR, hitting the duplicate-PR error.
 _PHASE_MERGE_RC=0
 if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
-    # PR-C: staged-* intermediate (PR1: worktree-* → staged-*). No-op for
-    # story-PR mode (STORY_PR_BASE set) and when BRANCH already matches
-    # staged-*. On success, repoints BRANCH to the staged-* branch so
-    # _phase_merge opens PR2 (staged-* → main).
-    if ! _phase_staged_intermediate; then
-        echo "ERROR: _phase_staged_intermediate failed; aborting before _phase_merge" >&2
-        if type _emit_conflict_data >/dev/null 2>&1; then
-            _emit_conflict_data "$BRANCH" "main" "staged-intermediate-failed"
-        fi
-        exit 1
-    fi
+    # PR-C: staged-* intermediate runs first; no-op for story-PR mode or
+    # already-staged-* BRANCH. On success it repoints BRANCH to staged-*.
+    _phase_staged_intermediate || { _PR_C_STAGED_RC=$?; exit "$_PR_C_STAGED_RC"; }
     _phase_merge || _PHASE_MERGE_RC=$?
 fi
 if [[ "$_PHASE_MERGE_RC" -ne 0 ]]; then
