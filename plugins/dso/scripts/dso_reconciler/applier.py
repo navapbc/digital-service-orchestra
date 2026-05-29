@@ -2260,6 +2260,16 @@ def apply(
         if isinstance(pending, dict):
             pending_bug_tickets.append(pending)
 
+    # Bug b859 (Part 0c): structured RECON line after inbound typed dispatch
+    # so operators see how many inbound mutations actually ran (vs were
+    # suppressed). Independent of the manifest tally because suppression
+    # decisions live only in this loop scope.
+    print(  # noqa: T201
+        f"RECON: typed_inbound_dispatched count={len(inbound_typed)} "
+        f"suppressed_pairs={len(suppressed_pairs)}",
+        file=sys.stderr,
+    )
+
     # Outbound (or untyped dict): normalize typed Mutations to dicts so
     # _apply_batch can iterate, then route through the legacy batch path.
     # _apply_batch handles an empty list cleanly (writes an empty manifest)
@@ -2663,6 +2673,22 @@ def _apply_batch(
                 outcome["error"] = f"unknown action: {action!r}"
 
             mutations_with_outcomes.append(outcome)
+            # Bug b859 (Part 0c): per-mutation RECON line so operators see
+            # which dispatch actually ran without parsing the manifest.
+            # Targets the legacy batch path (the dominant outbound CREATE +
+            # UPDATE channel today). Truncated to single-line; full
+            # mutation lives in the manifest for forensic dives.
+            _outcome_key = (
+                mutation.get("key")
+                or mutation.get("local_id")
+                or "<unknown>"
+            )
+            _outcome_err = outcome.get("error")
+            print(  # noqa: T201
+                f"RECON: batch_outcome action={action} key={_outcome_key} "
+                f"error={_outcome_err!r}",
+                file=sys.stderr,
+            )
 
     except HeadDriftError:
         # Emit abort event as structured log and re-raise for the caller

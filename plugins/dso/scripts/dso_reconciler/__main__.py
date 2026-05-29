@@ -373,8 +373,17 @@ def main(argv: list[str] | None = None) -> int:
     # post-mortems correlating locks to pass records.
     # -------------------------------------------------------------------------
     pass_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
-    advisory.acquire_pass_lock(pass_id, repo_root)
+    # Bug b859: acquire_pass_lock was previously OUTSIDE the try/except so
+    # ReconcileLockError (or any pre-run_pass exception) escaped uncaught as
+    # a raw Python traceback — invisible to operators / probes that look
+    # for the ``ERROR:`` prefix. Move acquire_pass_lock INTO the try, gated
+    # by an ``acquired`` flag so the finally clause only releases when we
+    # actually held the lock. Diagnostic tracebacks are emitted to stderr
+    # so the probe's unfiltered side-car log captures them too.
+    acquired = False
     try:
+        advisory.acquire_pass_lock(pass_id, repo_root)
+        acquired = True
         filter_local_ids: set[str] | None = None
         if args.filter_local_ids is not None:
             parsed = {
@@ -395,10 +404,23 @@ def main(argv: list[str] | None = None) -> int:
             filter_local_ids=filter_local_ids,
         )
     except Exception as exc:  # noqa: BLE001
+        # Print the prefixed line first so grep-based probes see it, THEN
+        # the traceback so operators can root-cause. Both go to stderr.
         print(f"ERROR: run_pass raised: {exc}", file=sys.stderr)
+        import traceback as _tb
+        _tb.print_exc(file=sys.stderr)
         return 1
     finally:
-        advisory.release_pass_lock(pass_id, repo_root)
+        if acquired:
+            try:
+                advisory.release_pass_lock(pass_id, repo_root)
+            except Exception as _rel_exc:  # noqa: BLE001
+                # Release failure must not mask the original error path.
+                print(
+                    f"WARN: release_pass_lock failed for pass_id={pass_id!r}: "
+                    f"{_rel_exc!r}",
+                    file=sys.stderr,
+                )
 
 
 if __name__ == "__main__":

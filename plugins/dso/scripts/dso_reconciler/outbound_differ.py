@@ -213,17 +213,47 @@ def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[st
     Assignee comparison is shape-tolerant via ``_assignee_matches`` so
     Jira's ``{accountId, displayName, emailAddress}`` dict matches a local
     string in any of those three forms (bug 85a1, Gap 4).
+
+    Bug b859 (Part 0d): when ``DSO_RECONCILER_VERBOSE=1`` is set, emit a
+    one-line RECON record per detected field-diff with truncated local /
+    jira values so operators can debug parity issues directly from the
+    probe's side-car log. Off by default to keep production stderr quiet.
     """
+    import os
+    import sys
+    verbose = os.environ.get("DSO_RECONCILER_VERBOSE", "0") == "1"
+    ticket_id = ticket.get("ticket_id") or ticket.get("id") or "<no-id>"
+
     local_mapped = _map_local_to_jira_fields(ticket)
     changed: dict[str, Any] = {}
     for field_name, local_val in local_mapped.items():
         if field_name == "assignee":
             if not _assignee_matches(local_val, jira_fields.get("assignee")):
                 changed[field_name] = local_val
+                if verbose:
+                    print(  # noqa: T201
+                        f"RECON: field_diff ticket={ticket_id} "
+                        f"field=assignee local={local_val!r:.80} "
+                        f"jira={jira_fields.get('assignee')!r:.80}",
+                        file=sys.stderr,
+                    )
             continue
         jira_val = _extract_jira_field(jira_fields, field_name)
         if local_val != jira_val:
             changed[field_name] = local_val
+            if verbose:
+                # Truncate value repr to keep one-line records reasonable.
+                _l = repr(local_val)
+                _j = repr(jira_val)
+                if len(_l) > 80:
+                    _l = _l[:77] + "..."
+                if len(_j) > 80:
+                    _j = _j[:77] + "..."
+                print(  # noqa: T201
+                    f"RECON: field_diff ticket={ticket_id} "
+                    f"field={field_name} local={_l} jira={_j}",
+                    file=sys.stderr,
+                )
     return changed
 
 

@@ -628,6 +628,19 @@ def reconcile_once(
         "outbound_differ_complete",
         count=len(outbound_raw),
     )
+    # Bug b859 (Part 0c): structured per-direction breakdown to stderr so
+    # operators / probes can see per-action counts without parsing the
+    # sync_logger JSON manifest. Format: ``RECON: <kind> <field>=<value>``
+    # with a stable token prefix that's distinct from FILTERED/filter/OK/
+    # ERROR so the probe's grep filter does not need to be updated.
+    _ob_creates = sum(1 for m in outbound_raw if m.action == "create")
+    _ob_updates = sum(1 for m in outbound_raw if m.action == "update")
+    _ob_deletes = sum(1 for m in outbound_raw if m.action == "delete")
+    print(  # noqa: T201
+        f"RECON: outbound_differ total={len(outbound_raw)} "
+        f"create={_ob_creates} update={_ob_updates} delete={_ob_deletes}",
+        file=sys.stderr,
+    )
 
     # Convert OutboundMutation → typed Mutation for unified dispatch.
     for om in outbound_raw:
@@ -693,6 +706,17 @@ def reconcile_once(
         "inbound_differ_complete",
         count=len(inbound_new),
     )
+    _ib_with_fields = sum(1 for m in inbound_new if m.fields)
+    _ib_with_labels = sum(1 for m in inbound_new if m.labels)
+    _ib_with_comments = sum(
+        1 for m in inbound_new if getattr(m, "comments", [])
+    )
+    print(  # noqa: T201
+        f"RECON: inbound_differ total={len(inbound_new)} "
+        f"with_fields={_ib_with_fields} with_labels={_ib_with_labels} "
+        f"with_comments={_ib_with_comments}",
+        file=sys.stderr,
+    )
 
     # Convert InboundMutation → typed Mutation for unified dispatch.
     for im in inbound_new:
@@ -702,13 +726,23 @@ def reconcile_once(
             target=im.jira_key,
             payload={
                 "local_id": im.local_id,
-                "changed_fields": im.fields,
+                # Bug b859 (Part 1a, H3 fix): _apply_inbound_update reads
+                # ``fields = payload.get("fields") or payload`` at
+                # applier.py:625. Writing the inbound mutation's fields
+                # under "changed_fields" (mirroring the outbound convention)
+                # caused the .get("fields") lookup to miss → fallback to
+                # the wrapper dict whose keys never matched the
+                # summary/status/etc. branches → every inbound EDIT/STATUS
+                # event was silently dropped → Phase 6 idempotency churn.
+                # Use "fields" so the existing applier consumer finds the
+                # dict on the first lookup.
+                "fields": im.fields,
                 "labels": im.labels,
-                # Bug 85a1 (Gap 1): propagate inbound comments through to
-                # _apply_inbound_update so each new Jira comment is written
-                # as a local COMMENT event with jira_comment_id binding.
-                # getattr default keeps backward compat with InboundMutation
-                # variants (e.g. legacy test stubs) that lack the field.
+                # Bug 85a1 (Gap 1): propagate inbound comments so each new
+                # Jira comment is written as a local COMMENT event with
+                # jira_comment_id binding. getattr default keeps backward
+                # compat with InboundMutation variants (legacy test stubs)
+                # that lack the field.
                 "comments": getattr(im, "comments", []),
             },
             provenance={
