@@ -27,10 +27,11 @@ set -euo pipefail
 REPO=""
 RULESET_NAME="DSO Sub-PR Review Enforcement"
 DRY_RUN=0
+DEFAULT_BRANCH_OVERRIDE="${DSO_DEFAULT_BRANCH:-}"
 
-# The canonical negative-list scope (matches provision-ruleset.sh).
+# Include is fixed by the negative-list design ("~ALL"). Exclude is computed
+# at runtime from the host's default branch (resolved below after REPO).
 EXPECTED_INCLUDE='["~ALL"]'
-EXPECTED_EXCLUDE='["refs/heads/main"]'
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -82,6 +83,25 @@ if [[ -z "$REPO" ]]; then
         exit 1
     fi
 fi
+
+# ── Resolve default branch ────────────────────────────────────────────────────
+# Host projects vary (main, master, trunk, develop, ...). Resolution order:
+#   1. DSO_DEFAULT_BRANCH env override
+#   2. gh repo view --json defaultBranchRef (authoritative)
+#   3. git symbolic-ref refs/remotes/origin/HEAD (no auth required)
+#   4. "main" fallback
+if [[ -n "$DEFAULT_BRANCH_OVERRIDE" ]]; then
+    DEFAULT_BRANCH="$DEFAULT_BRANCH_OVERRIDE"
+else
+    DEFAULT_BRANCH=$(gh repo view "$REPO" --json defaultBranchRef -q '.defaultBranchRef.name' 2>/dev/null || echo "")
+fi
+if [[ -z "$DEFAULT_BRANCH" ]]; then
+    DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
+fi
+if [[ -z "$DEFAULT_BRANCH" ]]; then
+    DEFAULT_BRANCH="main"
+fi
+EXPECTED_EXCLUDE="[\"refs/heads/${DEFAULT_BRANCH}\"]"
 
 # ── Locate the ruleset by name ────────────────────────────────────────────────
 echo "Repo:           $REPO"

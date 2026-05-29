@@ -154,5 +154,46 @@ assert_eq "test_dry_run_in_sync: exit 0" "0" "$sy_rc"
 assert_contains "test_dry_run_in_sync: DECISION SKIP" "DECISION: SKIP" "$sy_out"
 assert_pass_if_clean "test_dry_run_in_sync"
 
+# ── test_default_branch_env_override ──────────────────────────────────────────
+# Hosts with non-main default branches set DSO_DEFAULT_BRANCH; the sync script
+# must use that value in the expected exclude list rather than hardcoding
+# "refs/heads/main".
+_snapshot_fail
+db_tmp="$(mktemp -d)"
+db_stub="$db_tmp/gh"
+cat > "$db_stub" <<'STUB'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "api" && "${2:-}" =~ /rulesets$ ]]; then
+    echo '[{"id": 42, "name": "DSO Sub-PR Review Enforcement"}]'
+    exit 0
+fi
+if [[ "${1:-}" == "api" && "${2:-}" =~ /rulesets/42$ ]]; then
+    cat <<'JSON'
+{
+  "id": 42,
+  "name": "DSO Sub-PR Review Enforcement",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {"ref_name": {"include": ["refs/heads/session/**"], "exclude": []}},
+  "bypass_actors": [],
+  "rules": []
+}
+JSON
+    exit 0
+fi
+exit 0
+STUB
+chmod +x "$db_stub"
+db_rc=0
+db_out="$(DSO_DEFAULT_BRANCH=trunk PATH="$db_tmp:$PATH" bash "$SCRIPT" --repo test/repo --dry-run 2>&1)" || db_rc=$?
+assert_eq "test_default_branch_env_override: exit 0" "0" "$db_rc"
+assert_contains "test_default_branch_env_override: expected exclude refs/heads/trunk" \
+    '"refs/heads/trunk"' "$db_out"
+# Negative: must NOT fall back to refs/heads/main.
+_main_absent="yes"
+if echo "$db_out" | grep -q '"refs/heads/main"'; then _main_absent="no"; fi
+assert_eq "test_default_branch_env_override: refs/heads/main absent" "yes" "$_main_absent"
+assert_pass_if_clean "test_default_branch_env_override"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

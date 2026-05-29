@@ -231,10 +231,28 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # ── Resolve default branch ────────────────────────────────────────────────────
-# Auto-detect from the git remote when a repo is known; fall back to "main".
-# Resolved later after REPO is confirmed (see confirm-repo section).
-# Override with DSO_DEFAULT_BRANCH env var for repos using a non-main default.
-DEFAULT_BRANCH="${DSO_DEFAULT_BRANCH:-main}"
+# Host projects vary: main, master, trunk, develop, etc. Detect the host's
+# default branch authoritatively before payload construction so the rulesets
+# reference whatever the host actually uses.
+#
+# Resolution order:
+#   1. DSO_DEFAULT_BRANCH env override (explicit operator intent — wins)
+#   2. gh repo view --json defaultBranchRef (authoritative when REPO is set)
+#   3. `git symbolic-ref refs/remotes/origin/HEAD` (works in any clone with a
+#      remote, no GitHub auth required — covers the dry-run-without-REPO case)
+#   4. Hardcoded "main" fallback (last-resort default)
+DEFAULT_BRANCH=""
+if [[ -n "${DSO_DEFAULT_BRANCH:-}" ]]; then
+  DEFAULT_BRANCH="$DSO_DEFAULT_BRANCH"
+elif [[ -n "$REPO" ]]; then
+  DEFAULT_BRANCH=$(gh repo view "$REPO" --json defaultBranchRef -q '.defaultBranchRef.name' 2>/dev/null || echo "")
+fi
+if [[ -z "$DEFAULT_BRANCH" ]]; then
+  DEFAULT_BRANCH=$(git -C "${REPO_ROOT:-.}" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
+fi
+if [[ -z "$DEFAULT_BRANCH" ]]; then
+  DEFAULT_BRANCH="main"
+fi
 
 # ── Read check names from file ────────────────────────────────────────────────
 if [[ ! -f "$CHECKS_FILE" ]]; then
@@ -341,7 +359,7 @@ SUB_PR_STATUS_JSON='[{"context": "review-sub-pr"}]'
 # exclude. main is the only exclude because main has its own ruleset (15629023,
 # "DSO CI Enforcement") with its own required checks.
 SUB_PR_INCLUDE_JSON='["~ALL"]'
-SUB_PR_EXCLUDE_JSON='["refs/heads/main"]'
+SUB_PR_EXCLUDE_JSON="[\"refs/heads/${DEFAULT_BRANCH}\"]"
 
 SUB_PR_PAYLOAD_JSON=$(cat <<EOF
 {
@@ -428,11 +446,10 @@ if [[ -z "$REPO" ]]; then
   fi
 fi
 
-# Auto-detect default branch now that REPO is confirmed
-_DETECTED_BRANCH=$(gh repo view "$REPO" --json defaultBranchRef -q '.defaultBranchRef.name' 2>/dev/null || echo "")
-if [[ -n "$_DETECTED_BRANCH" ]]; then
-  DEFAULT_BRANCH="$_DETECTED_BRANCH"
-fi
+# DEFAULT_BRANCH was already resolved earlier (see "Resolve default branch"
+# section). When REPO was empty at that point (dry-run without --repo), the
+# git-symbolic-ref fallback typically resolves the branch; if even that
+# failed, DEFAULT_BRANCH defaulted to "main". No further auto-detect needed.
 
 # ── Interactive confirmation ──────────────────────────────────────────────────
 if [[ "$NON_INTERACTIVE" -ne 1 ]]; then

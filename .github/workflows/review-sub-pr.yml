@@ -1,8 +1,15 @@
 name: review-sub-pr
-# Trigger: every PR whose base is NOT main. Mirrors the sub-PR ruleset
-# (provision-ruleset.sh emits include="~ALL", exclude=["refs/heads/main"]),
-# so the workflow runs exactly on the PRs the ruleset enforces. Adding a
-# new branch convention requires no workflow change.
+# Trigger: every PR whose base is NOT the host's default branch. Mirrors the
+# sub-PR ruleset (provision-ruleset.sh emits include="~ALL",
+# exclude=["refs/heads/<default-branch>"]), so the workflow runs exactly on
+# the PRs the ruleset enforces. Adding a new branch convention requires no
+# workflow change.
+#
+# HOST PROJECT NOTE: GitHub Actions YAML cannot dynamically read a host's
+# default branch, so the value below is a literal. If your host project's
+# default branch is not "main" (e.g., master, trunk, develop), change the
+# literal here AND run `provision-ruleset.sh` or `sync-sub-pr-ruleset.sh`
+# with `DSO_DEFAULT_BRANCH=<your-branch>` so the live ruleset matches.
 "on":
   pull_request:
     branches-ignore:
