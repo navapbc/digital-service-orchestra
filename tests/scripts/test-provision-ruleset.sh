@@ -239,7 +239,7 @@ assert_eq "test_required_approvals_value: payload field" "3" "$actual_approvals"
 assert_pass_if_clean "test_required_approvals_value"
 
 # ── test_bypass_actor_policy_requires_admin_token ────────────────────────────
-# When --bypass-actor-policy=pull_request_only is passed AND gh auth status
+# When --bypass-actor-policy=pull_request is passed AND gh auth status
 # reports no admin scope, the script must exit non-zero with a clear admin-token
 # error message. We use a stub gh that reports auth without admin scope.
 _snapshot_fail
@@ -259,7 +259,7 @@ STUB
 chmod +x "$_noadmin_dir/gh"
 admin_output=""
 admin_exit=0
-admin_output=$(PATH="$_noadmin_dir:$PATH" DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" --bypass-actor-policy=pull_request_only 2>&1) || admin_exit=$?
+admin_output=$(PATH="$_noadmin_dir:$PATH" DSO_DRY_RUN=0 bash "$PROVISION_SCRIPT" --bypass-actor-policy=pull_request 2>&1) || admin_exit=$?
 rm -rf "$_noadmin_dir"
 if [[ $admin_exit -ne 0 ]]; then
     actual_admin_exit="nonzero"
