@@ -50,6 +50,12 @@ def applier():
     return _load_applier()
 
 
+@pytest.fixture(autouse=True)
+def _reset_ticket_reducer_module_cache(applier):
+    yield
+    applier._TICKET_REDUCER_MODULE = None
+
+
 def _make_mutation(applier, target: str, payload: dict):
     mut_mod = applier._load_mutation_module()
     return mut_mod.Mutation(
