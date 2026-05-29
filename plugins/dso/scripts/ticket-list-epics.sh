@@ -239,7 +239,9 @@ for entry_name in os.listdir(tracker_dir):
         entry['parent'] = parent_id
     idx[ticket_id] = entry
 
-    if parent_id:
+    # Deleted tickets are terminal tombstones (STATUS(deleted)+ARCHIVED); they
+    # must NOT count toward a parent's child_count (bug f871-9869-9775-4aa0).
+    if parent_id and status != 'deleted':
         child_counts[parent_id] += 1
 
 print(json.dumps({'index': idx, 'child_counts': dict(child_counts)}))

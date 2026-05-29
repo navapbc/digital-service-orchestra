@@ -391,7 +391,7 @@ When `SPRINT_MODE=ci-pr`: per-story PR mechanisms are active. Proceed with norma
 
 ```bash
 OPEN=$({ .claude/scripts/dso ticket list --parent=<epic-id> --status=open 2>/dev/null; .claude/scripts/dso ticket list --parent=<epic-id> --status=in_progress 2>/dev/null; } | grep -c '"ticket_id"' || echo 0)
-ALL=$(.claude/scripts/dso ticket list --parent=<epic-id> --include-archived 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+ALL=$(.claude/scripts/dso ticket list --parent=<epic-id> --include-archived --exclude-deleted 2>/dev/null | grep -c '"ticket_id"' || echo 0)
 ```
 
 - **`OPEN > 0`**: → Step 2 (Existing Children Readiness Check)

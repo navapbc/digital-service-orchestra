@@ -656,6 +656,7 @@ ticket_list() {
 
         local format="default"
         local include_archived=""
+        local exclude_deleted_flag=""
         local filter_type=""
         local filter_status=""
         local filter_parent=""
@@ -673,6 +674,9 @@ ticket_list() {
                 --include-archived)
                     include_archived="true"
                     ;;
+                --exclude-deleted)
+                    exclude_deleted_flag="true"
+                    ;;
                 --type=*)
                     filter_type="${arg#--type=}"
                     ;;
@@ -686,7 +690,7 @@ ticket_list() {
                     filter_tag="${arg#--has-tag=}"
                     ;;
                 --help|-h)
-                    echo "Usage: ticket list [--format=llm] [--include-archived] [--type=<type>] [--status=<status>] [--parent=<id>] [--has-tag=<tag>]" >&2
+                    echo "Usage: ticket list [--format=llm] [--include-archived] [--exclude-deleted] [--type=<type>] [--status=<status>] [--parent=<id>] [--has-tag=<tag>]" >&2
                     return 0
                     ;;
                 -*)
@@ -714,6 +718,7 @@ ticket_list() {
 
         if [ "$format" = "llm" ]; then
             _TRACKER_DIR="$TRACKER_DIR" _INCLUDE_ARCHIVED="$include_archived" \
+            _EXCLUDE_DELETED="$exclude_deleted_flag" \
             _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
             _PARENT_FILTER="$filter_parent" _TAG_FILTER="$filter_tag" \
             _SCRIPT_DIR="$_TICKETLIB_DIR" python3 -c "
@@ -724,12 +729,13 @@ from ticket_reducer.llm_format import to_llm
 
 tracker_dir = os.environ['_TRACKER_DIR']
 include_archived = os.environ.get('_INCLUDE_ARCHIVED', '') == 'true'
+exclude_deleted = os.environ.get('_EXCLUDE_DELETED', '') == 'true'
 type_filter = os.environ.get('_TYPE_FILTER', '')
 status_filter = os.environ.get('_STATUS_FILTER', '')
 parent_filter = os.environ.get('_PARENT_FILTER', '')
 tag_filter = os.environ.get('_TAG_FILTER', '')
 
-results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived)
+results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived, exclude_deleted=exclude_deleted)
 if status_filter not in ('error', 'fsck_needed'):
     results = [t for t in results if t.get('status') not in ('error', 'fsck_needed')]
 if type_filter:
@@ -746,6 +752,7 @@ for t in results:
 "
         else
             _TRACKER_DIR="$TRACKER_DIR" _INCLUDE_ARCHIVED="$include_archived" \
+            _EXCLUDE_DELETED="$exclude_deleted_flag" \
             _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
             _PARENT_FILTER="$filter_parent" _TAG_FILTER="$filter_tag" \
             _SCRIPT_DIR="$_TICKETLIB_DIR" python3 -c "
@@ -755,12 +762,13 @@ from ticket_reducer import reduce_all_tickets
 
 tracker_dir = os.environ['_TRACKER_DIR']
 include_archived = os.environ.get('_INCLUDE_ARCHIVED', '') == 'true'
+exclude_deleted = os.environ.get('_EXCLUDE_DELETED', '') == 'true'
 type_filter = os.environ.get('_TYPE_FILTER', '')
 status_filter = os.environ.get('_STATUS_FILTER', '')
 parent_filter = os.environ.get('_PARENT_FILTER', '')
 tag_filter = os.environ.get('_TAG_FILTER', '')
 
-results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived)
+results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived, exclude_deleted=exclude_deleted)
 if status_filter not in ('error', 'fsck_needed'):
     results = [t for t in results if t.get('status') not in ('error', 'fsck_needed')]
 if type_filter:
