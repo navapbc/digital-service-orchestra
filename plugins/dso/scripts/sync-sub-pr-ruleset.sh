@@ -89,9 +89,11 @@ fi
 # ── Resolve default branch via shared helper ─────────────────────────────────
 # Four-tier fallback implemented in lib/default-branch.sh — kept identical
 # to provision-ruleset.sh by sourcing the same library.
-_SYNC_DEFAULT_BRANCH_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" 2>/dev/null && pwd || echo '')/default-branch.sh"
+# Prefer CLAUDE_PLUGIN_ROOT when set; otherwise derive from BASH_SOURCE.
+_SYNC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_SYNC_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SYNC_SCRIPT_DIR/.." 2>/dev/null && pwd)}"
 # shellcheck source=lib/default-branch.sh
-source "$_SYNC_DEFAULT_BRANCH_LIB"
+source "$_SYNC_PLUGIN_ROOT/scripts/lib/default-branch.sh"
 DEFAULT_BRANCH=$(DSO_DEFAULT_BRANCH="$DEFAULT_BRANCH_OVERRIDE" _dso_resolve_default_branch "$REPO")
 EXPECTED_EXCLUDE="[\"refs/heads/${DEFAULT_BRANCH}\"]"
 

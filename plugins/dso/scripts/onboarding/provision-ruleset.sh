@@ -245,11 +245,12 @@ fi
 # → "main") implemented in lib/default-branch.sh. Both this script and
 # sync-sub-pr-ruleset.sh source the same helper so the resolution chain stays
 # in sync — addresses llm-review finding 2/2 on PR #442 (duplicated logic).
-# Use BASH_SOURCE-relative resolution so the helper is found regardless of
-# CLAUDE_PLUGIN_ROOT state.
-_PROV_DEFAULT_BRANCH_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" 2>/dev/null && pwd || echo '')/default-branch.sh"
+# Prefer CLAUDE_PLUGIN_ROOT when set; otherwise derive from BASH_SOURCE so
+# the helper is found regardless of env state.
+_PROV_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PROV_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_PROV_SCRIPT_DIR/../.." 2>/dev/null && pwd)}"
 # shellcheck source=../lib/default-branch.sh
-source "$_PROV_DEFAULT_BRANCH_LIB"
+source "$_PROV_PLUGIN_ROOT/scripts/lib/default-branch.sh"
 DEFAULT_BRANCH=$(_dso_resolve_default_branch "$REPO")
 
 # ── Read check names from file ────────────────────────────────────────────────
