@@ -3,23 +3,30 @@
 Bug 7f55-d357-dbf6-43b5: CI llm-review Strategy F (multi-cluster aggregated
 review) crashes with `AttributeError: 'str' object has no attribute 'get'`
 when a per-cluster LLM result has the shape `{"findings": "<string>"}`
-instead of `{"findings": [dict, dict, ...]}`. The crash happens in the
-aggregator (aggregator._deduplicate_findings, line 75) because
-runner._run_cluster (lines 2122-2124) blindly calls
-`list.extend(dr.get("findings", []))` — if `findings` is a string, extend
-flattens it character-by-character into single-character "findings" that
-then crash the first `.get()` call in dedup.
+instead of `{"findings": [dict, dict, ...]}`. The crash happens inside
+``aggregator._deduplicate_findings`` (the per-item ``.get("severity", "")``
+call) because ``runner._run_cluster`` blindly calls
+``list.extend(dr.get("findings", []))`` — if ``findings`` is a string,
+``extend`` flattens it character-by-character into single-character
+"findings" that then crash the first ``.get()`` call in dedup.
 
-These tests verify the producer-side type guard at runner.py:2122-2124:
-when a per-cluster dispatch result has `findings` of any non-list type
-(string, int, dict, None, …), the offending entry MUST be skipped (not
-flattened) and the cluster MUST still return a valid result.
+These tests verify the producer-side type guard inside
+``runner._run_cluster``: when a per-cluster dispatch result has
+``findings`` of any non-list type (string, int, dict, None, …), the
+offending entry MUST be skipped (not flattened) and the cluster MUST
+still return a valid result.
 
 Testing mode: RED — fails on `main` (the guard does not exist); passes
 after the isinstance(list) guard is added to _run_cluster.
 
 CI evidence: run 26614994184 job 78430031201 (PR #446), log line
 `ERROR: LLM call failed: 'str' object has no attribute 'get'`.
+
+Note on code references: this docstring deliberately names functions
+and modules (``runner._run_cluster``, ``aggregator._deduplicate_findings``)
+rather than file:line citations, because line numbers shift the moment
+the fix lands. The fix sites are pinpointed by name in the commit
+message; readers needing exact lines should ``git grep`` the symbol.
 """
 
 from __future__ import annotations
@@ -92,8 +99,8 @@ def test_string_findings_value_is_not_extended_char_by_char():
         assert isinstance(f, dict), (
             f"per-cluster findings must be dicts; got {type(f).__name__}: {f!r}. "
             "If this fires, list.extend was called on a string and flattened "
-            "it character-by-character — the guard at runner.py:2122-2124 "
-            "needs an isinstance(list) check."
+            "it character-by-character — the isinstance(list) guard inside "
+            "runner._run_cluster regressed."
         )
 
 
@@ -181,8 +188,9 @@ def test_run_cluster_output_does_not_crash_deduplicate_findings():
         pytest.fail(
             "regression of bug 7f55: _deduplicate_findings raised "
             f"AttributeError: {exc}. The cluster result contained a "
-            "non-dict entry that crashed the .get() call at aggregator.py:75. "
-            "Producer-side guard at runner.py:2122-2124 must reject non-list "
+            "non-dict entry that crashed the .get() call inside "
+            "aggregator._deduplicate_findings. The producer-side guard "
+            "inside runner._run_cluster must reject non-list "
             "findings values."
         )
 
