@@ -1,0 +1,57 @@
+name: Check Staged Head Branch
+
+# Enforces the two-tier promotion model: only branches matching `staged-*`
+# may merge into main. This workflow runs on every PR targeting main and
+# fails if the head branch doesn't match the pattern. The job's check name
+# (`check-staged-head`) is wired into .github/required-checks.txt so the
+# main ruleset's required_status_checks rule enforces it.
+#
+# Why this gate exists: the sub-PR ruleset (16961402) enforces
+# review-sub-pr on every PR into staged-*. By restricting main-bound PRs to
+# staged-* sources, we guarantee every change reaching main has been through
+# at least one review-sub-pr cycle. Feature branches stay unrestricted so
+# dev work isn't blocked.
+#
+# Bypass: admins under the main ruleset's bypass_mode=pull_request still
+# trigger the visible "Merge without checks" prompt, creating an audit-trail
+# entry on every bypass.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-staged-head:
+    name: check-staged-head
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify head branch matches staged-* pattern
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$HEAD_REF" ]]; then
+            echo "::error::HEAD_REF is empty — refusing to evaluate; treating as fail-closed."
+            exit 1
+          fi
+          case "$HEAD_REF" in
+            staged-*)
+              echo "PR head '$HEAD_REF' matches required 'staged-*' pattern."
+              exit 0
+              ;;
+            *)
+              echo "::error::PR head branch '$HEAD_REF' does not match required 'staged-*' pattern."
+              echo "Only branches matching 'staged-*' may merge into main."
+              echo ""
+              echo "Workflow:"
+              echo "  1. Branch your work normally (e.g. 'fix/my-bug')."
+              echo "  2. Open a PR from your branch into a staged-* branch."
+              echo "  3. After review-sub-pr passes and the PR merges to staged-*,"
+              echo "     open a PR from staged-* into main."
+              exit 1
+              ;;
+          esac

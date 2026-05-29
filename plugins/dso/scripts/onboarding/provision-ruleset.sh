@@ -337,37 +337,31 @@ PAYLOAD_JSON=$(cat <<EOF
 EOF
 )
 
-# ── Build session-branch ruleset JSON payload (F1 mitigation) ────────────────
-# Second ruleset requiring review-sub-pr to pass on session/worktree branches.
+# ── Build sub-PR ruleset JSON payload ────────────────────────────────────────
+# Two-tier promotion model:
 #
-# SUB-PR RULESET SCOPING (negative-list, all-except-main):
-# The sub-PR ruleset's branch scope is hardcoded below as include="~ALL" plus
-# exclude=["refs/heads/main"]. The prior allowlist-of-patterns design (still
-# living in config/sub-pr-branch-patterns.txt under the plugin root for the
-# dispatcher's _FORCE_REVIEW regex) was brittle for ruleset scoping: every
-# new branch convention required updating three consumers (file, workflow
-# trigger, ruleset) and missing patterns silently bypassed enforcement. The
-# dispatcher still uses the patterns file for force-review-eligibility — a
-# narrower concern.
+#   feature-branch (unrestricted)  →  staged-* (sub-PR review required)  →  main
+#
+# The sub-PR ruleset targets ONLY refs/heads/staged-*. Any PR landing into a
+# staged-* branch must have review-sub-pr passing. Feature branches (anything
+# not matching staged-*) are unrestricted — devs can push, edit, and rebase
+# freely; review only kicks in when promoting to staged-*. Promotion from
+# staged-* to main is gated separately by the main ruleset's "Check Staged
+# Head Branch" required workflow.
+#
+# Why this scoping (vs. ~ALL minus main):
+# An ~ALL include caught every initial branch push of a new feature branch
+# because `review-sub-pr` couldn't run before a PR existed — the bypass mode
+# couldn't help (admin bypass under `pull_request` mode only applies to
+# PR-time actions, not raw pushes). The staged-* scoping unblocks normal
+# development while still enforcing audit-trailed review on every promotion.
+#
+# The dispatcher's _FORCE_REVIEW regex still uses sub-pr-branch-patterns.txt
+# under the plugin root — a narrower concern (force-review eligibility on the
+# CI side; not branch protection).
 SUB_PR_STATUS_JSON='[{"context": "review-sub-pr"}]'
-
-# The sub-PR ruleset enforces review-sub-pr on every PR whose base is NOT the
-# default branch (main). The prior allowlist-of-branch-patterns approach was
-# brittle: each new branch convention (feat-*, story-*, fix-*, future
-# release-*, hotfix-*, etc.) had to be added by hand to three places (this
-# file, the workflow trigger, and the live ruleset), and missing patterns
-# silently bypassed enforcement.
-#
-# The current invariant: any PR not targeting main should be reviewed before
-# merging. Express it directly via GitHub Ruleset's ~ALL include + an explicit
-# exclude list:
-#   - main: has its own ruleset (15629023, "DSO CI Enforcement") with its own
-#     required checks. Excluding here avoids double enforcement.
-#   - tickets: orphan branch used by the ticket system  # tickets-boundary-ok
-#     The ticket-CLI commits there as part of normal operations; it never
-#     ships application code and should not be subject to sub-PR review.
-SUB_PR_INCLUDE_JSON='["~ALL"]'
-SUB_PR_EXCLUDE_JSON="[\"refs/heads/${DEFAULT_BRANCH}\", \"refs/heads/tickets\"]"
+SUB_PR_INCLUDE_JSON='["refs/heads/staged-*"]'
+SUB_PR_EXCLUDE_JSON='[]'
 
 SUB_PR_PAYLOAD_JSON=$(cat <<EOF
 {
