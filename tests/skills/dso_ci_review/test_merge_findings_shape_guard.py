@@ -104,6 +104,32 @@ def test_merge_findings_preserves_scores_when_findings_is_string() -> None:
     assert "clean reviewer" in merged["summary"]
 
 
+def test_merge_findings_outer_guard_skips_non_dict_reviewer_payloads() -> None:
+    """A reviewer payload that is itself a string/None/list — not a dict —
+    must be skipped entirely. async_dispatch_specialists is the documented
+    return source; if it yields a bare string under any failure mode, the
+    first ``fd.get("findings")`` in the loop would crash with the same
+    AttributeError. The outer isinstance guard catches that.
+    """
+    from dso_ci_review.findings import merge_findings
+
+    well_formed = {
+        "findings": [{"severity": "critical", "description": "real"}],
+        "scores": {"correctness": 3},
+        "summary": "good",
+    }
+    # These are NOT dicts — should be skipped without crash.
+    bare_string = "I cannot review this"
+    bare_none = None
+    bare_list = ["unexpected", "list", "shape"]
+
+    merged = merge_findings(well_formed, bare_string, bare_none, bare_list)
+
+    assert len(merged["findings"]) == 1
+    assert merged["findings"][0]["description"] == "real"
+    assert merged["scores"]["correctness"] == 3
+
+
 def test_merge_findings_baseline_behavior_unchanged_for_well_formed_input() -> None:
     """The guard must not alter the merged output for legitimately well-formed input."""
     from dso_ci_review.findings import merge_findings

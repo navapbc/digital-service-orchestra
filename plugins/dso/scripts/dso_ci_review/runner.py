@@ -3133,10 +3133,16 @@ def main() -> int:
         # roughly 770 lines), not just the LLM HTTP call. Naming the log
         # "LLM call failed" misleads operators who go hunting for an
         # HTTP-call defect when the actual crash was in aggregation or
-        # schema. Surface the exception class so the call site is
-        # disambiguable in a single log line.
+        # schema. Surface the exception class AND the traceback so the
+        # call site is identifiable from the CI log alone — without
+        # this, we lose minutes per cycle re-deriving the file:line.
+        import traceback as _tb
         print(
             f"ERROR: review pipeline crashed: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        print(
+            "TRACEBACK:\n" + _tb.format_exc(),
             file=sys.stderr,
         )
         # c131-0f34 defense-in-depth: always write a findings record before
