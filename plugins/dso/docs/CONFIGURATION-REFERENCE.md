@@ -1381,11 +1381,11 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 
 | | |
 |---|---|
-| **Description** | Bypass mode applied to the `bypass_actors` entry on the Ruleset. `always` allows admins to bypass at any time; `pull_request_only` restricts the bypass window to pull-request flows. Setting a non-default value requires an admin token (script exits 1 if `gh auth status` does not report admin scope). |
-| **Accepted values** | `always` \| `pull_request_only` |
-| **Default** | `always` |
+| **Description** | Bypass mode applied to the `bypass_actors` entry on the Ruleset. `always` allows admins to bypass at any time (silent — no audit trail); `pull_request` restricts the bypass window to pull-request flows (creates a visible PR-time bypass entry). The accepted values mirror GitHub's Rulesets API `bypass_mode` field. Setting `pull_request` requires an admin token (script exits 1 if `gh auth status` does not report admin scope), except under `DSO_DRY_RUN=1` where the payload is emitted without hitting the API. |
+| **Accepted values** | `always` \| `pull_request` |
+| **Default** | `pull_request` (flipped from `always` for audit-trail visibility on routine admin merges) |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
-**Example**: `provision-ruleset.sh --bypass-actor-policy=pull_request_only`
+**Example**: `provision-ruleset.sh --bypass-actor-policy=always`  (legacy behavior — silent admin bypass; not recommended)
 
 ---
 
