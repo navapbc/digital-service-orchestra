@@ -255,3 +255,143 @@ def test_inbound_label_diff(inbound_differ: ModuleType) -> None:
     m = result[0]
     label_adds = [lb for lb in m.labels if lb["action"] == "add"]
     assert any(lb["label"] == "jira-label" for lb in label_adds)
+
+
+# ---------------------------------------------------------------------------
+# Bug eadb (Issue A): colon-form ``dso-id:<local_id>`` must be excluded from
+# inbound label diff (same root cause as outbound PR #454, this is the
+# inbound mirror). The probe (T3 IB-ADD) saw local pick up
+# ``dso-id:jira-dig-5024`` after the reconciler ran because the colon form
+# was not in ``_EXCLUDED_PREFIXES``.
+# ---------------------------------------------------------------------------
+
+
+def test_inbound_label_diff_excludes_colon_form_dso_id(
+    inbound_differ: ModuleType,
+) -> None:
+    """``dso-id:<local_id>`` (colon form) must NOT appear as an inbound ADD.
+
+    Pre-fix: ``_EXCLUDED_PREFIXES`` contained only ``("dso-id-", "imported:")``,
+    so the colon-form canonical dso-id label written by
+    ``_apply_outbound_create`` / ``_apply_inbound_create`` was treated as a
+    Jira-only user label and emitted as an ADD on every pass — leaking the
+    bridge identifier into local tags.
+    """
+    jira_snapshot = {
+        "PROJ-200": {
+            "summary": "S",
+            "description": "D",
+            "issuetype": "Task",
+            "priority": "Medium",
+            "status": "To Do",
+            "assignee": "",
+            "labels": [
+                "labelprobe",
+                "dso-id:local-200",
+                "dso-id:jira-dig-200",
+                "dso-id-legacy-hyphen",
+                "imported:legacy",
+            ],
+        }
+    }
+    store = StubBindingStore({"PROJ-200": "local-200"})
+    local_tickets = {
+        "local-200": {
+            "title": "S",
+            "description": "D",
+            "ticket_type": "task",
+            "priority": 2,
+            "status": "open",
+            "assignee": "",
+            "tags": ["labelprobe"],
+        }
+    }
+
+    result, _suppressed = inbound_differ.compute_inbound_mutations(
+        jira_snapshot=jira_snapshot,
+        binding_store=store,
+        local_tickets_by_id=local_tickets,
+    )
+
+    # No inbound mutation should emit a ``dso-id*`` add — both colon AND
+    # hyphen forms are bridge-internal. The ``imported:`` prefix is also
+    # excluded.
+    for m in result:
+        for lm in m.labels:
+            label = lm.get("label", "")
+            assert not label.startswith("dso-id:"), (
+                f"Inbound differ leaked colon-form dso-id label: {label!r}"
+            )
+            assert not label.startswith("dso-id-"), (
+                f"Inbound differ leaked hyphen-form dso-id label: {label!r}"
+            )
+            assert not label.startswith("imported:"), (
+                f"Inbound differ leaked imported: label: {label!r}"
+            )
+
+
+def test_inbound_label_diff_does_not_remove_local_colon_form_dso_id(
+    inbound_differ: ModuleType,
+) -> None:
+    """When local has a stale ``dso-id:<id>`` tag but Jira lacks it, the
+    inbound differ must NOT emit a REMOVE — bridge-internal labels are
+    governed by the dso-id label authorization contract, not by inbound
+    user-label coordination.
+    """
+    jira_snapshot = {
+        "PROJ-201": {
+            "summary": "S",
+            "description": "D",
+            "issuetype": "Task",
+            "priority": "Medium",
+            "status": "To Do",
+            "assignee": "",
+            "labels": ["labelprobe"],
+        }
+    }
+    store = StubBindingStore({"PROJ-201": "local-201"})
+    local_tickets = {
+        "local-201": {
+            "title": "S",
+            "description": "D",
+            "ticket_type": "task",
+            "priority": 2,
+            "status": "open",
+            "assignee": "",
+            "tags": ["labelprobe", "dso-id:local-201", "dso-id:jira-dig-201"],
+        }
+    }
+
+    result, _suppressed = inbound_differ.compute_inbound_mutations(
+        jira_snapshot=jira_snapshot,
+        binding_store=store,
+        local_tickets_by_id=local_tickets,
+    )
+
+    for m in result:
+        for lm in m.labels:
+            assert not (
+                lm.get("action") == "remove"
+                and str(lm.get("label", "")).startswith("dso-id:")
+            ), f"Inbound differ emitted spurious REMOVE for dso-id label: {lm}"
+
+
+def test_inbound_differ_excluded_prefixes_contains_both_forms(
+    inbound_differ: ModuleType,
+) -> None:
+    """Defensive: pin both separator forms in ``_EXCLUDED_PREFIXES``.
+
+    Mirrors the outbound differ contract (see ``outbound_differ.py``
+    ``_EXCLUDED_PREFIXES``). A regression here would silently re-leak
+    bridge-internal labels.
+    """
+    excluded = inbound_differ._EXCLUDED_PREFIXES
+    assert "dso-id:" in excluded, (
+        "colon-form dso-id missing from inbound _EXCLUDED_PREFIXES"
+    )
+    assert "dso-id-" in excluded, (
+        "hyphen-form dso-id missing from inbound _EXCLUDED_PREFIXES"
+    )
+    assert "imported:" in excluded, (
+        "imported: prefix missing from inbound _EXCLUDED_PREFIXES"
+    )
