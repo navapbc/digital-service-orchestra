@@ -580,6 +580,31 @@ def _load_adf_module():
     return mod
 
 
+_TICKET_REDUCER_MODULE = None
+
+
+def _load_ticket_reducer():
+    """Lazy-load the ticket_reducer subpackage from ../../ (scripts dir).
+
+    Used by ``_apply_inbound_update`` to read the current tag list before
+    applying an inbound label diff (bug 57b0). Loaded lazily so test
+    contexts that never hit the labels branch are not forced to import
+    the reducer package.
+    """
+    global _TICKET_REDUCER_MODULE
+    if _TICKET_REDUCER_MODULE is not None:
+        return _TICKET_REDUCER_MODULE
+    # This file lives at <plugin_scripts_dir>/dso_reconciler/applier.py;
+    # walk two parents up to reach the scripts dir containing ticket_reducer/.
+    scripts_dir = Path(__file__).resolve().parent.parent
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    import ticket_reducer as _tr  # noqa: PLC0415 — lazy import by design
+
+    _TICKET_REDUCER_MODULE = _tr
+    return _tr
+
+
 def _normalize_adf_body(body: Any) -> str:
     """Coerce a Jira description (ADF dict or string) to plain text.
 
@@ -741,6 +766,52 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
             {"status": local_status, "current_status": previous_status},
         )
         written.append(str(path))
+
+    # Bug 57b0: inbound labels — apply payload['labels'] add/remove ops as
+    # an EDIT event on `fields.tags`. The inbound differ surfaces label
+    # mutations under ``payload['labels']`` as
+    # ``[{"action": "add"|"remove", "label": "<name>"}]`` (see
+    # inbound_differ._diff_labels_inbound). Without this block, every
+    # inbound label add/remove was silently dropped — Jira-side label
+    # changes never propagated to local tags.
+    #
+    # The local reducer treats tags as REPLACE-on-EDIT (see
+    # ticket_reducer/_processors.process_edit), so we must read the
+    # current tag list, apply the diff, and write the full resulting list.
+    inbound_labels = payload.get("labels") or []
+    if isinstance(inbound_labels, list) and inbound_labels:
+        # Read current tags by reducing the existing ticket directory.
+        # Fall back to an empty list when the ticket dir does not yet
+        # exist (e.g., race with a concurrent CREATE) — the reducer
+        # returns None in that case.
+        try:
+            reducer_mod = _load_ticket_reducer()
+            current_state = reducer_mod.reduce_ticket(str(tracker_dir / local_id))
+        except Exception:  # noqa: BLE001 — reducer fall-back must not crash apply
+            current_state = None
+        current_tags: list[str] = list(
+            (current_state or {}).get("tags", []) or []
+        )
+        new_tags = list(current_tags)
+        changed = False
+        for entry in inbound_labels:
+            if not isinstance(entry, dict):
+                continue
+            action = entry.get("action")
+            label_name = entry.get("label", "")
+            if not label_name or not isinstance(label_name, str):
+                continue
+            if action == "add" and label_name not in new_tags:
+                new_tags.append(label_name)
+                changed = True
+            elif action == "remove" and label_name in new_tags:
+                new_tags = [t for t in new_tags if t != label_name]
+                changed = True
+        if changed:
+            path = _write_event_file(
+                tracker_dir, local_id, "EDIT", {"fields": {"tags": new_tags}}
+            )
+            written.append(str(path))
 
     # Bug 85a1 (Gap 1): inbound comments — write a COMMENT event for each
     # new Jira comment the differ surfaced. The body is stored as plain

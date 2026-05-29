@@ -235,6 +235,156 @@ def test_adf_description_dict_normalized_to_plain_text(tmp_path, applier):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# 5. Inbound labels — payload['labels'] applied as EDIT(fields.tags) (bug 57b0)
+# ---------------------------------------------------------------------------
+
+
+def _seed_create_event(tracker_dir: Path, ticket_id: str, tags: list[str]) -> None:
+    """Seed a minimal CREATE event so reduce_ticket returns a usable state."""
+    import time
+    import uuid as _uuid
+
+    (tracker_dir / ticket_id).mkdir(parents=True, exist_ok=True)
+    ts = time.time_ns()
+    event = {
+        "timestamp": ts,
+        "uuid": str(_uuid.uuid4()),
+        "event_type": "CREATE",
+        "env_id": "test-env",
+        "author": "test",
+        "data": {
+            "id": ticket_id,
+            "ticket_type": "task",
+            "title": "seed",
+            "description": "",
+            "parent_id": "",
+            "tags": tags,
+        },
+    }
+    fname = f"{ts}-{event['uuid']}-CREATE.json"
+    (tracker_dir / ticket_id / fname).write_text(
+        json.dumps(event, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def test_inbound_label_add_writes_edit_with_new_tag(tmp_path, applier):
+    """payload['labels']=[{action:add,label:X}] must write an EDIT event whose
+    fields.tags includes X alongside the pre-existing tags."""
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    local_uuid = "57b00001-0000-0000-0000-000000000001"
+    _seed_create_event(tracker_dir, local_uuid, ["existing-tag"])
+
+    mutation = _make_mutation(
+        applier,
+        target="DIG-5701",
+        payload={
+            "local_id": local_uuid,
+            "fields": {},
+            "labels": [{"action": "add", "label": "new-tag"}],
+        },
+    )
+    applier._apply_inbound_update(mutation, client=None, repo_root=tmp_path)
+
+    events = _read_events(tracker_dir / local_uuid)
+    edit_events = [e for e in events if e.get("event_type") == "EDIT"]
+    assert edit_events, (
+        f"Expected an EDIT event for the label add, got events "
+        f"{[e.get('event_type') for e in events]}"
+    )
+    tags_written = None
+    for e in edit_events:
+        f = e.get("data", {}).get("fields", {})
+        if "tags" in f:
+            tags_written = f["tags"]
+            break
+    assert tags_written is not None, (
+        f"No EDIT event carried fields.tags; EDIT events: {edit_events}"
+    )
+    assert "new-tag" in tags_written, (
+        f"Expected 'new-tag' in EDIT.fields.tags, got {tags_written}"
+    )
+    assert "existing-tag" in tags_written, (
+        f"Expected pre-existing 'existing-tag' preserved in EDIT.fields.tags, "
+        f"got {tags_written}"
+    )
+
+
+def test_inbound_label_remove_writes_edit_without_removed_tag(tmp_path, applier):
+    """payload['labels']=[{action:remove,label:X}] must write an EDIT event
+    whose fields.tags omits X but preserves other pre-existing tags."""
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    local_uuid = "57b00002-0000-0000-0000-000000000002"
+    _seed_create_event(tracker_dir, local_uuid, ["keep-me", "drop-me"])
+
+    mutation = _make_mutation(
+        applier,
+        target="DIG-5702",
+        payload={
+            "local_id": local_uuid,
+            "fields": {},
+            "labels": [{"action": "remove", "label": "drop-me"}],
+        },
+    )
+    applier._apply_inbound_update(mutation, client=None, repo_root=tmp_path)
+
+    events = _read_events(tracker_dir / local_uuid)
+    edit_events = [e for e in events if e.get("event_type") == "EDIT"]
+    assert edit_events, (
+        f"Expected an EDIT event for the label remove, got events "
+        f"{[e.get('event_type') for e in events]}"
+    )
+    tags_written = None
+    for e in edit_events:
+        f = e.get("data", {}).get("fields", {})
+        if "tags" in f:
+            tags_written = f["tags"]
+            break
+    assert tags_written is not None, (
+        f"No EDIT event carried fields.tags; EDIT events: {edit_events}"
+    )
+    assert "drop-me" not in tags_written, (
+        f"Expected 'drop-me' removed from EDIT.fields.tags, got {tags_written}"
+    )
+    assert "keep-me" in tags_written, (
+        f"Expected 'keep-me' preserved in EDIT.fields.tags, got {tags_written}"
+    )
+
+
+def test_inbound_label_noop_when_labels_empty(tmp_path, applier):
+    """When payload['labels'] is empty/absent, no extra EDIT for tags is written.
+
+    Guard against spurious EDIT events on every inbound pass.
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    local_uuid = "57b00003-0000-0000-0000-000000000003"
+    _seed_create_event(tracker_dir, local_uuid, ["tag-a"])
+
+    mutation = _make_mutation(
+        applier,
+        target="DIG-5703",
+        payload={
+            "local_id": local_uuid,
+            "fields": {},  # no scalar field changes either
+            "labels": [],
+        },
+    )
+    applier._apply_inbound_update(mutation, client=None, repo_root=tmp_path)
+
+    events = _read_events(tracker_dir / local_uuid)
+    edit_events = [e for e in events if e.get("event_type") == "EDIT"]
+    # Pre-existing CREATE event is fine; the assertion is that no new tags-EDIT
+    # was written (the labels list is empty).
+    for e in edit_events:
+        f = e.get("data", {}).get("fields", {})
+        assert "tags" not in f, (
+            f"Unexpected tags-EDIT event written for empty labels list: {e}"
+        )
+
+
 def test_status_already_local_not_double_mapped(tmp_path, applier):
     """When the differ supplies status='in_progress' (already local-mapped),
     the applier must write that exact value — not re-run it through
