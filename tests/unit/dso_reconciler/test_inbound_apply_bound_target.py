@@ -353,6 +353,102 @@ def test_inbound_label_remove_writes_edit_without_removed_tag(tmp_path, applier)
     )
 
 
+def test_inbound_label_add_does_not_wipe_tags_when_reducer_fails(
+    tmp_path, applier, monkeypatch
+):
+    """Bug bc8f-775e-9a34-44d1: when the reducer raises (or returns None) the
+    labels-apply block previously fell back to an empty current_tags list and
+    wrote an EDIT whose fields.tags contained ONLY the newly-added label —
+    wiping ALL pre-existing tags. Reproduces the live probe symptom where
+    ticket b2e9 lost its 'labelprobe-...' tag after T1's bidirectional pass.
+
+    Fix: when current_tags cannot be reliably read, the labels EDIT must
+    NOT be written; the next reconciler pass will retry.
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    local_uuid = "bc8f0001-0000-0000-0000-000000000001"
+    _seed_create_event(tracker_dir, local_uuid, ["existing-tag"])
+
+    # Simulate the failure mode observed in the live probe: the reducer
+    # raises mid-apply (e.g., transient I/O error, malformed event during
+    # concurrent write). Patch the reducer module's reduce_ticket to raise.
+    reducer_mod = applier._load_ticket_reducer()
+    monkeypatch.setattr(
+        reducer_mod,
+        "reduce_ticket",
+        lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError("simulated reducer failure")),
+    )
+
+    mutation = _make_mutation(
+        applier,
+        target="DIG-BC8F",
+        payload={
+            "local_id": local_uuid,
+            "fields": {},
+            "labels": [{"action": "add", "label": "new-tag"}],
+        },
+    )
+    applier._apply_inbound_update(mutation, client=None, repo_root=tmp_path)
+
+    events = _read_events(tracker_dir / local_uuid)
+    edit_events = [e for e in events if e.get("event_type") == "EDIT"]
+    # The bug: an EDIT with fields.tags=['new-tag'] (wiping 'existing-tag')
+    # was being written. Assert NO tags-EDIT was written under reducer failure.
+    for e in edit_events:
+        f = e.get("data", {}).get("fields", {})
+        if "tags" in f:
+            # If a tags-EDIT IS written, it must preserve existing-tag.
+            assert "existing-tag" in f["tags"], (
+                f"REGRESSION (bc8f): labels-apply wrote EDIT.fields.tags={f['tags']} "
+                f"without pre-existing 'existing-tag' — this wipes local tags. "
+                f"Fix: skip the labels EDIT when current_tags cannot be read."
+            )
+
+
+def test_inbound_label_add_does_not_wipe_tags_when_ticket_dir_missing(
+    tmp_path, applier
+):
+    """Companion to bc8f RED test: when the ticket dir doesn't exist yet
+    (e.g., race with concurrent CREATE), reduce_ticket returns None and the
+    pre-fix code wrote an EDIT containing ONLY the new label. The fix must
+    not write such an EDIT, since there are no pre-existing tags to preserve
+    AND the directory itself doesn't exist — the next pass will retry once
+    the CREATE has landed.
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    local_uuid = "bc8f0002-0000-0000-0000-000000000002"
+    # NOTE: do NOT seed a CREATE event — directory doesn't exist.
+
+    mutation = _make_mutation(
+        applier,
+        target="DIG-BC8F2",
+        payload={
+            "local_id": local_uuid,
+            "fields": {},
+            "labels": [{"action": "add", "label": "new-tag"}],
+        },
+    )
+    applier._apply_inbound_update(mutation, client=None, repo_root=tmp_path)
+
+    # No CREATE seed, no tags-EDIT should be written (it would be unsafe —
+    # the EDIT would land in a not-yet-existing ticket dir and the next
+    # CREATE pass would reduce it without the differ's prior context).
+    ticket_dir = tracker_dir / local_uuid
+    if ticket_dir.exists():
+        events = _read_events(ticket_dir)
+        tag_edits = [
+            e for e in events
+            if e.get("event_type") == "EDIT"
+            and "tags" in e.get("data", {}).get("fields", {})
+        ]
+        assert not tag_edits, (
+            f"Expected NO tags-EDIT when ticket dir is unseeded (reducer "
+            f"returns None), but got: {tag_edits}"
+        )
+
+
 def test_inbound_label_noop_when_labels_empty(tmp_path, applier):
     """When payload['labels'] is empty/absent, no extra EDIT for tags is written.
 

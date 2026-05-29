@@ -781,37 +781,66 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
     inbound_labels = payload.get("labels") or []
     if isinstance(inbound_labels, list) and inbound_labels:
         # Read current tags by reducing the existing ticket directory.
-        # Fall back to an empty list when the ticket dir does not yet
-        # exist (e.g., race with a concurrent CREATE) — the reducer
-        # returns None in that case.
+        #
+        # Bug bc8f-775e-9a34-44d1: the local reducer treats `fields.tags` on
+        # an EDIT event as REPLACE-the-whole-list (see
+        # ticket_reducer/_processors.process_edit). If we cannot reliably
+        # read the current tag list — either because reduce_ticket raises
+        # OR because it returns None (ticket dir doesn't exist yet, e.g.,
+        # race with a concurrent CREATE) — falling back to `current_tags=[]`
+        # and writing `EDIT(fields.tags=[<just the new label>])` would WIPE
+        # every pre-existing local tag. The live probe captured exactly
+        # this: ticket b2e9 with `labelprobe-...` was reduced to `[]` after
+        # T1's bidirectional pass.
+        #
+        # Safe behaviour: when current state cannot be read, SKIP the labels
+        # EDIT for this pass and emit a stderr warning. The next reconciler
+        # pass will retry once the ticket dir / state is readable.
+        reducer_failed = False
+        current_state: dict | None = None
         try:
             reducer_mod = _load_ticket_reducer()
             current_state = reducer_mod.reduce_ticket(str(tracker_dir / local_id))
-        except Exception:  # noqa: BLE001 — reducer fall-back must not crash apply
-            current_state = None
-        current_tags: list[str] = list(
-            (current_state or {}).get("tags", []) or []
-        )
-        new_tags = list(current_tags)
-        changed = False
-        for entry in inbound_labels:
-            if not isinstance(entry, dict):
-                continue
-            action = entry.get("action")
-            label_name = entry.get("label", "")
-            if not label_name or not isinstance(label_name, str):
-                continue
-            if action == "add" and label_name not in new_tags:
-                new_tags.append(label_name)
-                changed = True
-            elif action == "remove" and label_name in new_tags:
-                new_tags = [t for t in new_tags if t != label_name]
-                changed = True
-        if changed:
-            path = _write_event_file(
-                tracker_dir, local_id, "EDIT", {"fields": {"tags": new_tags}}
+        except Exception as _reducer_exc:  # noqa: BLE001 — see bc8f docstring
+            reducer_failed = True
+            print(
+                f"[applier] WARN bc8f-guard: reducer raised while reading "
+                f"current tags for {local_id} (target={mutation.target}); "
+                f"skipping labels EDIT to avoid wiping local tags. "
+                f"exc={type(_reducer_exc).__name__}: {_reducer_exc}",
+                file=sys.stderr,
             )
-            written.append(str(path))
+        if not reducer_failed and current_state is None:
+            print(
+                f"[applier] WARN bc8f-guard: reducer returned None for "
+                f"{local_id} (ticket dir not yet materialized?); skipping "
+                f"labels EDIT to avoid wiping local tags. The next "
+                f"reconciler pass will retry.",
+                file=sys.stderr,
+            )
+
+        if current_state is not None:
+            current_tags: list[str] = list(current_state.get("tags", []) or [])
+            new_tags = list(current_tags)
+            changed = False
+            for entry in inbound_labels:
+                if not isinstance(entry, dict):
+                    continue
+                action = entry.get("action")
+                label_name = entry.get("label", "")
+                if not label_name or not isinstance(label_name, str):
+                    continue
+                if action == "add" and label_name not in new_tags:
+                    new_tags.append(label_name)
+                    changed = True
+                elif action == "remove" and label_name in new_tags:
+                    new_tags = [t for t in new_tags if t != label_name]
+                    changed = True
+            if changed:
+                path = _write_event_file(
+                    tracker_dir, local_id, "EDIT", {"fields": {"tags": new_tags}}
+                )
+                written.append(str(path))
 
     # Bug 85a1 (Gap 1): inbound comments — write a COMMENT event for each
     # new Jira comment the differ surfaced. The body is stored as plain
