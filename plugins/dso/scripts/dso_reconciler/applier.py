@@ -1634,6 +1634,24 @@ def _load_conflict_resolver():
     return mod
 
 
+def _load_alert_store():
+    """Load the sibling alert_store module (mirrors invariants._load_alert_store).
+
+    Used by the outbound batch loop to record soft-fail alerts (e.g.,
+    AssigneeNotFoundError per bug 17b5) without aborting the pass.
+    """
+    alert_path = Path(__file__).parent / "alert_store.py"
+    spec = importlib.util.spec_from_file_location(
+        "dso_reconciler_alert_store", alert_path
+    )
+    if spec is None:
+        raise FileNotFoundError(f"alert_store.py not found at {alert_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("dso_reconciler_alert_store", mod)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
 def _load_mapping(mapping_path: Path) -> dict:
     """Load mapping.json, returning an empty dict if missing or corrupt.
 
@@ -2845,7 +2863,49 @@ def _apply_batch(
                     rest_calls += 1
                 outcome["result"] = result
             elif action == "update":
-                result = update_one(mutation, client)
+                # Bug 17b5-dda4-6662-4616: AssigneeNotFoundError (raised by
+                # client.update_issue's Phase A pre-validation when the
+                # local assignee doesn't map to a real Jira account, e.g.
+                # 'Worktree' git-config default) was killing the entire
+                # batch because the surrounding try-block only handles
+                # HeadDriftError. Soft-fail this mutation: record an
+                # alert, mark outcome error, and continue with the rest.
+                # Mirrors the existing 400-illegal-transition fallback
+                # in update_one and the BRIDGE_ALERT pattern in create_one.
+                try:
+                    result = update_one(mutation, client)
+                except acli.AssigneeNotFoundError as exc:
+                    alert_store = _load_alert_store()
+                    alert_store.append(
+                        {
+                            "kind": "outbound-update-assignee-unresolved",
+                            "key": mutation.get("key"),
+                            "local_id": mutation.get("local_id"),
+                            "assignee": (
+                                (mutation.get("fields") or {}).get("assignee")
+                            ),
+                            "pass_id": pass_id,
+                            "timestamp_ns": time.time_ns(),
+                            "reason": str(exc),
+                        },
+                        repo_root=repo_root,
+                    )
+                    outcome["result"] = None
+                    outcome["error"] = f"assignee-unresolved: {exc!s}"
+                    mutations_with_outcomes.append(outcome)
+                    # Per-mutation RECON line matches the regular path.
+                    _outcome_key = (
+                        mutation.get("key")
+                        or mutation.get("local_id")
+                        or "<unknown>"
+                    )
+                    print(  # noqa: T201
+                        f"RECON: batch_outcome action={action} "
+                        f"key={_outcome_key} "
+                        f"error={outcome['error']!r}",
+                        file=sys.stderr,
+                    )
+                    continue
                 outcome["result"] = result
                 # Persist provenance for set-valued fields after update
                 jira_key = mutation.get("key", "")
