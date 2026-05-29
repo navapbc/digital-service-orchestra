@@ -1,0 +1,17 @@
+Here is my review of the changes:
+
+```json
+{
+  "summary": "Two changes — both safe, no concerns.",
+  "findings": [
+    {
+      "severity": "minor",
+      "description": "Consider adding a type hint to the new helper function.",
+      "cited_lines": [42],
+      "path": "src/example.py"
+    }
+  ]
+}
+```
+
+Let me know if you'd like a deeper look at any specific area.
