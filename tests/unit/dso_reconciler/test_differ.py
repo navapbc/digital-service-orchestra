@@ -453,3 +453,127 @@ def test_differ_is_pure_across_input_permutations(
     assert len(hashes) == 1, (
         f"non-deterministic manifest hashes across 100 input permutations: {hashes}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bug 4354: snapshot-differ must recognise bound issues via the dso-id: label
+# even when the fetcher snapshot lacks the dso_local_id entity property.
+#
+# Root cause: fetcher.fetch_snapshot only stores Jira `fields` (which include
+# `labels`) — the `dso_local_id` entity property is never in the snapshot.
+# So the snapshot-differ sees DIG-NNNN in jira_state without dso_local_id,
+# falls into the "in_jira and not in_local" branch with jira_local_id=None,
+# and emits an inbound CREATE. The applier then creates a phantom
+# jira-dig-NNNN local entity AND writes a ghost `dso-id:jira-dig-NNNN`
+# label back to Jira (verified empirically by labels-probe.sh on 2026-05-29:
+# after binding e486-... to DIG-5029, the next pass produced
+# `['dso-id:259f-...', 'dso-id:jira-dig-5029', 'labelprobe-...']` on Jira).
+#
+# Fix: the snapshot-differ must treat any Jira issue carrying a
+# `dso-id:<local_id>` label as "already managed by the binding-aware
+# differs" and skip it — no inbound CREATE, no inbound conflict.
+# ---------------------------------------------------------------------------
+
+
+def test_dso_id_label_suppresses_phantom_inbound_create(
+    differ: ModuleType, mutation_mod: ModuleType
+) -> None:
+    """Bug 4354: a Jira issue carrying `dso-id:<local_id>` is already bound;
+    the snapshot-differ MUST NOT emit an inbound CREATE for it, even when
+    the snapshot lacks the dso_local_id entity property (the fetcher does
+    not populate it).
+    """
+    local: dict = {}
+    jira = {
+        "DIG-5029": {
+            "summary": "labels-probe ticket",
+            "labels": [
+                "dso-id:259f-2f86-77c2-4767",
+                "labelprobe-1780064991",
+            ],
+            # dso_local_id is intentionally absent — fetcher.fetch_snapshot
+            # never populates entity properties into the snapshot.
+        }
+    }
+    result = differ.compute_mutations(local_state=local, jira_state=jira)
+    # No inbound CREATE for DIG-5029 — it's bound (label `dso-id:259f-...`).
+    inbound_creates = [
+        m
+        for m in result
+        if m.direction == mutation_mod.MutationDirection.inbound
+        and m.action == mutation_mod.MutationAction.create
+        and m.target == "DIG-5029"
+    ]
+    assert not inbound_creates, (
+        f"phantom inbound CREATE emitted for already-bound DIG-5029: "
+        f"{inbound_creates}"
+    )
+    # And no inbound CONFLICT — bound issues should be silent here; the
+    # binding-aware inbound_differ owns this lane.
+    inbound_conflicts = [
+        m
+        for m in result
+        if m.direction == mutation_mod.MutationDirection.inbound
+        and m.action == mutation_mod.MutationAction.conflict
+        and m.target == "DIG-5029"
+    ]
+    assert not inbound_conflicts, (
+        f"unexpected inbound CONFLICT for bound DIG-5029: {inbound_conflicts}"
+    )
+
+
+def test_dso_id_label_with_dash_form_also_suppresses_inbound_create(
+    differ: ModuleType, mutation_mod: ModuleType
+) -> None:
+    """Bug 4354: legacy `dso-id-<local_id>` hyphen-form labels (pre-cutover)
+    also signal a binding. Snapshot-differ must skip these too.
+    """
+    local: dict = {}
+    jira = {
+        "DIG-1234": {
+            "summary": "legacy bound ticket",
+            "labels": ["dso-id-abcd-1234-ef56-7890", "anyusertag"],
+        }
+    }
+    result = differ.compute_mutations(local_state=local, jira_state=jira)
+    phantom = [
+        m
+        for m in result
+        if m.target == "DIG-1234"
+        and m.direction == mutation_mod.MutationDirection.inbound
+        and m.action
+        in (
+            mutation_mod.MutationAction.create,
+            mutation_mod.MutationAction.conflict,
+        )
+    ]
+    assert not phantom, (
+        f"phantom inbound mutation for bound DIG-1234 (hyphen-form label): {phantom}"
+    )
+
+
+def test_unbound_jira_issue_without_dso_id_label_still_creates(
+    differ: ModuleType, mutation_mod: ModuleType
+) -> None:
+    """Bug 4354 (regression-guard): a Jira issue WITHOUT any dso-id label is
+    genuinely unbound; the snapshot-differ MUST still emit inbound CREATE so
+    a fresh external Jira issue is mirrored locally.
+    """
+    local: dict = {}
+    jira = {
+        "DIG-9999": {
+            "summary": "freshly created on Jira directly",
+            "labels": ["someusertag"],
+        }
+    }
+    result = differ.compute_mutations(local_state=local, jira_state=jira)
+    inbound_creates = [
+        m
+        for m in result
+        if m.direction == mutation_mod.MutationDirection.inbound
+        and m.action == mutation_mod.MutationAction.create
+        and m.target == "DIG-9999"
+    ]
+    assert len(inbound_creates) == 1, (
+        f"unbound jira issue lost its inbound CREATE: {result}"
+    )
