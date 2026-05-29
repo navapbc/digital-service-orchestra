@@ -13,7 +13,7 @@
 #
 # Usage: bash tests/scripts/test-sync-sub-pr-ruleset.sh
 
-set -uo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -21,6 +21,18 @@ SCRIPT="$REPO_ROOT/plugins/dso/scripts/sync-sub-pr-ruleset.sh"
 
 # shellcheck source=../lib/assert.sh
 source "$REPO_ROOT/tests/lib/assert.sh"
+
+# Cumulative cleanup — each test appends its temp dirs and the EXIT trap
+# removes them all at end-of-run. The earlier per-test `trap ... EXIT`
+# overwrote the previous trap, so only the last temp dir got cleaned up
+# (gitar-bot finding on PR #442).
+_CLEANUP_DIRS=()
+_cleanup_all() {
+    for _d in "${_CLEANUP_DIRS[@]+"${_CLEANUP_DIRS[@]}"}"; do
+        rm -rf "$_d" 2>/dev/null || true
+    done
+}
+trap _cleanup_all EXIT
 
 echo "=== test-sync-sub-pr-ruleset.sh ==="
 
@@ -60,8 +72,8 @@ assert_pass_if_clean "test_unknown_flag_exits_nonzero"
 # ── test_ruleset_not_found_exits_nonzero ──────────────────────────────────────
 # gh stub returns empty ruleset list → script must exit 1 with a clear error.
 _snapshot_fail
-nf_tmp="$(mktemp -d)"
-trap 'rm -rf "$nf_tmp"' EXIT
+nf_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sync-sub-pr-ruleset-not-found.XXXXXX")"
+_CLEANUP_DIRS+=("$nf_tmp")
 nf_stub="$nf_tmp/gh"
 cat > "$nf_stub" <<'STUB'
 #!/usr/bin/env bash
@@ -80,7 +92,8 @@ assert_pass_if_clean "test_ruleset_not_found_exits_nonzero"
 # Mock gh: live ruleset is the old allowlist shape → script detects drift,
 # emits DECISION: DRY-RUN PATCH, includes ~ALL in expected include, exits 0.
 _snapshot_fail
-dr_tmp="$(mktemp -d)"
+dr_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sync-sub-pr-ruleset-drift.XXXXXX")"
+_CLEANUP_DIRS+=("$dr_tmp")
 dr_stub="$dr_tmp/gh"
 cat > "$dr_stub" <<'STUB'
 #!/usr/bin/env bash
@@ -123,7 +136,8 @@ assert_pass_if_clean "test_dry_run_drift_detected"
 # ── test_dry_run_in_sync ──────────────────────────────────────────────────────
 # Mock gh: live ruleset already matches negative-list shape → SKIP.
 _snapshot_fail
-sy_tmp="$(mktemp -d)"
+sy_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sync-sub-pr-ruleset-insync.XXXXXX")"
+_CLEANUP_DIRS+=("$sy_tmp")
 sy_stub="$sy_tmp/gh"
 cat > "$sy_stub" <<'STUB'
 #!/usr/bin/env bash
@@ -159,7 +173,8 @@ assert_pass_if_clean "test_dry_run_in_sync"
 # must use that value in the expected exclude list rather than hardcoding
 # "refs/heads/main".
 _snapshot_fail
-db_tmp="$(mktemp -d)"
+db_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sync-sub-pr-ruleset-env.XXXXXX")"
+_CLEANUP_DIRS+=("$db_tmp")
 db_stub="$db_tmp/gh"
 cat > "$db_stub" <<'STUB'
 #!/usr/bin/env bash
@@ -200,13 +215,54 @@ assert_pass_if_clean "test_default_branch_env_override"
 # defaultBranchRef` for the host's default branch. Mock gh to return "trunk"
 # and assert the script uses it.
 _snapshot_fail
-gh_tmp="$(mktemp -d)"
+gh_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sync-sub-pr-ruleset-gh.XXXXXX")"
+_CLEANUP_DIRS+=("$gh_tmp")
 gh_stub="$gh_tmp/gh"
+# Realistic gh stub: when called with `--json defaultBranchRef -q
+# '.defaultBranchRef.name'`, return the same plain string the real gh would
+# print (gh's -q flag applies a jq path expression to the JSON response,
+# emitting only the scalar value). This makes the stub honor the contract
+# the production gh exposes, instead of returning plain text and having the
+# script silently fall back to a different tier (llm-review critical
+# finding on PR #442 ec091b28). Other gh subcommands (api /rulesets etc.)
+# pass through to their existing handlers below.
 cat > "$gh_stub" <<'STUB'
 #!/usr/bin/env bash
-# Repo-view query for defaultBranchRef returns trunk.
+# Parse: gh repo view <REPO> --json <fields> -q '<jq>'
 if [[ "${1:-}" == "repo" && "${2:-}" == "view" ]]; then
-    echo "trunk"
+    # Find -q value (if present) to honor the contract the script relies on.
+    _q=""
+    _i=4
+    while [[ $_i -le $# ]]; do
+        if [[ "${!_i}" == "-q" ]]; then
+            _ni=$((_i+1))
+            _q="${!_ni}"
+            break
+        fi
+        _i=$((_i+1))
+    done
+    # JSON shape gh would return for --json defaultBranchRef.
+    _JSON='{"defaultBranchRef":{"name":"trunk"}}'
+    if [[ -n "$_q" ]]; then
+        # Apply the jq path expression. The script invokes -q '.defaultBranchRef.name'
+        # so we emit the scalar string the production gh would emit. Use python3
+        # (not jq — plugin-script convention forbids jq, ref .coderabbit.yaml).
+        printf '%s\n' "$_JSON" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+expr = sys.argv[1].lstrip('.')
+for k in expr.split('.'):
+    if not k: continue
+    if isinstance(d, dict):
+        d = d.get(k, '')
+    else:
+        d = ''
+        break
+print(d)
+" "$_q"
+    else
+        printf '%s\n' "$_JSON"
+    fi
     exit 0
 fi
 if [[ "${1:-}" == "api" && "${2:-}" =~ /rulesets$ ]]; then
@@ -237,7 +293,8 @@ assert_pass_if_clean "test_default_branch_gh_repo_view_path"
 # this path by running in a temp directory with no git remote and stubbing
 # gh repo view to return empty.
 _snapshot_fail
-fb_tmp="$(mktemp -d)"
+fb_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sync-sub-pr-ruleset-fbstub.XXXXXX")"
+_CLEANUP_DIRS+=("$fb_tmp")
 fb_stub="$fb_tmp/gh"
 cat > "$fb_stub" <<'STUB'
 #!/usr/bin/env bash
@@ -261,7 +318,8 @@ STUB
 chmod +x "$fb_stub"
 # Run in a temp git repo with no remote so symbolic-ref refs/remotes/origin/HEAD
 # fails, exercising the literal-"main" fallback.
-fb_repo="$(mktemp -d)"
+fb_repo="$(mktemp -d "${TMPDIR:-/tmp}/sync-sub-pr-ruleset-fbrepo.XXXXXX")"
+_CLEANUP_DIRS+=("$fb_repo")
 (cd "$fb_repo" && git init -q && git config user.email t@t.local && git config user.name t \
     && touch a && git add a && git commit -q -m seed)
 fb_rc=0
@@ -278,7 +336,8 @@ assert_pass_if_clean "test_default_branch_hardcoded_main_fallback"
 # success message. This closes the dry-run-only test-coverage gap flagged by
 # llm-review on PR #442.
 _snapshot_fail
-pv_tmp="$(mktemp -d)"
+pv_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sync-sub-pr-ruleset-patchok.XXXXXX")"
+_CLEANUP_DIRS+=("$pv_tmp")
 # Track PUT count via a touch file the stub creates on PUT.
 pv_put_marker="$pv_tmp/put-called"
 pv_stub="$pv_tmp/gh"
@@ -339,7 +398,8 @@ assert_pass_if_clean "test_live_patch_post_verify_success"
 # the verify block). Script must exit 1 with the "post-PATCH verification
 # failed" error so operators see drift instead of a misleading success.
 _snapshot_fail
-pf_tmp="$(mktemp -d)"
+pf_tmp="$(mktemp -d "${TMPDIR:-/tmp}/sync-sub-pr-ruleset-patchfail.XXXXXX")"
+_CLEANUP_DIRS+=("$pf_tmp")
 pf_stub="$pf_tmp/gh"
 cat > "$pf_stub" <<'STUB'
 #!/usr/bin/env bash

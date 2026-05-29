@@ -230,29 +230,27 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-# ── Resolve default branch ────────────────────────────────────────────────────
-# Host projects vary: main, master, trunk, develop, etc. Detect the host's
-# default branch authoritatively before payload construction so the rulesets
-# reference whatever the host actually uses.
-#
-# Resolution order:
-#   1. DSO_DEFAULT_BRANCH env override (explicit operator intent — wins)
-#   2. gh repo view --json defaultBranchRef (authoritative when REPO is set)
-#   3. `git symbolic-ref refs/remotes/origin/HEAD` (works in any clone with a
-#      remote, no GitHub auth required — covers the dry-run-without-REPO case)
-#   4. Hardcoded "main" fallback (last-resort default)
-DEFAULT_BRANCH=""
-if [[ -n "${DSO_DEFAULT_BRANCH:-}" ]]; then
-  DEFAULT_BRANCH="$DSO_DEFAULT_BRANCH"
-elif [[ -n "$REPO" ]]; then
-  DEFAULT_BRANCH=$(gh repo view "$REPO" --json defaultBranchRef -q '.defaultBranchRef.name' 2>/dev/null || echo "")
+# ── Resolve REPO (auto-detect when not provided) ─────────────────────────────
+# Run REPO auto-detection BEFORE DEFAULT_BRANCH resolution so the gh repo view
+# step has a target. Previously the auto-detection ran after payload
+# construction, which left DEFAULT_BRANCH resolution dependent on the slower
+# git-symbolic-ref / "main" fallbacks when --repo was omitted — wrong for
+# non-main hosts whose origin/HEAD was unset or stale.
+if [[ -z "$REPO" ]]; then
+  REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null || echo "")
 fi
-if [[ -z "$DEFAULT_BRANCH" ]]; then
-  DEFAULT_BRANCH=$(git -C "${REPO_ROOT:-.}" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
-fi
-if [[ -z "$DEFAULT_BRANCH" ]]; then
-  DEFAULT_BRANCH="main"
-fi
+
+# ── Resolve default branch via shared helper ─────────────────────────────────
+# Four-tier fallback (DSO_DEFAULT_BRANCH env → gh repo view → git symbolic-ref
+# → "main") implemented in lib/default-branch.sh. Both this script and
+# sync-sub-pr-ruleset.sh source the same helper so the resolution chain stays
+# in sync — addresses llm-review finding 2/2 on PR #442 (duplicated logic).
+# Use BASH_SOURCE-relative resolution so the helper is found regardless of
+# CLAUDE_PLUGIN_ROOT state.
+_PROV_DEFAULT_BRANCH_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" 2>/dev/null && pwd || echo '')/default-branch.sh"
+# shellcheck source=../lib/default-branch.sh
+source "$_PROV_DEFAULT_BRANCH_LIB"
+DEFAULT_BRANCH=$(_dso_resolve_default_branch "$REPO")
 
 # ── Read check names from file ────────────────────────────────────────────────
 if [[ ! -f "$CHECKS_FILE" ]]; then
@@ -436,20 +434,14 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-# ── Confirm repo ──────────────────────────────────────────────────────────────
+# ── Confirm repo (hard-fail gate for live POST mode) ─────────────────────────
+# REPO was already auto-detected earlier (before DEFAULT_BRANCH resolution).
+# This block enforces that auto-detection succeeded — required for live POST,
+# tolerated empty for dry-run mode (which already exited above).
 if [[ -z "$REPO" ]]; then
-  # Attempt to detect from git remote
-  REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null || echo "")
-  if [[ -z "$REPO" ]]; then
-    echo "ERROR: --repo <owner/repo> is required (or run from inside a git repo with a GitHub remote)." >&2
-    exit 1
-  fi
+  echo "ERROR: --repo <owner/repo> is required (or run from inside a git repo with a GitHub remote)." >&2
+  exit 1
 fi
-
-# DEFAULT_BRANCH was already resolved earlier (see "Resolve default branch"
-# section). When REPO was empty at that point (dry-run without --repo), the
-# git-symbolic-ref fallback typically resolves the branch; if even that
-# failed, DEFAULT_BRANCH defaulted to "main". No further auto-detect needed.
 
 # ── Interactive confirmation ──────────────────────────────────────────────────
 if [[ "$NON_INTERACTIVE" -ne 1 ]]; then

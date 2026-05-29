@@ -68,7 +68,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Tool checks ───────────────────────────────────────────────────────────────
-for _tool in gh jq; do
+# JSON parsing is done via python3 per plugin-script convention (no jq —
+# see .coderabbit.yaml and reviewer-delta-standard.md).
+for _tool in gh python3; do
     if ! command -v "$_tool" >/dev/null 2>&1; then
         echo "Error: required tool not found: $_tool" >&2
         exit 1
@@ -84,23 +86,13 @@ if [[ -z "$REPO" ]]; then
     fi
 fi
 
-# ── Resolve default branch ────────────────────────────────────────────────────
-# Host projects vary (main, master, trunk, develop, ...). Resolution order:
-#   1. DSO_DEFAULT_BRANCH env override
-#   2. gh repo view --json defaultBranchRef (authoritative)
-#   3. git symbolic-ref refs/remotes/origin/HEAD (no auth required)
-#   4. "main" fallback
-if [[ -n "$DEFAULT_BRANCH_OVERRIDE" ]]; then
-    DEFAULT_BRANCH="$DEFAULT_BRANCH_OVERRIDE"
-else
-    DEFAULT_BRANCH=$(gh repo view "$REPO" --json defaultBranchRef -q '.defaultBranchRef.name' 2>/dev/null || echo "")
-fi
-if [[ -z "$DEFAULT_BRANCH" ]]; then
-    DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
-fi
-if [[ -z "$DEFAULT_BRANCH" ]]; then
-    DEFAULT_BRANCH="main"
-fi
+# ── Resolve default branch via shared helper ─────────────────────────────────
+# Four-tier fallback implemented in lib/default-branch.sh — kept identical
+# to provision-ruleset.sh by sourcing the same library.
+_SYNC_DEFAULT_BRANCH_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" 2>/dev/null && pwd || echo '')/default-branch.sh"
+# shellcheck source=lib/default-branch.sh
+source "$_SYNC_DEFAULT_BRANCH_LIB"
+DEFAULT_BRANCH=$(DSO_DEFAULT_BRANCH="$DEFAULT_BRANCH_OVERRIDE" _dso_resolve_default_branch "$REPO")
 EXPECTED_EXCLUDE="[\"refs/heads/${DEFAULT_BRANCH}\"]"
 
 # ── Locate the ruleset by name ────────────────────────────────────────────────
@@ -108,8 +100,15 @@ echo "Repo:           $REPO"
 echo "Ruleset name:   $RULESET_NAME"
 
 RULESET_ID=$(gh api "/repos/${REPO}/rulesets" 2>/dev/null \
-    | jq -r --arg name "$RULESET_NAME" '.[] | select(.name == $name) | .id' \
-    | head -1)
+    | python3 -c "
+import json, sys
+name = sys.argv[1]
+data = json.loads(sys.stdin.read() or '[]')
+for r in data:
+    if isinstance(r, dict) and r.get('name') == name:
+        print(r.get('id', ''))
+        break
+" "$RULESET_NAME")
 
 if [[ -z "$RULESET_ID" ]]; then
     echo "Error: ruleset '$RULESET_NAME' not found on $REPO" >&2
@@ -120,12 +119,28 @@ echo "Ruleset ID:     $RULESET_ID"
 
 # ── Fetch current state ───────────────────────────────────────────────────────
 RULESET_JSON=$(gh api "/repos/${REPO}/rulesets/${RULESET_ID}")
-CURRENT_INCLUDE=$(echo "$RULESET_JSON" | jq -c '.conditions.ref_name.include')
-CURRENT_EXCLUDE=$(echo "$RULESET_JSON" | jq -c '.conditions.ref_name.exclude')
+CURRENT_INCLUDE=$(echo "$RULESET_JSON" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+print(json.dumps(d.get('conditions', {}).get('ref_name', {}).get('include', [])))
+")
+CURRENT_EXCLUDE=$(echo "$RULESET_JSON" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+print(json.dumps(d.get('conditions', {}).get('ref_name', {}).get('exclude', [])))
+")
 
-# ── Diff: expected vs current ─────────────────────────────────────────────────
-_inc_drift=$(jq -n --argjson e "$EXPECTED_INCLUDE" --argjson c "$CURRENT_INCLUDE" '($e - $c) + ($c - $e) | length')
-_exc_drift=$(jq -n --argjson e "$EXPECTED_EXCLUDE" --argjson c "$CURRENT_EXCLUDE" '($e - $c) + ($c - $e) | length')
+# ── Diff: expected vs current (symmetric-difference cardinality) ─────────────
+_inc_drift=$(python3 -c "
+import json, sys
+a, b = json.loads(sys.argv[1]), json.loads(sys.argv[2])
+print(len(set(a) ^ set(b)))
+" "$EXPECTED_INCLUDE" "$CURRENT_INCLUDE")
+_exc_drift=$(python3 -c "
+import json, sys
+a, b = json.loads(sys.argv[1]), json.loads(sys.argv[2])
+print(len(set(a) ^ set(b)))
+" "$EXPECTED_EXCLUDE" "$CURRENT_EXCLUDE")
 
 if (( _inc_drift == 0 )) && (( _exc_drift == 0 )); then
     echo "DECISION: SKIP — ruleset already matches negative-list shape"
@@ -139,17 +154,25 @@ echo "  current exclude: $CURRENT_EXCLUDE"
 echo "  expected exclude: $EXPECTED_EXCLUDE"
 
 # ── Build PATCH payload ───────────────────────────────────────────────────────
-PATCH_PAYLOAD=$(echo "$RULESET_JSON" | jq \
-    --argjson include "$EXPECTED_INCLUDE" \
-    --argjson exclude "$EXPECTED_EXCLUDE" \
-    '{
-        "name": .name,
-        "target": .target,
-        "enforcement": .enforcement,
-        "conditions": (.conditions | .ref_name.include = $include | .ref_name.exclude = $exclude),
-        "bypass_actors": (.bypass_actors // []),
-        "rules": .rules
-    }')
+PATCH_PAYLOAD=$(echo "$RULESET_JSON" | python3 -c "
+import json, sys
+base = json.loads(sys.stdin.read())
+include = json.loads(sys.argv[1])
+exclude = json.loads(sys.argv[2])
+conditions = dict(base.get('conditions', {}))
+ref_name = dict(conditions.get('ref_name', {}))
+ref_name['include'] = include
+ref_name['exclude'] = exclude
+conditions['ref_name'] = ref_name
+print(json.dumps({
+    'name': base.get('name'),
+    'target': base.get('target'),
+    'enforcement': base.get('enforcement'),
+    'conditions': conditions,
+    'bypass_actors': base.get('bypass_actors') or [],
+    'rules': base.get('rules') or [],
+}, indent=2))
+" "$EXPECTED_INCLUDE" "$EXPECTED_EXCLUDE")
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
     echo ""
@@ -159,7 +182,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 # ── Apply ─────────────────────────────────────────────────────────────────────
-TMPFILE=$(mktemp /tmp/sync-sub-pr-ruleset.XXXXXX)
+TMPFILE=$(mktemp "${TMPDIR:-/tmp}/sync-sub-pr-ruleset.XXXXXX")
 trap 'rm -f "$TMPFILE"' EXIT
 echo "$PATCH_PAYLOAD" > "$TMPFILE"
 
@@ -168,10 +191,27 @@ echo "Applying PATCH to ruleset $RULESET_ID ..."
 gh api --method PUT "/repos/${REPO}/rulesets/${RULESET_ID}" --input "$TMPFILE" >/dev/null
 
 # ── Verify ────────────────────────────────────────────────────────────────────
-POST_INCLUDE=$(gh api "/repos/${REPO}/rulesets/${RULESET_ID}" --jq '.conditions.ref_name.include' | jq -c '.')
-POST_EXCLUDE=$(gh api "/repos/${REPO}/rulesets/${RULESET_ID}" --jq '.conditions.ref_name.exclude' | jq -c '.')
-_post_inc_drift=$(jq -n --argjson e "$EXPECTED_INCLUDE" --argjson p "$POST_INCLUDE" '($e - $p) + ($p - $e) | length')
-_post_exc_drift=$(jq -n --argjson e "$EXPECTED_EXCLUDE" --argjson p "$POST_EXCLUDE" '($e - $p) + ($p - $e) | length')
+POST_RULESET=$(gh api "/repos/${REPO}/rulesets/${RULESET_ID}")
+POST_INCLUDE=$(echo "$POST_RULESET" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+print(json.dumps(d.get('conditions', {}).get('ref_name', {}).get('include', [])))
+")
+POST_EXCLUDE=$(echo "$POST_RULESET" | python3 -c "
+import json, sys
+d = json.loads(sys.stdin.read())
+print(json.dumps(d.get('conditions', {}).get('ref_name', {}).get('exclude', [])))
+")
+_post_inc_drift=$(python3 -c "
+import json, sys
+a, b = json.loads(sys.argv[1]), json.loads(sys.argv[2])
+print(len(set(a) ^ set(b)))
+" "$EXPECTED_INCLUDE" "$POST_INCLUDE")
+_post_exc_drift=$(python3 -c "
+import json, sys
+a, b = json.loads(sys.argv[1]), json.loads(sys.argv[2])
+print(len(set(a) ^ set(b)))
+" "$EXPECTED_EXCLUDE" "$POST_EXCLUDE")
 if (( _post_inc_drift != 0 )) || (( _post_exc_drift != 0 )); then
     echo "Error: post-PATCH verification failed — ruleset still drifted" >&2
     echo "  include: $POST_INCLUDE (expected $EXPECTED_INCLUDE)" >&2
