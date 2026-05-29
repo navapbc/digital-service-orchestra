@@ -188,7 +188,18 @@ def _diff_jira_vs_local(
 # Label diff helpers
 # ---------------------------------------------------------------------------
 
-_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id-", "imported:")
+# Bug eadb (Issue A): the colon-form ``dso-id:<local_id>`` label was missing
+# from this exclusion list (only the hyphen-form ``dso-id-<local_id>`` was
+# present), so the inbound differ saw the canonical Jira-side dso-id label
+# as a "Jira-only" tag and emitted an inbound ADD on every pass — leaking
+# bridge-internal identifiers into local ticket ``tags``. The outbound
+# differ's ``_EXCLUDED_PREFIXES`` was patched for the same root cause in
+# PR #454; this is the inbound mirror of that fix. Both separator forms
+# must be excluded: ``dso-id:`` is the canonical form written by
+# ``_apply_outbound_create`` / ``_apply_inbound_create``; ``dso-id-`` is
+# preserved for backward compatibility with pre-cutover labels still on
+# legacy Jira issues.
+_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:")
 
 
 def _normalize_jira_body(body: Any) -> str:
