@@ -249,6 +249,22 @@ def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[st
                     )
             continue
         jira_val = _extract_jira_field(jira_fields, field_name)
+        # Bug (plateau): Jira's ADF normalization strips trailing
+        # whitespace from descriptions (and titles) on every write. If
+        # local carries trailing ``\n\n`` (or any trailing whitespace),
+        # the next fetch returns the stripped form — diff fires again —
+        # apply pushes the original — infinite phantom-mutation loop.
+        # Discovered during 20-batch live verification (2026-05-29):
+        # DIG-4175 plateaued at 339 outbound updates for batches 7-20
+        # because local description was 3701 chars, jira-decoded was
+        # 3699 (delta = trailing ``\n\n``). Compare with rstrip() so
+        # trailing-whitespace differences don't trigger the diff.
+        if (
+            isinstance(local_val, str)
+            and isinstance(jira_val, str)
+            and local_val.rstrip() == jira_val.rstrip()
+        ):
+            continue
         if local_val != jira_val:
             changed[field_name] = local_val
             if verbose:
