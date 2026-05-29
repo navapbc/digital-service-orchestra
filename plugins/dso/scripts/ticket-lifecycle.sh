@@ -238,14 +238,45 @@ while [ "$push_attempt" -lt "$max_push_retries" ]; do
     fi
 
     merge_exit=0
-    git -C "$base_path" merge origin/tickets --no-edit -m "Merge origin/tickets (auto-reconcile during push retry)" 2>/dev/null || merge_exit=$?
+    merge_stderr=""
+    # Capture stderr so we can distinguish "would be overwritten by merge"
+    # (dirty-WD class, recoverable via stash) from real content conflicts.
+    # Parity with ticket-lib.sh::_push_tickets_branch (bug 12a6).
+    merge_stderr=$(git -C "$base_path" merge origin/tickets --no-edit -m "Merge origin/tickets (auto-reconcile during push retry)" 2>&1) || merge_exit=$?
 
-    if [ "$merge_exit" -ne 0 ]; then
-        # Merge conflict — abort and fail
-        git -C "$base_path" merge --abort 2>/dev/null || true
-        echo "Error: merge conflict during push retry (attempt $push_attempt)" >&2
-        exit 1
+    if [ "$merge_exit" -eq 0 ]; then
+        # Merge clean; loop continues to retry the push on the next iteration.
+        continue
     fi
+
+    if echo "$merge_stderr" | grep -qiE 'would be overwritten by merge|local changes.*would be overwritten'; then
+        # Dirty-WD class: stash, retry merge, pop. Reconciler-owned files
+        # (.bridge_state/*) are a frequent source of this class. Non-overlapping
+        # paths reapply cleanly; overlapping paths leave operator-resolvable
+        # conflict markers (acceptable — the local change is not lost and the
+        # push still progresses).
+        stash_exit=0
+        git -C "$base_path" stash push --quiet -m "ticket-lifecycle:auto-stash" 2>/dev/null || stash_exit=$?
+        if [ "$stash_exit" -ne 0 ]; then
+            echo "Error: tickets branch push: stash failed (attempt $push_attempt)" >&2
+            exit 1
+        fi
+        merge2_exit=0
+        git -C "$base_path" merge origin/tickets --no-edit -m "Merge origin/tickets (auto-reconcile, post-stash)" 2>/dev/null || merge2_exit=$?
+        # Pop unconditionally — non-overlapping paths reapply cleanly.
+        git -C "$base_path" stash pop --quiet 2>/dev/null || true
+        if [ "$merge2_exit" -ne 0 ]; then
+            git -C "$base_path" merge --abort 2>/dev/null || true
+            echo "Error: tickets branch merge failed after stash recovery (attempt $push_attempt)" >&2
+            exit 1
+        fi
+        continue  # Next iteration retries push.
+    fi
+
+    # Real content conflict — abort and fail (preserves existing semantics).
+    git -C "$base_path" merge --abort 2>/dev/null || true
+    echo "Error: merge conflict during push retry (attempt $push_attempt): $merge_stderr" >&2
+    exit 1
 done
 
 echo "Error: push failed after $max_push_retries retries" >&2

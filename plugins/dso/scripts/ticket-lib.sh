@@ -730,12 +730,56 @@ _push_tickets_branch() {
             fi
 
             local _merge_exit=0
-            git -C "$base_path" merge origin/tickets --no-edit -m "Merge origin/tickets (auto-reconcile during push retry)" 2>/dev/null || _merge_exit=$?
-            if [ "$_merge_exit" -ne 0 ]; then
-                git -C "$base_path" merge --abort 2>/dev/null || true
-                echo "Warning: tickets branch push failed (merge conflict, attempt $_attempt)" >&2
-                return 0  # Best-effort: don't fail the caller
+            # Capture stderr so we can distinguish error classes — the prior
+            # `2>/dev/null` swallowed the "would be overwritten by merge"
+            # signal that flags a dirty-WD recovery class (bug 12a6).
+            local _merge_stderr
+            _merge_stderr=$(git -C "$base_path" merge origin/tickets --no-edit -m "Merge origin/tickets (auto-reconcile during push retry)" 2>&1) || _merge_exit=$?
+
+            if [ "$_merge_exit" -eq 0 ]; then
+                # Merge clean; loop continues to retry the push on next iter.
+                continue
             fi
+
+            # Classify the merge failure. "Would be overwritten by merge" is a
+            # dirty-WD class — the working tree has uncommitted modifications
+            # on tracked paths the merge would touch. The Jira reconciler
+            # writes .bridge_state/* files the ticket CLI never touches; those
+            # are a frequent source of this class. Recovery: stash → retry
+            # merge → pop. Non-overlapping reconciler paths reapply cleanly
+            # because ticket event files are UUID-named and append-only.
+            if echo "$_merge_stderr" | grep -qiE 'would be overwritten by merge|local changes.*would be overwritten'; then
+                # No merge state to abort here: when git refuses with "would
+                # be overwritten" the merge never started — there is no
+                # MERGE_HEAD and `git merge --abort` would exit non-zero
+                # complaining about "fatal: There is no merge to abort"
+                # (which is harmless; we suppress its stderr).
+                local _stash_exit=0
+                git -C "$base_path" stash push --quiet -m "_push_tickets_branch:auto-stash" 2>/dev/null || _stash_exit=$?
+                if [ "$_stash_exit" -ne 0 ]; then
+                    echo "Warning: tickets branch push failed: stash failed (attempt $_attempt)" >&2
+                    continue
+                fi
+                local _merge2_exit=0
+                git -C "$base_path" merge origin/tickets --no-edit -m "Merge origin/tickets (auto-reconcile, post-stash)" 2>/dev/null || _merge2_exit=$?
+                # Pop unconditionally — non-overlapping paths reapply cleanly.
+                git -C "$base_path" stash pop --quiet 2>/dev/null || true
+                if [ "$_merge2_exit" -ne 0 ]; then
+                    git -C "$base_path" merge --abort 2>/dev/null || true
+                    echo "Warning: tickets branch merge failed after stash recovery (attempt $_attempt)" >&2
+                fi
+                continue  # Next iteration retries push (succeeds if merge2 was clean).
+            fi
+
+            # Real content conflict — retry won't help, but `continue` instead
+            # of `return 0` so _max_retries is honored and the terminal warning
+            # at the end of the loop fires (instead of dying silently on
+            # iteration 1). Costs 2 extra merge attempts on truly unresolvable
+            # conflicts but makes the retry semantics match the documented
+            # bound. Pre-12a6 behavior bypassed _max_retries entirely.
+            git -C "$base_path" merge --abort 2>/dev/null || true
+            echo "Warning: tickets branch push failed (merge conflict, attempt $_attempt)" >&2
+            continue
         else
             echo "Warning: tickets branch push failed (exit $_push_exit): $_push_stderr" >&2
             return 0  # Best-effort: don't fail the caller
