@@ -319,6 +319,7 @@ for start in [i for i, l in enumerate(lines) if l.strip() == '{']:
                             exc = obj.get('conditions', {}).get('ref_name', {}).get('exclude', [])
                             print('INCLUDE_HAS_ALL=' + ('1' if '~ALL' in inc else '0'))
                             print('EXCLUDE_HAS_MAIN=' + ('1' if 'refs/heads/main' in exc else '0'))
+                            print('EXCLUDE_HAS_TICKETS=' + ('1' if 'refs/heads/tickets' in exc else '0'))
                             sys.exit(0)
                     except json.JSONDecodeError:
                         pass
@@ -326,23 +327,30 @@ for start in [i for i, l in enumerate(lines) if l.strip() == '{']:
         if depth == 0 and j > start: break
 print('INCLUDE_HAS_ALL=0')
 print('EXCLUDE_HAS_MAIN=0')
+print('EXCLUDE_HAS_TICKETS=0')
 sys.exit(0)
 " 2>/dev/null || echo "INCLUDE_HAS_ALL=0
-EXCLUDE_HAS_MAIN=0")
+EXCLUDE_HAS_MAIN=0
+EXCLUDE_HAS_TICKETS=0")
 if echo "$sub_pr_extraction" | grep -q '^INCLUDE_HAS_ALL=1$'; then
     sub_pr_has_include_all="present"
 fi
 if echo "$sub_pr_extraction" | grep -q '^EXCLUDE_HAS_MAIN=1$'; then
     sub_pr_has_exclude_main="present"
 fi
+sub_pr_has_exclude_tickets="missing"
+if echo "$sub_pr_extraction" | grep -q '^EXCLUDE_HAS_TICKETS=1$'; then
+    sub_pr_has_exclude_tickets="present"
+fi
 
 assert_eq "test_dry_run_includes_session_branch_ruleset: ruleset name present" "present" "$sub_pr_has_name"
 assert_eq "test_dry_run_includes_session_branch_ruleset: review-sub-pr check present" "present" "$sub_pr_has_check"
-# Negative-list shape: include=["~ALL"], exclude=["refs/heads/main"]. Replaces
-# the prior enumeration-of-branch-patterns assertions; the invariant is
-# "every PR not targeting main is in scope".
+# Negative-list shape: include=["~ALL"], exclude=["refs/heads/main",
+# "refs/heads/tickets"]. main has its own enforcement ruleset; tickets is
+# the ticket-system orphan branch and never ships application code.
 assert_eq "test_dry_run_includes_session_branch_ruleset: include ~ALL present" "present" "$sub_pr_has_include_all"
 assert_eq "test_dry_run_includes_session_branch_ruleset: exclude refs/heads/main present" "present" "$sub_pr_has_exclude_main"
+assert_eq "test_dry_run_includes_session_branch_ruleset: exclude refs/heads/tickets present" "present" "$sub_pr_has_exclude_tickets"
 assert_pass_if_clean "test_dry_run_includes_session_branch_ruleset"
 
 # test_session_branch_patterns_match_workflow_triggers removed (PR-2):

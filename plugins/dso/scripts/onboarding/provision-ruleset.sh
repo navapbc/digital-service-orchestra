@@ -360,10 +360,14 @@ SUB_PR_STATUS_JSON='[{"context": "review-sub-pr"}]'
 #
 # The current invariant: any PR not targeting main should be reviewed before
 # merging. Express it directly via GitHub Ruleset's ~ALL include + an explicit
-# exclude. main is the only exclude because main has its own ruleset (15629023,
-# "DSO CI Enforcement") with its own required checks.
+# exclude list:
+#   - main: has its own ruleset (15629023, "DSO CI Enforcement") with its own
+#     required checks. Excluding here avoids double enforcement.
+#   - tickets: orphan branch used by the ticket system  # tickets-boundary-ok
+#     The ticket-CLI commits there as part of normal operations; it never
+#     ships application code and should not be subject to sub-PR review.
 SUB_PR_INCLUDE_JSON='["~ALL"]'
-SUB_PR_EXCLUDE_JSON="[\"refs/heads/${DEFAULT_BRANCH}\"]"
+SUB_PR_EXCLUDE_JSON="[\"refs/heads/${DEFAULT_BRANCH}\", \"refs/heads/tickets\"]"
 
 SUB_PR_PAYLOAD_JSON=$(cat <<EOF
 {
