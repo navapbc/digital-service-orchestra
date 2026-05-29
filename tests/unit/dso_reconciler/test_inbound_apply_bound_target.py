@@ -263,3 +263,136 @@ def test_status_already_local_not_double_mapped(tmp_path, applier):
     assert status_events[0]["data"].get("status") == "in_progress", (
         f"Expected status='in_progress' (no double-map), got {status_events[0]['data']}"
     )
+
+
+# ---------------------------------------------------------------------------
+# 5. Finding 3 — title takes precedence over summary when both are present
+# ---------------------------------------------------------------------------
+
+
+def test_title_takes_precedence_over_summary(tmp_path, applier):
+    """When a payload contains BOTH ``title`` (differ-emitted) and ``summary``
+    (legacy back-compat key), the EDIT event must use ``title`` — not
+    ``summary``. The differ is the source of truth; the legacy key is only
+    honoured when ``title`` is absent."""
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    local_uuid = "cccccccc-dddd-eeee-ffff-000011112222"
+    (tracker_dir / local_uuid).mkdir()
+
+    mutation = _make_mutation(
+        applier,
+        target="DIG-1005",
+        payload={
+            "local_id": local_uuid,
+            "fields": {
+                "title": "New title from differ",
+                "summary": "Legacy summary value",
+            },
+        },
+    )
+
+    applier._apply_inbound_update(mutation, client=None, repo_root=tmp_path)
+
+    events = _read_events(tracker_dir / local_uuid)
+    edit = next(e for e in events if e.get("event_type") == "EDIT")
+    assert edit["data"]["fields"].get("title") == "New title from differ", (
+        f"Expected title='New title from differ' (title wins over summary), "
+        f"got {edit['data']['fields']}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 6. Finding 2 / 4 — type-based status guard (not value-membership)
+# ---------------------------------------------------------------------------
+
+
+def test_status_dict_shape_invokes_mapper(tmp_path, applier):
+    """A status arriving as a dict (Jira-shaped, e.g. ``{"name": "In Progress"}``)
+    is from a legacy/back-compat caller that bypassed the differ. The applier
+    must invoke the Jira→local mapper for the dict case."""
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    local_uuid = "33333333-4444-5555-6666-777777777777"
+    (tracker_dir / local_uuid).mkdir()
+
+    mutation = _make_mutation(
+        applier,
+        target="DIG-1006",
+        payload={
+            "local_id": local_uuid,
+            "fields": {"status": {"name": "In Progress"}},
+        },
+    )
+
+    applier._apply_inbound_update(mutation, client=None, repo_root=tmp_path)
+
+    events = _read_events(tracker_dir / local_uuid)
+    status_events = [e for e in events if e.get("event_type") == "STATUS"]
+    assert len(status_events) == 1
+    # The mapper should produce a non-empty local status; the exact value
+    # depends on config.local_to_jira_status. Critical assertion: it is
+    # a string and not the raw dict.
+    written = status_events[0]["data"].get("status")
+    assert isinstance(written, str), (
+        f"Expected mapped string status for dict input, got {type(written).__name__}: {written!r}"
+    )
+
+
+def test_status_unknown_string_value_trusts_differ(tmp_path, applier):
+    """A string status that is NOT in the local-set (e.g. 'pending') must
+    still be trusted as-is on the typed-mutation path — the type guard
+    (str → trust, dict → map) replaces the value-membership heuristic so
+    that a Jira tenant with a custom-named status like 'pending' cannot
+    accidentally trigger double-mapping back to ''."""
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    local_uuid = "88888888-9999-aaaa-bbbb-cccccccccccc"
+    (tracker_dir / local_uuid).mkdir()
+
+    mutation = _make_mutation(
+        applier,
+        target="DIG-1007",
+        payload={
+            "local_id": local_uuid,
+            "fields": {"status": "pending"},
+        },
+    )
+
+    applier._apply_inbound_update(mutation, client=None, repo_root=tmp_path)
+
+    events = _read_events(tracker_dir / local_uuid)
+    status_events = [e for e in events if e.get("event_type") == "STATUS"]
+    assert len(status_events) == 1
+    assert status_events[0]["data"].get("status") == "pending", (
+        f"Expected 'pending' written verbatim (trust differ contract on "
+        f"typed-mutation path), got {status_events[0]['data']}"
+    )
+
+
+def test_status_empty_string_trusts_differ_no_double_map(tmp_path, applier):
+    """An empty string status from the differ is written as-is (no fallback
+    through _jira_status_to_local which would coerce '' → 'open')."""
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+    local_uuid = "99999999-aaaa-bbbb-cccc-dddddddddddd"
+    (tracker_dir / local_uuid).mkdir()
+
+    mutation = _make_mutation(
+        applier,
+        target="DIG-1008",
+        payload={
+            "local_id": local_uuid,
+            "fields": {"status": ""},
+        },
+    )
+
+    applier._apply_inbound_update(mutation, client=None, repo_root=tmp_path)
+
+    events = _read_events(tracker_dir / local_uuid)
+    status_events = [e for e in events if e.get("event_type") == "STATUS"]
+    assert len(status_events) == 1
+    assert status_events[0]["data"].get("status") == "", (
+        f"Expected '' written verbatim (type-based guard trusts string "
+        f"input from differ), got {status_events[0]['data']}"
+    )

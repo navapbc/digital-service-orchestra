@@ -410,6 +410,20 @@ _JIRA_PRIORITY_MAP: dict[str, int] = {
 
 _VALID_PRIORITY_RANGE = range(0, 5)  # 0-4 inclusive
 
+# Local status vocabulary (source of truth: ticket_reducer/_processors.py:process_status).
+# Listed here for documentation / debug purposes only — the typed-mutation
+# inbound path no longer uses value-membership to decide whether to invoke
+# the Jira→local mapper (see _apply_inbound_update). Kept as a module
+# constant so any future check is consistent with the reducer.
+_LOCAL_STATUS_VALUES: tuple[str, ...] = (
+    "open",
+    "in_progress",
+    "blocked",
+    "closed",
+    "cancelled",
+    "done",
+)
+
 
 def _resolve_priority(raw_pri: Any) -> int:
     """Convert a Jira priority (name-string or int) to a local 0-4 integer.
@@ -702,22 +716,19 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
 
     if "status" in fields:
         raw_status = fields["status"]
-        # Bug 1bb2: the differ supplies status already mapped to a local
-        # value ('open'|'in_progress'|'blocked'|'closed'|'cancelled').
-        # Re-running it through _jira_status_to_local would double-map
-        # (e.g. 'in_progress' → '' since it's not a Jira status name).
-        # Only invoke the mapper when the value looks like a Jira name.
-        if isinstance(raw_status, str) and raw_status in (
-            "open",
-            "in_progress",
-            "blocked",
-            "closed",
-            "cancelled",
-            "done",
-        ):
-            local_status = raw_status
-        else:
+        # Bug 1bb2 (llm-review finding 2): Trust the differ contract by
+        # SHAPE rather than VALUE. The inbound differ
+        # (_diff_jira_vs_local → _map_jira_to_local_fields) always emits
+        # status as a pre-mapped local string. Legacy callers that bypass
+        # the differ pass the raw Jira shape (a dict like {"name": "..."}).
+        # A value-membership check would mis-route a Jira tenant whose
+        # status is literally named one of the local values (e.g.
+        # 'in_progress') — but only the dict shape needs reverse-mapping,
+        # so the type itself is a reliable discriminator.
+        if isinstance(raw_status, dict):
             local_status = _jira_status_to_local(_extract_name(raw_status))
+        else:
+            local_status = raw_status
         # current_status is the PREVIOUS state (matched against state["status"]
         # by the reducer for fork detection — see
         # ticket_reducer/_processors.py:process_status).
