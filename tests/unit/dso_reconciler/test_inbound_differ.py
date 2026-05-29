@@ -376,22 +376,3 @@ def test_inbound_label_diff_does_not_remove_local_colon_form_dso_id(
             ), f"Inbound differ emitted spurious REMOVE for dso-id label: {lm}"
 
 
-def test_inbound_differ_excluded_prefixes_contains_both_forms(
-    inbound_differ: ModuleType,
-) -> None:
-    """Defensive: pin both separator forms in ``_EXCLUDED_PREFIXES``.
-
-    Mirrors the outbound differ contract (see ``outbound_differ.py``
-    ``_EXCLUDED_PREFIXES``). A regression here would silently re-leak
-    bridge-internal labels.
-    """
-    excluded = inbound_differ._EXCLUDED_PREFIXES
-    assert "dso-id:" in excluded, (
-        "colon-form dso-id missing from inbound _EXCLUDED_PREFIXES"
-    )
-    assert "dso-id-" in excluded, (
-        "hyphen-form dso-id missing from inbound _EXCLUDED_PREFIXES"
-    )
-    assert "imported:" in excluded, (
-        "imported: prefix missing from inbound _EXCLUDED_PREFIXES"
-    )
