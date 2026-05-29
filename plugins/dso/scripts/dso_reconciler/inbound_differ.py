@@ -162,10 +162,17 @@ def _diff_jira_vs_local(
     jira_mapped = _map_jira_to_local_fields(jira_fields)
     changed: dict[str, Any] = {}
 
+    # Bug 36af: ticket_type is governed by an approved sync exception —
+    # outbound updates do NOT propagate local->Jira because Jira's coarser
+    # type taxonomy (Bug/Story/Task/Epic) is not a faithful reverse-mapping
+    # for the richer local types (e.g. 'epic' as a planning container).
+    # The inbound mirror was missed: without exclusion here, a Jira-side
+    # 'Bug' overwrites a local 'epic' on the next pass, corrupting state.
+    # See bug 36af-cb85-374e-4d2e for the live fleet evidence (DIG-4346 and
+    # DIG-4473 both queued epic->bug mutations).
     field_map = {
         "title": "title",
         "description": "description",
-        "ticket_type": "ticket_type",
         "priority": "priority",
         "status": "status",
         "assignee": "assignee",
