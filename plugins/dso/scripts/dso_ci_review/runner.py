@@ -155,6 +155,49 @@ def _normalise_tool_severity(raw: object) -> str:
     return _TOOL_SEVERITY_FROM_REVIEW.get(raw.lower().strip(), "info")
 
 
+def _format_merged_for_arch(merged: dict) -> str:
+    """Format the merged-specialist findings for ``dispatch_arch_synthesis``.
+
+    The ``dso:code-reviewer-deep-arch`` agent's Sonnet Findings Guard
+    requires three explicit markers in its dispatch prompt:
+
+      === SONNET-A FINDINGS (correctness) ===
+      === SONNET-B FINDINGS (verification) ===
+      === SONNET-C FINDINGS (hygiene/design) ===
+
+    Without all three markers the agent refuses to proceed and returns a
+    prose refusal that downstream JSON parsing rejects as ValueError
+    (observed in CI on PR #448 — bug 7f55 / f148 follow-up). Partition
+    findings by category (defaulting unknowns to "correctness", matching
+    ``_normalise_review_category``) and emit each section's findings as a
+    JSON array under its required marker. Empty categories still get
+    their marker plus an empty array — the guard checks for the marker
+    string, not for content.
+    """
+    findings: list[dict] = list(merged.get("findings") or [])
+    a_findings: list[dict] = []
+    b_findings: list[dict] = []
+    c_findings: list[dict] = []
+    for f in findings:
+        if not isinstance(f, dict):
+            continue
+        category = _normalise_review_category(f.get("category"))
+        if category == "verification":
+            b_findings.append(f)
+        elif category in {"hygiene", "design", "maintainability"}:
+            c_findings.append(f)
+        else:
+            a_findings.append(f)
+    return (
+        "=== SONNET-A FINDINGS (correctness) ===\n"
+        + json.dumps(a_findings, indent=2)
+        + "\n\n=== SONNET-B FINDINGS (verification) ===\n"
+        + json.dumps(b_findings, indent=2)
+        + "\n\n=== SONNET-C FINDINGS (hygiene/design) ===\n"
+        + json.dumps(c_findings, indent=2)
+    )
+
+
 # Finding `type` values that correspond to operational/tool emits rather than
 # real LLM review findings. Used by _emit_finding_telemetry below to route
 # each finding to the correct event_type.
@@ -2683,7 +2726,13 @@ def main() -> int:
             # with defenses so the arch synthesizer can avoid re-emitting defended findings.
             if tier == "deep":
                 arch_model = _read_tier_model("deep-arch", config_path)
-                merged_json = json.dumps(merged)
+                # The deep-arch agent's Sonnet Findings Guard refuses any
+                # prompt missing the three category markers (SONNET-A/B/C).
+                # _format_merged_for_arch partitions by category and emits
+                # the markers required by the agent contract — without this,
+                # the synthesis call returns a prose refusal and crashes
+                # downstream JSON parsing (bug 7f55 / PR #448 cycle 1).
+                merged_json = _format_merged_for_arch(merged)
                 # LEDGER-SAFE (task 36cf): SHA-reset sets cycle_num=1, so prior_defenses=[]
                 # (the fetch is gated on cycle_num >= 2 above). The compound condition below
                 # short-circuits to False in that case — no defense context injected. Correct.
