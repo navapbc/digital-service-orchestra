@@ -157,7 +157,7 @@ def test_runner_output_goes_to_file_not_stdout(fixture_diff_path, tmp_path):
     )
 
 
-def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
+def test_runner_config_error_exits_4(fixture_diff_path, tmp_path):
     """
     Given: no CI_REVIEW_PROVIDER configured and no DSO_CI_REVIEW_DRY_RUN
     When: dso_ci_review.runner is invoked with a non-empty diff
@@ -182,8 +182,9 @@ def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
         timeout=30,
     )
 
-    assert result.returncode == 1, (
-        f"Expected exit code 1 (ConfigError), got {result.returncode}.\n"
+    assert result.returncode == 4, (
+        f"Expected exit code 4 (R4: provider ConfigError is an infrastructure "
+        f"failure), got {result.returncode}.\n"
         f"stdout: {result.stdout}\n"
         f"stderr: {result.stderr}"
     )
@@ -192,7 +193,7 @@ def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
     )
 
 
-def test_runner_auth_error_exits_1(fixture_diff_path, tmp_path):
+def test_runner_auth_error_exits_4(fixture_diff_path, tmp_path):
     """
     Given: CI_REVIEW_PROVIDER=anthropic but ANTHROPIC_API_KEY absent
     When: dso_ci_review.runner is invoked with a non-empty diff
@@ -218,8 +219,9 @@ def test_runner_auth_error_exits_1(fixture_diff_path, tmp_path):
         timeout=30,
     )
 
-    assert result.returncode == 1, (
-        f"Expected exit code 1 (AuthError), got {result.returncode}.\n"
+    assert result.returncode == 4, (
+        f"Expected exit code 4 (R4: provider AuthError is an infrastructure "
+        f"failure), got {result.returncode}.\n"
         f"stdout: {result.stdout}\n"
         f"stderr: {result.stderr}"
     )
@@ -584,6 +586,8 @@ def test_runner_exits_4_when_all_specialists_fail(tmp_path):
             {
                 "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
                 "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                # Pin to defeat ambient-state flakiness (CodeRabbit PR #455).
+                "DSO_INFRA_EXIT_CODE_ENABLED": "1",
                 "CI_REVIEW_PROVIDER": "anthropic",
                 "ANTHROPIC_API_KEY": "test-key",
             },
@@ -781,6 +785,8 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
             {
                 "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
                 "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                # Pin to defeat ambient-state flakiness (CodeRabbit PR #455).
+                "DSO_INFRA_EXIT_CODE_ENABLED": "1",
                 "CI_REVIEW_PROVIDER": "anthropic",
                 "ANTHROPIC_API_KEY": "test-key",
             },

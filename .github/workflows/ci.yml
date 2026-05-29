@@ -781,7 +781,12 @@ jobs:
               exit 4
               ;;
             *)
-              echo "::error::llm-review found blocking finding(s) (exit ${_rc}) — see findings JSON for details."
+              # Exit non-zero with code != 4. Most commonly this is exit 1 from
+              # the severity gate (real blocking findings) or arbiter ruling.
+              # Other paths (OVER_BOUND, schema-correction exhaustion) also
+              # return non-zero. Keep the annotation neutral so operators read
+              # the findings JSON / stderr rather than trusting the headline.
+              echo "::error::llm-review failed (exit ${_rc}) — see findings JSON and stderr above. Likely a blocking finding from the severity gate; may also be an OVER_BOUND admin route or schema-correction exhaustion."
               exit "${_rc}"
               ;;
           esac

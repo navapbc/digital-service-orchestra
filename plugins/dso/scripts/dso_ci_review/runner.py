@@ -2301,7 +2301,9 @@ def main() -> int:
         _validate_agent_files()
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        return 1
+        # R4: missing agent files is an infrastructure setup problem, not a
+        # code-review finding (CodeRabbit PR #455 major).
+        return _infra_failure_exit_code()
 
     diff_text = _read_diff()
     if not diff_text.strip():
@@ -2321,7 +2323,9 @@ def main() -> int:
                 file=sys.stderr,
             )
             _write_output({"findings": [], "skip_reason": "empty_diff_in_pr_context"})
-            return 1
+            # R4: an empty diff in PR context is a caller wiring break — the
+            # dispatcher didn't supply the diff. Infrastructure-class failure.
+            return _infra_failure_exit_code()
         # Non-PR context (local invocation / unit test): preserve historic behavior.
         _write_output({"findings": []})
         return 0
@@ -2362,7 +2366,9 @@ def main() -> int:
     except (ConfigError, AuthError) as exc:
         kind = "provider config" if isinstance(exc, ConfigError) else "provider auth"
         print(f"ERROR: {kind}: {exc}", file=sys.stderr)
-        return 1
+        # R4: provider config/auth failure is an infrastructure setup problem
+        # — wrong env var, missing API key — not a code-review finding.
+        return _infra_failure_exit_code()
 
     # Initialize cycle ledger and max_cycles before the main try block so
     # cycle_next_action routing has access to these values inside the try.
@@ -2878,7 +2884,10 @@ def main() -> int:
                 f"Errors: {'; '.join(_schema_result.errors)}",
                 file=sys.stderr,
             )
-            return 1
+            # R4: the schema validator is a subprocess that failed (not a
+            # schema_fail outcome on real findings). That is an infrastructure
+            # failure of the validation pipeline, not a code-review finding.
+            return _infra_failure_exit_code()
         # Step 7.5: schema-correction dispatch on schema_fail
         if _schema_result.status == "schema_fail":
             _max_attempts = get_schema_correction_max_attempts()

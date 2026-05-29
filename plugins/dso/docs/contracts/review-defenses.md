@@ -245,21 +245,25 @@ The `dso_ci_review.runner.main()` function uses three exit codes to communicate 
 
 | Exit code | Meaning | CI workflow action |
 |-----------|---------|---------------------|
-| `0` | Review passed — no blocking findings | Step succeeds; no annotation |
-| `1` | Review found blocking findings (critical/important/fragile) | Step fails with `::error::llm-review found blocking finding(s)` |
-| `4` | Infrastructure failure — no valid review content produced (all specialists crashed, all findings synthetic, runner-level exception, etc.) | Step fails with `::error::llm-review infrastructure failure (exit 4)` |
+| `0` | Review passed — no blocking findings, no infra failure | Step succeeds; no annotation |
+| `1` | Review failed with usable content — typically blocking findings (critical / important / fragile) from the severity gate or arbiter ruling. Also covers a small set of other partial-failure paths (OVER_BOUND admin route, schema-correction exhaustion). | Step fails with `::error::llm-review failed (exit 1)` and a hint to read findings JSON / stderr |
+| `4` | Infrastructure failure — no valid review content produced (all specialists crashed, all findings synthetic, runner-level exception, agent file missing, provider config/auth error, empty diff in PR context, schema validator process error) | Step fails with `::error::llm-review infrastructure failure (exit 4)` |
 
 **R4 (bug f148 PR-C)**: prior behavior returned `1` for both "blocking findings" and "infrastructure failure", indistinguishable to operators. Exit code `4` was introduced to separate the two so the CI annotation correctly directs operators (look at the diff for `1`; look at the LLM-provider / runner state for `4`).
 
 **Config gate**: `DSO_INFRA_EXIT_CODE_ENABLED` (default `1`). Set to `0` to roll back to legacy "all infra failures return 1" behavior — useful if the Classify step has a bug or hasn't been deployed yet. The runner reads this at exit time, so a rollback is a single env-var flip with no code change.
 
 **Code paths returning `4`** (when the gate is enabled):
-- Runner-level unhandled exception (`except Exception` in `main()`)
+- Runner-level unhandled exception (outer `except Exception` in `main()`)
 - All-specialist-errors detected pre-schema-validation (Step 7a.5)
 - All-specialist-errors detected post-cycle-action (severity gate)
 - All-synthetic findings (`specialist_error` / `fallback_exhausted` / `parse_error` only)
+- Required agent files missing at startup (`_validate_agent_files` raised)
+- Provider config / auth failure at startup (`ConfigError` / `AuthError` from `get_provider`)
+- Empty diff received in PR context (caller wiring break)
+- Schema validator subprocess failure (`validator_error` status)
 
-Schema-correction failure paths continue to return `1` — those represent a partially-failed review (real specialist findings, malformed output), not an absence of review content.
+Schema-correction failure paths continue to return `1` — those represent a partially-failed review (real specialist findings produced, malformed output that schema-correction couldn't repair), not an absence of review content.
 
 ---
 
