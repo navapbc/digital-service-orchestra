@@ -227,15 +227,15 @@ test_validate_valid_inputs_return_path
 echo ""
 echo "── _scratch_atomic_write: size enforcement and atomicity ──"
 
-# Test I: oversize write (>4096 bytes) is rejected with structured error
-echo "Test I: oversize write (5000 bytes) rejected with structured error envelope"
+# Test I: oversize write (>98304 bytes) is rejected with structured error
+echo "Test I: oversize write (99000 bytes) rejected with structured error envelope"
 test_atomic_write_rejects_oversize() {
     local base
     base=$(_make_scratch_base)
 
-    # Build a 5000-byte payload
+    # Build a 99000-byte payload (exceeds 98304 default ceiling)
     local payload
-    payload=$(python3 -c "print('x' * 5000, end='')")
+    payload=$(python3 -c "print('x' * 99000, end='')")
 
     local abs_path="$base/valid-ticket/scratch-key.json"
     mkdir -p "$(dirname "$abs_path")"
@@ -254,8 +254,8 @@ test_atomic_write_rejects_oversize() {
 
     assert_eq "status=error for oversize" "error" "$status"
     assert_eq "code=oversize for oversize" "oversize" "$code"
-    assert_eq "limit=4096 for oversize" "4096" "$limit"
-    assert_eq "actual=5000 for oversize" "5000" "$actual"
+    assert_eq "limit=98304 for oversize" "98304" "$limit"
+    assert_eq "actual=99000 for oversize" "99000" "$actual"
 }
 test_atomic_write_rejects_oversize
 
@@ -266,7 +266,7 @@ test_atomic_write_oversize_leaves_no_file() {
     base=$(_make_scratch_base)
 
     local payload
-    payload=$(python3 -c "print('y' * 5000, end='')")
+    payload=$(python3 -c "print('y' * 99000, end='')")
 
     local abs_path="$base/valid-ticket/no-file-created.json"
     mkdir -p "$(dirname "$abs_path")"

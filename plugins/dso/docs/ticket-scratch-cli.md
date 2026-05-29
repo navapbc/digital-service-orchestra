@@ -40,7 +40,7 @@ sprint:step18:batch-plan
 | No slash | Must not contain `/` |
 | No control characters | No bytes in range `0x00`–`0x1F` |
 
-**Max-byte ceiling**: 4096 bytes per value (configurable via `_scratch_atomic_write`'s `max_bytes` argument; default 4096). Overflow is signalled by a structured error envelope rather than silent truncation.
+**Max-byte ceiling**: 98304 bytes (96 KB) per value (configurable via `_scratch_atomic_write`'s `max_bytes` argument; default 98304). Empirically sized against 200 closed+archived epics (P99 story-decomposer payload ~72KB, historical max ~91KB at epic `dbbc-cf67`). Overflow is signalled by a structured error envelope rather than silent truncation. The cap remains bounded so multi-MB payloads route via filesystem path (with a pointer in scratch) rather than inflating the tickets-tracker disk. See bug 3e82 for the migration history (4096 → 32768 → 98304).
 
 ---
 
@@ -74,13 +74,13 @@ Write a key/value pair to the scratch store for a ticket.
 |----------|----------|-------------|
 | `ticket_id` | Yes | Ticket namespace (e.g., `abcd-1234-efgh-5678`) |
 | `key` | Yes | Scratch key name — must follow `<skill>:<step>:<purpose>` convention |
-| `value` | Yes | Payload string to store (arbitrary JSON or plain text; max 4096 bytes) |
+| `value` | Yes | Payload string to store (arbitrary JSON or plain text; max 98304 bytes / 96 KB) |
 
 **Behavior:**
 
 - Wraps the value in a JSON envelope: `{"ts": "<iso8601-utc>", "value": "<value>"}`
 - Writes atomically via same-directory temp file + `fsync(temp)` + `rename` + `fsync(parent dir)` — crash-safe (no partial writes observable)
-- On overflow (`len(value) > 4096` bytes UTF-8), emits a structured error envelope and exits non-zero without writing any file
+- On overflow (`len(value) > 98304` bytes UTF-8), emits a structured error envelope and exits non-zero without writing any file
 - Creates `<SCRATCH_BASE_DIR>/<ticket_id>/` on first write
 
 **JSON envelope shape (stored on disk):**
@@ -98,7 +98,7 @@ Write a key/value pair to the scratch store for a ticket.
 **Error output** (stdout, exit non-zero):
 
 ```json
-{"status": "error", "code": "oversize", "limit": 4096, "actual": 5120}
+{"status": "error", "code": "oversize", "limit": 98304, "actual": 102400}
 {"status": "error", "code": "invalid_key", "reason": "key must not contain '/': 'bad/key'"}
 ```
 
