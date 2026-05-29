@@ -572,9 +572,15 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          # Only run in ci-pr context (session→main PR with worktree-* head_ref).
-          if [[ ! "$HEAD_REF" =~ ^worktree- ]]; then
-            echo "Skipping API fallback: HEAD_REF=$HEAD_REF is not a session branch"
+          # F4 fix: gate on the full set of session-branch patterns from the
+          # source-of-truth file (config/sub-pr-branch-patterns.txt under
+          # the plugin root), not just the hardcoded ^worktree- prefix. The
+          # prior gate silently no-op'd for session/foo, session_X,
+          # bug-batch/Y, feat-*, story-*, fix-* head refs — those PRs fell
+          # into the trailer-only path and could end up reviewing the full
+          # session diff (defeating per-story decomposition).
+          if ! bash plugins/dso/scripts/ci/match-session-branch.sh "$HEAD_REF"; then
+            echo "Skipping API fallback: HEAD_REF=$HEAD_REF does not match any pattern in sub-pr-branch-patterns.txt"
             exit 0
           fi
           CROSS_BRANCH_FILE="${DSO_ARTIFACT_DIR:-$RUNNER_TEMP/dso-review}/cross-branch-files.txt"
@@ -735,31 +741,25 @@ jobs:
           bash plugins/dso/scripts/llm-review-dispatch-or-skip.sh
 
       - name: Assert review liveness
-        # c131-0f34: end-to-end liveness invariant. Fails the job if the
-        # runner did not write /tmp/findings.json, or if the file is empty or
-        # does not contain the expected `findings` key. Catches the silent-
-        # exit-0 regression class that would otherwise let PRs merge with no
-        # review having actually run.
-        if: needs.changes.outputs.code_changed == 'true'
+        # F3 fix: the prior gate (`if: code_changed == 'true'`) made this
+        # safety net invisible when the upstream classifier said "no
+        # reviewable changes" — the very class of regression it was
+        # designed to catch (a bug or allowlist drift in skip-review-check.sh
+        # that lets reviewable code through with `code_changed=false`).
+        #
+        # Run unconditionally and trust-but-verify:
+        #   - code_changed=true → assert findings.json exists and is valid
+        #     (prior behavior).
+        #   - code_changed=false → re-run skip-review-check.sh on the
+        #     actual PR diff and confirm the upstream "all allowlisted"
+        #     classification. If it disagrees, fail loud.
         shell: bash -eo pipefail {0}
+        env:
+          CODE_CHANGED: ${{ needs.changes.outputs.code_changed }}
+          DSO_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DSO_SESSION_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          F="${DSO_CI_REVIEW_FINDINGS_PATH:?DSO_CI_REVIEW_FINDINGS_PATH not set}"
-          if [ ! -s "$F" ]; then
-            echo "ERROR [liveness]: $F missing or empty — runner did not produce review output" >&2
-            exit 1
-          fi
-          # Require both: the JSON has a `findings` key AND its value is an
-          # array. Without the type check, a malformed `{"findings": {}}`
-          # would pass and `jq '.findings | length'` would produce a
-          # misleading count (c131-0f34 review cycle 3).
-          if ! jq -e 'has("findings") and (.findings | type == "array")' "$F" >/dev/null 2>&1; then
-            echo "ERROR [liveness]: $F malformed — 'findings' missing, not an array, or invalid JSON" >&2
-            # Print raw content under set -e safely: `|| true` so a jq parse
-            # failure on malformed JSON does not preempt the exit-1 below.
-            head -c 500 "$F" 2>/dev/null | sed 's/^/  | /' >&2 || true
-            exit 1
-          fi
-          echo "review liveness: ok ($(jq -r '.findings | length' "$F") findings)"
+          bash plugins/dso/scripts/ci/assert-review-liveness.sh
 
   # ── Merge-pipeline checks (umbrella) ─────────────────────────────────────
   # Stable required-check context for branch protection. This job always runs
