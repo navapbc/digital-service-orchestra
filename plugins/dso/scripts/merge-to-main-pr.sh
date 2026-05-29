@@ -2799,9 +2799,10 @@ fi
 _PHASE_MERGE_RC=0
 if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
     # PR-C: staged-* intermediate runs first; no-op for story-PR mode or
-    # already-staged-* BRANCH. On success it repoints BRANCH to staged-*.
-    _phase_staged_intermediate || { _PR_C_STAGED_RC=$?; exit "$_PR_C_STAGED_RC"; }
-    _phase_merge || _PHASE_MERGE_RC=$?
+    # already-staged-* BRANCH. Failure routes through the same CONFLICT_DATA
+    # emission path below as a _phase_merge failure (test_conflict_data_*).
+    _phase_staged_intermediate || _PHASE_MERGE_RC=$?
+    [[ "$_PHASE_MERGE_RC" -eq 0 ]] && _phase_merge || _PHASE_MERGE_RC=$?
 fi
 if [[ "$_PHASE_MERGE_RC" -ne 0 ]]; then
     if type _emit_conflict_data >/dev/null 2>&1; then
