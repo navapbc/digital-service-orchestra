@@ -813,6 +813,16 @@ _phase_staged_intermediate() {
         echo "INFO: staged-intermediate phase skipped (DSO_SKIP_STAGED_INTERMEDIATE=1)"
         return 0
     fi
+    # Auto-skip when there's no real GitHub origin (test fixtures use tmpdir
+    # remotes; the phase's gh api calls would hang or produce garbage).
+    # Test fixtures often shim `gh`, so we check the actual git remote URL
+    # rather than trusting `gh repo view`.
+    local _origin_url
+    _origin_url=$(git remote get-url origin 2>/dev/null || echo "")
+    if [[ "$_origin_url" != *"github.com"* ]]; then
+        echo "INFO: staged-intermediate phase skipped (origin '$_origin_url' is not a github.com remote)"
+        return 0
+    fi
 
     # 1. Create the staged-* ref pointing at origin/main HEAD.
     local _staged_branch
