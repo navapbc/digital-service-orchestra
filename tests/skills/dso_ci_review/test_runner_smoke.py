@@ -427,10 +427,26 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     os.makedirs(_artifacts_isolation_dir, exist_ok=True)
 
     # Mock the deep-tier arch synthesis so the real LLM call doesn't fire.
-    # Return the merged specialist output unchanged so the severity gate sees
-    # the specialist findings (correctness + hygiene) it expects.
+    # Return the merged specialist output (findings + scores) unchanged so
+    # the severity gate sees what the specialists produced.
+    # bug 7f55 / f148 follow-up: runner now sends the SONNET-A/B/C marker
+    # format (required by code-reviewer-deep-arch's Sonnet Findings Guard).
+    # That format intentionally drops scores (the agent contract is about
+    # the three finding markers, not metadata). To passthrough scores in
+    # the test we side-channel the original merged dict via a wrapper
+    # around _format_merged_for_arch that captures it.
+    _captured_merged: dict = {}
+    _real_format = runner_mod._format_merged_for_arch
+
+    def _capture_then_format(merged: dict) -> str:
+        _captured_merged.clear()
+        _captured_merged.update(merged)
+        return _real_format(merged)
+
     def _arch_synth_passthrough(merged_json, **_kwargs):
-        return json.loads(merged_json) if isinstance(merged_json, str) else merged_json
+        return dict(_captured_merged) if _captured_merged else (
+            json.loads(merged_json) if isinstance(merged_json, str) else merged_json
+        )
 
     with (
         patch.dict(
@@ -450,6 +466,10 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
         ),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
+        ),
+        patch(
+            "dso_ci_review.runner._format_merged_for_arch",
+            side_effect=_capture_then_format,
         ),
         patch(
             "dso_ci_review.runner.dispatch_arch_synthesis",
