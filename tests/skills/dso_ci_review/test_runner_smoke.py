@@ -511,14 +511,21 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     assert parsed["scores"]["hygiene"] == 2
 
 
-def test_runner_exits_1_when_all_specialists_fail(tmp_path):
+def test_runner_exits_4_when_all_specialists_fail(tmp_path):
     """
     Given: all specialists return specialist_error findings (e.g. ModuleNotFoundError)
     When: runner.main() is called in-process
-    Then: exit code is 1 and stderr contains a message about specialist failure
+    Then: exit code is 4 (infrastructure failure per R4) and stderr contains
+          a message about specialist failure.
 
-    Covers fcea-6e83: runner exits 0 (PASS) even when every specialist dispatch fails,
-    allowing a silently no-op'd review job to satisfy the required-status check.
+    R4 (PR-C) reframes this gate: an all-specialist-failure outcome is an
+    infrastructure failure, not "review found problems". Exit code 4 lets
+    the CI workflow's classify step annotate the run accordingly. Config-
+    gated via DSO_INFRA_EXIT_CODE_ENABLED for clean rollback.
+
+    Covers fcea-6e83 (the original requirement that the runner must NOT
+    exit 0 when every specialist fails — exit 4 still satisfies that, and
+    additionally gives operators the right signal).
     """
     import io
     from contextlib import redirect_stderr
@@ -590,10 +597,11 @@ def test_runner_exits_1_when_all_specialists_fail(tmp_path):
     ):
         exit_code = runner_mod.main()
 
-    assert exit_code == 1, (
-        f"Expected exit code 1 when all specialists fail, got {exit_code}. "
-        "runner.main() must detect all-specialist-error and return 1 "
-        "(fcea-6e83: silent exit-0 lets broken review satisfy required-status check)."
+    assert exit_code == 4, (
+        f"Expected exit code 4 when all specialists fail (R4 infrastructure "
+        f"failure), got {exit_code}. runner.main() must detect "
+        "all-specialist-error and return 4 (PR-C R4). Legacy rollback "
+        "behavior (exit 1) is gated behind DSO_INFRA_EXIT_CODE_ENABLED=0."
     )
     stderr_text = stderr_capture.getvalue()
     assert "specialist" in stderr_text.lower(), (
@@ -785,9 +793,10 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
     ):
         exit_code = runner_mod.main()
 
-    assert exit_code == 1, (
-        f"Expected exit code 1 (fail-closed for all-synthetic findings), got {exit_code}. "
-        f"stderr: {stderr_capture.getvalue()!r}"
+    assert exit_code == 4, (
+        f"Expected exit code 4 (R4 infrastructure failure for all-synthetic "
+        f"findings), got {exit_code}. stderr: {stderr_capture.getvalue()!r}. "
+        "Legacy exit 1 is rollback-gated via DSO_INFRA_EXIT_CODE_ENABLED=0."
     )
     stderr_text = stderr_capture.getvalue()
     assert "ERROR" in stderr_text and "synthetic" in stderr_text.lower(), (

@@ -2245,6 +2245,31 @@ async def _run_cluster(
             }
 
 
+def _infra_failure_exit_code() -> int:
+    """Return the exit code main() should use for infrastructure-class failures.
+
+    R4 (bug f148 PR-C): when the review pipeline fails for infrastructure
+    reasons — runner crash, all-specialist-errors, or all-synthetic
+    findings — we want the CI workflow's classify step to distinguish
+    "infrastructure failure" from "review found real problems". Both
+    historically returned exit 1, indistinguishable to operators.
+
+    Config-gated for clean rollback: DSO_INFRA_EXIT_CODE_ENABLED.
+      - "1" / "true" (default): return 4 for infra failures.
+      - "0" / "false": return 1 (legacy behavior, indistinguishable from
+        "review found problems"). Use when the workflow's classify step
+        hasn't been deployed yet, or when a rollback is needed.
+
+    The CI workflow's "Classify llm-review failure" step reads the exit
+    code and emits a different annotation for 4 vs 1; see
+    ${CLAUDE_PLUGIN_ROOT}/docs/contracts/review-defenses.md.
+    """
+    flag = os.environ.get("DSO_INFRA_EXIT_CODE_ENABLED", "1").strip().lower()
+    if flag in ("0", "false", "no", ""):
+        return 1
+    return 4
+
+
 def main() -> int:
     """Run the CI review and return an exit code.
 
@@ -2823,7 +2848,10 @@ def main() -> int:
                 "(check litellm installation and API key configuration)",
                 file=sys.stderr,
             )
-            return 1
+            # R4: pre-schema all-specialist-errors is the same infrastructure-
+            # failure class as the post-cycle check at line ~3200. Both must
+            # return the same code so the CI classify step is consistent.
+            return _infra_failure_exit_code()
 
         # Step 7a.75: pre-validation category remap (bug 0623-54f4-d31b-4623).
         # Normalize the 35 known off-enum category values (e.g. "code_smell",
@@ -3183,10 +3211,13 @@ def main() -> int:
             )
         except Exception:  # noqa: BLE001
             pass  # ensure the original failure is not masked by a write error
-        return 1
+        # R4: runner crash is an infrastructure failure, not a code-review finding.
+        return _infra_failure_exit_code()
 
     # Detect all-specialist-error: every finding is a specialist_error with no real review.
-    # Exit 1 so the CI job fails visibly instead of silently no-op'ing (fcea-6e83).
+    # Exit 4 (R4: infrastructure failure) instead of 1 so the CI workflow's classify
+    # step can distinguish this from "review found problems" (fcea-6e83 originally
+    # exited 1; PR-C reframes the meaning rather than removing the gate).
     _findings = merged.get("findings") or []
     all_specialist_errors = bool(_findings) and all(
         f.get("type") == "specialist_error" for f in _findings
@@ -3197,18 +3228,21 @@ def main() -> int:
             "(check litellm installation and API key configuration)",
             file=sys.stderr,
         )
-        return 1
+        return _infra_failure_exit_code()
 
     # Block (fail-closed) when all findings are synthetic (a8f6-4c5e reverses e840-327f).
     # An all-synthetic outcome means zero usable review content was produced — no valid
     # reviewer ever ran. Blocking prevents silent approval of unreviewed PRs.
+    # R4: also exit 4 (infrastructure failure) for the same operator-clarity reason —
+    # all-synthetic findings explicitly mean "no usable review content", which is an
+    # infrastructure outcome rather than a real-code finding.
     if _findings and all(f.get("type", "") in _SYNTHETIC_TYPES for f in _findings):
         print(
             f"ERROR: all {len(_findings)} finding(s) are synthetic "
             f"({'/'.join(sorted(_SYNTHETIC_TYPES))}) — no valid review content produced",
             file=sys.stderr,
         )
-        return 1
+        return _infra_failure_exit_code()
 
     # Surface blocking findings to the PR (best-effort) before deciding exit code,
     # so the author has visible context whether the gate passes or fails. Returns

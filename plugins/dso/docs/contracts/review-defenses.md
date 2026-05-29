@@ -239,6 +239,30 @@ The following ruling values from the pre-cycle-end arbiter (per-finding severity
 
 ---
 
+## Runner Exit Code Contract
+
+The `dso_ci_review.runner.main()` function uses three exit codes to communicate the review outcome to the CI workflow's "Classify llm-review failure" step:
+
+| Exit code | Meaning | CI workflow action |
+|-----------|---------|---------------------|
+| `0` | Review passed — no blocking findings | Step succeeds; no annotation |
+| `1` | Review found blocking findings (critical/important/fragile) | Step fails with `::error::llm-review found blocking finding(s)` |
+| `4` | Infrastructure failure — no valid review content produced (all specialists crashed, all findings synthetic, runner-level exception, etc.) | Step fails with `::error::llm-review infrastructure failure (exit 4)` |
+
+**R4 (bug f148 PR-C)**: prior behavior returned `1` for both "blocking findings" and "infrastructure failure", indistinguishable to operators. Exit code `4` was introduced to separate the two so the CI annotation correctly directs operators (look at the diff for `1`; look at the LLM-provider / runner state for `4`).
+
+**Config gate**: `DSO_INFRA_EXIT_CODE_ENABLED` (default `1`). Set to `0` to roll back to legacy "all infra failures return 1" behavior — useful if the Classify step has a bug or hasn't been deployed yet. The runner reads this at exit time, so a rollback is a single env-var flip with no code change.
+
+**Code paths returning `4`** (when the gate is enabled):
+- Runner-level unhandled exception (`except Exception` in `main()`)
+- All-specialist-errors detected pre-schema-validation (Step 7a.5)
+- All-specialist-errors detected post-cycle-action (severity gate)
+- All-synthetic findings (`specialist_error` / `fallback_exhausted` / `parse_error` only)
+
+Schema-correction failure paths continue to return `1` — those represent a partially-failed review (real specialist findings, malformed output), not an absence of review content.
+
+---
+
 ## Failure Contract
 
 | Condition | Behavior |
