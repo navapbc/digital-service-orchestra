@@ -11,7 +11,7 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -144,7 +144,7 @@ def _stub_modules(
 
     # Inbound differ
     inbound_differ = MagicMock()
-    inbound_differ.compute_inbound_mutations.return_value = []
+    inbound_differ.compute_inbound_mutations.return_value = ([], 0)
 
     # Sync logger: a real-ish mock that tracks calls
     sync_logger_instance = MagicMock()
@@ -171,7 +171,9 @@ def _stub_modules(
     }
 
 
-def _patch_and_run(reconcile_mod, stubs, repo_root, pass_id="test-pass", target_mode=None):
+def _patch_and_run(
+    reconcile_mod, stubs, repo_root, pass_id="test-pass", target_mode=None
+):
     """Patch reconcile_mod._load to return stubs, then call reconcile_once."""
     original_load = reconcile_mod._load
 
@@ -188,7 +190,9 @@ def _patch_and_run(reconcile_mod, stubs, repo_root, pass_id="test-pass", target_
             return_value=[],
         ):
             return reconcile_mod.reconcile_once(
-                pass_id, repo_root=repo_root, target_mode=target_mode,
+                pass_id,
+                repo_root=repo_root,
+                target_mode=target_mode,
             )
 
 
@@ -201,7 +205,11 @@ class TestOutboundCreate:
     """test_outbound_create_writes_binding_and_calls_jira"""
 
     def test_outbound_create_generates_typed_mutation(
-        self, tmp_path, reconcile_mod, mutation_mod, outbound_differ_mod,
+        self,
+        tmp_path,
+        reconcile_mod,
+        mutation_mod,
+        outbound_differ_mod,
     ):
         """When outbound_differ emits a create, reconcile_once converts it to a
         typed outbound-create Mutation and includes it in the apply() call."""
@@ -218,7 +226,9 @@ class TestOutboundCreate:
             comments=[],
             labels=[{"action": "add", "label": "team-a"}],
         )
-        stubs["reconcile_outbound_differ"].compute_outbound_mutations.return_value = [om]
+        stubs["reconcile_outbound_differ"].compute_outbound_mutations.return_value = [
+            om
+        ]
 
         result = _patch_and_run(reconcile_mod, stubs, repo_root)
 
@@ -228,7 +238,8 @@ class TestOutboundCreate:
         assert apply_call.called
         mutations_passed = apply_call.call_args[0][0]
         outbound_creates = [
-            m for m in mutations_passed
+            m
+            for m in mutations_passed
             if hasattr(m, "direction")
             and str(getattr(m.direction, "value", m.direction)) == "outbound"
             and str(getattr(m.action, "value", m.action)) == "create"
@@ -241,7 +252,11 @@ class TestOutboundUpdate:
     """test_outbound_update_routes_fields_to_correct_methods"""
 
     def test_outbound_update_generates_typed_mutation_with_changed_fields(
-        self, tmp_path, reconcile_mod, mutation_mod, outbound_differ_mod,
+        self,
+        tmp_path,
+        reconcile_mod,
+        mutation_mod,
+        outbound_differ_mod,
     ):
         """When outbound_differ emits an update, the changed_fields are
         carried in the typed Mutation payload."""
@@ -257,14 +272,17 @@ class TestOutboundUpdate:
             comments=[],
             labels=[],
         )
-        stubs["reconcile_outbound_differ"].compute_outbound_mutations.return_value = [om]
+        stubs["reconcile_outbound_differ"].compute_outbound_mutations.return_value = [
+            om
+        ]
 
         result = _patch_and_run(reconcile_mod, stubs, repo_root)
 
         apply_call = stubs["reconcile_applier"].apply
         mutations_passed = apply_call.call_args[0][0]
         outbound_updates = [
-            m for m in mutations_passed
+            m
+            for m in mutations_passed
             if hasattr(m, "direction")
             and str(getattr(m.direction, "value", m.direction)) == "outbound"
             and str(getattr(m.action, "value", m.action)) == "update"
@@ -280,7 +298,10 @@ class TestInboundUpdate:
     """test_inbound_update_writes_local_event"""
 
     def test_inbound_differ_mutations_included_in_apply(
-        self, tmp_path, reconcile_mod, mutation_mod,
+        self,
+        tmp_path,
+        reconcile_mod,
+        mutation_mod,
     ):
         """When inbound_differ emits updates, they are converted to typed
         inbound Mutations and included in the apply() call."""
@@ -296,14 +317,18 @@ class TestInboundUpdate:
             fields={"title": "Updated from Jira", "status": "in_progress"},
             labels=[],
         )
-        stubs["reconcile_inbound_differ"].compute_inbound_mutations.return_value = [im]
+        stubs["reconcile_inbound_differ"].compute_inbound_mutations.return_value = (
+            [im],
+            0,
+        )
 
         result = _patch_and_run(reconcile_mod, stubs, repo_root)
 
         apply_call = stubs["reconcile_applier"].apply
         mutations_passed = apply_call.call_args[0][0]
         inbound_updates = [
-            m for m in mutations_passed
+            m
+            for m in mutations_passed
             if hasattr(m, "direction")
             and str(getattr(m.direction, "value", m.direction)) == "inbound"
             and str(getattr(m.action, "value", m.action)) == "update"
@@ -320,7 +345,9 @@ class TestReconcileCheckMode:
     """test_reconcile_check_mode_produces_report"""
 
     def test_reconcile_check_returns_json_report(
-        self, tmp_path, reconcile_check_mod,
+        self,
+        tmp_path,
+        reconcile_check_mod,
     ):
         """reconcile_check() returns a structured report with expected keys."""
         local_tickets = [
@@ -339,7 +366,9 @@ class TestReconcileCheckMode:
                 return {"abc-1": {"jira_key": "DIG-1", "state": "confirmed"}}
 
         report = reconcile_check_mod.reconcile_check(
-            local_tickets, jira_snapshot, FakeBindings(),
+            local_tickets,
+            jira_snapshot,
+            FakeBindings(),
         )
         assert "total_bindings" in report
         assert "checked" in report
@@ -353,7 +382,11 @@ class TestCapCombined:
     """test_cap_applies_to_combined_mutations"""
 
     def test_combined_outbound_and_legacy_mutations_passed_to_apply(
-        self, tmp_path, reconcile_mod, mutation_mod, outbound_differ_mod,
+        self,
+        tmp_path,
+        reconcile_mod,
+        mutation_mod,
+        outbound_differ_mod,
     ):
         """Both legacy inbound mutations and outbound mutations flow through
         the same applier.apply() call, so mode-cap enforcement applies to the
@@ -384,7 +417,9 @@ class TestCapCombined:
             comments=[],
             labels=[],
         )
-        stubs["reconcile_outbound_differ"].compute_outbound_mutations.return_value = [om]
+        stubs["reconcile_outbound_differ"].compute_outbound_mutations.return_value = [
+            om
+        ]
 
         result = _patch_and_run(reconcile_mod, stubs, repo_root)
 
@@ -399,7 +434,9 @@ class TestSyncLogger:
     """test_sync_logger_created_and_closed"""
 
     def test_sync_logger_lifecycle(
-        self, tmp_path, reconcile_mod,
+        self,
+        tmp_path,
+        reconcile_mod,
     ):
         """SyncLogger is created at pass start with sync_pass_start, and
         closed at pass end with sync_pass_end."""
@@ -421,7 +458,9 @@ class TestBindingStoreSaved:
     """test_binding_store_saved_at_pass_end"""
 
     def test_binding_store_save_called(
-        self, tmp_path, reconcile_mod,
+        self,
+        tmp_path,
+        reconcile_mod,
     ):
         """The binding store's save() method is called after apply completes."""
         repo_root = _setup_repo_root(tmp_path)

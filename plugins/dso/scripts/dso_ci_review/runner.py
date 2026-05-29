@@ -155,6 +155,49 @@ def _normalise_tool_severity(raw: object) -> str:
     return _TOOL_SEVERITY_FROM_REVIEW.get(raw.lower().strip(), "info")
 
 
+def _format_merged_for_arch(merged: dict) -> str:
+    """Format the merged-specialist findings for ``dispatch_arch_synthesis``.
+
+    The ``dso:code-reviewer-deep-arch`` agent's Sonnet Findings Guard
+    requires three explicit markers in its dispatch prompt:
+
+      === SONNET-A FINDINGS (correctness) ===
+      === SONNET-B FINDINGS (verification) ===
+      === SONNET-C FINDINGS (hygiene/design) ===
+
+    Without all three markers the agent refuses to proceed and returns a
+    prose refusal that downstream JSON parsing rejects as ValueError
+    (observed in CI on PR #448 — bug 7f55 / f148 follow-up). Partition
+    findings by category (defaulting unknowns to "correctness", matching
+    ``_normalise_review_category``) and emit each section's findings as a
+    JSON array under its required marker. Empty categories still get
+    their marker plus an empty array — the guard checks for the marker
+    string, not for content.
+    """
+    findings: list[dict] = list(merged.get("findings") or [])
+    a_findings: list[dict] = []
+    b_findings: list[dict] = []
+    c_findings: list[dict] = []
+    for f in findings:
+        if not isinstance(f, dict):
+            continue
+        category = _normalise_review_category(f.get("category"))
+        if category == "verification":
+            b_findings.append(f)
+        elif category in {"hygiene", "design", "maintainability"}:
+            c_findings.append(f)
+        else:
+            a_findings.append(f)
+    return (
+        "=== SONNET-A FINDINGS (correctness) ===\n"
+        + json.dumps(a_findings, indent=2)
+        + "\n\n=== SONNET-B FINDINGS (verification) ===\n"
+        + json.dumps(b_findings, indent=2)
+        + "\n\n=== SONNET-C FINDINGS (hygiene/design) ===\n"
+        + json.dumps(c_findings, indent=2)
+    )
+
+
 # Finding `type` values that correspond to operational/tool emits rather than
 # real LLM review findings. Used by _emit_finding_telemetry below to route
 # each finding to the correct event_type.
@@ -871,15 +914,55 @@ def _format_finding_comment(idx: int, total: int, finding: dict) -> str:
 
 
 def _resolve_pr_head_sha(pr_number: int | str) -> str | None:
-    """Resolve the HEAD SHA of the PR branch.
+    """Resolve the HEAD SHA of the PR branch — event-aware.
 
-    Checks GITHUB_SHA env var first (set by Actions on both push and
-    pull_request events). Falls back to `gh pr view headRefOid`.
-    Returns None on any failure.
+    R1 (bug f148): on ``pull_request`` and ``pull_request_target`` events
+    GitHub Actions sets ``GITHUB_SHA`` to the SYNTHESIZED MERGE-COMMIT SHA
+    (refs/pull/N/merge), not the actual PR HEAD. The Reviews API rejects
+    a posted review whose ``commit_id`` is not on the PR's commit list,
+    so the prior "GITHUB_SHA-first" order produced HTTP 422 on every
+    session→main PR.
+
+    Resolution order:
+      1. ``pull_request`` / ``pull_request_target`` event → ``gh pr view
+         <pr> --json headRefOid -q .headRefOid`` (authoritative for these
+         events). Fall through to GITHUB_SHA only if gh is unavailable.
+      2. All other events (push, workflow_dispatch, schedule, …) →
+         ``GITHUB_SHA`` (correct for those events).
+      3. Last-resort: ``gh pr view headRefOid``.
     """
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "").strip()
+    pr_events = {"pull_request", "pull_request_target"}
+
+    if event_name in pr_events:
+        # Prefer gh for PR events: GITHUB_SHA is the merge-commit ref here,
+        # not the PR HEAD.
+        sha = _gh_pr_head_oid(pr_number)
+        if sha:
+            return sha
+        # Degraded: fall back to GITHUB_SHA with a warning so the operator
+        # can investigate the gh failure.
+        fallback = os.environ.get("GITHUB_SHA", "").strip()
+        if fallback:
+            print(
+                f"WARNING [_resolve_pr_head_sha]: gh pr view failed for "
+                f"PR #{pr_number}; falling back to GITHUB_SHA={fallback[:12]}… "
+                "(may be the merge-commit ref, not the PR HEAD — Reviews API may 422).",
+                file=sys.stderr,
+            )
+            return fallback
+        return None
+
+    # Non-PR events: GITHUB_SHA is the correct value.
     sha = os.environ.get("GITHUB_SHA", "").strip()
     if sha:
         return sha
+    # Last-resort: try gh.
+    return _gh_pr_head_oid(pr_number)
+
+
+def _gh_pr_head_oid(pr_number: int | str) -> str | None:
+    """Return the PR's head ref OID via gh, or None on any failure."""
     try:
         result = subprocess.run(
             [
@@ -901,7 +984,7 @@ def _resolve_pr_head_sha(pr_number: int | str) -> str | None:
             if sha:
                 return sha
     except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None  # gh not installed or timed out — caller handles None
+        return None
     return None
 
 
@@ -2120,8 +2203,28 @@ async def _run_cluster(
             )
             findings: list[dict] = []
             for dr in dispatch_results:
-                if isinstance(dr, dict):
-                    findings.extend(dr.get("findings", []))
+                if not isinstance(dr, dict):
+                    continue
+                _raw = dr.get("findings", [])
+                # Bug 7f55: guard against degraded LLM responses where
+                # `findings` is a non-list (e.g. {"findings": "no issues"}).
+                # Without this guard, list.extend(str) flattens the string
+                # character-by-character into bogus per-char "findings",
+                # which then crash aggregator._deduplicate_findings (line 75)
+                # with AttributeError: 'str' object has no attribute 'get'.
+                # Established pattern at dispatch.py:1274 — applied here.
+                if not isinstance(_raw, list):
+                    print(
+                        f"WARNING: cluster {cluster_dir} dispatch result has "
+                        f"non-list findings ({type(_raw).__name__}); skipping. "
+                        f"preview: {str(_raw)[:200]!r}",
+                        file=sys.stderr,
+                    )
+                    continue
+                # Also filter per-item: an individual finding that isn't a
+                # dict cannot be aggregated; drop quietly to preserve the
+                # rest of the cluster's valid findings.
+                findings.extend(f for f in _raw if isinstance(f, dict))
             return {
                 "cluster_id": cluster_dir,
                 "file_paths": cluster_files,
@@ -2140,6 +2243,31 @@ async def _run_cluster(
                 "findings": [],
                 "status": "dispatch_error",
             }
+
+
+def _infra_failure_exit_code() -> int:
+    """Return the exit code main() should use for infrastructure-class failures.
+
+    R4 (bug f148 PR-C): when the review pipeline fails for infrastructure
+    reasons — runner crash, all-specialist-errors, or all-synthetic
+    findings — we want the CI workflow's classify step to distinguish
+    "infrastructure failure" from "review found real problems". Both
+    historically returned exit 1, indistinguishable to operators.
+
+    Config-gated for clean rollback: DSO_INFRA_EXIT_CODE_ENABLED.
+      - "1" / "true" (default): return 4 for infra failures.
+      - "0" / "false": return 1 (legacy behavior, indistinguishable from
+        "review found problems"). Use when the workflow's classify step
+        hasn't been deployed yet, or when a rollback is needed.
+
+    The CI workflow's "Classify llm-review failure" step reads the exit
+    code and emits a different annotation for 4 vs 1; see
+    ${CLAUDE_PLUGIN_ROOT}/docs/contracts/review-defenses.md.
+    """
+    flag = os.environ.get("DSO_INFRA_EXIT_CODE_ENABLED", "1").strip().lower()
+    if flag in ("0", "false", "no", ""):
+        return 1
+    return 4
 
 
 def main() -> int:
@@ -2173,7 +2301,9 @@ def main() -> int:
         _validate_agent_files()
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        return 1
+        # R4: missing agent files is an infrastructure setup problem, not a
+        # code-review finding (CodeRabbit PR #455 major).
+        return _infra_failure_exit_code()
 
     diff_text = _read_diff()
     if not diff_text.strip():
@@ -2193,7 +2323,9 @@ def main() -> int:
                 file=sys.stderr,
             )
             _write_output({"findings": [], "skip_reason": "empty_diff_in_pr_context"})
-            return 1
+            # R4: an empty diff in PR context is a caller wiring break — the
+            # dispatcher didn't supply the diff. Infrastructure-class failure.
+            return _infra_failure_exit_code()
         # Non-PR context (local invocation / unit test): preserve historic behavior.
         _write_output({"findings": []})
         return 0
@@ -2234,7 +2366,9 @@ def main() -> int:
     except (ConfigError, AuthError) as exc:
         kind = "provider config" if isinstance(exc, ConfigError) else "provider auth"
         print(f"ERROR: {kind}: {exc}", file=sys.stderr)
-        return 1
+        # R4: provider config/auth failure is an infrastructure setup problem
+        # — wrong env var, missing API key — not a code-review finding.
+        return _infra_failure_exit_code()
 
     # Initialize cycle ledger and max_cycles before the main try block so
     # cycle_next_action routing has access to these values inside the try.
@@ -2623,7 +2757,13 @@ def main() -> int:
             # with defenses so the arch synthesizer can avoid re-emitting defended findings.
             if tier == "deep":
                 arch_model = _read_tier_model("deep-arch", config_path)
-                merged_json = json.dumps(merged)
+                # The deep-arch agent's Sonnet Findings Guard refuses any
+                # prompt missing the three category markers (SONNET-A/B/C).
+                # _format_merged_for_arch partitions by category and emits
+                # the markers required by the agent contract — without this,
+                # the synthesis call returns a prose refusal and crashes
+                # downstream JSON parsing (bug 7f55 / PR #448 cycle 1).
+                merged_json = _format_merged_for_arch(merged)
                 # LEDGER-SAFE (task 36cf): SHA-reset sets cycle_num=1, so prior_defenses=[]
                 # (the fetch is gated on cycle_num >= 2 above). The compound condition below
                 # short-circuits to False in that case — no defense context injected. Correct.
@@ -2714,7 +2854,10 @@ def main() -> int:
                 "(check litellm installation and API key configuration)",
                 file=sys.stderr,
             )
-            return 1
+            # R4: pre-schema all-specialist-errors is the same infrastructure-
+            # failure class as the post-cycle check at line ~3200. Both must
+            # return the same code so the CI classify step is consistent.
+            return _infra_failure_exit_code()
 
         # Step 7a.75: pre-validation category remap (bug 0623-54f4-d31b-4623).
         # Normalize the 35 known off-enum category values (e.g. "code_smell",
@@ -2741,7 +2884,10 @@ def main() -> int:
                 f"Errors: {'; '.join(_schema_result.errors)}",
                 file=sys.stderr,
             )
-            return 1
+            # R4: the schema validator is a subprocess that failed (not a
+            # schema_fail outcome on real findings). That is an infrastructure
+            # failure of the validation pipeline, not a code-review finding.
+            return _infra_failure_exit_code()
         # Step 7.5: schema-correction dispatch on schema_fail
         if _schema_result.status == "schema_fail":
             _max_attempts = get_schema_correction_max_attempts()
@@ -3019,7 +3165,23 @@ def main() -> int:
 
         # DISPATCH_NEXT: fall through to existing severity gate below the try/except.
     except Exception as exc:  # noqa: BLE001
-        print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
+        # Bug 7f55: this except wraps the entire post-dispatch pipeline
+        # (LLM dispatch + aggregator + schema correction + telemetry —
+        # roughly 770 lines), not just the LLM HTTP call. Naming the log
+        # "LLM call failed" misleads operators who go hunting for an
+        # HTTP-call defect when the actual crash was in aggregation or
+        # schema. Surface the exception class AND the traceback so the
+        # call site is identifiable from the CI log alone — without
+        # this, we lose minutes per cycle re-deriving the file:line.
+        import traceback as _tb
+        print(
+            f"ERROR: review pipeline crashed: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        print(
+            "TRACEBACK:\n" + _tb.format_exc(),
+            file=sys.stderr,
+        )
         # c131-0f34 defense-in-depth: always write a findings record before
         # returning so the workflow-side liveness assertion has something to
         # observe. Without this, an unhandled exception between Step 1 and
@@ -3058,10 +3220,13 @@ def main() -> int:
             )
         except Exception:  # noqa: BLE001
             pass  # ensure the original failure is not masked by a write error
-        return 1
+        # R4: runner crash is an infrastructure failure, not a code-review finding.
+        return _infra_failure_exit_code()
 
     # Detect all-specialist-error: every finding is a specialist_error with no real review.
-    # Exit 1 so the CI job fails visibly instead of silently no-op'ing (fcea-6e83).
+    # Exit 4 (R4: infrastructure failure) instead of 1 so the CI workflow's classify
+    # step can distinguish this from "review found problems" (fcea-6e83 originally
+    # exited 1; PR-C reframes the meaning rather than removing the gate).
     _findings = merged.get("findings") or []
     all_specialist_errors = bool(_findings) and all(
         f.get("type") == "specialist_error" for f in _findings
@@ -3072,18 +3237,21 @@ def main() -> int:
             "(check litellm installation and API key configuration)",
             file=sys.stderr,
         )
-        return 1
+        return _infra_failure_exit_code()
 
     # Block (fail-closed) when all findings are synthetic (a8f6-4c5e reverses e840-327f).
     # An all-synthetic outcome means zero usable review content was produced — no valid
     # reviewer ever ran. Blocking prevents silent approval of unreviewed PRs.
+    # R4: also exit 4 (infrastructure failure) for the same operator-clarity reason —
+    # all-synthetic findings explicitly mean "no usable review content", which is an
+    # infrastructure outcome rather than a real-code finding.
     if _findings and all(f.get("type", "") in _SYNTHETIC_TYPES for f in _findings):
         print(
             f"ERROR: all {len(_findings)} finding(s) are synthetic "
             f"({'/'.join(sorted(_SYNTHETIC_TYPES))}) — no valid review content produced",
             file=sys.stderr,
         )
-        return 1
+        return _infra_failure_exit_code()
 
     # Surface blocking findings to the PR (best-effort) before deciding exit code,
     # so the author has visible context whether the gate passes or fails. Returns

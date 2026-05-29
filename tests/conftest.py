@@ -52,6 +52,37 @@ def _dso_disable_telemetry_during_tests(
 
 
 @pytest.fixture(autouse=True)
+def _dso_dummy_anthropic_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Set a dummy ANTHROPIC_API_KEY so tests that exercise dispatch_review
+    (or any provider-config-validated path) don't fail with
+    ``ConfigError: Missing ANTHROPIC_API_KEY`` when run in a CI job that
+    lacks the secret (e.g. Python Skill/Doc Tests, ticket-platform-matrix).
+
+    Without this fixture, every test that reaches the provider-config
+    validation step needs its own ``monkeypatch.setenv("ANTHROPIC_API_KEY",
+    ...)`` even when the LLM call itself is mocked. Bug f148 PR-A surfaced
+    this when its R2 test passed locally (key was set in the shell) but
+    failed on CI (no key exposed to the unit-test job).
+
+    Tests that intentionally probe the missing-key path (e.g.
+    test_providers_config.py:110) already call
+    ``monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)`` per-test;
+    pytest applies per-test monkeypatch AFTER autouse fixtures, so those
+    overrides continue to work unchanged.
+
+    The dummy key shape (sk-test-…) is non-functional — no real API call
+    can succeed with it — so leaking it into a real LLM call (e.g. by
+    forgetting to mock litellm) will fail loudly with a 401, not silently
+    bill a customer's account.
+    """
+    monkeypatch.setenv(
+        "ANTHROPIC_API_KEY", "sk-test-dummy-key-for-unit-tests"
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_repo_root_leaks() -> Iterator[None]:
     before = set(os.listdir(_REPO_ROOT))
     try:

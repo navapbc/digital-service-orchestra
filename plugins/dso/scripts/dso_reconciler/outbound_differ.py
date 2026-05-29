@@ -358,7 +358,12 @@ def _diff_comments(
 # Label diff
 # ---------------------------------------------------------------------------
 
-_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id-", "imported:")
+# NOTE: applier.py writes the bridge-internal binding label as
+# f"dso-id:{local_id}" (COLON separator). Legacy code paths used a HYPHEN
+# separator ("dso-id-<local_id>"); both forms must be excluded from outbound
+# diffs to avoid emitting spurious remove mutations for identity labels.
+# See bug 68a4-f9d5-5540-4b95.
+_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:")
 
 
 def _diff_labels(

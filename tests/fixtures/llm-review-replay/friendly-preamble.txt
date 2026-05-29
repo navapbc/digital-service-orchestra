@@ -1,0 +1,5 @@
+Sure, I'd be happy to review these changes! Here is my analysis:
+
+{"summary": "All changes look reasonable. No blocking issues.", "findings": [{"severity": "important", "description": "The error handler at line 88 swallows the underlying exception type — consider preserving it for debuggability.", "cited_lines": [88], "path": "src/handler.py"}]}
+
+Let me know if you'd like me to look at anything else.

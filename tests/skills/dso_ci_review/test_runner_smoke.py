@@ -157,7 +157,7 @@ def test_runner_output_goes_to_file_not_stdout(fixture_diff_path, tmp_path):
     )
 
 
-def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
+def test_runner_config_error_exits_4(fixture_diff_path, tmp_path):
     """
     Given: no CI_REVIEW_PROVIDER configured and no DSO_CI_REVIEW_DRY_RUN
     When: dso_ci_review.runner is invoked with a non-empty diff
@@ -182,8 +182,9 @@ def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
         timeout=30,
     )
 
-    assert result.returncode == 1, (
-        f"Expected exit code 1 (ConfigError), got {result.returncode}.\n"
+    assert result.returncode == 4, (
+        f"Expected exit code 4 (R4: provider ConfigError is an infrastructure "
+        f"failure), got {result.returncode}.\n"
         f"stdout: {result.stdout}\n"
         f"stderr: {result.stderr}"
     )
@@ -192,7 +193,7 @@ def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
     )
 
 
-def test_runner_auth_error_exits_1(fixture_diff_path, tmp_path):
+def test_runner_auth_error_exits_4(fixture_diff_path, tmp_path):
     """
     Given: CI_REVIEW_PROVIDER=anthropic but ANTHROPIC_API_KEY absent
     When: dso_ci_review.runner is invoked with a non-empty diff
@@ -218,8 +219,9 @@ def test_runner_auth_error_exits_1(fixture_diff_path, tmp_path):
         timeout=30,
     )
 
-    assert result.returncode == 1, (
-        f"Expected exit code 1 (AuthError), got {result.returncode}.\n"
+    assert result.returncode == 4, (
+        f"Expected exit code 4 (R4: provider AuthError is an infrastructure "
+        f"failure), got {result.returncode}.\n"
         f"stdout: {result.stdout}\n"
         f"stderr: {result.stderr}"
     )
@@ -427,10 +429,26 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     os.makedirs(_artifacts_isolation_dir, exist_ok=True)
 
     # Mock the deep-tier arch synthesis so the real LLM call doesn't fire.
-    # Return the merged specialist output unchanged so the severity gate sees
-    # the specialist findings (correctness + hygiene) it expects.
+    # Return the merged specialist output (findings + scores) unchanged so
+    # the severity gate sees what the specialists produced.
+    # bug 7f55 / f148 follow-up: runner now sends the SONNET-A/B/C marker
+    # format (required by code-reviewer-deep-arch's Sonnet Findings Guard).
+    # That format intentionally drops scores (the agent contract is about
+    # the three finding markers, not metadata). To passthrough scores in
+    # the test we side-channel the original merged dict via a wrapper
+    # around _format_merged_for_arch that captures it.
+    _captured_merged: dict = {}
+    _real_format = runner_mod._format_merged_for_arch
+
+    def _capture_then_format(merged: dict) -> str:
+        _captured_merged.clear()
+        _captured_merged.update(merged)
+        return _real_format(merged)
+
     def _arch_synth_passthrough(merged_json, **_kwargs):
-        return json.loads(merged_json) if isinstance(merged_json, str) else merged_json
+        return dict(_captured_merged) if _captured_merged else (
+            json.loads(merged_json) if isinstance(merged_json, str) else merged_json
+        )
 
     with (
         patch.dict(
@@ -450,6 +468,10 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
         ),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
+        ),
+        patch(
+            "dso_ci_review.runner._format_merged_for_arch",
+            side_effect=_capture_then_format,
         ),
         patch(
             "dso_ci_review.runner.dispatch_arch_synthesis",
@@ -491,14 +513,21 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     assert parsed["scores"]["hygiene"] == 2
 
 
-def test_runner_exits_1_when_all_specialists_fail(tmp_path):
+def test_runner_exits_4_when_all_specialists_fail(tmp_path):
     """
     Given: all specialists return specialist_error findings (e.g. ModuleNotFoundError)
     When: runner.main() is called in-process
-    Then: exit code is 1 and stderr contains a message about specialist failure
+    Then: exit code is 4 (infrastructure failure per R4) and stderr contains
+          a message about specialist failure.
 
-    Covers fcea-6e83: runner exits 0 (PASS) even when every specialist dispatch fails,
-    allowing a silently no-op'd review job to satisfy the required-status check.
+    R4 (PR-C) reframes this gate: an all-specialist-failure outcome is an
+    infrastructure failure, not "review found problems". Exit code 4 lets
+    the CI workflow's classify step annotate the run accordingly. Config-
+    gated via DSO_INFRA_EXIT_CODE_ENABLED for clean rollback.
+
+    Covers fcea-6e83 (the original requirement that the runner must NOT
+    exit 0 when every specialist fails — exit 4 still satisfies that, and
+    additionally gives operators the right signal).
     """
     import io
     from contextlib import redirect_stderr
@@ -557,6 +586,8 @@ def test_runner_exits_1_when_all_specialists_fail(tmp_path):
             {
                 "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
                 "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                # Pin to defeat ambient-state flakiness (CodeRabbit PR #455).
+                "DSO_INFRA_EXIT_CODE_ENABLED": "1",
                 "CI_REVIEW_PROVIDER": "anthropic",
                 "ANTHROPIC_API_KEY": "test-key",
             },
@@ -570,10 +601,11 @@ def test_runner_exits_1_when_all_specialists_fail(tmp_path):
     ):
         exit_code = runner_mod.main()
 
-    assert exit_code == 1, (
-        f"Expected exit code 1 when all specialists fail, got {exit_code}. "
-        "runner.main() must detect all-specialist-error and return 1 "
-        "(fcea-6e83: silent exit-0 lets broken review satisfy required-status check)."
+    assert exit_code == 4, (
+        f"Expected exit code 4 when all specialists fail (R4 infrastructure "
+        f"failure), got {exit_code}. runner.main() must detect "
+        "all-specialist-error and return 4 (PR-C R4). Legacy rollback "
+        "behavior (exit 1) is gated behind DSO_INFRA_EXIT_CODE_ENABLED=0."
     )
     stderr_text = stderr_capture.getvalue()
     assert "specialist" in stderr_text.lower(), (
@@ -753,6 +785,8 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
             {
                 "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
                 "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                # Pin to defeat ambient-state flakiness (CodeRabbit PR #455).
+                "DSO_INFRA_EXIT_CODE_ENABLED": "1",
                 "CI_REVIEW_PROVIDER": "anthropic",
                 "ANTHROPIC_API_KEY": "test-key",
             },
@@ -765,9 +799,10 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
     ):
         exit_code = runner_mod.main()
 
-    assert exit_code == 1, (
-        f"Expected exit code 1 (fail-closed for all-synthetic findings), got {exit_code}. "
-        f"stderr: {stderr_capture.getvalue()!r}"
+    assert exit_code == 4, (
+        f"Expected exit code 4 (R4 infrastructure failure for all-synthetic "
+        f"findings), got {exit_code}. stderr: {stderr_capture.getvalue()!r}. "
+        "Legacy exit 1 is rollback-gated via DSO_INFRA_EXIT_CODE_ENABLED=0."
     )
     stderr_text = stderr_capture.getvalue()
     assert "ERROR" in stderr_text and "synthetic" in stderr_text.lower(), (

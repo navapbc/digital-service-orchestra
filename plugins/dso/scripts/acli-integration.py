@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -60,6 +61,16 @@ _LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
 #     Forge custom-field community thread 55277.
 _JIRA_SUMMARY_MAX_CHARS: int = 254
 _JIRA_LABEL_MAX_CHARS: int = 255
+
+
+class AssigneeNotFoundError(ValueError):
+    """Raised when a requested assignee does not resolve to any assignable Jira user.
+
+    Bug 06a5 / 85a1 (Gap 5 follow-up): mirrors the client-side pre-validation
+    pattern used by ``transition_issue_by_name`` (Gap 8). Caught before the
+    outbound mutation is dispatched so the bogus-assignee class does not
+    silently no-op via ACLI's exit-0-on-failure contract.
+    """
 
 
 class InvalidLabelError(ValueError):
@@ -168,6 +179,77 @@ class RetryExhaustedError(RuntimeError):
     """All retry attempts exhausted after transient HTTP/network errors."""
 
 
+class AcliMutationError(RuntimeError):
+    """ACLI mutation exited 0 but the structured --json output reports FAILURE.
+
+    Bug 44de: ``acli jira workitem edit/transition/assign/comment/...`` returns
+    exit=0 even when the underlying Jira operation fails. ACLI v1.3.18+ exposes
+    structured failure info under ``--json``::
+
+        {
+          "results": [{"status": "FAILURE", "message": "...", "id": "..."}],
+          "totalCount": 1,
+          "successCount": 0
+        }
+
+    ``_run_acli`` parses stdout and raises this when ``successCount == 0`` or
+    any ``results[].status == "FAILURE"``. Without it the reconciler marks
+    mutations applied while Jira state diverges silently, corrupting
+    binding-store invariants and breaking idempotent convergence.
+    """
+
+
+def _check_mutation_failure(stdout: str, cmd: list[str]) -> None:
+    """Inspect ACLI ``--json`` stdout for the structured-failure shape and raise.
+
+    Read-only commands (search, get) and successful mutations parse to shapes
+    that lack ``successCount``/``results``, so the check is a no-op for them.
+    Non-JSON stdout is treated as "no signal" — fall back to the exit-code
+    contract that ``subprocess.run(check=True)`` already enforces.
+
+    Raises:
+        AcliMutationError: ``successCount == 0`` OR any ``results[].status``
+            equals ``"FAILURE"`` (case-insensitive).
+    """
+    if not stdout or not stdout.strip():
+        return
+    try:
+        parsed = json.loads(stdout)
+    except (ValueError, TypeError):
+        return  # Non-JSON output — defer to exit-code semantics.
+    if not isinstance(parsed, dict):
+        return  # search/get return lists; nothing to check.
+
+    results = parsed.get("results")
+    success_count = parsed.get("successCount")
+    has_shape = isinstance(results, list) or success_count is not None
+    if not has_shape:
+        return  # Not the mutation-result shape (e.g., a created issue dict).
+
+    failure_messages: list[str] = []
+    if isinstance(results, list):
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status") or "").strip().upper()
+            if status == "FAILURE":
+                msg = str(item.get("message") or "").strip()
+                ident = str(item.get("id") or "").strip()
+                failure_messages.append(
+                    f"{ident}: {msg}" if ident and msg else (msg or ident or "FAILURE")
+                )
+
+    if failure_messages or success_count == 0:
+        detail = (
+            "; ".join(failure_messages)
+            if failure_messages
+            else f"successCount=0 (totalCount={parsed.get('totalCount')!r})"
+        )
+        raise AcliMutationError(
+            f"ACLI mutation reported FAILURE (exit=0) for {cmd!r}: {detail}"
+        )
+
+
 # HTTP status codes eligible for automatic retry with backoff.
 _RETRYABLE_HTTP_CODES: frozenset[int] = frozenset({429, 502, 503})
 
@@ -259,6 +341,11 @@ def _run_acli(
                 check=True,
                 env=env,
             )
+            # Bug 44de: ACLI exits 0 even when a mutation fails. Inspect the
+            # structured --json output and raise AcliMutationError if the
+            # response indicates FAILURE. Read-only and create-issue shapes
+            # short-circuit harmlessly inside the helper.
+            _check_mutation_failure(result.stdout, full_cmd)
             return result
         except subprocess.CalledProcessError as exc:
             last_error = exc
@@ -860,18 +947,29 @@ class AcliClient:
         rather than passed to ACLI as ``--assignee ""``, which ACLI silently
         no-ops (the probe Phase 2 verify-assignee-unassigned regression).
 
+        Bug 06a5 (Gap 5 follow-up): non-empty assignee values are pre-validated
+        against ``/rest/api/3/user/assignable/search`` and normalised to the
+        matched ``accountId`` before the ACLI dispatch. Bogus assignees raise
+        ``AssigneeNotFoundError`` here rather than silently no-op via ACLI's
+        exit-0-on-failure contract.
+
         unassign_issue failures are caught and logged so a transient REST
         error does not abort the entire batch — the rest of the update_one
         body (label/comment dispatch, field edits) must still run.
         """
-        if "assignee" in kwargs and kwargs["assignee"] in (None, ""):
-            kwargs.pop("assignee")
-            try:
-                self.unassign_issue(jira_key)
-            except Exception as exc:  # noqa: BLE001
-                print(  # noqa: T201
-                    f"update_issue: unassign_issue({jira_key}) failed: {exc!r}",
-                    file=sys.stderr,
+        if "assignee" in kwargs:
+            if kwargs["assignee"] in (None, ""):
+                kwargs.pop("assignee")
+                try:
+                    self.unassign_issue(jira_key)
+                except Exception as exc:  # noqa: BLE001
+                    print(  # noqa: T201
+                        f"update_issue: unassign_issue({jira_key}) failed: {exc!r}",
+                        file=sys.stderr,
+                    )
+            else:
+                kwargs["assignee"] = self.validate_assignee_exists(
+                    kwargs["assignee"], issue_key=jira_key
                 )
         return update_issue(jira_key, acli_cmd=self._acli_cmd, **kwargs)
 
@@ -945,7 +1043,15 @@ class AcliClient:
                 "--jql",
                 jql,
                 "-f",
-                "issuetype,key,assignee,priority,status,summary,description",
+                # Bug 5328: ``labels`` MUST be in this list. Without it the
+                # batch snapshot has labels=[] for every issue, which makes
+                # both differs hallucinate divergence symmetrically (outbound
+                # emits ADD-every-tag, inbound emits REMOVE-every-tag, and
+                # bidir suppression cancels them out). Any Jira-side label
+                # ADD on a bound ticket then becomes invisible to inbound
+                # because the snapshot pretends Jira has no labels at all.
+                # Mirrors the single-issue ``get_issue`` field list above.
+                "issuetype,key,assignee,priority,status,summary,description,labels",
                 "--paginate",
                 "--json",
             ]
@@ -1192,7 +1298,17 @@ class AcliClient:
                 os.close(fd)
             raise
         try:
-            cmd = ["jira", "workitem", "edit", "--from-json", json_path, "--yes"]
+            # Bug 44de: --json so _run_acli can parse the structured-failure
+            # shape and raise AcliMutationError on exit=0 + FAILURE result.
+            cmd = [
+                "jira",
+                "workitem",
+                "edit",
+                "--from-json",
+                json_path,
+                "--yes",
+                "--json",
+            ]
             self._run(cmd)
         finally:
             os.unlink(json_path)
@@ -1226,7 +1342,16 @@ class AcliClient:
                 os.close(fd)
             raise
         try:
-            cmd = ["jira", "workitem", "edit", "--from-json", json_path, "--yes"]
+            # Bug 44de: --json for structured-failure detection (see add_label).
+            cmd = [
+                "jira",
+                "workitem",
+                "edit",
+                "--from-json",
+                json_path,
+                "--yes",
+                "--json",
+            ]
             self._run(cmd)
         finally:
             os.unlink(json_path)
@@ -1302,6 +1427,67 @@ class AcliClient:
         self._direct_rest_post_raw(
             f"/rest/api/3/issue/{jira_key}/transitions",
             {"transition": {"id": str(match_id)}},
+        )
+
+    def validate_assignee_exists(
+        self,
+        assignee: str,
+        *,
+        issue_key: str | None = None,
+        project_key: str | None = None,
+    ) -> str:
+        """Validate *assignee* resolves to an assignable user; return accountId.
+
+        Mirrors the client-side pre-validation pattern from
+        ``transition_issue_by_name`` (Gap 8). GETs
+        ``/rest/api/3/user/assignable/search?query=<assignee>&issueKey=<key>``
+        (or ``&project=<project>`` when called from a CREATE path with no
+        issue key yet), then returns the matched ``accountId``. Callers should
+        forward this resolved accountId to ACLI rather than the raw input to
+        eliminate display-name/email ambiguity at the API boundary.
+
+        Raises ``AssigneeNotFoundError`` when no user matches. Raises
+        ``ValueError`` when neither scope arg is supplied.
+        """
+        if not (issue_key or project_key):
+            raise ValueError(
+                "validate_assignee_exists: issue_key or project_key required"
+            )
+        query_part = f"query={urllib.parse.quote(assignee)}"
+        scope_part = (
+            f"issueKey={urllib.parse.quote(issue_key)}"
+            if issue_key
+            else f"project={urllib.parse.quote(project_key or '')}"
+        )
+        path = f"/rest/api/3/user/assignable/search?{query_part}&{scope_part}"
+        users = self._direct_rest_get(path)
+        if not isinstance(users, list) or not users:
+            scope_label = (
+                f"issue={issue_key!r}" if issue_key else f"project={project_key!r}"
+            )
+            raise AssigneeNotFoundError(
+                f"validate_assignee_exists: no assignable user matches "
+                f"{assignee!r} for {scope_label}"
+            )
+        # Prefer exact match on emailAddress / accountId / displayName;
+        # fall back to the first result (Jira's relevance ordering).
+        for u in users:
+            if not isinstance(u, dict):
+                continue
+            if assignee in (
+                u.get("emailAddress"),
+                u.get("accountId"),
+                u.get("displayName"),
+            ):
+                acct = u.get("accountId")
+                if acct:
+                    return acct
+        first = users[0]
+        if isinstance(first, dict) and first.get("accountId"):
+            return first["accountId"]
+        raise AssigneeNotFoundError(
+            f"validate_assignee_exists: assignable search returned results "
+            f"with no accountId for {assignee!r}"
         )
 
     def unassign_issue(self, jira_key: str) -> None:
@@ -1439,6 +1625,8 @@ class AcliClient:
             to_key,
             "--type",
             link_type,
+            # Bug 44de: --json enables structured-failure detection.
+            "--json",
         ]
         self._run(cmd)  # raises on failure — no silent swallowing
         return {"status": "created", "from": from_key, "to": to_key}
@@ -1498,15 +1686,20 @@ class AcliClient:
             "--key",
             jira_key,
             "--yes",
+            # Bug 44de: --json so structured-failure detection runs on the
+            # exit=0-on-failure path that ACLI exposes for delete too.
+            "--json",
         ]
         try:
-            subprocess.run(
+            completed = subprocess.run(
                 full_cmd,
                 capture_output=True,
                 text=True,
                 check=True,
                 env=_build_env(),
             )
+            # Bug 44de: delete bypasses _run_acli, so call the check here too.
+            _check_mutation_failure(completed.stdout, full_cmd)
         except subprocess.CalledProcessError as exc:
             err_text = (exc.stderr or "") + (exc.stdout or "")
             if "404" in err_text or "not found" in err_text.lower():
@@ -1533,6 +1726,8 @@ class AcliClient:
             "delete",
             "--id",
             link_id,
+            # Bug 44de: --json enables structured-failure detection.
+            "--json",
         ]
         self._run(cmd)
         return {"status": "deleted", "link_id": link_id}

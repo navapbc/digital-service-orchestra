@@ -121,9 +121,30 @@ def merge_findings(*finding_dicts: dict) -> dict:
     summaries: list[str] = []
 
     for fd in finding_dicts:
-        # Combine findings arrays
-        findings = fd.get("findings") or []
-        merged_findings.extend(findings)
+        # Bug 7f55 outer guard: when async_dispatch_specialists returns a
+        # degraded entry — a bare string instead of a {"findings": ...}
+        # dict — the very first `fd.get("findings")` crashes with
+        # AttributeError: 'str' object has no attribute 'get'. The
+        # inner-guard alone (added in the previous commit) doesn't cover
+        # this. Skip non-dict reviewer payloads entirely; downstream
+        # severity gate / aggregator gets the partial-but-correct merge.
+        if not isinstance(fd, dict):
+            continue
+
+        # Combine findings arrays.
+        # Bug 7f55 inner guard: a degraded LLM response can produce
+        # {"findings": "<string>"} (or numeric/bool). Without this guard,
+        # list.extend(str) would flatten the string character-by-character
+        # into bogus per-char "findings", which then crash downstream
+        # consumers calling .get() with AttributeError. Scores merging
+        # continues regardless — a partially-degraded reviewer can still
+        # contribute valid scores.
+        _raw = fd.get("findings") or []
+        if isinstance(_raw, list):
+            # Per-item filter: a non-dict finding (str / int / None) cannot
+            # be aggregated. Drop quietly to preserve the rest of the
+            # valid findings.
+            merged_findings.extend(f for f in _raw if isinstance(f, dict))
 
         # Conservative (min) merge of scores
         scores = fd.get("scores") or {}

@@ -128,7 +128,13 @@ def _extract_jira_field_value(jira_fields: dict[str, Any], field: str) -> Any:
 def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
     """Map Jira fields to local ticket field names/values."""
     summary = _extract_jira_field_value(jira_fields, "summary") or ""
-    description = _extract_jira_field_value(jira_fields, "description") or ""
+    # Bug 1bb2: ``_extract_jira_field_value`` returns nested dicts verbatim
+    # for any field that isn't a {.name/.displayName} object — Jira's
+    # ``description`` is an ADF (Atlassian Document Format) dict in cloud
+    # tenants. Normalize to plain text here so the diff map carries a
+    # string and the applier writes a string into the local EDIT event.
+    description_raw = jira_fields.get("description")
+    description = _normalize_jira_body(description_raw) if description_raw else ""
     issuetype_raw = _extract_jira_field_value(jira_fields, "issuetype") or "Task"
     priority_raw = _extract_jira_field_value(jira_fields, "priority") or "Medium"
     status_raw = _extract_jira_field_value(jira_fields, "status") or "To Do"
@@ -182,7 +188,18 @@ def _diff_jira_vs_local(
 # Label diff helpers
 # ---------------------------------------------------------------------------
 
-_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id-", "imported:")
+# Bug eadb (Issue A): the colon-form ``dso-id:<local_id>`` label was missing
+# from this exclusion list (only the hyphen-form ``dso-id-<local_id>`` was
+# present), so the inbound differ saw the canonical Jira-side dso-id label
+# as a "Jira-only" tag and emitted an inbound ADD on every pass — leaking
+# bridge-internal identifiers into local ticket ``tags``. The outbound
+# differ's ``_EXCLUDED_PREFIXES`` was patched for the same root cause in
+# PR #454; this is the inbound mirror of that fix. Both separator forms
+# must be excluded: ``dso-id:`` is the canonical form written by
+# ``_apply_outbound_create`` / ``_apply_inbound_create``; ``dso-id-`` is
+# preserved for backward compatibility with pre-cutover labels still on
+# legacy Jira issues.
+_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:")
 
 
 def _normalize_jira_body(body: Any) -> str:
@@ -280,11 +297,53 @@ def _diff_labels_inbound(
 # ---------------------------------------------------------------------------
 
 
+def _build_outbound_context(
+    outbound_mutations: list[Any] | None,
+) -> dict[str, dict[str, Any]]:
+    """Index outbound mutations by jira_key for fast lookup.
+
+    Bug 3bf8: in a single bidirectional pass, outbound and inbound differs
+    run against the same pre-pass snapshot. When the local side has just
+    diverged from Jira, the inbound differ would naively emit a mutation
+    that reverts the local-side change. This index lets the inbound differ
+    detect and suppress those contradictions.
+
+    Returns a dict keyed by jira_key with:
+      - "label_adds": set of labels being added outbound
+      - "label_removes": set of labels being removed outbound
+      - "fields": set of field names being updated outbound
+    """
+    ctx: dict[str, dict[str, Any]] = {}
+    if not outbound_mutations:
+        return ctx
+    for om in outbound_mutations:
+        jira_key = getattr(om, "jira_key", None)
+        if not jira_key:
+            continue
+        entry = ctx.setdefault(
+            jira_key,
+            {"label_adds": set(), "label_removes": set(), "fields": set()},
+        )
+        for lm in getattr(om, "labels", []) or []:
+            action = lm.get("action") if isinstance(lm, dict) else None
+            label = lm.get("label") if isinstance(lm, dict) else None
+            if not label:
+                continue
+            if action == "add":
+                entry["label_adds"].add(label)
+            elif action == "remove":
+                entry["label_removes"].add(label)
+        for field_name in (getattr(om, "fields", {}) or {}).keys():
+            entry["fields"].add(field_name)
+    return ctx
+
+
 def compute_inbound_mutations(
     jira_snapshot: dict[str, dict[str, Any]],
     binding_store: BindingStoreProtocol,
     local_tickets_by_id: dict[str, dict[str, Any]],
-) -> list[InboundMutation]:
+    outbound_mutations: list[Any] | None = None,
+) -> tuple[list[InboundMutation], int]:
     """Detect Jira-side changes for bound tickets.
 
     Only processes BOUND tickets (those in binding_store). Unbound Jira issues
@@ -295,24 +354,39 @@ def compute_inbound_mutations(
     - If local also changed -> skip (local wins, outbound differ handles it)
     - If only Jira changed -> emit inbound update
 
-    The "local also changed" detection requires a baseline snapshot (previous
-    sync state). Without a baseline, this implementation treats all local
-    values as the baseline — meaning any difference between Jira and local
-    is attributed to Jira having changed. The outbound differ's local-wins
-    semantics ensure correctness: if both changed, the outbound differ will
-    push the local value, and the inbound mutation (if emitted) will be
-    superseded.
+    Bidirectional coordination (bug 3bf8): when ``outbound_mutations`` is
+    provided, the inbound differ filters its emissions to suppress any
+    mutation that contradicts an outbound mutation just emitted for the
+    same target. The local-side change is fresher than the differ
+    snapshot, so it has authoritative priority for the pass:
+      - label ADD suppressed when outbound is REMOVING the same label
+      - label REMOVE suppressed when outbound is ADDING the same label
+      - scalar field update suppressed when outbound is updating the same field
+    The next pass converges both sides without a phase-2 snapshot refresh.
 
     Args:
         jira_snapshot: Dict of {jira_key: {fields...}} from the fetcher.
         binding_store: A BindingStore instance providing get_local_id(jira_key).
         local_tickets_by_id: Dict of {local_id: {ticket fields...}} for local
             ticket lookup.
+        outbound_mutations: Optional list of OutboundMutation objects emitted
+            in the same pass; used to suppress inbound mutations that would
+            contradict an outbound change for the same target. Defaults to
+            None (no coordination — legacy behaviour preserved).
 
     Returns:
-        List of InboundMutation objects describing changes to apply locally.
+        Tuple of ``(mutations, suppression_count)``:
+          - ``mutations``: list of InboundMutation objects describing changes
+            to apply locally (post-suppression).
+          - ``suppression_count``: integer count of inbound field- and
+            label-level items that were dropped by bidirectional
+            suppression in this call. Zero when ``outbound_mutations`` is
+            None or empty. Used by reconcile telemetry to emit the
+            ``RECON: bidir_suppressed`` line without a second pass.
     """
     mutations: list[InboundMutation] = []
+    outbound_ctx = _build_outbound_context(outbound_mutations)
+    suppression_count = 0
 
     for jira_key, jira_fields in sorted(jira_snapshot.items()):
         local_id = binding_store.get_local_id(jira_key)
@@ -329,6 +403,34 @@ def compute_inbound_mutations(
         label_mutations = _diff_labels_inbound(jira_fields, local_ticket)
         comment_mutations = _diff_comments_inbound(jira_fields, local_ticket)
 
+        # Bidirectional suppression (bug 3bf8): filter out inbound mutations
+        # that would clobber a just-emitted outbound change for this target.
+        ob_entry = outbound_ctx.get(jira_key)
+        if ob_entry is not None:
+            # Scalar fields: drop any inbound field update where outbound
+            # is updating the same field.
+            if changed:
+                pre_field_count = len(changed)
+                changed = {
+                    k: v for k, v in changed.items() if k not in ob_entry["fields"]
+                }
+                suppression_count += pre_field_count - len(changed)
+            # Labels: drop inbound ADD when outbound REMOVES the same label,
+            # and inbound REMOVE when outbound ADDS the same label.
+            if label_mutations:
+                filtered_labels: list[dict[str, Any]] = []
+                for lm in label_mutations:
+                    action = lm.get("action")
+                    label = lm.get("label")
+                    if action == "add" and label in ob_entry["label_removes"]:
+                        suppression_count += 1
+                        continue
+                    if action == "remove" and label in ob_entry["label_adds"]:
+                        suppression_count += 1
+                        continue
+                    filtered_labels.append(lm)
+                label_mutations = filtered_labels
+
         if changed or label_mutations or comment_mutations:
             mutations.append(
                 InboundMutation(
@@ -341,4 +443,4 @@ def compute_inbound_mutations(
                 )
             )
 
-    return mutations
+    return mutations, suppression_count

@@ -364,6 +364,55 @@ def compute_mutations(
             )
             jira_local_id_str = str(jira_local_id) if jira_local_id else None
 
+            # Bug 4354: when the snapshot lacks dso_local_id (the fetcher
+            # stores Jira `fields` only — the dso_local_id entity property
+            # is never in the snapshot), fall back to the `dso-id:<local_id>`
+            # / `dso-id-<local_id>` label as the bound-marker signal. The
+            # same prefixes are excluded by outbound_differ._EXCLUDED_PREFIXES
+            # and inbound_differ._EXCLUDED_PREFIXES — they're the canonical
+            # and legacy forms written by _apply_inbound_create / create_one
+            # (see applier.py:676 and applier.py:1825).
+            #
+            # When a label-derived binding is found, the issue is OWNED by
+            # the binding-aware differs (outbound_differ + inbound_differ
+            # in reconcile.py:617/703) — the snapshot-differ MUST stand
+            # down. Without this suppression, every bound issue that
+            # appears in curr_snapshot but not prev_snapshot (e.g. the pass
+            # immediately after outbound binding, before prev advances)
+            # mis-classifies as unbound and emits an inbound CREATE — which
+            # the applier materialises as a phantom `jira-dig-NNNN` local
+            # entity AND writes a ghost `dso-id:jira-dig-NNNN` label back
+            # to Jira (empirically confirmed by labels-probe.sh on
+            # 2026-05-29: after binding 259f-... → DIG-5029, the next pass
+            # produced `['dso-id:259f-...', 'dso-id:jira-dig-5029',
+            # 'labelprobe-...']` on Jira). The label-derived path also
+            # suppresses the dangling-conflict emission below: a
+            # conflict's `suppress_pair` follow-on would otherwise drop
+            # the legitimate inbound_differ update for the same bound
+            # ticket (the T3 inbound-add label propagation failure).
+            #
+            # The label-derived suppression is intentionally scoped to the
+            # label fallback path. When dso_local_id IS present on the
+            # snapshot entry (only via test fixtures, since the fetcher
+            # never writes it), preserve the existing dd-5 dangling-jira-ref
+            # semantics — a Jira issue that claims a binding via the
+            # explicit property but has no matching local ticket should
+            # still surface as inbound conflict so it isn't silently
+            # dropped.
+            if jira_local_id is None and isinstance(jira_fields, dict):
+                _labels = jira_fields.get("labels") or []
+                _has_dso_id_label = False
+                if isinstance(_labels, (list, tuple)):
+                    for _lbl in _labels:
+                        if isinstance(_lbl, str) and (
+                            _lbl.startswith("dso-id:") or _lbl.startswith("dso-id-")
+                        ):
+                            _has_dso_id_label = True
+                            break
+                if _has_dso_id_label:
+                    # Bound — owned by binding-aware differs.
+                    continue
+
             # dd-5: dangling jira ref — the Jira issue claims a binding to a
             # dso_local_id that has no matching local ticket. Surface as
             # (inbound, conflict) so the human can decide whether to recreate
