@@ -96,7 +96,12 @@ def test_diff_comments_dedup_matches_adf_to_plain(differ):
 
 
 def test_diff_comments_emits_only_genuinely_new(differ):
-    """When local has 2 comments and Jira has 1 (ADF), only the new one is emitted."""
+    """When local has 2 comments and Jira has 1 (ADF), only the new one is emitted.
+
+    Note (bug 85a1, Gap 1): outbound bodies now carry the reconciler marker
+    token appended after a paragraph break, so the emitted body is the user
+    content plus the marker.
+    """
     ticket = {
         "comments": [
             {"body": "Probe outbound comment"},
@@ -110,7 +115,8 @@ def test_diff_comments_emits_only_genuinely_new(differ):
     }
     out = differ._diff_comments(ticket, "DIG-1", jira_snapshot)
     assert len(out) == 1
-    assert out[0].get("body") == "Second probe comment"
+    assert "Second probe comment" in out[0].get("body", "")
+    assert differ.RECONCILER_MARKER in out[0].get("body", "")
     assert out[0].get("action") == "add"
 
 

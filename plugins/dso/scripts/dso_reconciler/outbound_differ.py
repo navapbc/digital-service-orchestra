@@ -179,14 +179,48 @@ def _extract_jira_field(jira_fields: dict[str, Any], field: str) -> Any:
     return raw
 
 
+def _assignee_matches(local_val: str, jira_raw: Any) -> bool:
+    """Permissive assignee equality (bug 85a1, Gap 4).
+
+    Jira returns assignee as a dict with at least ``{accountId, displayName,
+    emailAddress}``; local tickets store assignee as a bare string that may
+    be an email (ticket-create.sh default), a displayName (probe), or
+    "Test" (git-config default), depending on how the ticket was made.
+    A direct ``local_val == _extract_jira_field(...)`` comparison fires on
+    every pass for any user not stored under the same identity form as
+    Jira returns — Phase 6 idempotency churn AND spurious outbound updates.
+
+    Treat ``local_val`` as matching when it equals ANY of {emailAddress,
+    accountId, displayName}. Both sides empty (unassigned) also match.
+    """
+    if jira_raw is None:
+        return local_val == ""
+    if not isinstance(jira_raw, dict):
+        return local_val == str(jira_raw)
+    candidates = {
+        (jira_raw.get("emailAddress") or "").strip(),
+        (jira_raw.get("accountId") or "").strip(),
+        (jira_raw.get("displayName") or "").strip(),
+    }
+    candidates.discard("")
+    return (local_val or "").strip() in candidates
+
+
 def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[str, Any]:
     """Compare local ticket to Jira fields. Return only changed fields.
 
     Uses local-wins: if local differs, push outbound regardless of Jira state.
+    Assignee comparison is shape-tolerant via ``_assignee_matches`` so
+    Jira's ``{accountId, displayName, emailAddress}`` dict matches a local
+    string in any of those three forms (bug 85a1, Gap 4).
     """
     local_mapped = _map_local_to_jira_fields(ticket)
     changed: dict[str, Any] = {}
     for field_name, local_val in local_mapped.items():
+        if field_name == "assignee":
+            if not _assignee_matches(local_val, jira_fields.get("assignee")):
+                changed[field_name] = local_val
+            continue
         jira_val = _extract_jira_field(jira_fields, field_name)
         if local_val != jira_val:
             changed[field_name] = local_val
@@ -199,9 +233,25 @@ def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[st
 
 
 def _map_comments_for_create(ticket: dict[str, Any]) -> list[dict[str, Any]]:
-    """Map all local comments to outbound create mutations."""
+    """Map all local comments to outbound create mutations.
+
+    Every outbound body is decorated with the reconciler marker (Gap 1
+    loop-breaker) so inbound passes can identify our own echoes.
+    """
     comments = ticket.get("comments", [])
-    return [{"action": "add", "body": c.get("body", "")} for c in comments]
+    return [
+        {"action": "add", "body": _decorate_outbound_comment(c.get("body", ""))}
+        for c in comments
+    ]
+
+
+# Bug 85a1 (Gap 1): marker token embedded in every outbound comment body
+# so the inbound differ can identify and filter our own echoes when the
+# reconciler reads Jira comments back on the next pass. Without the marker
+# every outbound comment would re-appear inbound as a "new Jira comment"
+# and the bridge would loop. Kept identical here and in inbound_differ.py
+# so both directions agree on the loop-breaker pattern.
+RECONCILER_MARKER = "<!-- dso:reconciler-echo -->"
 
 
 def _normalize_comment_body(body: Any) -> str:
@@ -216,11 +266,26 @@ def _normalize_comment_body(body: Any) -> str:
     flows into a ``set[str]`` insertion).
 
     Normalize via ``adf.adf_to_text`` so the canonical comparison is on
-    text. Bug 85a1.
+    text. Bug 85a1. The reconciler marker token (Gap 1) is also stripped
+    so dedup compares the *user content* on both sides — without the strip,
+    a previously-pushed Jira body ``"hello\\n\\n<marker>"`` would never match
+    a local ``"hello"`` and the diff would re-emit the same comment.
     """
     if isinstance(body, dict):
-        return _load_adf().adf_to_text(body)
-    return str(body) if body is not None else ""
+        text = _load_adf().adf_to_text(body)
+    else:
+        text = str(body) if body is not None else ""
+    return text.replace(RECONCILER_MARKER, "").strip()
+
+
+def _decorate_outbound_comment(body: str) -> str:
+    """Append the reconciler marker to an outbound comment body (Gap 1).
+
+    Two paragraphs of separation keeps the marker visually below the user
+    content. The marker survives ADF round-trip (each paragraph maps to
+    its own ADF node and back).
+    """
+    return f"{body}\n\n{RECONCILER_MARKER}"
 
 
 def _diff_comments(
@@ -250,7 +315,12 @@ def _diff_comments(
         raw = c.get("body", "") if isinstance(c, dict) else c
         body = _normalize_comment_body(raw)
         if body and body not in jira_bodies:
-            mutations.append({"action": "add", "body": body})
+            # Decorate the outbound body with the reconciler marker so the
+            # inbound differ can identify (and filter) our own echoes on the
+            # next pass (Gap 1 loop-breaker).
+            mutations.append(
+                {"action": "add", "body": _decorate_outbound_comment(body)}
+            )
     return mutations
 
 

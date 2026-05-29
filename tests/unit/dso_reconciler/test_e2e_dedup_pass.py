@@ -81,6 +81,30 @@ class FakeAcliClient:
     def transition_issue(self, key: str, status: str) -> None:
         self.transitions.append((key, status))
 
+    # Bug 85a1 / Gap 1+5+8: create_one + inbound_create + update_one now
+    # dispatch identity writes, labels, comments, and unassign-via-REST.
+    # The stub accepts these as no-ops so the test exercises the dedup path.
+    def add_label(self, key: str, label: str) -> None:
+        return None
+
+    def remove_label(self, key: str, label: str) -> None:
+        return None
+
+    def add_comment(self, key: str, body: str) -> dict:
+        return {"id": "stub-comment"}
+
+    def set_entity_property(self, key: str, prop: str, value) -> None:
+        return None
+
+    def delete_issue(self, key: str) -> None:
+        return None
+
+    def unassign_issue(self, key: str) -> None:
+        return None
+
+    def transition_issue_by_name(self, key: str, target: str) -> None:
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Fake concurrency module (avoids git subprocess calls in tmp_path)
@@ -141,16 +165,28 @@ def test_pre_existing_dso_id_produces_zero_creates(tmp_path, differ, applier):
     next_snapshot: dict = {"uuid-X": {"summary": "Test ticket", "status": "open"}}
     mutations = differ.compute_mutations(prev_snapshot, next_snapshot)
 
-    create_mutations = [m for m in mutations if m.get("action") == "create" and m.get("key") == "uuid-X"]
+    # Bug 85a1: mutations are typed Mutation dataclasses, not dicts.
+    # Accept both shapes for backward compat with the differ contract.
+    def _mut_action(m):
+        a = getattr(m, "action", None)
+        if a is not None:
+            return getattr(a, "value", a)
+        return m.get("action") if isinstance(m, dict) else None
+
+    def _mut_key(m):
+        return getattr(m, "target", None) or (m.get("key") if isinstance(m, dict) else None)
+
+    create_mutations = [
+        m for m in mutations if _mut_action(m) == "create" and _mut_key(m) == "uuid-X"
+    ]
     assert create_mutations, (
         f"differ.compute_mutations must emit a create mutation for uuid-X; got {mutations}"
     )
 
-    # Wire local_id: the differ emits 'key' as the snapshot key; applier's dedup
-    # guard reads 'local_id'.  Set local_id = key on each create mutation so the
-    # JQL search carries the correct label.
+    # Wire local_id on dict-shape mutations only; Mutation dataclasses are
+    # immutable and carry their own local_id field already.
     for m in mutations:
-        if m.get("action") == "create" and "local_id" not in m:
+        if isinstance(m, dict) and m.get("action") == "create" and "local_id" not in m:
             m["local_id"] = m["key"]
 
     # Step 2 — apply: patch _load_acli and _load_concurrency so applier uses

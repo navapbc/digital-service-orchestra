@@ -977,25 +977,29 @@ fi
 # ===========================================================================
 
 echo ""
-echo "=== PHASE 4: Status outbound negative test (gated) ==="
+echo "=== PHASE 4: Status outbound propagation ==="
 echo ""
 
-# Transition ticket 9 locally to blocked
-"$TICKET_CLI" ticket transition "${LOCAL_IDS[8]}" in_progress blocked 2>/dev/null || true
+# Bug 85a1 (Gap 8): status outbound is now first-class — local status changes
+# must propagate to Jira via REST POST /transitions. Previously this phase
+# asserted BY_DESIGN no-propagation (gated behind DSO_RECONCILER_STATUS_GATING);
+# that gate was removed. The probe transitions ticket 9 locally to in_progress
+# (a state reachable from To Do in the DIG workflow) and verifies Jira reflects
+# the change.
+"$TICKET_CLI" ticket transition "${LOCAL_IDS[8]}" open in_progress 2>/dev/null || true
 
-# Sync WITHOUT DSO_RECONCILER_STATUS_GATING
 echo "Running reconciler for status outbound test..."
 reconciler_output=$(run_filtered_reconciler "$FILTER_IDS")
 echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
 
-# Verify Jira status is still In Progress (not Blocked)
+# Verify Jira status now reflects the local change.
 if [ -n "${JIRA_KEYS[8]}" ]; then
     jira_status=$(get_jira_field "${JIRA_KEYS[8]}" "status")
     if [ "$jira_status" = "In Progress" ]; then
-        pass_test "Phase4.verify-status-outbound-blocked (gated)"
-        matrix_set "status" "outbound" "update" "BY_DESIGN"
+        pass_test "Phase4.verify-status-outbound-in-progress"
+        matrix_set "status" "outbound" "update" "PASS"
     else
-        fail_test "Phase4.verify-status-outbound-blocked" "expected In Progress, got: ${jira_status}"
+        fail_test "Phase4.verify-status-outbound-in-progress" "expected In Progress, got: ${jira_status}"
         matrix_set "status" "outbound" "update" "FAIL"
     fi
 fi

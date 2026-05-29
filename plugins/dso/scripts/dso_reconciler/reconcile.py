@@ -704,6 +704,12 @@ def reconcile_once(
                 "local_id": im.local_id,
                 "changed_fields": im.fields,
                 "labels": im.labels,
+                # Bug 85a1 (Gap 1): propagate inbound comments through to
+                # _apply_inbound_update so each new Jira comment is written
+                # as a local COMMENT event with jira_comment_id binding.
+                # getattr default keeps backward compat with InboundMutation
+                # variants (e.g. legacy test stubs) that lack the field.
+                "comments": getattr(im, "comments", []),
             },
             provenance={
                 "source": "inbound_differ",

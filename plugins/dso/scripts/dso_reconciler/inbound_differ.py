@@ -17,8 +17,40 @@ concrete class.
 
 from __future__ import annotations
 
+import importlib.util
+import sys
 from dataclasses import dataclass, field as dataclass_field
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
+
+
+# Reconciler loop-breaker marker (Gap 1). Outbound comments embed this
+# token; inbound passes filter any Jira comment whose body contains it
+# so we do not detect our own echoes as new Jira-side comments.
+RECONCILER_MARKER = "<!-- dso:reconciler-echo -->"
+
+
+_ADF_KEY_INBOUND = "plugins.dso.scripts.dso_reconciler.adf"
+_AdfModule_Inbound = None
+
+
+def _load_adf():
+    """Lazy-load the sibling adf module (mirrors outbound_differ._load_adf)."""
+    global _AdfModule_Inbound
+    if _AdfModule_Inbound is not None:
+        return _AdfModule_Inbound
+    if _ADF_KEY_INBOUND in sys.modules:
+        _AdfModule_Inbound = sys.modules[_ADF_KEY_INBOUND]
+        return _AdfModule_Inbound
+    adf_path = Path(__file__).parent / "adf.py"
+    spec = importlib.util.spec_from_file_location(_ADF_KEY_INBOUND, adf_path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"adf.py not found at {adf_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[_ADF_KEY_INBOUND] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    _AdfModule_Inbound = mod
+    return mod
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +185,73 @@ def _diff_jira_vs_local(
 _EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id-", "imported:")
 
 
+def _normalize_jira_body(body: Any) -> str:
+    """Coerce a Jira comment body (ADF dict or string) to plain text.
+
+    The reconciler marker token is preserved (callers filter on it).
+    """
+    if isinstance(body, dict):
+        return _load_adf().adf_to_text(body)
+    return str(body) if body is not None else ""
+
+
+def _diff_comments_inbound(
+    jira_fields: dict[str, Any], local_ticket: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Detect Jira-side comments not yet mirrored locally (bug 85a1, Gap 1).
+
+    Strategy (validated by ``probe_gap1_inbound_comments.sh``):
+      1. Read each Jira comment's id + body.
+      2. Loop-breaker: skip any comment whose body contains
+         ``RECONCILER_MARKER`` — that's our own outbound echo.
+      3. Set-diff: skip any Jira comment whose id matches a local
+         comment's ``jira_comment_id`` field (already mirrored).
+      4. For each remaining Jira comment, emit an "add" mutation with
+         the normalised plain-text body and the source jira_comment_id
+         so the applier can write the binding back when persisting locally.
+
+    Returns: list of dicts ``{"action": "add", "body": ..., "jira_comment_id": ...}``.
+    The applier consumes this list when writing inbound updates to the
+    local tickets-tracker.
+    """
+    jira_comments = jira_fields.get("comments") or []
+    if not isinstance(jira_comments, list):
+        return []
+
+    known_ids: set[str] = set()
+    for lc in local_ticket.get("comments") or []:
+        if isinstance(lc, dict):
+            jid = lc.get("jira_comment_id")
+            if jid is not None:
+                known_ids.add(str(jid))
+
+    mutations: list[dict[str, Any]] = []
+    for jc in jira_comments:
+        if not isinstance(jc, dict):
+            continue
+        jid = jc.get("id")
+        if jid is None:
+            continue
+        jid_str = str(jid)
+        if jid_str in known_ids:
+            continue  # already mirrored locally
+
+        body_text = _normalize_jira_body(jc.get("body"))
+        if RECONCILER_MARKER in body_text:
+            continue  # outbound echo — do not pull our own comment back in
+        if not body_text.strip():
+            continue
+
+        mutations.append(
+            {
+                "action": "add",
+                "body": body_text,
+                "jira_comment_id": jid_str,
+            }
+        )
+    return mutations
+
+
 def _diff_labels_inbound(
     jira_fields: dict[str, Any], local_ticket: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -228,8 +327,9 @@ def compute_inbound_mutations(
 
         changed = _diff_jira_vs_local(jira_fields, local_ticket)
         label_mutations = _diff_labels_inbound(jira_fields, local_ticket)
+        comment_mutations = _diff_comments_inbound(jira_fields, local_ticket)
 
-        if changed or label_mutations:
+        if changed or label_mutations or comment_mutations:
             mutations.append(
                 InboundMutation(
                     jira_key=jira_key,
@@ -237,6 +337,7 @@ def compute_inbound_mutations(
                     action="update",
                     fields=changed,
                     labels=label_mutations,
+                    comments=comment_mutations,
                 )
             )
 

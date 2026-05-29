@@ -241,7 +241,9 @@ def _apply_outbound_create(mutation, *, client=None, repo_root=None) -> ApplyRes
 # fields in the changed_fields set are silently dropped — pushing arbitrary
 # fields outbound is a higher-blast-radius change that lands in a follow-up
 # story. Status is governed separately by DSO_RECONCILER_STATUS_GATING.
-_OUTBOUND_UPDATE_ALLOWLIST = frozenset({"summary", "description", "assignee", "priority"})
+_OUTBOUND_UPDATE_ALLOWLIST = frozenset(
+    {"summary", "description", "assignee", "priority", "status"}
+)
 
 
 def _route_status_via_draft5(mutation, *, client=None):
@@ -285,21 +287,12 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
     if changed_fields is None:
         changed_fields = payload
 
-    # Status gating: status field is governed by DSO_RECONCILER_STATUS_GATING.
-    if "status" in changed_fields:
-        gating = os.environ.get("DSO_RECONCILER_STATUS_GATING", "0")
-        if gating != "1":
-            errs = _load_errors_module()
-            raise errs.StatusMappingError(
-                f"status field touched but DSO_RECONCILER_STATUS_GATING != 1 "
-                f"(got {gating!r}); zero side-effects — refusing to push status "
-                "without explicit operator gating"
-            )
-        # Gating ON — delegate to the draft5 stub. The caller is responsible
-        # for any status-specific routing semantics.
-        _route_status_via_draft5(mutation, client=client)
-        # Strip status before pushing remaining allowlisted fields.
-        changed_fields = {k: v for k, v in changed_fields.items() if k != "status"}
+    # Bug 85a1 (Gap 8): status outbound is now first-class. The previous
+    # DSO_RECONCILER_STATUS_GATING gate has been removed — status flows
+    # through ``client.update_issue`` which routes status to
+    # ``transition_issue`` (REST POST /transitions). The legacy
+    # ``_route_status_via_draft5`` no-op stub is unused.
+    # status stays in changed_fields and is forwarded below.
 
     # Filter to allowlist. Non-allowlisted fields are silently dropped.
     allowed = {
@@ -665,6 +658,27 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
             {"status": local_status, "current_status": previous_status},
         )
         written.append(str(path))
+
+    # Bug 85a1 (Gap 1): inbound comments — write a COMMENT event for each
+    # new Jira comment the differ surfaced. The body is stored as plain
+    # text (post-ADF-decode); ``jira_comment_id`` is persisted so the
+    # outbound differ's loop-breaker skips this comment on the next pass.
+    inbound_comments = payload.get("comments") or []
+    if isinstance(inbound_comments, list):
+        for entry in inbound_comments:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("action") != "add":
+                continue
+            body = entry.get("body") or ""
+            if not body:
+                continue
+            event_data: dict[str, Any] = {"body": body}
+            jid = entry.get("jira_comment_id")
+            if jid is not None:
+                event_data["jira_comment_id"] = str(jid)
+            path = _write_event_file(tracker_dir, local_id, "COMMENT", event_data)
+            written.append(str(path))
 
     return ApplyResult(
         mutation.direction,
@@ -1773,12 +1787,12 @@ def update_one(mutation: dict, client) -> dict | None:
     # fields (issuetype, type-change in general) are intentional drops mirroring
     # the typed-leaf contract; outbound issuetype changes are BY_DESIGN
     # unsupported on the edit endpoint (Atlassian JRASERVER-71292).
-    # status is intentionally absent: outbound status push lives behind the
-    # typed-leaf `_apply_outbound_update` gating (DSO_RECONCILER_STATUS_GATING);
-    # the legacy batch path silently drops status to match the BY_DESIGN
-    # contract documented in the probe matrix.
+    # status is included: bug 85a1 (Gap 8) removed the BY_DESIGN drop —
+    # outbound status push now uses REST POST /transitions via
+    # ``transition_issue`` (bypasses ACLI's silent-exit-0 failure mode).
+    # The typed leaf's DSO_RECONCILER_STATUS_GATING gate is also gone.
     _OUTBOUND_BATCH_ALLOWLIST = frozenset(
-        {"summary", "description", "assignee", "priority"}
+        {"summary", "description", "assignee", "priority", "status"}
     )
     _stripped = {k: v for k, v in fields.items() if k not in _OUTBOUND_BATCH_ALLOWLIST}
     if _stripped:

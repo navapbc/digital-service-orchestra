@@ -91,9 +91,15 @@ def test_update_one_keeps_allowlisted_fields(applier):
         assert f in kwargs, f"allowlisted field {f} must reach client.update_issue; kwargs={kwargs!r}"
 
 
-def test_update_one_drops_status_intentionally(applier):
-    """status is excluded from the legacy batch allowlist (BY_DESIGN gating lives
-    in the typed leaf only). update_one must NOT forward status to ACLI."""
+def test_update_one_forwards_status_to_client(applier):
+    """Bug 85a1 (Gap 8): status is now allowlisted and must be forwarded.
+
+    Previously status was dropped here because outbound status was gated
+    BY_DESIGN behind DSO_RECONCILER_STATUS_GATING. Gap 8 removed that gate
+    and rewrote ``transition_issue`` to use REST. update_one now passes
+    status through to ``client.update_issue``, which routes it to
+    ``transition_issue`` → REST POST /transitions.
+    """
     client = MagicMock()
     client.update_issue.return_value = None
     mutation = {
@@ -103,7 +109,10 @@ def test_update_one_drops_status_intentionally(applier):
     }
     applier.update_one(mutation, client)
     _, kwargs = client.update_issue.call_args
-    assert "status" not in kwargs, f"status must not reach ACLI via legacy batch; kwargs={kwargs!r}"
+    assert kwargs.get("status") == "Blocked", (
+        f"status must reach client.update_issue (no BY_DESIGN drop); "
+        f"got kwargs={kwargs!r}"
+    )
 
 
 def test_update_one_strips_unknown_fields(applier):
