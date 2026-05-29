@@ -186,6 +186,19 @@ def _diff_jira_vs_local(
             jira_val = "" if local_field not in ("priority",) else 2
         if local_val is None:
             local_val = "" if local_field not in ("priority",) else 2
+        # Bug (plateau): trailing-whitespace round-trip stability.
+        # Mirror of the outbound_differ fix — Jira's ADF normalization
+        # strips trailing whitespace, so a local description ending in
+        # ``\n\n`` and Jira's stripped form must compare equal.
+        # Without this, inbound emits a description update that would
+        # clobber local's user-authored trailing whitespace just because
+        # Jira normalized it.
+        if (
+            isinstance(local_val, str)
+            and isinstance(jira_val, str)
+            and local_val.rstrip() == jira_val.rstrip()
+        ):
+            continue
         if jira_val != local_val:
             changed[local_field] = jira_val
     return changed
