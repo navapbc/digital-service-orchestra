@@ -121,9 +121,23 @@ def merge_findings(*finding_dicts: dict) -> dict:
     summaries: list[str] = []
 
     for fd in finding_dicts:
-        # Combine findings arrays
-        findings = fd.get("findings") or []
-        merged_findings.extend(findings)
+        # Combine findings arrays.
+        # Bug 7f55 (fourth guard): a degraded LLM response can produce
+        # {"findings": "<string>"} (or numeric/bool). Without this guard,
+        # list.extend(str) would flatten the string character-by-character
+        # into bogus per-char "findings", which then crash downstream
+        # consumers calling .get() with AttributeError: 'str' object has
+        # no attribute 'get'. The producer-side guard in runner._run_cluster
+        # covers the cluster path; this guards the non-cluster path
+        # (light/standard tier without clustering) and any other future
+        # caller of merge_findings. Scores merging continues regardless —
+        # a partially-degraded reviewer can still contribute valid scores.
+        _raw = fd.get("findings") or []
+        if isinstance(_raw, list):
+            # Per-item filter: a non-dict finding (str / int / None) cannot
+            # be aggregated. Drop quietly to preserve the rest of the
+            # valid findings.
+            merged_findings.extend(f for f in _raw if isinstance(f, dict))
 
         # Conservative (min) merge of scores
         scores = fd.get("scores") or {}
