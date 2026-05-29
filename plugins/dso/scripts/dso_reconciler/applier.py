@@ -196,8 +196,7 @@ def _direction_guard(mutation, expected_direction) -> None:
     if expected_val != actual_val:
         errs = _load_errors_module()
         raise errs.DirectionMismatchError(
-            f"leaf expects direction={expected_val!s}, "
-            f"got direction={actual_val!s}"
+            f"leaf expects direction={expected_val!s}, got direction={actual_val!s}"
         )
 
 
@@ -544,6 +543,43 @@ def _extract_name(val, default=""):
     return val or default
 
 
+_ADF_KEY_APPLIER = "plugins.dso.scripts.dso_reconciler.adf"
+_AdfModule_Applier = None
+
+
+def _load_adf_module():
+    """Lazy-load the sibling adf module (mirrors inbound_differ._load_adf)."""
+    global _AdfModule_Applier
+    if _AdfModule_Applier is not None:
+        return _AdfModule_Applier
+    if _ADF_KEY_APPLIER in sys.modules:
+        _AdfModule_Applier = sys.modules[_ADF_KEY_APPLIER]
+        return _AdfModule_Applier
+    adf_path = Path(__file__).parent / "adf.py"
+    spec = importlib.util.spec_from_file_location(_ADF_KEY_APPLIER, adf_path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"adf.py not found at {adf_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[_ADF_KEY_APPLIER] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    _AdfModule_Applier = mod
+    return mod
+
+
+def _normalize_adf_body(body: Any) -> str:
+    """Coerce a Jira description (ADF dict or string) to plain text.
+
+    Defense-in-depth: the inbound differ should normalize ADF before
+    surfacing the field, but a raw ADF dict on the wire here would
+    otherwise be written verbatim into an EDIT event's ``description``
+    slot — corrupting the local ticket store (reducer would surface a
+    dict where a string is expected). See bug 1bb2-5da5.
+    """
+    if isinstance(body, dict):
+        return _load_adf_module().adf_to_text(body)
+    return str(body) if body is not None else ""
+
+
 def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResult:
     """Materialise a remote Jira issue as a local jira-* ticket.
 
@@ -624,20 +660,40 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
     # and payload with top-level field keys (differ Mutation shape).
     fields = payload.get("fields") or payload
     target = mutation.target
-    local_id = target if target.startswith("jira-") else _jira_key_to_local_id(target)
+    # Bug 1bb2: prefer payload['local_id'] (set by reconcile.py for bound
+    # tickets) over Jira-key-derived local_id. Without this, EDIT events
+    # for a bound UUID ticket are written under a new jira-dig-NNN/
+    # directory — creating a duplicate ticket and silently dropping the
+    # update on the bound UUID ticket.
+    local_id = payload.get("local_id") or (
+        target if target.startswith("jira-") else _jira_key_to_local_id(target)
+    )
     tracker_dir = _resolve_tracker_dir(repo_root)
 
-    # Map Jira-flavoured field names to local reducer field names.
-    # Extract .name/.displayName from nested Jira objects.
+    # Map field names to local reducer field names. The inbound differ
+    # ALREADY maps Jira → local (see inbound_differ._map_jira_to_local_fields:
+    # emits ``title`` / ``ticket_type`` / local-mapped ``status``). Accept
+    # the local-keyed shape from the differ AND the legacy Jira-keyed
+    # ``summary`` for back-compat with any caller that bypasses the differ.
     edit_fields: dict[str, Any] = {}
-    if "summary" in fields:
+    if "title" in fields:
+        edit_fields["title"] = fields["title"]
+    elif "summary" in fields:
         edit_fields["title"] = fields["summary"]
     if "description" in fields:
-        edit_fields["description"] = fields["description"]
+        desc = fields["description"]
+        # Bug 1bb2: normalize ADF dict → plain text. The differ should
+        # normalize at read time, but guard here too in case a caller
+        # forwards the raw ADF dict (defense-in-depth).
+        if isinstance(desc, dict):
+            desc = _normalize_adf_body(desc)
+        edit_fields["description"] = desc
     if "priority" in fields:
         edit_fields["priority"] = _resolve_priority(fields["priority"])
     if "assignee" in fields:
         edit_fields["assignee"] = _extract_name(fields["assignee"])
+    if "ticket_type" in fields:
+        edit_fields["ticket_type"] = fields["ticket_type"]
 
     written: list[str] = []
     if edit_fields:
@@ -645,7 +701,23 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
         written.append(str(path))
 
     if "status" in fields:
-        local_status = _jira_status_to_local(_extract_name(fields["status"]))
+        raw_status = fields["status"]
+        # Bug 1bb2: the differ supplies status already mapped to a local
+        # value ('open'|'in_progress'|'blocked'|'closed'|'cancelled').
+        # Re-running it through _jira_status_to_local would double-map
+        # (e.g. 'in_progress' → '' since it's not a Jira status name).
+        # Only invoke the mapper when the value looks like a Jira name.
+        if isinstance(raw_status, str) and raw_status in (
+            "open",
+            "in_progress",
+            "blocked",
+            "closed",
+            "cancelled",
+            "done",
+        ):
+            local_status = raw_status
+        else:
+            local_status = _jira_status_to_local(_extract_name(raw_status))
         # current_status is the PREVIOUS state (matched against state["status"]
         # by the reducer for fork detection — see
         # ticket_reducer/_processors.py:process_status).
@@ -2486,9 +2558,7 @@ def _mutation_to_batch_dict(mutation) -> dict:
         if "fields" in payload:
             fields = payload.get("fields", {})
         else:
-            fields = {
-                k: v for k, v in payload.items() if k not in _BOOKKEEPING_KEYS
-            }
+            fields = {k: v for k, v in payload.items() if k not in _BOOKKEEPING_KEYS}
     else:
         # Other actions (delete, probe, etc.) don't carry field maps.
         fields = payload.get("fields", {})
@@ -2679,9 +2749,7 @@ def _apply_batch(
             # UPDATE channel today). Truncated to single-line; full
             # mutation lives in the manifest for forensic dives.
             _outcome_key = (
-                mutation.get("key")
-                or mutation.get("local_id")
-                or "<unknown>"
+                mutation.get("key") or mutation.get("local_id") or "<unknown>"
             )
             _outcome_err = outcome.get("error")
             print(  # noqa: T201

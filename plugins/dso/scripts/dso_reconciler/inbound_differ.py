@@ -128,7 +128,13 @@ def _extract_jira_field_value(jira_fields: dict[str, Any], field: str) -> Any:
 def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
     """Map Jira fields to local ticket field names/values."""
     summary = _extract_jira_field_value(jira_fields, "summary") or ""
-    description = _extract_jira_field_value(jira_fields, "description") or ""
+    # Bug 1bb2: ``_extract_jira_field_value`` returns nested dicts verbatim
+    # for any field that isn't a {.name/.displayName} object — Jira's
+    # ``description`` is an ADF (Atlassian Document Format) dict in cloud
+    # tenants. Normalize to plain text here so the diff map carries a
+    # string and the applier writes a string into the local EDIT event.
+    description_raw = jira_fields.get("description")
+    description = _normalize_jira_body(description_raw) if description_raw else ""
     issuetype_raw = _extract_jira_field_value(jira_fields, "issuetype") or "Task"
     priority_raw = _extract_jira_field_value(jira_fields, "priority") or "Medium"
     status_raw = _extract_jira_field_value(jira_fields, "status") or "To Do"
