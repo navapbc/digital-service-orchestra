@@ -54,6 +54,12 @@ echo "  MARKER:           $([ -f "$MARKER" ] && echo 'PRESENT' || echo 'ABSENT')
 echo "  unprovenanced:    $([ -s "$UNPROVENANCED_FILE" ] && wc -l < "$UNPROVENANCED_FILE" | tr -d ' ' || echo '0') entries"
 echo "  over-bound:       $([ -s "$OVERBOUND_FILE" ] && wc -l < "$OVERBOUND_FILE" | tr -d ' ' || echo '0') entries"
 echo "  covered:          $([ -s "$COVERED_FILE" ] && wc -l < "$COVERED_FILE" | tr -d ' ' || echo '0') entries"
+# Stale-base diagnostics: emit the SHAs the reviewer will see so post-hoc audits
+# can detect findings cited against file:line refs that no longer exist at
+# repo-head (the oscillation class seen on PRs #432, #438).
+echo "  BASE_SHA:         ${DSO_BASE_SHA:-${GITHUB_BASE_SHA:-<unset>}}"
+echo "  HEAD_SHA:         ${DSO_HEAD_SHA:-${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo '<unresolved>')}}"
+echo "  REPO_HEAD_SHA:    $(git rev-parse "origin/${GITHUB_BASE_REF:-main}" 2>/dev/null || echo '<unresolved>')"
 
 # Marker check: distinguishes "verifier ran clean" from "verifier crashed / never
 # ran". Without this check, absence of unprovenanced-shas.txt is ambiguous and
@@ -394,6 +400,7 @@ case "$provenance_exit" in
         # because this is an audit-relevant skip.
         if [[ ! -s "$_DISPATCH_SCOPE_FILE" ]]; then
             echo "CONCLUSION: skipped"
+            echo "  DECISION:         SKIP — code already shipped to ${_MAIN_REF} (${_pre_filter} commit(s) filtered out)"
             echo "WARNING: all ${_pre_filter} unprovenanced commits were already reachable from ${_MAIN_REF}" >&2
             echo "WARNING: skipping review — code is already shipped to main" >&2
             echo "AUDIT: decision_record=skip reason=all_scope_already_merged scope_size=${_pre_filter} main_ref=${_MAIN_REF}"
@@ -495,6 +502,7 @@ for line in sys.stdin:
     _DSO_DISPATCH_BYTES_CAP="${DSO_DISPATCH_BYTES_CAP:-5242880}"  # 5 MB default
     _DSO_DISPATCH_FILES_CAP="${DSO_DISPATCH_FILES_CAP:-100}"
     if (( _diff_bytes > _DSO_DISPATCH_BYTES_CAP )) || (( _diff_files > _DSO_DISPATCH_FILES_CAP )); then
+        echo "  DECISION:         ABORT (OVER_BOUND) — dispatch diff ${_diff_files} files / ${_diff_bytes} bytes exceeds cap ${_DSO_DISPATCH_FILES_CAP} / ${_DSO_DISPATCH_BYTES_CAP}"
         echo "OVER_BOUND: dispatch diff exceeds cap (${_diff_files} files, ${_diff_bytes} bytes; caps ${_DSO_DISPATCH_FILES_CAP}/${_DSO_DISPATCH_BYTES_CAP})" >&2
         echo "OVER_BOUND: routing to admin review (set DSO_DISPATCH_BYTES_CAP / DSO_DISPATCH_FILES_CAP env vars to override)" >&2
         # Write stub findings so ci.yml liveness assertion can distinguish
