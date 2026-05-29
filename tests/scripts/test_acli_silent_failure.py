@@ -103,9 +103,14 @@ def test_edit_success_json_does_not_raise(acli: ModuleType) -> None:
     mock_result = MagicMock(returncode=0, stdout=success_stdout, stderr="")
 
     with patch("subprocess.run", return_value=mock_result):
-        # Should not raise. update_issue returns the parsed stdout.
+        # Should not raise. update_issue returns the parsed-JSON dict
+        # (json.loads(result.stdout)) — not the CompletedProcess itself.
         result = acli.update_issue("DIG-1234", summary="new title")
+    assert isinstance(result, dict), (
+        f"update_issue must return parsed JSON dict, got {type(result).__name__}"
+    )
     assert result.get("successCount") == 1
+    assert result.get("results") == [{"status": "SUCCESS", "id": "DIG-1234"}]
 
 
 # ---------------------------------------------------------------------------
@@ -245,3 +250,137 @@ def test_add_label_command_includes_json_flag(acli: ModuleType) -> None:
         client.add_label("DIG-1", "alpha")
     cmd = mock_run.call_args_list[0][0][0]
     assert "--json" in cmd, f"Expected --json in label-edit command, got: {cmd}"
+
+
+# ---------------------------------------------------------------------------
+# Test 9: delete_issue routes through _check_mutation_failure (bypass guard)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_failure_raises(acli: ModuleType) -> None:
+    """delete_issue uses a raw subprocess.run path (not _run_acli) but must
+    still invoke _check_mutation_failure so exit=0 + FAILURE-shape stdout
+    raises AcliMutationError. Without this, a failed delete on a non-existent
+    or unpermitted issue would be silently marked as success."""
+    failure_stdout = json.dumps(
+        {
+            "results": [
+                {
+                    "status": "FAILURE",
+                    "message": "Issue does not exist or you do not have permission",
+                    "id": "DIG-99999",
+                }
+            ],
+            "totalCount": 1,
+            "successCount": 0,
+        }
+    )
+    mock_result = MagicMock(returncode=0, stdout=failure_stdout, stderr="")
+    client = acli.AcliClient(jira_url="", user="", api_token="")
+    with (
+        patch("subprocess.run", return_value=mock_result),
+        pytest.raises(acli.AcliMutationError),
+    ):
+        client.delete_issue("DIG-99999")
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_command_includes_json_flag(acli: ModuleType) -> None:
+    """delete_issue must pass --json so the structured-failure check can run."""
+    success_stdout = json.dumps(
+        {
+            "results": [{"status": "SUCCESS", "id": "DIG-1"}],
+            "totalCount": 1,
+            "successCount": 1,
+        }
+    )
+    mock_result = MagicMock(returncode=0, stdout=success_stdout, stderr="")
+    client = acli.AcliClient(jira_url="", user="", api_token="")
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        client.delete_issue("DIG-1")
+    cmd = mock_run.call_args_list[0][0][0]
+    assert "--json" in cmd, f"Expected --json in delete command, got: {cmd}"
+
+
+# ---------------------------------------------------------------------------
+# Test 10: delete_issue_link routes through _run_acli (mutation detection)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_link_failure_raises(acli: ModuleType) -> None:
+    """delete_issue_link goes through _run_acli (via self._run); a failed
+    link delete with exit=0 + FAILURE stdout must raise AcliMutationError."""
+    failure_stdout = json.dumps(
+        {
+            "results": [
+                {
+                    "status": "FAILURE",
+                    "message": "Link does not exist",
+                    "id": "10001",
+                }
+            ],
+            "totalCount": 1,
+            "successCount": 0,
+        }
+    )
+    mock_result = MagicMock(returncode=0, stdout=failure_stdout, stderr="")
+    client = acli.AcliClient(jira_url="", user="", api_token="")
+    with (
+        patch("subprocess.run", return_value=mock_result),
+        pytest.raises(acli.AcliMutationError),
+    ):
+        client.delete_issue_link("10001")
+
+
+# ---------------------------------------------------------------------------
+# Tests 11–14: _check_mutation_failure edge cases (early-return safety)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_mutation_failure_none_stdout_no_raise(acli: ModuleType) -> None:
+    """None stdout must early-return without raising or crashing."""
+    # Should be a silent no-op — no signal to interpret.
+    acli._check_mutation_failure(None, ["acli", "jira", "workitem", "edit"])  # type: ignore[arg-type]
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_mutation_failure_empty_stdout_no_raise(acli: ModuleType) -> None:
+    """Empty / whitespace-only stdout must early-return — falls back to
+    exit-code semantics enforced by subprocess.run(check=True)."""
+    acli._check_mutation_failure("", ["acli", "jira", "workitem", "edit"])
+    acli._check_mutation_failure("   \n  ", ["acli", "jira", "workitem", "edit"])
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_mutation_failure_invalid_json_no_raise(acli: ModuleType) -> None:
+    """Non-JSON stdout (legacy text response) must not raise — defers to the
+    exit-code contract rather than crashing on a JSON parse error."""
+    acli._check_mutation_failure(
+        "not json at all <html>error</html>",
+        ["acli", "jira", "workitem", "edit"],
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_mutation_failure_non_dict_json_no_raise(acli: ModuleType) -> None:
+    """List-shaped JSON (e.g., search/get results) lacks the mutation
+    successCount/results envelope and must early-return without raising."""
+    acli._check_mutation_failure(
+        json.dumps([{"id": "DIG-1"}, {"id": "DIG-2"}]),
+        ["acli", "jira", "workitem", "search"],
+    )
+    # Scalar JSON value too.
+    acli._check_mutation_failure(
+        json.dumps("plain string"),
+        ["acli", "jira", "workitem", "search"],
+    )
