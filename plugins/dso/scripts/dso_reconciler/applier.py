@@ -580,6 +580,31 @@ def _load_adf_module():
     return mod
 
 
+_TICKET_REDUCER_MODULE = None
+
+
+def _load_ticket_reducer():
+    """Lazy-load the ticket_reducer subpackage from ../../ (scripts dir).
+
+    Used by ``_apply_inbound_update`` to read the current tag list before
+    applying an inbound label diff (bug 57b0). Loaded lazily so test
+    contexts that never hit the labels branch are not forced to import
+    the reducer package.
+    """
+    global _TICKET_REDUCER_MODULE
+    if _TICKET_REDUCER_MODULE is not None:
+        return _TICKET_REDUCER_MODULE
+    # This file lives at <plugin_scripts_dir>/dso_reconciler/applier.py;
+    # walk two parents up to reach the scripts dir containing ticket_reducer/.
+    scripts_dir = Path(__file__).resolve().parent.parent
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    import ticket_reducer as _tr  # noqa: PLC0415 — lazy import by design
+
+    _TICKET_REDUCER_MODULE = _tr
+    return _tr
+
+
 def _normalize_adf_body(body: Any) -> str:
     """Coerce a Jira description (ADF dict or string) to plain text.
 
@@ -741,6 +766,81 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
             {"status": local_status, "current_status": previous_status},
         )
         written.append(str(path))
+
+    # Bug 57b0: inbound labels — apply payload['labels'] add/remove ops as
+    # an EDIT event on `fields.tags`. The inbound differ surfaces label
+    # mutations under ``payload['labels']`` as
+    # ``[{"action": "add"|"remove", "label": "<name>"}]`` (see
+    # inbound_differ._diff_labels_inbound). Without this block, every
+    # inbound label add/remove was silently dropped — Jira-side label
+    # changes never propagated to local tags.
+    #
+    # The local reducer treats tags as REPLACE-on-EDIT (see
+    # ticket_reducer/_processors.process_edit), so we must read the
+    # current tag list, apply the diff, and write the full resulting list.
+    inbound_labels = payload.get("labels") or []
+    if isinstance(inbound_labels, list) and inbound_labels:
+        # Read current tags by reducing the existing ticket directory.
+        #
+        # Bug bc8f-775e-9a34-44d1: the local reducer treats `fields.tags` on
+        # an EDIT event as REPLACE-the-whole-list (see
+        # ticket_reducer/_processors.process_edit). If we cannot reliably
+        # read the current tag list — either because reduce_ticket raises
+        # OR because it returns None (ticket dir doesn't exist yet, e.g.,
+        # race with a concurrent CREATE) — falling back to `current_tags=[]`
+        # and writing `EDIT(fields.tags=[<just the new label>])` would WIPE
+        # every pre-existing local tag. The live probe captured exactly
+        # this: ticket b2e9 with `labelprobe-...` was reduced to `[]` after
+        # T1's bidirectional pass.
+        #
+        # Safe behaviour: when current state cannot be read, SKIP the labels
+        # EDIT for this pass and emit a stderr warning. The next reconciler
+        # pass will retry once the ticket dir / state is readable.
+        reducer_failed = False
+        current_state: dict | None = None
+        try:
+            reducer_mod = _load_ticket_reducer()
+            current_state = reducer_mod.reduce_ticket(str(tracker_dir / local_id))
+        except Exception as _reducer_exc:  # noqa: BLE001 — see bc8f docstring
+            reducer_failed = True
+            print(
+                f"[applier] WARN bc8f-guard: reducer raised while reading "
+                f"current tags for {local_id} (target={mutation.target}); "
+                f"skipping labels EDIT to avoid wiping local tags. "
+                f"exc={type(_reducer_exc).__name__}: {_reducer_exc}",
+                file=sys.stderr,
+            )
+        if not reducer_failed and current_state is None:
+            print(
+                f"[applier] WARN bc8f-guard: reducer returned None for "
+                f"{local_id} (ticket dir not yet materialized?); skipping "
+                f"labels EDIT to avoid wiping local tags. The next "
+                f"reconciler pass will retry.",
+                file=sys.stderr,
+            )
+
+        if current_state is not None:
+            current_tags: list[str] = list(current_state.get("tags", []) or [])
+            new_tags = list(current_tags)
+            changed = False
+            for entry in inbound_labels:
+                if not isinstance(entry, dict):
+                    continue
+                action = entry.get("action")
+                label_name = entry.get("label", "")
+                if not label_name or not isinstance(label_name, str):
+                    continue
+                if action == "add" and label_name not in new_tags:
+                    new_tags.append(label_name)
+                    changed = True
+                elif action == "remove" and label_name in new_tags:
+                    new_tags = [t for t in new_tags if t != label_name]
+                    changed = True
+            if changed:
+                path = _write_event_file(
+                    tracker_dir, local_id, "EDIT", {"fields": {"tags": new_tags}}
+                )
+                written.append(str(path))
 
     # Bug 85a1 (Gap 1): inbound comments — write a COMMENT event for each
     # new Jira comment the differ surfaced. The body is stored as plain
