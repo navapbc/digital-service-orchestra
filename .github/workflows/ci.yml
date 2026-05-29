@@ -736,9 +736,60 @@ jobs:
           DSO_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           DSO_SESSION_HEAD: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+        id: llm_review_dispatch
+        # R4 (bug f148 PR-C): capture the dispatcher's exit code without
+        # failing the step. The Classify step below decides whether the
+        # job should fail and emits the correct annotation ("infrastructure
+        # failure" vs "review found problems"). Without this capture, the
+        # step's set -e would mask the distinction.
+        shell: bash {0}
+        run: |
+          set -o pipefail
+          bash plugins/dso/scripts/llm-review-dispatch-or-skip.sh
+          _rc=$?
+          echo "exit_code=${_rc}" >> "$GITHUB_OUTPUT"
+          # Always exit 0 here so the Classify step gets a chance to run.
+          # The Classify step fails the job with the correct annotation.
+          exit 0
+
+      - name: Classify llm-review failure
+        # R4 (bug f148 PR-C): read the dispatcher's exit code and emit
+        # the right operator annotation. Exit 4 means "infrastructure
+        # failure" — no valid review content produced. Exit non-zero
+        # otherwise means "review found problems" — real critical/important
+        # findings in the diff. Exit 0 is the happy path.
+        #
+        # Rollback: set DSO_INFRA_EXIT_CODE_ENABLED=0 in the dispatcher
+        # step's env to disable exit-4 emission. The runner then returns
+        # 1 for all failure modes (legacy behavior) and this step degrades
+        # to a single "review found problems" annotation.
+        if: always() && needs.changes.outputs.code_changed == 'true'
         shell: bash -eo pipefail {0}
         run: |
-          bash plugins/dso/scripts/llm-review-dispatch-or-skip.sh
+          _rc="${{ steps.llm_review_dispatch.outputs.exit_code }}"
+          if [[ -z "${_rc}" ]]; then
+            echo "::error::llm-review-dispatch-or-skip.sh produced no exit_code output — dispatch step itself crashed before reporting"
+            exit 1
+          fi
+          case "${_rc}" in
+            0)
+              echo "llm-review passed (exit 0)"
+              exit 0
+              ;;
+            4)
+              echo "::error::llm-review infrastructure failure (exit 4) — no valid review content produced. Common causes: LLM provider outage, missing API key, all specialists crashed, all findings synthetic. NOT a real code-review finding. See plugins/dso/docs/contracts/review-defenses.md."
+              exit 4
+              ;;
+            *)
+              # Exit non-zero with code != 4. Most commonly this is exit 1 from
+              # the severity gate (real blocking findings) or arbiter ruling.
+              # Other paths (OVER_BOUND, schema-correction exhaustion) also
+              # return non-zero. Keep the annotation neutral so operators read
+              # the findings JSON / stderr rather than trusting the headline.
+              echo "::error::llm-review failed (exit ${_rc}) — see findings JSON and stderr above. Likely a blocking finding from the severity gate; may also be an OVER_BOUND admin route or schema-correction exhaustion."
+              exit "${_rc}"
+              ;;
+          esac
 
       - name: Assert review liveness
         # F3 fix: the prior gate (`if: code_changed == 'true'`) made this

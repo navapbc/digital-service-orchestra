@@ -213,9 +213,15 @@ def test_cycle_dispatcher_short_circuit_returns_exit_0(tmp_path):
 
 
 def test_cycle_dispatcher_dispatch_arbiter_returns_exit_1(tmp_path):
-    """Given: cycle_next_action returns DISPATCH_ARBITER.
+    """Given: cycle_next_action returns DISPATCH_ARBITER, arbiter rules BLOCK.
     When: runner.main() is called.
-    Then: exit code is 1 (arbiter wiring placeholder blocks).
+    Then: exit code is 1 (arbiter blocked the cycle).
+
+    R4 (PR-C): explicitly mock dispatch_cycle_end_arbiter + process_rulings.
+    Without these mocks, the unmocked arbiter dispatch raises ValueError on
+    the empty ruling string and the test was passing by accident on the
+    outer except handler's legacy exit code 1 — which is now exit 4 under
+    R4. The test should exercise its STATED scenario (a real BLOCK ruling).
     """
     action_result = {
         "action": "DISPATCH_ARBITER",
@@ -223,12 +229,29 @@ def test_cycle_dispatcher_dispatch_arbiter_returns_exit_1(tmp_path):
         "cycle_num": 3,
     }
     findings = _make_specialist_findings(severity="important")
+    arbiter_rulings = [
+        {"ruling": "BLOCK", "finding_id": "test-finding-0", "reason": "blocking"}
+    ]
 
-    with _common_patches(tmp_path, findings, action_result):
+    with _common_patches(tmp_path, findings, action_result) as stack:
+        stack.enter_context(
+            patch(
+                "dso_ci_review.runner.dispatch_cycle_end_arbiter",
+                return_value=arbiter_rulings,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "dso_ci_review.runner.process_rulings",
+                return_value={"block": True},
+            )
+        )
+        stack.enter_context(patch("dso_ci_review.runner._post_arbiter_comment"))
         exit_code = runner_mod.main()
 
     assert exit_code == 1, (
-        f"Expected exit 1 on DISPATCH_ARBITER action, got {exit_code}"
+        f"Expected exit 1 on DISPATCH_ARBITER action with BLOCK ruling, "
+        f"got {exit_code}"
     )
 
 
