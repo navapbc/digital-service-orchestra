@@ -115,12 +115,17 @@ class TestR2FallbackChainIteration:
     """When the LLM call succeeds but returns non-JSON, the dispatch chain
     MUST advance to the next context model rather than `break`ing."""
 
-    def test_chain_advances_to_second_model_on_parse_failure(self):
+    def test_chain_advances_to_second_model_on_parse_failure(self, monkeypatch):
         """Mock litellm to return non-JSON for the first model, valid JSON
         for the second. Both models must be called."""
         import litellm
 
         from dso_ci_review import dispatch as dispatch_mod
+
+        # Provider config validates ANTHROPIC_API_KEY before reaching the
+        # mocked litellm call; set a dummy key so CI without secrets can
+        # exercise the chain-iteration logic.
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-dummy-key-for-unit-test")
 
         # Two-model chain: first returns refusal (non-JSON), second returns valid JSON.
         responses = [
