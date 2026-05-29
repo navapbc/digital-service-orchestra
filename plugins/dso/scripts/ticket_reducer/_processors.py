@@ -155,13 +155,19 @@ def process_comment(state: dict, event: dict, data: dict) -> None:
         _raw_body = ""
     elif not isinstance(_raw_body, str):
         _raw_body = json.dumps(_raw_body)
-    state["comments"].append(
-        {
-            "body": _raw_body,
-            "author": event.get("author"),
-            "timestamp": event.get("timestamp"),
-        }
-    )
+    # Bug 85a1 (Gap 1): preserve the source jira_comment_id so the outbound
+    # differ's loop-breaker can skip comments that originated from Jira-side
+    # inbound pulls. Without this the reconciler would re-push every
+    # inbound-pulled comment back to Jira on the next outbound pass.
+    _entry: dict = {
+        "body": _raw_body,
+        "author": event.get("author"),
+        "timestamp": event.get("timestamp"),
+    }
+    _jira_comment_id = data.get("jira_comment_id")
+    if _jira_comment_id is not None:
+        _entry["jira_comment_id"] = str(_jira_comment_id)
+    state["comments"].append(_entry)
 
 
 def process_link(state: dict, event: dict, data: dict) -> None:

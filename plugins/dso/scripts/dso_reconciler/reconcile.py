@@ -140,22 +140,65 @@ def preflight_status_mapping(mutations) -> None:
         return  # kill-switch — empty mapping disables preflight
     for m in mutations:
         # Mutations may be plain dicts (current schema) or objects with an
-        # ``.action`` attribute (forward-compat). Normalise to a string action.
+        # ``.action`` attribute (forward-compat). Normalise to a string action
+        # and direction.
         action_attr = getattr(m, "action", None)
         if action_attr is not None:
             action = getattr(action_attr, "value", action_attr)
             fields = getattr(m, "fields", None) or getattr(m, "payload", None) or {}
             target = getattr(m, "target", getattr(m, "key", None))
+            direction_attr = getattr(m, "direction", None)
+            direction = (
+                getattr(direction_attr, "value", direction_attr)
+                if direction_attr is not None
+                else None
+            )
         else:
             action = m.get("action")
             fields = m.get("fields") or m.get("payload") or {}
             target = m.get("key") or m.get("local_id")
+            direction = m.get("direction")
         if action != "update":
+            continue
+        # Bug 85a1: preflight validates *local* status names against the
+        # local→jira mapping. Inbound mutations carry Jira's status (either
+        # the raw REST dict or — post-normalisation — the Jira-side name),
+        # which is the VALUE side of the mapping, not the KEY side.
+        # Iterating inbound mutations through this check produces spurious
+        # ``local status 'To Do' not in local_to_jira_status mapping`` errors
+        # that abort the entire pass. Skip inbound entries; only outbound
+        # mutations populate ``fields.status`` with a local-status key.
+        if direction == "inbound":
             continue
         if not isinstance(fields, dict):
             continue
-        status = fields.get("status")
-        if status and status not in mapping:
+        raw_status = fields.get("status")
+        # Bug 85a1: inbound and outbound paths both feed mutations through
+        # this preflight. Outbound payloads carry the local status STRING
+        # ("open", "in_progress", ...); inbound payloads carry Jira's
+        # raw REST status DICT ({"name": "To Do", "id": ..., ...}). The
+        # original ``status not in mapping`` check failed closed for dict
+        # values with TypeError: unhashable type: 'dict'. Normalise dicts to
+        # the ``.name`` field before lookup so the preflight is shape-tolerant.
+        if isinstance(raw_status, dict):
+            status = raw_status.get("name") or ""
+        else:
+            status = raw_status
+        # Bug 85a1: outbound mutations may carry either:
+        #   - a LOCAL status string ("open", "in_progress") — when the
+        #     mutation originates from a path that hasn't translated yet;
+        #   - or a JIRA status string ("To Do", "In Progress") — when the
+        #     differ already mapped local→jira via _LOCAL_TO_JIRA_STATUS
+        #     (outbound_differ._map_local_to_jira_fields:107).
+        # Accept either by checking presence in mapping KEYS (local names)
+        # OR VALUES (jira names). The preflight purpose is to catch
+        # *unmapped* statuses before the applier dispatch; both shapes are
+        # legitimately-mapped values.
+        if (
+            status
+            and status not in mapping
+            and status not in set(mapping.values())
+        ):
             raise StatusMappingError(
                 f"local status {status!r} not in local_to_jira_status mapping "
                 f"(target={target})"
@@ -585,6 +628,19 @@ def reconcile_once(
         "outbound_differ_complete",
         count=len(outbound_raw),
     )
+    # Bug b859 (Part 0c): structured per-direction breakdown to stderr so
+    # operators / probes can see per-action counts without parsing the
+    # sync_logger JSON manifest. Format: ``RECON: <kind> <field>=<value>``
+    # with a stable token prefix that's distinct from FILTERED/filter/OK/
+    # ERROR so the probe's grep filter does not need to be updated.
+    _ob_creates = sum(1 for m in outbound_raw if m.action == "create")
+    _ob_updates = sum(1 for m in outbound_raw if m.action == "update")
+    _ob_deletes = sum(1 for m in outbound_raw if m.action == "delete")
+    print(  # noqa: T201
+        f"RECON: outbound_differ total={len(outbound_raw)} "
+        f"create={_ob_creates} update={_ob_updates} delete={_ob_deletes}",
+        file=sys.stderr,
+    )
 
     # Convert OutboundMutation → typed Mutation for unified dispatch.
     for om in outbound_raw:
@@ -650,6 +706,17 @@ def reconcile_once(
         "inbound_differ_complete",
         count=len(inbound_new),
     )
+    _ib_with_fields = sum(1 for m in inbound_new if m.fields)
+    _ib_with_labels = sum(1 for m in inbound_new if m.labels)
+    _ib_with_comments = sum(
+        1 for m in inbound_new if getattr(m, "comments", [])
+    )
+    print(  # noqa: T201
+        f"RECON: inbound_differ total={len(inbound_new)} "
+        f"with_fields={_ib_with_fields} with_labels={_ib_with_labels} "
+        f"with_comments={_ib_with_comments}",
+        file=sys.stderr,
+    )
 
     # Convert InboundMutation → typed Mutation for unified dispatch.
     for im in inbound_new:
@@ -659,8 +726,24 @@ def reconcile_once(
             target=im.jira_key,
             payload={
                 "local_id": im.local_id,
-                "changed_fields": im.fields,
+                # Bug b859 (Part 1a, H3 fix): _apply_inbound_update reads
+                # ``fields = payload.get("fields") or payload`` at
+                # applier.py:625. Writing the inbound mutation's fields
+                # under "changed_fields" (mirroring the outbound convention)
+                # caused the .get("fields") lookup to miss → fallback to
+                # the wrapper dict whose keys never matched the
+                # summary/status/etc. branches → every inbound EDIT/STATUS
+                # event was silently dropped → Phase 6 idempotency churn.
+                # Use "fields" so the existing applier consumer finds the
+                # dict on the first lookup.
+                "fields": im.fields,
                 "labels": im.labels,
+                # Bug 85a1 (Gap 1): propagate inbound comments so each new
+                # Jira comment is written as a local COMMENT event with
+                # jira_comment_id binding. getattr default keeps backward
+                # compat with InboundMutation variants (legacy test stubs)
+                # that lack the field.
+                "comments": getattr(im, "comments", []),
             },
             provenance={
                 "source": "inbound_differ",
@@ -776,17 +859,65 @@ def reconcile_once(
     # Advance prev snapshot so the next call converges to zero mutations
     shutil.copy2(curr_path, prev_path)
 
+    # Bug 85a1: surface the truthful applied-count and failure-count by parsing
+    # the manifest written by _apply_batch. Before this fix, sync_pass_end and
+    # the result dict reported mutations_applied=len(mutations) — the COMPUTED
+    # count, not the count that actually reached a handler. The "OK: converged"
+    # message in __main__ inherited that lie.
+    #
+    # Semantics: a manifest outcome with no "error" key counts as applied (the
+    # handler ran without raising — even update_one's comment-fallback path that
+    # returns result=None on 400 illegal-transition counts as applied because a
+    # comment was added). An outcome with an "error" key counts as a failure.
+    #
+    # Degrades gracefully: if manifest_path is None (rare paths), or the JSON
+    # cannot be parsed, the counts conservatively default to (mutation_count, 0)
+    # so existing callers reading mutations_applied receive a number consistent
+    # with the prior contract.
+    mutations_applied = len(mutations)
+    mutation_failures = 0
+    if manifest_path is not None:
+        try:
+            manifest_data = json.loads(Path(manifest_path).read_text())
+            # Two manifest shapes coexist (bug 85a1 follow-up):
+            #   1. Legacy/LIVE — written by _apply_batch with a flat
+            #      ``mutations`` list of outcome dicts; each outcome with no
+            #      ``error`` key counts as applied.
+            #   2. Asymmetric/BOOTSTRAP — written by manifest_renderer when
+            #      mode caps are in effect (bootstrap-strict/throttle/dry-run).
+            #      Carries an explicit ``applied_count`` integer and direction
+            #      totals; no flat ``mutations`` list.
+            # Detect the asymmetric shape via the presence of ``applied_count``
+            # and prefer it when present (it's the authoritative apply tally).
+            # Otherwise fall back to the legacy outcomes-list count.
+            if "applied_count" in manifest_data:
+                mutations_applied = int(manifest_data["applied_count"])
+                mutation_failures = int(manifest_data.get("failed_count", 0))
+            else:
+                outcomes = manifest_data.get("mutations", []) or []
+                mutations_applied = sum(1 for o in outcomes if not o.get("error"))
+                mutation_failures = sum(1 for o in outcomes if o.get("error"))
+        except Exception as exc:  # noqa: BLE001
+            print(  # noqa: T201
+                f"reconcile: manifest tally read failed ({exc}) — "
+                f"falling back to computed count",
+                file=sys.stderr,
+            )
+
     sync_logger.log(
         "sync_pass_end",
         pass_id=pass_id,
         mutations_computed=len(mutations),
-        mutations_applied=len(mutations),
+        mutations_applied=mutations_applied,
+        mutation_failures=mutation_failures,
     )
     sync_logger.close()
 
     result = {
         "pass_id": pass_id,
         "mutation_count": len(mutations),
+        "mutations_applied": mutations_applied,
+        "mutation_failures": mutation_failures,
         "manifest_path": str(manifest_path),
     }
     if filter_local_ids:

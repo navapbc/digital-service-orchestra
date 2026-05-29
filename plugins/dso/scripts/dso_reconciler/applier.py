@@ -241,7 +241,9 @@ def _apply_outbound_create(mutation, *, client=None, repo_root=None) -> ApplyRes
 # fields in the changed_fields set are silently dropped — pushing arbitrary
 # fields outbound is a higher-blast-radius change that lands in a follow-up
 # story. Status is governed separately by DSO_RECONCILER_STATUS_GATING.
-_OUTBOUND_UPDATE_ALLOWLIST = frozenset({"summary", "description", "assignee", "priority"})
+_OUTBOUND_UPDATE_ALLOWLIST = frozenset(
+    {"summary", "description", "assignee", "priority", "status"}
+)
 
 
 def _route_status_via_draft5(mutation, *, client=None):
@@ -285,21 +287,12 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
     if changed_fields is None:
         changed_fields = payload
 
-    # Status gating: status field is governed by DSO_RECONCILER_STATUS_GATING.
-    if "status" in changed_fields:
-        gating = os.environ.get("DSO_RECONCILER_STATUS_GATING", "0")
-        if gating != "1":
-            errs = _load_errors_module()
-            raise errs.StatusMappingError(
-                f"status field touched but DSO_RECONCILER_STATUS_GATING != 1 "
-                f"(got {gating!r}); zero side-effects — refusing to push status "
-                "without explicit operator gating"
-            )
-        # Gating ON — delegate to the draft5 stub. The caller is responsible
-        # for any status-specific routing semantics.
-        _route_status_via_draft5(mutation, client=client)
-        # Strip status before pushing remaining allowlisted fields.
-        changed_fields = {k: v for k, v in changed_fields.items() if k != "status"}
+    # Bug 85a1 (Gap 8): status outbound is now first-class. The previous
+    # DSO_RECONCILER_STATUS_GATING gate has been removed — status flows
+    # through ``client.update_issue`` which routes status to
+    # ``transition_issue`` (REST POST /transitions). The legacy
+    # ``_route_status_via_draft5`` no-op stub is unused.
+    # status stays in changed_fields and is forwarded below.
 
     # Filter to allowlist. Non-allowlisted fields are silently dropped.
     allowed = {
@@ -665,6 +658,27 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
             {"status": local_status, "current_status": previous_status},
         )
         written.append(str(path))
+
+    # Bug 85a1 (Gap 1): inbound comments — write a COMMENT event for each
+    # new Jira comment the differ surfaced. The body is stored as plain
+    # text (post-ADF-decode); ``jira_comment_id`` is persisted so the
+    # outbound differ's loop-breaker skips this comment on the next pass.
+    inbound_comments = payload.get("comments") or []
+    if isinstance(inbound_comments, list):
+        for entry in inbound_comments:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("action") != "add":
+                continue
+            body = entry.get("body") or ""
+            if not body:
+                continue
+            event_data: dict[str, Any] = {"body": body}
+            jid = entry.get("jira_comment_id")
+            if jid is not None:
+                event_data["jira_comment_id"] = str(jid)
+            path = _write_event_file(tracker_dir, local_id, "COMMENT", event_data)
+            written.append(str(path))
 
     return ApplyResult(
         mutation.direction,
@@ -1675,6 +1689,54 @@ def create_one(
                 pass  # alert write failure must not mask original error
             raise write_err
 
+    # Bug 85a1 (PR #87e4 follow-up): propagate user-supplied labels/comments
+    # from the mutation payload after the identity-write block. The fix was
+    # previously applied only to update_one (lines 1744-1779) — the symmetric
+    # gap in create_one caused outbound CREATE to silently drop every user
+    # label and comment, leaving freshly-created Jira issues with only the
+    # dso-id system label (Phase 1 of the e2e field-validation probe).
+    # Failures here are logged but non-fatal — the create + identity write
+    # already succeeded; a downstream label/comment dispatch failure must
+    # not roll back the Jira issue.
+    if jira_key:
+        labels = mutation.get("labels", []) or []
+        if isinstance(labels, list):
+            for entry in labels:
+                if not isinstance(entry, dict):
+                    continue
+                action = entry.get("action")
+                label_name = entry.get("label", "")
+                if not label_name:
+                    continue
+                # remove-action entries are no-ops at CREATE time — a brand-new
+                # issue has no preexisting labels to remove.
+                if action != "add":
+                    continue
+                try:
+                    _call_with_retry(client.add_label, jira_key, label_name)
+                except Exception as exc:  # noqa: BLE001
+                    print(  # noqa: T201
+                        f"create_one: add_label failed for {jira_key} "
+                        f"label={label_name!r}: {exc!r}",
+                        file=sys.stderr,
+                    )
+
+        comments = mutation.get("comments", []) or []
+        if isinstance(comments, list):
+            for entry in comments:
+                if not isinstance(entry, dict):
+                    continue
+                body = entry.get("body", "")
+                if not body:
+                    continue
+                try:
+                    _call_with_retry(client.add_comment, jira_key, body)
+                except Exception as exc:  # noqa: BLE001
+                    print(  # noqa: T201
+                        f"create_one: add_comment failed for {jira_key}: {exc!r}",
+                        file=sys.stderr,
+                    )
+
     return result
 
 
@@ -1711,6 +1773,35 @@ def update_one(mutation: dict, client) -> dict | None:
     fields = mutation.get("fields", {})
     if not isinstance(fields, dict):
         fields = {}
+    # Capture pre-filter status so the comment-fallback path (which reads
+    # ``fields.get("status")`` after the allowlist strips it) can still
+    # report the attempted local status (bug 85a1 follow-up).
+    _attempted_status = fields.get("status")
+    # Bug 85a1: strip fields ACLI does not accept on `jira workitem edit`.
+    # The legacy batch path here was unfiltered, so a local issuetype change
+    # (e.g., probe Phase 2 ticket_type=task→bug) flowed through as
+    # ``--issuetype Bug`` which ACLI rejects with non-zero exit, aborting the
+    # ENTIRE batch loop and silently losing every subsequent outbound update.
+    # The typed leaf ``_apply_outbound_update`` already filters via
+    # ``_OUTBOUND_UPDATE_ALLOWLIST`` — apply the same allowlist here. Stripped
+    # fields (issuetype, type-change in general) are intentional drops mirroring
+    # the typed-leaf contract; outbound issuetype changes are BY_DESIGN
+    # unsupported on the edit endpoint (Atlassian JRASERVER-71292).
+    # status is included: bug 85a1 (Gap 8) removed the BY_DESIGN drop —
+    # outbound status push now uses REST POST /transitions via
+    # ``transition_issue`` (bypasses ACLI's silent-exit-0 failure mode).
+    # The typed leaf's DSO_RECONCILER_STATUS_GATING gate is also gone.
+    _OUTBOUND_BATCH_ALLOWLIST = frozenset(
+        {"summary", "description", "assignee", "priority", "status"}
+    )
+    _stripped = {k: v for k, v in fields.items() if k not in _OUTBOUND_BATCH_ALLOWLIST}
+    if _stripped:
+        print(  # noqa: T201
+            f"update_one: dropping fields not accepted by ACLI edit "
+            f"for {mutation.get('key')}: {sorted(_stripped.keys())}",
+            file=sys.stderr,
+        )
+    fields = {k: v for k, v in fields.items() if k in _OUTBOUND_BATCH_ALLOWLIST}
     issue_key = mutation.get("key")
     result: dict | None
     try:
@@ -1718,7 +1809,7 @@ def update_one(mutation: dict, client) -> dict | None:
     except JiraAPIError as exc:
         if not _is_illegal_transition_400(exc):
             raise
-        new_status = fields.get("status")
+        new_status = _attempted_status
         comment = f"local status changed to {new_status}"
         try:
             client.add_comment(issue_key, comment)
@@ -1728,7 +1819,7 @@ def update_one(mutation: dict, client) -> dict | None:
             {
                 "action": "comment_fallback",
                 "issue_key": issue_key,
-                "attempted_status": new_status,
+                "attempted_status": _attempted_status,
                 "reason": "400_illegal_transition",
             }
         )
@@ -2169,6 +2260,16 @@ def apply(
         if isinstance(pending, dict):
             pending_bug_tickets.append(pending)
 
+    # Bug b859 (Part 0c): structured RECON line after inbound typed dispatch
+    # so operators see how many inbound mutations actually ran (vs were
+    # suppressed). Independent of the manifest tally because suppression
+    # decisions live only in this loop scope.
+    print(  # noqa: T201
+        f"RECON: typed_inbound_dispatched count={len(inbound_typed)} "
+        f"suppressed_pairs={len(suppressed_pairs)}",
+        file=sys.stderr,
+    )
+
     # Outbound (or untyped dict): normalize typed Mutations to dicts so
     # _apply_batch can iterate, then route through the legacy batch path.
     # _apply_batch handles an empty list cleanly (writes an empty manifest)
@@ -2572,6 +2673,22 @@ def _apply_batch(
                 outcome["error"] = f"unknown action: {action!r}"
 
             mutations_with_outcomes.append(outcome)
+            # Bug b859 (Part 0c): per-mutation RECON line so operators see
+            # which dispatch actually ran without parsing the manifest.
+            # Targets the legacy batch path (the dominant outbound CREATE +
+            # UPDATE channel today). Truncated to single-line; full
+            # mutation lives in the manifest for forensic dives.
+            _outcome_key = (
+                mutation.get("key")
+                or mutation.get("local_id")
+                or "<unknown>"
+            )
+            _outcome_err = outcome.get("error")
+            print(  # noqa: T201
+                f"RECON: batch_outcome action={action} key={_outcome_key} "
+                f"error={_outcome_err!r}",
+                file=sys.stderr,
+            )
 
     except HeadDriftError:
         # Emit abort event as structured log and re-raise for the caller

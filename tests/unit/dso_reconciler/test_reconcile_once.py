@@ -92,6 +92,30 @@ def _make_acli_module(issues: list[dict]) -> types.ModuleType:
         def transition_issue(self, key: str, status: str) -> None:
             return None
 
+        # Bug 85a1 / Gap 1+5+8: create_one + update_one now dispatch labels,
+        # comments, identity writes, and unassign-via-REST. The stub accepts
+        # these as no-ops so reconcile_once tests don't crash on AttributeError.
+        def add_label(self, key: str, label: str) -> None:
+            return None
+
+        def remove_label(self, key: str, label: str) -> None:
+            return None
+
+        def add_comment(self, key: str, body: str) -> dict:
+            return {"id": "stub-comment"}
+
+        def set_entity_property(self, key: str, prop: str, value) -> None:
+            return None
+
+        def delete_issue(self, key: str) -> None:
+            return None
+
+        def unassign_issue(self, key: str) -> None:
+            return None
+
+        def transition_issue_by_name(self, key: str, target: str) -> None:
+            return None
+
     mock_mod = types.ModuleType("acli_integration")
     mock_mod.AcliClient = _Client
     return mock_mod

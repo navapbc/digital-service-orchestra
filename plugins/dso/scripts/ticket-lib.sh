@@ -2253,13 +2253,21 @@ PYEOF
 # Atomically writes <payload> to <abs_path> using a same-directory temporary
 # file + fsync(file) + rename + fsync(parent) pattern.
 #
-# Enforces a byte ceiling (default: 4096 bytes). On overflow, emits a
-# structured JSON error to stdout and returns non-zero WITHOUT writing any file.
+# Enforces a byte ceiling (default: 98304 bytes / 96KB). Empirically sized
+# against 200 closed+archived epics (P99 story-decomposer ~72KB, historical
+# max ~91KB at epic dbbc-cf67 with 18 stories and 6 verbatim ~2,590-char SCs);
+# 96KB is the next 8KB boundary above max+10% headroom. See bug 3e82 for the
+# migration history (4096 → 32768 → 98304). On overflow, emits a structured
+# JSON error to stdout and returns non-zero WITHOUT writing any file. The cap
+# remains bounded so multi-MB payloads route via filesystem path (with a
+# pointer in scratch) rather than inflating the tickets-tracker disk; the
+# structural follow-up is restoring the original receipt-as-pointer pattern
+# from epic 1d8b's design notes.
 #
 # Args:
 #   abs_path  : absolute target file path
 #   payload   : string content to write
-#   max_bytes : optional override for the ceiling (default: 4096)
+#   max_bytes : optional override for the ceiling (default: 98304)
 #
 # On success:
 #   Writes the file atomically; exits 0; no *.tmp.* siblings remain.
@@ -2271,7 +2279,7 @@ PYEOF
 _scratch_atomic_write() {
     local abs_path="$1"
     local payload="$2"
-    local max_bytes="${3:-4096}"
+    local max_bytes="${3:-98304}"
 
     python3 - "$abs_path" "$payload" "$max_bytes" <<'PYEOF'
 import json, os, sys, tempfile

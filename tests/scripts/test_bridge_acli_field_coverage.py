@@ -617,29 +617,49 @@ class TestAcliContractRegression:
 
     # --- TRANSITION contract (module-level function) ----------------------
 
-    def test_transition_issue_uses_key_and_status_flags(self, acli_mod: Any) -> None:
-        """TRANSITION MUST use --key and --status (module-level function)."""
-        captured_cmds: list[list[str]] = []
+    def test_transition_issue_uses_rest_transitions_endpoint(
+        self, acli_mod: Any
+    ) -> None:
+        """TRANSITION MUST use REST POST /rest/api/3/issue/{key}/transitions (bug 85a1 Gap 8).
 
-        def fake_run_acli(cmd: list[str], *, acli_cmd: Any = None) -> Any:
-            captured_cmds.append(cmd)
-            from unittest.mock import MagicMock
+        The previous ACLI-based ``workitem transition`` subcommand silently
+        exited 0 on bogus transitions (bug 85a1 Gap 5 — the lying-success
+        bug), so ``transition_issue`` was rewritten to use direct REST.
+        This regression test pins the new contract: GET /transitions to
+        list available, then POST /transitions with ``{"transition":
+        {"id": "<id>"}}``. ACLI is NO LONGER called from this path.
+        """
+        from unittest.mock import patch as _patch
 
-            result = MagicMock()
-            result.stdout = json.dumps({"key": "DIG-3802"})
-            return result
+        rest_get_calls: list[str] = []
+        rest_post_calls: list[tuple[str, dict]] = []
 
-        with patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli):
+        def fake_get(self: Any, path: str) -> dict:
+            rest_get_calls.append(path)
+            return {
+                "transitions": [
+                    {"id": "31", "name": "Done", "to": {"name": "Done"}},
+                ]
+            }
+
+        def fake_post(self: Any, path: str, body: dict) -> None:
+            rest_post_calls.append((path, body))
+
+        with (
+            _patch.object(acli_mod.AcliClient, "_direct_rest_get", fake_get),
+            _patch.object(acli_mod.AcliClient, "_direct_rest_post_raw", fake_post),
+        ):
             acli_mod.transition_issue("DIG-3802", "Done")
 
-        assert captured_cmds, "transition_issue must issue an ACLI command"
-        cmd = captured_cmds[0]
-        assert cmd[:3] == ["jira", "workitem", "transition"], (
-            f"TRANSITION command must start with 'jira workitem transition'. Got: {cmd[:3]}"
+        assert rest_get_calls == ["/rest/api/3/issue/DIG-3802/transitions"], (
+            f"transition_issue must GET /transitions; got: {rest_get_calls}"
         )
-        assert "--key" in cmd
-        assert "--status" in cmd
-        assert cmd[cmd.index("--key") + 1] == "DIG-3802"
+        assert len(rest_post_calls) == 1, (
+            f"expected one POST; got {len(rest_post_calls)}"
+        )
+        path, body = rest_post_calls[0]
+        assert path == "/rest/api/3/issue/DIG-3802/transitions"
+        assert body == {"transition": {"id": "31"}}
 
 
 class TestAcliSanitizers:
