@@ -113,7 +113,7 @@ def test_inbound_remove_suppressed_when_outbound_adds_same_label(
         )
     ]
 
-    result = inbound_differ.compute_inbound_mutations(
+    result, suppressed = inbound_differ.compute_inbound_mutations(
         jira_snapshot=jira_snapshot,
         binding_store=store,
         local_tickets_by_id=local_tickets,
@@ -126,6 +126,8 @@ def test_inbound_remove_suppressed_when_outbound_adds_same_label(
             assert not (
                 lm.get("action") == "remove" and lm.get("label") == "ob-added"
             ), f"Inbound emitted contradictory REMOVE ob-added: {m}"
+    # One label REMOVE was suppressed.
+    assert suppressed == 1
 
 
 def test_inbound_add_suppressed_when_outbound_removes_same_label(
@@ -147,7 +149,7 @@ def test_inbound_add_suppressed_when_outbound_removes_same_label(
         )
     ]
 
-    result = inbound_differ.compute_inbound_mutations(
+    result, suppressed = inbound_differ.compute_inbound_mutations(
         jira_snapshot=jira_snapshot,
         binding_store=store,
         local_tickets_by_id=local_tickets,
@@ -159,6 +161,8 @@ def test_inbound_add_suppressed_when_outbound_removes_same_label(
             assert not (lm.get("action") == "add" and lm.get("label") == "ib-add"), (
                 f"Inbound emitted contradictory ADD ib-add: {m}"
             )
+    # One label ADD was suppressed.
+    assert suppressed == 1
 
 
 def test_inbound_scalar_field_suppressed_when_outbound_updates_same_field(
@@ -199,7 +203,7 @@ def test_inbound_scalar_field_suppressed_when_outbound_updates_same_field(
         )
     ]
 
-    result = inbound_differ.compute_inbound_mutations(
+    result, suppressed = inbound_differ.compute_inbound_mutations(
         jira_snapshot=jira_snapshot,
         binding_store=store,
         local_tickets_by_id=local_tickets,
@@ -210,6 +214,8 @@ def test_inbound_scalar_field_suppressed_when_outbound_updates_same_field(
         assert "description" not in m.fields, (
             f"Inbound emitted contradictory description update: {m}"
         )
+    # One scalar field update was suppressed.
+    assert suppressed == 1
 
 
 # ---------------------------------------------------------------------------
@@ -225,12 +231,98 @@ def test_default_outbound_mutations_param_preserves_legacy_behavior(
     local_tickets = {"local-9": _baseline_local([])}
     store = StubBindingStore({"PROJ-9": "local-9"})
 
-    result = inbound_differ.compute_inbound_mutations(
+    result, suppressed = inbound_differ.compute_inbound_mutations(
         jira_snapshot=jira_snapshot,
         binding_store=store,
         local_tickets_by_id=local_tickets,
     )
 
     assert len(result) == 1
+    # Without outbound_mutations, no suppression occurs.
+    assert suppressed == 0
     add_labels = [lm for lm in result[0].labels if lm.get("action") == "add"]
     assert any(lm.get("label") == "only-on-jira" for lm in add_labels)
+
+
+# ---------------------------------------------------------------------------
+# _build_outbound_context direct tests (cycle-1 review finding 2).
+# ---------------------------------------------------------------------------
+
+
+def _ob_mut(
+    outbound_differ: ModuleType,
+    *,
+    jira_key: str,
+    fields: dict | None = None,
+    labels: list | None = None,
+) -> object:
+    return outbound_differ.OutboundMutation(
+        local_id="local-x",
+        jira_key=jira_key,
+        action="update",
+        fields=fields or {},
+        labels=labels or [],
+    )
+
+
+def test_build_outbound_context_empty_returns_empty_index(
+    inbound_differ: ModuleType,
+) -> None:
+    """Empty / None outbound list -> empty index."""
+    assert inbound_differ._build_outbound_context(None) == {}
+    assert inbound_differ._build_outbound_context([]) == {}
+
+
+def test_build_outbound_context_label_adds_only(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """Label adds populate label_adds; label_removes stays empty."""
+    om = _ob_mut(
+        outbound_differ,
+        jira_key="PROJ-1",
+        labels=[
+            {"action": "add", "label": "alpha"},
+            {"action": "add", "label": "beta"},
+        ],
+    )
+    ctx = inbound_differ._build_outbound_context([om])
+    assert "PROJ-1" in ctx
+    entry = ctx["PROJ-1"]
+    assert entry["label_adds"] == {"alpha", "beta"}
+    assert entry["label_removes"] == set()
+    assert entry["fields"] == set()
+
+
+def test_build_outbound_context_mixed_adds_and_removes_same_jira_key(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """Mixed add/remove on same jira_key populates both sets correctly."""
+    om = _ob_mut(
+        outbound_differ,
+        jira_key="PROJ-2",
+        labels=[
+            {"action": "add", "label": "keep-me"},
+            {"action": "remove", "label": "drop-me"},
+            {"action": "add", "label": "another-add"},
+        ],
+    )
+    ctx = inbound_differ._build_outbound_context([om])
+    entry = ctx["PROJ-2"]
+    assert entry["label_adds"] == {"keep-me", "another-add"}
+    assert entry["label_removes"] == {"drop-me"}
+
+
+def test_build_outbound_context_field_updates_populate_fields_set(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """Outbound with field updates -> fields set populated with field names."""
+    om = _ob_mut(
+        outbound_differ,
+        jira_key="PROJ-3",
+        fields={"description": "new", "priority": 1},
+    )
+    ctx = inbound_differ._build_outbound_context([om])
+    entry = ctx["PROJ-3"]
+    assert entry["fields"] == {"description", "priority"}
+    assert entry["label_adds"] == set()
+    assert entry["label_removes"] == set()

@@ -89,13 +89,14 @@ def test_bound_ticket_jira_changed_emits_inbound_update(
         }
     }
 
-    result = inbound_differ.compute_inbound_mutations(
+    result, suppressed = inbound_differ.compute_inbound_mutations(
         jira_snapshot=jira_snapshot,
         binding_store=store,
         local_tickets_by_id=local_tickets,
     )
 
     assert len(result) == 1
+    assert suppressed == 0
     m = result[0]
     assert m.jira_key == "PROJ-100"
     assert m.local_id == "local-1"
@@ -119,13 +120,14 @@ def test_unbound_jira_issue_ignored(inbound_differ: ModuleType) -> None:
     store = StubBindingStore()  # no bindings
     local_tickets: dict = {}
 
-    result = inbound_differ.compute_inbound_mutations(
+    result, suppressed = inbound_differ.compute_inbound_mutations(
         jira_snapshot=jira_snapshot,
         binding_store=store,
         local_tickets_by_id=local_tickets,
     )
 
     assert result == []
+    assert suppressed == 0
 
 
 def test_bound_both_changed_skipped(inbound_differ: ModuleType) -> None:
@@ -164,7 +166,7 @@ def test_bound_both_changed_skipped(inbound_differ: ModuleType) -> None:
         }
     }
 
-    result = inbound_differ.compute_inbound_mutations(
+    result, suppressed = inbound_differ.compute_inbound_mutations(
         jira_snapshot=jira_snapshot,
         binding_store=store,
         local_tickets_by_id=local_tickets,
@@ -173,6 +175,7 @@ def test_bound_both_changed_skipped(inbound_differ: ModuleType) -> None:
     # The inbound differ emits the diff. The orchestrator resolves conflicts
     # by giving outbound mutations precedence (local wins).
     assert len(result) == 1
+    assert suppressed == 0
     m = result[0]
     # The title differs (Jira says "Jira changed title", local says "Local changed title")
     assert "title" in m.fields
@@ -205,13 +208,14 @@ def test_bound_no_changes_emits_nothing(inbound_differ: ModuleType) -> None:
         }
     }
 
-    result = inbound_differ.compute_inbound_mutations(
+    result, suppressed = inbound_differ.compute_inbound_mutations(
         jira_snapshot=jira_snapshot,
         binding_store=store,
         local_tickets_by_id=local_tickets,
     )
 
     assert result == []
+    assert suppressed == 0
 
 
 def test_inbound_label_diff(inbound_differ: ModuleType) -> None:
@@ -240,13 +244,14 @@ def test_inbound_label_diff(inbound_differ: ModuleType) -> None:
         }
     }
 
-    result = inbound_differ.compute_inbound_mutations(
+    result, suppressed = inbound_differ.compute_inbound_mutations(
         jira_snapshot=jira_snapshot,
         binding_store=store,
         local_tickets_by_id=local_tickets,
     )
 
     assert len(result) == 1
+    assert suppressed == 0
     m = result[0]
     label_adds = [lb for lb in m.labels if lb["action"] == "add"]
     assert any(lb["label"] == "jira-label" for lb in label_adds)

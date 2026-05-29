@@ -696,7 +696,11 @@ def reconcile_once(
     # Bug 3bf8: pass outbound mutations so the inbound differ can suppress
     # emissions that would contradict (and clobber) a just-emitted outbound
     # change for the same target in the same bidirectional pass.
-    inbound_new = inbound_differ_mod.compute_inbound_mutations(
+    # Bug 3bf8: ``compute_inbound_mutations`` returns
+    # ``(mutations, suppression_count)`` — the count of inbound field/label
+    # items dropped by bidirectional outbound-context filtering. Single-pass
+    # to avoid O(2n) differ cost on every reconcile pass.
+    inbound_new, _ib_suppressed = inbound_differ_mod.compute_inbound_mutations(
         curr_snapshot,
         binding_store,
         local_by_id,
@@ -709,21 +713,6 @@ def reconcile_once(
     _ib_with_fields = sum(1 for m in inbound_new if m.fields)
     _ib_with_labels = sum(1 for m in inbound_new if m.labels)
     _ib_with_comments = sum(1 for m in inbound_new if getattr(m, "comments", []))
-    # Bug 3bf8: count of inbound items suppressed by outbound-context
-    # filtering — recompute inbound without coordination (the differ is pure
-    # / no I/O) and diff per-target field + label counts.
-    _ib_uncoordinated = inbound_differ_mod.compute_inbound_mutations(
-        curr_snapshot,
-        binding_store,
-        local_by_id,
-    )
-    _coord_by_key = {m.jira_key: m for m in inbound_new}
-    _ib_suppressed = 0
-    for _u in _ib_uncoordinated:
-        _c = _coord_by_key.get(_u.jira_key)
-        _u_items = len(_u.fields) + len(_u.labels)
-        _c_items = (len(_c.fields) + len(_c.labels)) if _c is not None else 0
-        _ib_suppressed += max(0, _u_items - _c_items)
     print(  # noqa: T201
         f"RECON: inbound_differ total={len(inbound_new)} "
         f"with_fields={_ib_with_fields} with_labels={_ib_with_labels} "

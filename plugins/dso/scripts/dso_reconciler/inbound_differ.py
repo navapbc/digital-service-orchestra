@@ -332,7 +332,7 @@ def compute_inbound_mutations(
     binding_store: BindingStoreProtocol,
     local_tickets_by_id: dict[str, dict[str, Any]],
     outbound_mutations: list[Any] | None = None,
-) -> list[InboundMutation]:
+) -> tuple[list[InboundMutation], int]:
     """Detect Jira-side changes for bound tickets.
 
     Only processes BOUND tickets (those in binding_store). Unbound Jira issues
@@ -364,10 +364,18 @@ def compute_inbound_mutations(
             None (no coordination — legacy behaviour preserved).
 
     Returns:
-        List of InboundMutation objects describing changes to apply locally.
+        Tuple of ``(mutations, suppression_count)``:
+          - ``mutations``: list of InboundMutation objects describing changes
+            to apply locally (post-suppression).
+          - ``suppression_count``: integer count of inbound field- and
+            label-level items that were dropped by bidirectional
+            suppression in this call. Zero when ``outbound_mutations`` is
+            None or empty. Used by reconcile telemetry to emit the
+            ``RECON: bidir_suppressed`` line without a second pass.
     """
     mutations: list[InboundMutation] = []
     outbound_ctx = _build_outbound_context(outbound_mutations)
+    suppression_count = 0
 
     for jira_key, jira_fields in sorted(jira_snapshot.items()):
         local_id = binding_store.get_local_id(jira_key)
@@ -391,9 +399,11 @@ def compute_inbound_mutations(
             # Scalar fields: drop any inbound field update where outbound
             # is updating the same field.
             if changed:
+                pre_field_count = len(changed)
                 changed = {
                     k: v for k, v in changed.items() if k not in ob_entry["fields"]
                 }
+                suppression_count += pre_field_count - len(changed)
             # Labels: drop inbound ADD when outbound REMOVES the same label,
             # and inbound REMOVE when outbound ADDS the same label.
             if label_mutations:
@@ -402,8 +412,10 @@ def compute_inbound_mutations(
                     action = lm.get("action")
                     label = lm.get("label")
                     if action == "add" and label in ob_entry["label_removes"]:
+                        suppression_count += 1
                         continue
                     if action == "remove" and label in ob_entry["label_adds"]:
+                        suppression_count += 1
                         continue
                     filtered_labels.append(lm)
                 label_mutations = filtered_labels
@@ -420,4 +432,4 @@ def compute_inbound_mutations(
                 )
             )
 
-    return mutations
+    return mutations, suppression_count
