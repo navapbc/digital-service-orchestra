@@ -71,6 +71,15 @@ fail_test() {
     local detail="${2:-}"
     echo "FAIL: $name${detail:+ — $detail}"
     FAILED=$((FAILED + 1))
+    # Bug b859 (Part 0a): dump the most recent reconciler output's last 60
+    # lines so unmatched stderr (including Python tracebacks) is visible.
+    # The probe's main log captures this dump verbatim, eliminating the
+    # observability gap that hid Phase 4's silent failure.
+    if [ -n "${LAST_RECONCILER_LOG:-}" ] && [ -s "$LAST_RECONCILER_LOG" ]; then
+        echo "=== last reconciler output (tail 60) ==="
+        tail -60 "$LAST_RECONCILER_LOG"
+        echo "=== end last reconciler output ==="
+    fi
 }
 
 skip_test() {
@@ -97,9 +106,22 @@ restore_snapshot() {
 # Restore snapshot on any exit (crash safety).
 trap restore_snapshot EXIT
 
+# Bug b859 (Part 0a): the prior implementation captured reconciler output
+# only to the local `output` var, and the caller piped it through a grep
+# filter `^(FILTERED|filter:|OK:|ERROR:)` that silently dropped Python
+# tracebacks. When the reconciler aborted pre-FILTERED PASS, operators saw
+# nothing between "Running reconciler..." and the verify FAIL.
+# Now: write every reconciler invocation's full unfiltered output to a
+# side-car file at $LAST_RECONCILER_LOG, and expose $LAST_RECONCILER_LOG
+# for fail_test to dump when an assertion fails. The function still echoes
+# the output to stdout so existing callers see the same lines they always
+# did.
+LAST_RECONCILER_LOG=""
 run_reconciler() {
     local output
+    LAST_RECONCILER_LOG=$(mktemp -t recon-probe.XXXXXX.log)
     output=$(cd "$RECONCILER_DIR" && python -m dso_reconciler "$@" 2>&1) || true
+    printf '%s\n' "$output" > "$LAST_RECONCILER_LOG"
     echo "$output"
 }
 
@@ -118,6 +140,9 @@ import importlib.util, sys, json, os
 spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
+adf_spec = importlib.util.spec_from_file_location('adf', '${_SCRIPTS_DIR}/dso_reconciler/adf.py')
+adf_mod = importlib.util.module_from_spec(adf_spec)
+adf_spec.loader.exec_module(adf_mod)
 client = mod.AcliClient(
     jira_url=os.environ['JIRA_URL'],
     user=os.environ['JIRA_USER'],
@@ -126,7 +151,13 @@ client = mod.AcliClient(
 issue = client.get_issue_by_rest('${key}')
 fields = issue.get('fields', issue)
 val = fields.get('${field}', '')
-if isinstance(val, dict):
+# Description is returned as an ADF document, not a string. Decode via adf_to_text
+# so the probe asserts against canonical plain text (bug 85a1 — the probe's prior
+# raw.get('name', ...) returned '' for ADF, producing false-negative description
+# verification failures).
+if '${field}' == 'description' and isinstance(val, dict):
+    val = adf_mod.adf_to_text(val)
+elif isinstance(val, dict):
     val = val.get('name', val.get('displayName', ''))
 if isinstance(val, list):
     print(json.dumps(val))
@@ -964,29 +995,79 @@ else
 fi
 
 # ===========================================================================
+# PHASE 3a: Inbound on UNTOUCHED ticket (no local edits in Phase 2)
+# ===========================================================================
+#
+# Bug b859 (Part 4a): Phase 3 verifies inbound on tickets ALSO edited in
+# Phase 2. With local-wins conflict resolution, Phase 2's local edits
+# override Phase 3's Jira-side edits — every Phase 3 verify FAILs not
+# because inbound is broken but because local-wins works correctly.
+# Phase 3a uses a ticket Phase 2 did NOT edit and confirms inbound
+# persists Jira-side changes locally.
+
+echo ""
+echo "=== PHASE 3a: Inbound on untouched ticket ==="
+echo ""
+
+# Use LOCAL_IDS[3] (FIELD-PROBE-4 multiline desc ticket) — Phase 2 does NOT
+# edit it; only Phase 1 created + verified it. Edit summary in Jira directly
+# and confirm the local snapshot reflects the change after the reconciler runs.
+if [ -n "${JIRA_KEYS[3]}" ]; then
+    jira_update_issue "${JIRA_KEYS[3]}" "summary=FIELD-PROBE-4: PHASE3A-INBOUND ${PROBE_TS}" 2>&1 || true
+    pass_test "Phase3a.jira-edit-summary-untouched"
+fi
+
+# Wait for Jira index consistency.
+sleep 2
+
+# Run the reconciler — inbound differ should detect the Jira summary edit
+# and write an EDIT event to the local tracker.
+echo "Running reconciler for inbound on untouched ticket..."
+reconciler_output=$(run_filtered_reconciler "$FILTER_IDS")
+echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+
+# Verify local picked up the Jira-side change.
+local_title=$(get_local_field "${LOCAL_IDS[3]}" "title")
+if [[ "$local_title" == *"PHASE3A-INBOUND"* ]]; then
+    pass_test "Phase3a.verify-untouched-title-inbound"
+else
+    fail_test "Phase3a.verify-untouched-title-inbound" "expected PHASE3A-INBOUND in title; got: ${local_title}"
+fi
+
+# ===========================================================================
 # PHASE 4: Status outbound negative test
 # ===========================================================================
 
 echo ""
-echo "=== PHASE 4: Status outbound negative test (gated) ==="
+echo "=== PHASE 4: Status outbound propagation ==="
 echo ""
 
-# Transition ticket 9 locally to blocked
-"$TICKET_CLI" ticket transition "${LOCAL_IDS[8]}" in_progress blocked 2>/dev/null || true
+# Bug 85a1 (Gap 8): status outbound is now first-class — local status changes
+# must propagate to Jira via REST POST /transitions. Previously this phase
+# asserted BY_DESIGN no-propagation (gated behind DSO_RECONCILER_STATUS_GATING);
+# that gate was removed.
+#
+# Bug b859 (Part 1b, H4 fix): we transition LOCAL_IDS[2] (idx 2 — FIELD-PROBE-3
+# priority low) which Phase 3 leaves untouched. Previously this phase used
+# LOCAL_IDS[8] but Phase 3 jira_transition's it to In Progress, and Phase 3's
+# local-wins outbound pass reverted Jira back to To Do — so Phase 4's
+# transition open->in_progress could become a no-op (current-status drift) and
+# the reconciler would emit no output. Using an untouched ticket guarantees a
+# real local->Jira delta.
+"$TICKET_CLI" ticket transition "${LOCAL_IDS[2]}" open in_progress 2>/dev/null || true
 
-# Sync WITHOUT DSO_RECONCILER_STATUS_GATING
 echo "Running reconciler for status outbound test..."
 reconciler_output=$(run_filtered_reconciler "$FILTER_IDS")
 echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
 
-# Verify Jira status is still In Progress (not Blocked)
-if [ -n "${JIRA_KEYS[8]}" ]; then
-    jira_status=$(get_jira_field "${JIRA_KEYS[8]}" "status")
+# Verify Jira status now reflects the local change.
+if [ -n "${JIRA_KEYS[2]}" ]; then
+    jira_status=$(get_jira_field "${JIRA_KEYS[2]}" "status")
     if [ "$jira_status" = "In Progress" ]; then
-        pass_test "Phase4.verify-status-outbound-blocked (gated)"
-        matrix_set "status" "outbound" "update" "BY_DESIGN"
+        pass_test "Phase4.verify-status-outbound-in-progress"
+        matrix_set "status" "outbound" "update" "PASS"
     else
-        fail_test "Phase4.verify-status-outbound-blocked" "expected In Progress, got: ${jira_status}"
+        fail_test "Phase4.verify-status-outbound-in-progress" "expected In Progress, got: ${jira_status}"
         matrix_set "status" "outbound" "update" "FAIL"
     fi
 fi
@@ -1044,6 +1125,55 @@ for i in 1 2 3; do
         fail_test "Phase6.idempotency-pass-${i}" "expected 0 filtered mutations, got: ${filtered_count}"
     fi
 done
+
+# ===========================================================================
+# PHASE 6a: Interleaved bidirectional idempotency (N=10 mixed passes)
+# ===========================================================================
+#
+# Bug b859 (Part 4b): Phase 6 only checks no-op passes; doesn't exercise
+# the convergence path under mixed local + Jira edits. Phase 6a alternates
+# local and Jira edits on a single controlled ticket across 10 passes and
+# asserts that each pass converges to its true delta (i.e., the diff is
+# either 0 or precisely what was just edited — not phantom mutations).
+#
+# Uses LOCAL_IDS[3] (FIELD-PROBE-4 multiline desc; also used by Phase 3a
+# inbound test). The ticket is tagged so any future orphan-mirror sweep
+# preserves it.
+
+echo ""
+echo "=== PHASE 6a: Interleaved bidirectional idempotency (N=10) ==="
+echo ""
+
+if [ -n "${JIRA_KEYS[3]}" ] && [ -n "${LOCAL_IDS[3]}" ]; then
+    # Tag the ticket so orphan sweeps skip it.
+    "$TICKET_CLI" ticket tag "${LOCAL_IDS[3]}" "probe:phase6a" 2>/dev/null || true
+
+    PHASE6A_MAX_PASS_MUTATIONS=2
+    PHASE6A_FAIL=0
+    for n in $(seq 1 10); do
+        # Alternate: odd N edits LOCAL title; even N edits JIRA summary.
+        if (( n % 2 == 1 )); then
+            "$TICKET_CLI" ticket edit "${LOCAL_IDS[3]}" --title "Phase6a-LOCAL-${n} ${PROBE_TS}" 2>/dev/null || true
+        else
+            jira_update_issue "${JIRA_KEYS[3]}" "summary=Phase6a-JIRA-${n} ${PROBE_TS}" >/dev/null 2>&1 || true
+            sleep 1
+        fi
+        reconciler_output=$(run_filtered_reconciler "$FILTER_IDS")
+        mut_count=$(echo "$reconciler_output" | awk '/^filter: [0-9]+ mutations computed, [0-9]+ match filter/ {print $5; exit}')
+        mut_count="${mut_count:--1}"
+        if [ "$mut_count" -le "$PHASE6A_MAX_PASS_MUTATIONS" ] 2>/dev/null; then
+            pass_test "Phase6a.pass-${n} (mutations=${mut_count})"
+        else
+            fail_test "Phase6a.pass-${n}" "expected <= ${PHASE6A_MAX_PASS_MUTATIONS} mutations, got: ${mut_count}"
+            PHASE6A_FAIL=$((PHASE6A_FAIL + 1))
+        fi
+    done
+    if [ "$PHASE6A_FAIL" = "0" ]; then
+        pass_test "Phase6a.summary (all 10 passes converged)"
+    else
+        fail_test "Phase6a.summary" "${PHASE6A_FAIL} of 10 passes exceeded ${PHASE6A_MAX_PASS_MUTATIONS}-mutation budget"
+    fi
+fi
 
 # ===========================================================================
 # PHASE 7: Reconciliation check

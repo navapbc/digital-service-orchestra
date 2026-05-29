@@ -558,23 +558,33 @@ def transition_issue(
     *,
     acli_cmd: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Transition a Jira issue to a new status via ACLI.
+    """Transition a Jira issue to *status* via REST (bug 85a1, Gap 8).
 
-    Status changes in Jira require transitions (not field edits).
-    ACLI uses ``workitem transition --key KEY --status STATUS``.
+    Status changes go through ``POST /rest/api/3/issue/{key}/transitions``,
+    NOT ACLI's ``workitem transition``. ACLI's transition subcommand exits
+    0 even when the transition is rejected (Gap 5 — the lying-success bug);
+    REST surfaces failures as HTTP 4xx/5xx, which propagate as
+    ``urllib.error.HTTPError`` for the caller.
+
+    *status* may be either a local-side name (``in_progress``, ``open``)
+    or a Jira-side name (``In Progress``, ``To Do``). The former is mapped
+    via ``_LOCAL_STATUS_TO_JIRA``; the latter is passed through. The
+    ``transition_issue_by_name`` method on ``AcliClient`` then matches
+    case-insensitively against each transition's ``name`` and ``to.name``,
+    so workflows that use ``Move to <state>`` transition names are handled.
+
+    Returns ``{"key": jira_key, "status": <resolved_name>}`` on success.
+    The ``acli_cmd`` argument is accepted for backward compatibility but
+    is no longer used.
     """
-    cmd = [
-        "jira",
-        "workitem",
-        "transition",
-        "--key",
-        jira_key,
-        "--status",
-        _LOCAL_STATUS_TO_JIRA.get(status, status.replace("_", " ").title()),
-        "--json",
-    ]
-    result = _run_acli(cmd, acli_cmd=acli_cmd)
-    return json.loads(result.stdout)
+    resolved = _LOCAL_STATUS_TO_JIRA.get(status, status.replace("_", " ").title())
+    client = AcliClient(
+        jira_url=os.environ.get("JIRA_URL", ""),
+        user=os.environ.get("JIRA_USER", ""),
+        api_token=os.environ.get("JIRA_API_TOKEN", ""),
+    )
+    client.transition_issue_by_name(jira_key, resolved)
+    return {"key": jira_key, "status": resolved}
 
 
 def update_issue(
@@ -843,7 +853,26 @@ class AcliClient:
         )
 
     def update_issue(self, jira_key: str, **kwargs: Any) -> dict[str, Any]:
-        """Update a Jira issue via ACLI."""
+        """Update a Jira issue via ACLI.
+
+        Bug 85a1 (Fix D7): assignee=None/empty is routed through
+        ``unassign_issue`` (REST PUT /assignee with ``{"accountId": null}``)
+        rather than passed to ACLI as ``--assignee ""``, which ACLI silently
+        no-ops (the probe Phase 2 verify-assignee-unassigned regression).
+
+        unassign_issue failures are caught and logged so a transient REST
+        error does not abort the entire batch — the rest of the update_one
+        body (label/comment dispatch, field edits) must still run.
+        """
+        if "assignee" in kwargs and kwargs["assignee"] in (None, ""):
+            kwargs.pop("assignee")
+            try:
+                self.unassign_issue(jira_key)
+            except Exception as exc:  # noqa: BLE001
+                print(  # noqa: T201
+                    f"update_issue: unassign_issue({jira_key}) failed: {exc!r}",
+                    file=sys.stderr,
+                )
         return update_issue(jira_key, acli_cmd=self._acli_cmd, **kwargs)
 
     def get_issue(self, jira_key: str) -> dict[str, Any]:
@@ -988,6 +1017,33 @@ class AcliClient:
         Raises urllib.error.HTTPError on non-2xx response.
         """
         self._direct_rest_put_raw(path, {"value": data})
+
+    def _direct_rest_post_raw(self, path: str, body: Any) -> None:
+        """POST JSON body to a Jira REST path verbatim (no wrapping).
+
+        Used for endpoints that take their own JSON shape — e.g.
+        ``/rest/api/3/issue/{key}/transitions`` with
+        ``{"transition": {"id": "..."}}``.
+
+        Bug 85a1 (Gap 8): status outbound now uses REST instead of ACLI to
+        avoid ACLI's silent-exit-0-on-failure (Gap 5). Returns None on 2xx;
+        raises urllib.error.HTTPError on non-2xx.
+        """
+        url = f"{self.jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            method="POST",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()
 
     def _direct_rest_put_raw(self, path: str, body: Any) -> None:
         """PUT JSON body to a Jira REST path verbatim (no wrapping).
@@ -1187,6 +1243,66 @@ class AcliClient:
         properties), KeyError only when the 2xx body shape is malformed.
         """
         return self.get_issue_property(issue_key, prop_name)
+
+    def transition_issue_by_name(self, jira_key: str, target_status: str) -> None:
+        """Transition a Jira issue to *target_status* via REST.
+
+        Bug 85a1 (Gap 8): replaces the previous ACLI-based ``transition_issue``
+        which silently exited 0 on bogus transitions (Gap 5). Uses direct
+        REST so HTTP status codes reliably surface failure:
+
+          1. GET /rest/api/3/issue/{key}/transitions to list available
+          2. Match *target_status* (case-insensitive) against each
+             transition's ``name`` first, then ``to.name``. Workflows that
+             use "Move to <state>" transition names with a distinct
+             target-state name are handled by the ``to.name`` fallback.
+          3. POST /rest/api/3/issue/{key}/transitions with
+             ``{"transition": {"id": "<id>"}}``.
+
+        Raises a ``RuntimeError`` (with available transition names listed)
+        when no transition reaches *target_status* — the workflow does not
+        allow it from the current state. Raises ``urllib.error.HTTPError``
+        on non-2xx response from the POST.
+
+        Per-issue lookup, not cached: transitions are issue-state-specific
+        (depend on current status + workflow + caller permissions). Caching
+        by project+issuetype produces incorrect hits for an issue mid-
+        workflow.
+        """
+        transitions_resp = self._direct_rest_get(
+            f"/rest/api/3/issue/{jira_key}/transitions"
+        )
+        transitions = (
+            transitions_resp.get("transitions", [])
+            if isinstance(transitions_resp, dict)
+            else []
+        )
+        target_lower = target_status.strip().lower()
+        match_id = None
+        for t in transitions:
+            if not isinstance(t, dict):
+                continue
+            name = (t.get("name") or "").strip().lower()
+            to_name = ((t.get("to") or {}).get("name") or "").strip().lower()
+            if target_lower in (name, to_name):
+                match_id = t.get("id")
+                if match_id:
+                    break
+        if not match_id:
+            available = [
+                f"{t.get('name')!r}->{(t.get('to') or {}).get('name')!r}"
+                for t in transitions
+                if isinstance(t, dict)
+            ]
+            raise RuntimeError(
+                f"transition_issue_by_name: no transition reaches "
+                f"{target_status!r} on {jira_key}. Available: "
+                f"{available if available else '[none]'}"
+            )
+        self._direct_rest_post_raw(
+            f"/rest/api/3/issue/{jira_key}/transitions",
+            {"transition": {"id": str(match_id)}},
+        )
 
     def unassign_issue(self, jira_key: str) -> None:
         """Explicitly unassign a Jira issue via REST v3 PUT.

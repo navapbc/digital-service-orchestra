@@ -137,11 +137,17 @@ def test_bootstrap_strict_caps_at_10(tmp_path, applier_mod, mode_mod, mutation_m
     assert payload["applied_count"] == 10
     assert payload["deferred_count"] == 2040
 
-    # Deferred list must be ordered by (direction, action, target).
-    deferred_keys = [
-        (d["direction"], d["action"], d["target"]) for d in payload["deferred"]
+    # Deferred list must be ordered by applier._mode_sort_key, which
+    # intentionally prefixes "outbound create" so outbound creates land
+    # in the cap window first (bug d5a2-3fc8). The natural tuple sort
+    # would put 'inbound' before 'outbound' and break that contract.
+    deferred_dicts = payload["deferred"]
+    deferred_sort_keys = [
+        applier_mod._mode_sort_key(d) for d in deferred_dicts
     ]
-    assert deferred_keys == sorted(deferred_keys)
+    assert deferred_sort_keys == sorted(deferred_sort_keys), (
+        "deferred list must be ordered by applier._mode_sort_key"
+    )
 
 
 def test_bootstrap_throttle_caps_at_100(tmp_path, applier_mod, mode_mod, mutation_mod):
@@ -429,11 +435,20 @@ def test_reconcile_once_legacy_caller_omits_mode_kwarg(
     # care about is the textual call-shape contract that protects legacy
     # test stubs.
     reconcile_src = (RECONCILER_DIR / "reconcile.py").read_text()
-    # The legacy-branch call must not include `mode=` (the `else` branch does).
-    legacy_call = "applier.apply(mutations, pass_id, repo_root)"
-    assert legacy_call in reconcile_src, (
-        "reconcile.py must call applier.apply WITHOUT a mode kwarg when "
-        f"target_mode is None; expected to find {legacy_call!r} in reconcile.py"
+    # Bug 85a1: the legacy-branch call may carry backward-compatible kwargs
+    # (e.g. binding_store=), so the literal-string assertion is too brittle.
+    # Use a regex that allows trailing kwargs but explicitly rejects mode=.
+    import re as _re
+    legacy_match = _re.search(
+        r"applier\.apply\(\s*mutations,\s*pass_id,\s*repo_root\b[^)]*\)",
+        reconcile_src,
+    )
+    assert legacy_match is not None, (
+        "reconcile.py must call applier.apply(mutations, pass_id, repo_root[, ...]) "
+        "on the legacy branch."
+    )
+    assert "mode=" not in legacy_match.group(0), (
+        f"legacy-branch applier.apply must NOT include mode=; got {legacy_match.group(0)!r}"
     )
 
     # Belt-and-braces runtime guarantee: stub applier.apply on the loaded

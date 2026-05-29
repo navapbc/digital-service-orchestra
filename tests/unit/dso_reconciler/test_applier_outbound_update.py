@@ -98,67 +98,42 @@ def test_non_allowlist_fields_silently_dropped(applier):
     assert result.payload == {"fields_pushed": []}
 
 
-def test_status_gating_off_raises_no_side_effects(applier, monkeypatch):
-    """When DSO_RECONCILER_STATUS_GATING is unset/!=1, touching status raises
-    StatusMappingError with zero side-effects."""
+def test_status_field_is_forwarded_to_update_issue(applier, monkeypatch):
+    """Bug 85a1 (Gap 8): the DSO_RECONCILER_STATUS_GATING gate has been
+    removed. Status is now first-class — ``_apply_outbound_update`` passes
+    it through to ``client.update_issue`` (which routes status to
+    ``transition_issue`` → REST POST /transitions inside acli-integration).
+    """
     monkeypatch.delenv("DSO_RECONCILER_STATUS_GATING", raising=False)
     client = SimpleNamespace(update_issue=MagicMock(return_value=None))
     mutation = _make_outbound_update_mutation(
         applier, {"status": "Done", "summary": "x"}
     )
 
-    errs = applier._load_errors_module()
-    with pytest.raises(errs.StatusMappingError):
-        applier._apply_outbound_update(mutation, client=client)
+    applier._apply_outbound_update(mutation, client=client)
 
-    # Zero side-effects: update_issue must NOT have been called.
-    assert client.update_issue.call_count == 0
-
-
-def test_status_gating_explicit_zero_raises(applier, monkeypatch):
-    """An explicit '0' gating value also raises (only '1' opens the gate)."""
-    monkeypatch.setenv("DSO_RECONCILER_STATUS_GATING", "0")
-    client = SimpleNamespace(update_issue=MagicMock(return_value=None))
-    mutation = _make_outbound_update_mutation(applier, {"status": "Done"})
-
-    errs = applier._load_errors_module()
-    with pytest.raises(errs.StatusMappingError):
-        applier._apply_outbound_update(mutation, client=client)
-    assert client.update_issue.call_count == 0
-
-
-def test_status_gating_on_delegates_to_draft5_and_strips_status(applier, monkeypatch):
-    """When gating == '1', status is routed via _route_status_via_draft5 and
-    stripped before the remaining allowlisted fields are pushed."""
-    monkeypatch.setenv("DSO_RECONCILER_STATUS_GATING", "1")
-    client = SimpleNamespace(update_issue=MagicMock(return_value=None))
-    mutation = _make_outbound_update_mutation(
-        applier, {"status": "Done", "summary": "x"}
-    )
-
-    with patch.object(applier, "_route_status_via_draft5") as spy:
-        applier._apply_outbound_update(mutation, client=client)
-
-    spy.assert_called_once()
-    # summary (allowlisted) still pushed via update_issue (status stripped).
+    # update_issue called with BOTH summary and status — status is no longer
+    # stripped, and no StatusMappingError is raised.
     assert client.update_issue.call_count == 1
     args, kwargs = client.update_issue.call_args
     assert args == ("PROJ-200",)
-    assert "summary" in kwargs
-    assert kwargs["summary"] == "x"
-    assert "status" not in kwargs
+    assert kwargs.get("summary") == "x"
+    assert kwargs.get("status") == "Done"
 
 
-def test_status_only_with_gating_on_no_update_issue_call(applier, monkeypatch):
-    """If the only touched field is status (gating on), no update_issue call
-    is made — status routing went through the draft5 stub."""
-    monkeypatch.setenv("DSO_RECONCILER_STATUS_GATING", "1")
+def test_status_only_payload_still_pushes(applier, monkeypatch):
+    """A mutation whose only changed field is status reaches client.update_issue.
+
+    Previously the gating prevented any update_issue call when status was the
+    sole field; the new contract pushes it.
+    """
+    monkeypatch.delenv("DSO_RECONCILER_STATUS_GATING", raising=False)
     client = SimpleNamespace(update_issue=MagicMock(return_value=None))
     mutation = _make_outbound_update_mutation(applier, {"status": "Done"})
 
-    with patch.object(applier, "_route_status_via_draft5") as spy:
-        result = applier._apply_outbound_update(mutation, client=client)
+    result = applier._apply_outbound_update(mutation, client=client)
 
-    spy.assert_called_once()
-    assert client.update_issue.call_count == 0
-    assert result.payload == {"fields_pushed": []}
+    assert client.update_issue.call_count == 1
+    _, kwargs = client.update_issue.call_args
+    assert kwargs == {"status": "Done"}
+    assert result.payload == {"fields_pushed": ["status"]}

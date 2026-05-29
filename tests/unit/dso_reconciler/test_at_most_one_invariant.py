@@ -325,7 +325,9 @@ def _make_stub_differ() -> ModuleType:
 def _make_stub_applier(tmp_path: Path) -> ModuleType:
     stub = types.ModuleType("reconcile_applier")
 
-    def _apply(mutations, pass_id, repo_root):  # noqa: ANN001
+    def _apply(mutations, pass_id, repo_root, **kwargs):  # noqa: ANN001
+        # Bug 85a1: reconcile_once now passes binding_store=; accept and
+        # ignore for stub purposes.
         manifest = repo_root / "bridge_state" / "manifests" / f"{pass_id}.json"
         manifest.parent.mkdir(parents=True, exist_ok=True)
         manifest.write_text(json.dumps({"mutations": len(mutations)}))

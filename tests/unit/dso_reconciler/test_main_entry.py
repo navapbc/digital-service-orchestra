@@ -137,6 +137,10 @@ def test_run_pass_returns_75_on_reschedule_error(main_mod, tmp_path):
     )
     spec = importlib.util.spec_from_file_location("applier_for_reschedule_test", applier_path)
     applier_mod = importlib.util.module_from_spec(spec)
+    # Python 3.14: dataclass introspection reads sys.modules.get(cls.__module__).__dict__
+    # during class construction; the module must be registered before exec.
+    import sys as _sys
+    _sys.modules["applier_for_reschedule_test"] = applier_mod
     spec.loader.exec_module(applier_mod)
 
     stub_reconcile = _make_stub_reconcile(
