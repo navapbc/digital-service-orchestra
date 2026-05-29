@@ -24,7 +24,17 @@ _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# bug 34b2: host-portable REPO_ROOT resolution. Prior `$SCRIPT_DIR/..` resolved
+# to the plugin cache root when invoked on a host project via the shim, so the
+# script silently inspected the plugin's CLAUDE.md instead of the host's —
+# giving operators a false PASS even when their CLAUDE.md had unqualified
+# `/skill` references. Established pattern from check-rule-anchors.sh:48 and
+# audit-skill-resolution.sh:25.
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+if [[ -z "$REPO_ROOT" ]]; then
+  echo "ERROR: cannot resolve REPO_ROOT (not in a git repo and PROJECT_ROOT unset)" >&2
+  exit 1
+fi
 
 # ── Canonical skill list ───────────────────────────────────────────────────────
 # Single source of truth, auto-discovered from the filesystem by file-presence:
