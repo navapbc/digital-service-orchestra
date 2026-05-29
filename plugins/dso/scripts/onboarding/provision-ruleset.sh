@@ -5,7 +5,7 @@
 # Usage:
 #   provision-ruleset.sh [--repo <owner/repo>] [--checks-file <path>] \
 #                        [--non-interactive] [--dry-run] \
-#                        [--bypass-actor-policy=always|pull_request_only] \
+#                        [--bypass-actor-policy=always|pull_request] \
 #                        [--require-conversation-resolution=true|false] \
 #                        [--request-copilot-review=true|false] \
 #                        [--dismiss-stale-approvals-on-push=true|false] \
@@ -40,7 +40,7 @@ NON_INTERACTIVE=0
 DRY_RUN="${DSO_DRY_RUN:-0}"
 
 # Named knobs (defaults preserve current hardcoded behavior)
-BYPASS_ACTOR_POLICY="always"
+BYPASS_ACTOR_POLICY="pull_request"
 REQUIRE_CONVERSATION_RESOLUTION=0
 REQUEST_COPILOT_REVIEW=0
 DISMISS_STALE_APPROVALS_ON_PUSH=0
@@ -146,9 +146,9 @@ done
 
 # ── Validate knob values ──────────────────────────────────────────────────────
 case "$BYPASS_ACTOR_POLICY" in
-  always|pull_request_only) ;;
+  always|pull_request) ;;
   *)
-    echo "ERROR: --bypass-actor-policy must be 'always' or 'pull_request_only' (got: '$BYPASS_ACTOR_POLICY')" >&2
+    echo "ERROR: --bypass-actor-policy must be 'always' or 'pull_request' (got: '$BYPASS_ACTOR_POLICY')" >&2
     exit 1
     ;;
 esac
@@ -212,14 +212,19 @@ if ! gh auth status >/dev/null 2>&1; then
   echo "WARNING: gh auth status check failed — token may lack admin scope." >&2
 fi
 
-# ── Admin-token guard for non-default bypass policy ──────────────────────────
-# Setting bypass_actor_policy=pull_request_only is a privileged change that
-# requires an admin-scoped token. We check this BEFORE the dry-run branch so
-# the guard fires consistently regardless of execution mode.
-if [[ "$BYPASS_ACTOR_POLICY" != "always" ]]; then
+# ── Admin-token guard for live ruleset PATCH ─────────────────────────────────
+# Setting bypass_actor_policy to anything other than 'always' is a privileged
+# change that requires an admin-scoped token. After PR-5 / F5 flipped the
+# default from 'always' to 'pull_request' (for visible PR-time audit trails),
+# the default value itself triggers this guard — so we skip it under DRY_RUN
+# (the dry-run path emits the payload to stdout and never hits the API, so an
+# admin-scoped token is not required to validate the script). Real invocations
+# (DRY_RUN=0) still fail fast with a clear message instead of waiting for
+# `gh api` to surface a less-actionable scope error.
+if [[ "$BYPASS_ACTOR_POLICY" != "always" && "$DRY_RUN" != "1" ]]; then
   _auth_status_output=$(gh auth status -t 2>&1 || true)
   if ! echo "$_auth_status_output" | grep -qE 'admin:org|admin:repo|repo admin'; then
-    echo "ERROR: Setting bypass_actor_policy=pull_request_only requires an admin token (admin:org or repo admin scope). Re-authenticate with: gh auth refresh -s admin:org" >&2
+    echo "ERROR: Setting bypass_actor_policy=pull_request requires an admin token (admin:org or repo admin scope). Re-authenticate with: gh auth refresh -s admin:org" >&2
     exit 1
   fi
 fi
