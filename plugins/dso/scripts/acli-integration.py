@@ -179,6 +179,77 @@ class RetryExhaustedError(RuntimeError):
     """All retry attempts exhausted after transient HTTP/network errors."""
 
 
+class AcliMutationError(RuntimeError):
+    """ACLI mutation exited 0 but the structured --json output reports FAILURE.
+
+    Bug 44de: ``acli jira workitem edit/transition/assign/comment/...`` returns
+    exit=0 even when the underlying Jira operation fails. ACLI v1.3.18+ exposes
+    structured failure info under ``--json``::
+
+        {
+          "results": [{"status": "FAILURE", "message": "...", "id": "..."}],
+          "totalCount": 1,
+          "successCount": 0
+        }
+
+    ``_run_acli`` parses stdout and raises this when ``successCount == 0`` or
+    any ``results[].status == "FAILURE"``. Without it the reconciler marks
+    mutations applied while Jira state diverges silently, corrupting
+    binding-store invariants and breaking idempotent convergence.
+    """
+
+
+def _check_mutation_failure(stdout: str, cmd: list[str]) -> None:
+    """Inspect ACLI ``--json`` stdout for the structured-failure shape and raise.
+
+    Read-only commands (search, get) and successful mutations parse to shapes
+    that lack ``successCount``/``results``, so the check is a no-op for them.
+    Non-JSON stdout is treated as "no signal" — fall back to the exit-code
+    contract that ``subprocess.run(check=True)`` already enforces.
+
+    Raises:
+        AcliMutationError: ``successCount == 0`` OR any ``results[].status``
+            equals ``"FAILURE"`` (case-insensitive).
+    """
+    if not stdout or not stdout.strip():
+        return
+    try:
+        parsed = json.loads(stdout)
+    except (ValueError, TypeError):
+        return  # Non-JSON output — defer to exit-code semantics.
+    if not isinstance(parsed, dict):
+        return  # search/get return lists; nothing to check.
+
+    results = parsed.get("results")
+    success_count = parsed.get("successCount")
+    has_shape = isinstance(results, list) or success_count is not None
+    if not has_shape:
+        return  # Not the mutation-result shape (e.g., a created issue dict).
+
+    failure_messages: list[str] = []
+    if isinstance(results, list):
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status") or "").strip().upper()
+            if status == "FAILURE":
+                msg = str(item.get("message") or "").strip()
+                ident = str(item.get("id") or "").strip()
+                failure_messages.append(
+                    f"{ident}: {msg}" if ident and msg else (msg or ident or "FAILURE")
+                )
+
+    if failure_messages or success_count == 0:
+        detail = (
+            "; ".join(failure_messages)
+            if failure_messages
+            else f"successCount=0 (totalCount={parsed.get('totalCount')!r})"
+        )
+        raise AcliMutationError(
+            f"ACLI mutation reported FAILURE (exit=0) for {cmd!r}: {detail}"
+        )
+
+
 # HTTP status codes eligible for automatic retry with backoff.
 _RETRYABLE_HTTP_CODES: frozenset[int] = frozenset({429, 502, 503})
 
@@ -270,6 +341,11 @@ def _run_acli(
                 check=True,
                 env=env,
             )
+            # Bug 44de: ACLI exits 0 even when a mutation fails. Inspect the
+            # structured --json output and raise AcliMutationError if the
+            # response indicates FAILURE. Read-only and create-issue shapes
+            # short-circuit harmlessly inside the helper.
+            _check_mutation_failure(result.stdout, full_cmd)
             return result
         except subprocess.CalledProcessError as exc:
             last_error = exc
@@ -1214,7 +1290,17 @@ class AcliClient:
                 os.close(fd)
             raise
         try:
-            cmd = ["jira", "workitem", "edit", "--from-json", json_path, "--yes"]
+            # Bug 44de: --json so _run_acli can parse the structured-failure
+            # shape and raise AcliMutationError on exit=0 + FAILURE result.
+            cmd = [
+                "jira",
+                "workitem",
+                "edit",
+                "--from-json",
+                json_path,
+                "--yes",
+                "--json",
+            ]
             self._run(cmd)
         finally:
             os.unlink(json_path)
@@ -1248,7 +1334,16 @@ class AcliClient:
                 os.close(fd)
             raise
         try:
-            cmd = ["jira", "workitem", "edit", "--from-json", json_path, "--yes"]
+            # Bug 44de: --json for structured-failure detection (see add_label).
+            cmd = [
+                "jira",
+                "workitem",
+                "edit",
+                "--from-json",
+                json_path,
+                "--yes",
+                "--json",
+            ]
             self._run(cmd)
         finally:
             os.unlink(json_path)
@@ -1522,6 +1617,8 @@ class AcliClient:
             to_key,
             "--type",
             link_type,
+            # Bug 44de: --json enables structured-failure detection.
+            "--json",
         ]
         self._run(cmd)  # raises on failure — no silent swallowing
         return {"status": "created", "from": from_key, "to": to_key}
@@ -1581,15 +1678,20 @@ class AcliClient:
             "--key",
             jira_key,
             "--yes",
+            # Bug 44de: --json so structured-failure detection runs on the
+            # exit=0-on-failure path that ACLI exposes for delete too.
+            "--json",
         ]
         try:
-            subprocess.run(
+            completed = subprocess.run(
                 full_cmd,
                 capture_output=True,
                 text=True,
                 check=True,
                 env=_build_env(),
             )
+            # Bug 44de: delete bypasses _run_acli, so call the check here too.
+            _check_mutation_failure(completed.stdout, full_cmd)
         except subprocess.CalledProcessError as exc:
             err_text = (exc.stderr or "") + (exc.stdout or "")
             if "404" in err_text or "not found" in err_text.lower():
@@ -1616,6 +1718,8 @@ class AcliClient:
             "delete",
             "--id",
             link_id,
+            # Bug 44de: --json enables structured-failure detection.
+            "--json",
         ]
         self._run(cmd)
         return {"status": "deleted", "link_id": link_id}
