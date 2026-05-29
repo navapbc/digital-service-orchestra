@@ -104,13 +104,24 @@ def test_edit_success_json_does_not_raise(acli: ModuleType) -> None:
 
     with patch("subprocess.run", return_value=mock_result):
         # Should not raise. update_issue returns the parsed-JSON dict
-        # (json.loads(result.stdout)) — not the CompletedProcess itself.
+        # (json.loads(result.stdout) at line 731) — NOT the CompletedProcess
+        # itself. Asserted explicitly below so reviewers (and future refactors)
+        # cannot conflate the two return types.
         result = acli.update_issue("DIG-1234", summary="new title")
+    # Pin the return-type contract: dict, not CompletedProcess.
     assert isinstance(result, dict), (
         f"update_issue must return parsed JSON dict, got {type(result).__name__}"
     )
-    assert result.get("successCount") == 1
-    assert result.get("results") == [{"status": "SUCCESS", "id": "DIG-1234"}]
+    assert not isinstance(result, subprocess.CompletedProcess), (
+        "update_issue must return the parsed-JSON dict, not the raw "
+        "CompletedProcess from subprocess.run"
+    )
+    # Pin the exact parsed-JSON shape so a real (non-MagicMock) dict is verified.
+    assert result == {
+        "results": [{"status": "SUCCESS", "id": "DIG-1234"}],
+        "totalCount": 1,
+        "successCount": 1,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -383,4 +394,157 @@ def test_check_mutation_failure_non_dict_json_no_raise(acli: ModuleType) -> None
     acli._check_mutation_failure(
         json.dumps("plain string"),
         ["acli", "jira", "workitem", "search"],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 15: lowercase / mixed-case status normalization
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_mutation_failure_lowercase_status_raises(acli: ModuleType) -> None:
+    """``status`` is normalized via .strip().upper(); lowercase or mixed-case
+    "failure" must still trigger AcliMutationError. Without this normalization,
+    a future ACLI release that lowercases status strings would silently bypass
+    detection."""
+    lower_stdout = json.dumps(
+        {
+            "results": [
+                {"status": "failure", "message": "lowercase boom", "id": "DIG-77"},
+            ],
+            "totalCount": 1,
+            "successCount": 0,
+        }
+    )
+    with pytest.raises(acli.AcliMutationError):
+        acli._check_mutation_failure(lower_stdout, ["acli", "jira", "workitem", "edit"])
+
+    mixed_stdout = json.dumps(
+        {
+            "results": [
+                {"status": "Failure", "message": "mixed-case boom", "id": "DIG-78"},
+            ],
+            "totalCount": 1,
+            "successCount": 0,
+        }
+    )
+    with pytest.raises(acli.AcliMutationError):
+        acli._check_mutation_failure(mixed_stdout, ["acli", "jira", "workitem", "edit"])
+
+
+# ---------------------------------------------------------------------------
+# Test 16: results items with missing message/id fields handled gracefully
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_mutation_failure_missing_fields_still_raises(acli: ModuleType) -> None:
+    """A FAILURE result with neither ``message`` nor ``id`` must still raise,
+    falling back to a generic "FAILURE" detail rather than crashing on KeyError."""
+    sparse_stdout = json.dumps(
+        {
+            "results": [{"status": "FAILURE"}],
+            "totalCount": 1,
+            "successCount": 0,
+        }
+    )
+    with pytest.raises(acli.AcliMutationError) as exc_info:
+        acli._check_mutation_failure(
+            sparse_stdout, ["acli", "jira", "workitem", "edit"]
+        )
+    # The detail should still mention FAILURE even without id/message.
+    assert "FAILURE" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# Test 17: integration spy — update_issue actually invokes _check_mutation_failure
+# ---------------------------------------------------------------------------
+#
+# Tests 1-10 mock ``subprocess.run`` and assert the resulting raise/no-raise
+# behavior. That guards the externally observable contract, but does NOT pin
+# the internal wiring: if a future refactor accidentally bypassed
+# ``_check_mutation_failure`` and replaced it with an inline (and possibly
+# weaker) check, the existing tests would still pass as long as the inline
+# check happened to behave the same on these fixtures.
+#
+# The spy below patches ``_check_mutation_failure`` itself (wrapping the real
+# implementation), so the test fails loudly if the helper is no longer the
+# detection chokepoint for mutation paths. This anchors the "all mutations
+# route through one chokepoint" architectural invariant for bug 44de.
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_update_issue_invokes_check_mutation_failure_spy(acli: ModuleType) -> None:
+    """Spy on ``_check_mutation_failure`` to prove ``update_issue`` (via
+    ``_run_acli``) routes through the chokepoint. Guards against silent
+    refactors that bypass the failure-detection helper."""
+    success_stdout = json.dumps(
+        {
+            "results": [{"status": "SUCCESS", "id": "DIG-42"}],
+            "totalCount": 1,
+            "successCount": 1,
+        }
+    )
+    mock_result = MagicMock(returncode=0, stdout=success_stdout, stderr="")
+    with (
+        patch("subprocess.run", return_value=mock_result),
+        patch.object(
+            acli,
+            "_check_mutation_failure",
+            wraps=acli._check_mutation_failure,
+        ) as spy,
+    ):
+        acli.update_issue("DIG-42", summary="spied")
+
+    assert spy.call_count >= 1, (
+        "update_issue must route through _check_mutation_failure — "
+        "no invocation observed"
+    )
+    # First positional arg is the stdout the helper inspected; verify it is
+    # the same JSON we mocked, proving the real wiring (not a bypass).
+    first_call_stdout = spy.call_args_list[0][0][0]
+    assert first_call_stdout == success_stdout, (
+        "Spy observed stdout that does not match the mocked subprocess output; "
+        "wiring may be bypassed"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_delete_issue_invokes_check_mutation_failure_spy(acli: ModuleType) -> None:
+    """``delete_issue`` uses a raw subprocess.run path (not _run_acli) — verify
+    via spy that it still routes the response through ``_check_mutation_failure``
+    so the deletion path cannot silently regress."""
+    success_stdout = json.dumps(
+        {
+            "results": [{"status": "SUCCESS", "id": "DIG-99"}],
+            "totalCount": 1,
+            "successCount": 1,
+        }
+    )
+    mock_result = MagicMock(returncode=0, stdout=success_stdout, stderr="")
+    client = acli.AcliClient(jira_url="", user="", api_token="")
+    with (
+        patch("subprocess.run", return_value=mock_result),
+        patch.object(
+            acli,
+            "_check_mutation_failure",
+            wraps=acli._check_mutation_failure,
+        ) as spy,
+    ):
+        client.delete_issue("DIG-99")
+
+    assert spy.call_count >= 1, (
+        "delete_issue must route through _check_mutation_failure — "
+        "no invocation observed"
+    )
+    first_call_stdout = spy.call_args_list[0][0][0]
+    assert first_call_stdout == success_stdout, (
+        "Spy observed stdout that does not match the mocked subprocess output "
+        "for delete_issue; the raw-subprocess delete path may be bypassing "
+        "the failure-detection chokepoint"
     )
