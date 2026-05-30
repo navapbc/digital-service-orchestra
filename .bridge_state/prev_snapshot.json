@@ -181691,5 +181691,306 @@
       }
     },
     "summary": "[provision-ruleset.sh + test-ruleset-design-invariants.sh]: provisioner output drift goes undetected -> live rulesets and provisioner shape can diverge silently"
+  },
+  "DIG-5055": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 42562899446ee7c15defab0ef657aabb198f8425",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scripts:** plugins/dso/scripts/merge-to-main-pr.sh (via .claude/scripts/dso merge-to-main.sh), wait-for-pr.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Workflow:** dso.workflow=ci-pr, two-channel staged model (worktree -> staged-* [PR1] -> main [PR2])",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Sub-Agent Blocker (merge automation, autonomous discovery)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If merge-to-main creates PR1 (worktree -> staged-*) and PR1's CI then fails on a fixable check, the operator should be able to push a fix and re-run (or --resume) merge-to-main to: reuse the existing open PR1, wait for its re-run checks, merge PR1, and advance to PR2 (staged -> main). The process should be idempotent / resumable.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "After PR1 #491 (external-review-test-fixes-20260530 -> staged-b329b49acf0d-1780175275) failed on the 'Script Tests' required check, I pushed a fix (the push itself succeeded via merge-to-main's pre-push hooks, updating #491's head). But neither a fresh re-run nor --resume can advance:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    $ .claude/scripts/dso merge-to-main.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    ERROR: non-draft PR already exists for branch external-review-test-fixes-20260530: .../pull/491",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    $ .claude/scripts/dso merge-to-main.sh --resume",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    ERROR: non-draft PR already exists for branch external-review-test-fixes-20260530: .../pull/491",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Both paths unconditionally attempt to CREATE PR1 and abort on the existing-PR guard. There is no code path to (a) detect+reuse the existing open PR1, or (b) resume forward into the PR1-wait / PR1-merge / PR2 steps. Net: a transient PR1 CI failure wedges the branch \u2014 the fix is pushed and CI is green, but the tool cannot carry it forward. The only escapes are manual gh operations (merge or close PR1) which the workflow's own rules (rule:no-direct-gh-pr / rule:no-force-merge) discourage.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 3. Action History",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. merge-to-main on fresh branch -> created staged ref + PR1 #491; wait-for-pr reported 'Script Tests' failed -> 'PR1 reached terminal failure state'.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. Fixed the failing test (SIGPIPE-safe here-strings), committed, re-ran merge-to-main -> pushed fix (pre-push passed) then errored 'non-draft PR already exists'.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. merge-to-main --resume -> same 'non-draft PR already exists' error.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Same script family as 8cc6-4db3-717b-4274 (wait-for-pr SKIPPED-checks timeout) but a DISTINCT failure mode (idempotency / resume-after-PR1-failure, not the wait logic). Suggested fix direction: when an open non-draft PR1 already exists for the branch->staged-base, reuse it (re-wait on its checks) rather than erroring; and give --resume a resume point at PR1-wait / PR1-merge / PR2.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 6. Logs",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Live example: PR #491 OPEN, head 4256289944, base staged-b329b49acf0d-1780175275; CI re-running green after the fix; branch cannot advance via merge-to-main.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
+      "dso-id:5ff0-5e4b-84b3-4396"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[merge-to-main]: re-run/--resume after PR1 CI failure -> 'non-draft PR already exists', branch wedged"
   }
 }
