@@ -19,6 +19,49 @@ SCRIPT="$REPO_ROOT/plugins/dso/scripts/verify-session-provenance.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
+# PR-R1 (post-trailer-shortcut removal): tests that construct trailered
+# commits and expect them to be provenanced now need a `gh` shim that
+# simulates a covering PR with passing review-sub-pr — because the
+# trailer alone is no longer sufficient evidence.
+#
+# File-level shim controlled by DSO_TEST_GH_MOCK env var:
+#   DSO_TEST_GH_MOCK=success → returns covering PR + passing review-sub-pr
+#                              (use for tests expecting provenanced verdict)
+#   DSO_TEST_GH_MOCK unset   → returns empty (use for unprovenanced tests)
+_GLOBAL_GH_SHIM_DIR="$(mktemp -d -t dso-gh-shim-global-XXXXXX)"
+cat > "$_GLOBAL_GH_SHIM_DIR/gh" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  api)
+    shift
+    case "${DSO_TEST_GH_MOCK:-}" in
+      success)
+        case "$1" in
+          *commits/*/pulls)
+            echo '[{"number": 777, "state": "closed", "merged_at": "2026-01-01T00:00:00Z", "head": {"sha": "deadbeef"}, "merge_commit_sha": "cafef00d"}]'
+            ;;
+          *pulls/777*) echo '{"number": 777, "head": {"sha": "deadbeef"}}' ;;
+          *commits/*/check-runs*)
+            echo '{"total_count": 1, "check_runs": [{"name": "review-sub-pr", "status": "completed", "conclusion": "success"}]}'
+            ;;
+          *) echo "{}" ;;
+        esac ;;
+      *)
+        # No mock requested: return empty so verifier marks commits unprovenanced.
+        case "$1" in
+          *commits/*/pulls) echo "[]" ;;
+          *commits/*/check-runs*) echo '{"total_count": 0, "check_runs": []}' ;;
+          *) echo "{}" ;;
+        esac ;;
+    esac ;;
+  *) echo "{}" ;;
+esac
+STUB
+chmod +x "$_GLOBAL_GH_SHIM_DIR/gh"
+export PATH="$_GLOBAL_GH_SHIM_DIR:$PATH"
+export GH_REPO="test-owner/test-repo"
+trap 'rm -rf "$_GLOBAL_GH_SHIM_DIR" 2>/dev/null || true' EXIT
+
 echo "=== test-verify-session-provenance.sh ==="
 
 # ── Setup ────────────────────────────────────────────────────────────────────
@@ -55,6 +98,39 @@ make_commit() {
     git -C "$repo" rev-parse HEAD
 }
 
+# PR-R1: post-trailer-shortcut-removal, a trailered commit is provenanced
+# only if its covering PR has review-sub-pr passing. Tests that previously
+# constructed a trailered commit and expected exit 0 from the verifier now
+# need a `gh` shim to simulate a passing covering PR. Returns a tmpdir path
+# that the caller injects via PATH="$dir:$PATH". The shim handles:
+#   - GET commits/<sha>/pulls          → returns a single covering PR
+#   - GET pulls/<num>                  → returns PR head metadata
+#   - GET commits/<sha>/check-runs     → returns review-sub-pr=success
+_mock_gh_with_passing_covering_pr() {
+    local shim_dir
+    shim_dir="$(mktemp -d -t dso-gh-shim-XXXXXX)"
+    cat > "$shim_dir/gh" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  api)
+    shift
+    case "$1" in
+      *commits/*/pulls)
+        echo '[{"number": 777, "state": "closed", "merged_at": "2026-01-01T00:00:00Z", "head": {"sha": "deadbeef"}, "merge_commit_sha": "cafef00d"}]'
+        ;;
+      *pulls/777*) echo '{"number": 777, "head": {"sha": "deadbeef"}}' ;;
+      *commits/*/check-runs*)
+        echo '{"total_count": 1, "check_runs": [{"name": "review-sub-pr", "status": "completed", "conclusion": "success"}]}'
+        ;;
+      *) echo "{}" ;;
+    esac ;;
+  *) echo "{}" ;;
+esac
+STUB
+    chmod +x "$shim_dir/gh"
+    echo "$shim_dir"
+}
+
 # ── Test 1: script exists and is executable ──────────────────────────────────
 # RED: script does not exist yet — assert_eq will FAIL
 test_script_exists() {
@@ -83,7 +159,11 @@ test_all_provenanced_exits_zero() {
     local artifact_dir
     artifact_dir="$(mktemp -d)"
 
+    # PR-R1: trailer is no longer sufficient on its own. Opt in to the
+    # success-mock so the verifier sees a covering PR with passing
+    # review-sub-pr (matching the legacy "provenanced" expectation).
     local exit_code=0
+    DSO_TEST_GH_MOCK=success \
     DSO_REPO_PATH="$repo" \
     DSO_BASE_SHA="$base_sha" \
     DSO_SESSION_HEAD="$session_head" \
@@ -342,7 +422,9 @@ test_squash_merge_dso_story_merge_trailer_accepted() {
     local artifact_dir
     artifact_dir="$(mktemp -d)"
 
+    # PR-R1: opt in to success-mock since trailer alone is no longer enough.
     local exit_code=0
+    DSO_TEST_GH_MOCK=success \
     DSO_REPO_PATH="$repo" \
     DSO_BASE_SHA="$base_sha" \
     DSO_SESSION_HEAD="$session_head" \
@@ -491,7 +573,9 @@ test_verify_session_provenance_accepts_both_trailers() {
     local artifact_dir_a
     artifact_dir_a="$(mktemp -d)"
 
+    # PR-R1: opt in to success-mock for both invocations.
     local exit_code_a=0
+    DSO_TEST_GH_MOCK=success \
     DSO_REPO_PATH="$repo" \
     DSO_BASE_SHA="$base_sha" \
     DSO_SESSION_HEAD="$session_head_a" \
@@ -510,6 +594,7 @@ test_verify_session_provenance_accepts_both_trailers() {
     artifact_dir_b="$(mktemp -d)"
 
     local exit_code_b=0
+    DSO_TEST_GH_MOCK=success \
     DSO_REPO_PATH="$repo" \
     DSO_BASE_SHA="$session_head_a" \
     DSO_SESSION_HEAD="$session_head_b" \
@@ -553,7 +638,9 @@ test_verify_session_provenance_version_bump_trailer() {
     local artifact_dir
     artifact_dir="$(mktemp -d)"
 
+    # PR-R1: opt in to success-mock.
     local exit_code=0
+    DSO_TEST_GH_MOCK=success \
     DSO_REPO_PATH="$repo" \
     DSO_BASE_SHA="$base_sha" \
     DSO_SESSION_HEAD="$session_head" \
@@ -604,6 +691,7 @@ test_verify_session_provenance_version_bump_trailer() {
     artifact_dir3="$(mktemp -d)"
 
     local exit_code3=0
+    DSO_TEST_GH_MOCK=success \
     DSO_REPO_PATH="$repo3" \
     DSO_BASE_SHA="$base_sha3" \
     DSO_SESSION_HEAD="$session_head3" \

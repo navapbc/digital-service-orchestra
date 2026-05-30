@@ -255,12 +255,18 @@ DSO-Story-Merge: story/abc/def"
 ) > /dev/null
 read -r BASE FEAT < "$TRAILER_SHAS_FILE"
 rm -f "$TRAILER_SHAS_FILE"
-# Mock gh would fail loudly if called; we expect zero calls. Use a fail-loud mock.
+# PR-R1: under v4 the verifier is unaware of DSO-Story trailers (they were
+# self-attested claims, not evidence). Every commit goes through the API
+# covering-PR + review-sub-pr check. So this test now asserts the
+# inverse-of-original behavior: t8 with a fail-loud gh should now hit gh
+# (no trailer shortcut) and surface that as a failure.
 FAIL_MOCK=$(mktemp -d)
 cat > "$FAIL_MOCK/gh" <<'FAILGH'
 #!/usr/bin/env bash
-echo "ERROR: gh should not have been called when trailer is present" >&2
-exit 1
+# Under v4 we EXPECT gh to be called for every commit. Return empty so
+# the verifier treats the commit as unprovenanced (the negative-path
+# assertion below).
+echo "[]"
 FAILGH
 chmod +x "$FAIL_MOCK/gh"
 ARTIFACT_DIR=$(mktemp -d)
@@ -268,7 +274,7 @@ PATH="$FAIL_MOCK:$PATH" DSO_REPO_PATH="$TRAILER_REPO" DSO_BASE_SHA="$BASE" DSO_S
     DSO_ARTIFACT_DIR="$ARTIFACT_DIR" DSO_GH_REPO="navapbc/test-repo" PR_NUMBER="253" GH_RETRY_MAX=1 \
     bash "$SCRIPT" > /dev/null 2>&1
 rc=$?
-_expect "t8 exit code 0 (trailer-only provenance, no API call)" "[[ '$rc' == '0' ]]"
+_expect "t8 v4: trailer is no longer load-bearing; commit needs API verification" "[[ '$rc' != '0' ]]"
 rm -rf "$FAIL_MOCK" "$ARTIFACT_DIR" "$TRAILER_REPO"
 
 # ─── t9: gh api returns rate-limit object → unprovenanced, not poisoned ──────
@@ -303,9 +309,10 @@ MOCK_DIR=$(_make_mock_gh "[]")
 PATH="$MOCK_DIR:$PATH" DSO_REPO_PATH="$REPO" DSO_BASE_SHA="$BASE" DSO_SESSION_HEAD="$FEAT" \
     DSO_ARTIFACT_DIR="$ARTIFACT_DIR_T11" DSO_GH_REPO="navapbc/test-repo" PR_NUMBER="253" GH_RETRY_MAX=1 \
     bash "$SCRIPT" > /dev/null 2>&1 || true
-# After run, cache file should have version=3 and entries dict (R2 v4: cache bumped v2 → v3)
+# After run, cache file should have version=4 (PR-R1: bumped v3 → v4 with the
+# trailer self-attestation removal).
 cache_version=$(python3 -c "import json; print(json.load(open('$ARTIFACT_DIR_T11/session-provenance-cache.json')).get('cache_version'))" 2>/dev/null)
-_expect "t11 cache reinitialized to v3 on schema mismatch" "[[ '$cache_version' == '3' ]]"
+_expect "t11 cache reinitialized to v4 on schema mismatch" "[[ '$cache_version' == '4' ]]"
 rm -rf "$MOCK_DIR" "$ARTIFACT_DIR_T11" "$REPO"
 
 # ─── t13: cache HIT — pre-populated v2 cache returns verdict without API call ─
@@ -314,9 +321,9 @@ echo "=== t13: cache hit on v2 cache skips API call ==="
 ARTIFACT_DIR_T13=$(mktemp -d)
 read -r BASE FEAT REPO < <(_make_fake_repo)
 # Pre-populate cache with the feature SHA + PR_NUMBER=253 → "provenanced".
-# Format must match the v3 schema (R2 v4) and the _cache_key derivation: ${sha}.pr${pr}.
+# Format must match the v4 schema (PR-R1) and the _cache_key derivation: ${sha}.pr${pr}.
 cat > "$ARTIFACT_DIR_T13/session-provenance-cache.json" <<EOF
-{"cache_version": 3, "entries": {"$FEAT.pr253": "provenanced"}}
+{"cache_version": 4, "entries": {"$FEAT.pr253": "provenanced"}}
 EOF
 # Mock gh is fail-loud — should never be called because cache hit short-circuits.
 FAIL_LOUD_MOCK=$(mktemp -d)

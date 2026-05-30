@@ -22,27 +22,45 @@ echo "=== test-bug-reproducer-cafb.sh ==="
 echo "Bug: squash-merged commits falsely flagged as un-provenanced; DSO-Story-Merge trailer not recognized"
 echo ""
 
-# ── Test 1: verify-session-provenance.sh contains DSO-Story-Merge trailer check ─
-# S1.T5 (f9c1-a561-d19c-4485) extended the grep from "^DSO-Story-Merge:" to
-# "^DSO-Story(-Merge)?:" so both DSO-Story: and DSO-Story-Merge: trailers are
-# accepted as provenanced. The literal substring "DSO-Story-Merge:" no longer
-# appears in the script body; behavior preserved via the optional-group regex.
-echo "Test 1: verify-session-provenance.sh checks for DSO-Story-Merge trailer"
-script_content="$(cat "$PROVENANCE_SCRIPT")"
-assert_contains \
-    "verify-session-provenance.sh greps for DSO-Story(-Merge)?: trailer" \
-    "DSO-Story(-Merge)?:" \
-    "$script_content"
+# ── Tests 1 + 2 retired (PR-R1 cycle 2): source-file-grepping anti-pattern ──
+# The prior tests asserted the script's source text contained literal
+# substrings (`DSO-Story(-Merge)?:`, `--format="%B"`). That tests
+# implementation, not observable behavior — Rule 3 (Execute, don't
+# inspect). Removed. Behavioral coverage of the OVER_BOUND path follows
+# below as Test 2 (renumbered).
 
-# ── Test 2: Trailer check uses grep on commit body (not SHA ancestry) ──────────
-echo "Test 2: Provenance check reads commit body, not just SHA ancestry"
-assert_contains \
-    "script reads full commit body via git log --format=%B" \
-    '--format="%B"' \
-    "$script_content"
+# ── Test 1: DSO-Over-Bound: marker → exits with documented over-bound code ──
+# Behavioral assertion: a commit carrying the DSO-Over-Bound: trailer is
+# classified as acknowledged non-provenanced (exit code 3 per the contract
+# in test-verify-session-provenance-contract.sh `test_over_bound_marker_exits_3`).
+echo "Test 1: DSO-Over-Bound: commit → exit 3 (acknowledged non-provenanced)"
+_t1_dir="$(mktemp -d "${TMPDIR:-/tmp}/cafb-t1.XXXXXX")"
+_t1_artifacts="$(mktemp -d "${TMPDIR:-/tmp}/cafb-t1-art.XXXXXX")"
+# shellcheck disable=SC2064  # intentional
+trap "rm -rf '$_t1_dir' '$_t1_artifacts'" EXIT
+git -C "$_t1_dir" init -q
+git -C "$_t1_dir" config user.email "t@t.local"
+git -C "$_t1_dir" config user.name "t"
+git -C "$_t1_dir" commit --allow-empty -m "base" -q
+_t1_base="$(git -C "$_t1_dir" rev-parse HEAD)"
+git -C "$_t1_dir" commit --allow-empty -q -m "$(printf 'large-diff: routed to FP-recovery\n\nDSO-Over-Bound: ack')"
+_t1_head="$(git -C "$_t1_dir" rev-parse HEAD)"
+_t1_exit=0
+DSO_REPO_PATH="$_t1_dir" \
+DSO_BASE_SHA="$_t1_base" \
+DSO_SESSION_HEAD="$_t1_head" \
+DSO_ARTIFACT_DIR="$_t1_artifacts" \
+    bash "$PROVENANCE_SCRIPT" > /dev/null 2>&1 || _t1_exit=$?
+assert_eq \
+    "DSO-Over-Bound: commit exits 3 (acknowledged non-provenanced)" \
+    "3" \
+    "$_t1_exit"
 
-# ── Test 3: Script accepts a squash commit bearing DSO-Story-Merge trailer ──────
-echo "Test 3: Script exits 0 when squash commit has DSO-Story-Merge trailer"
+# ── Test 3: Squash commit with trailer + valid covering PR → exits 0 ─────────
+# Post-PR-R1: the trailer is no longer load-bearing; provenance is established
+# by the covering PR (PR1 = worktree-* → staged-*) having review-sub-pr
+# passing. Use a `gh` shim to simulate that covering PR.
+echo "Test 3: Script exits 0 when squash commit has covering PR with passing review-sub-pr"
 
 # Create an isolated temp git repo for this test
 _tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/cafb-test.XXXXXX")"
@@ -74,7 +92,31 @@ _session_head="$(git -C "$_test_repo" rev-parse HEAD)"
 _artifact_dir="$(mktemp -d "${TMPDIR:-/tmp}/cafb-artifacts.XXXXXX")"
 trap 'rm -rf "$_tmp_dir" "$_artifact_dir"' EXIT
 
+# PR-R1: shim gh to simulate a covering PR with passing review-sub-pr.
+_shim_dir="$(mktemp -d "${TMPDIR:-/tmp}/cafb-shim.XXXXXX")"
+cat > "$_shim_dir/gh" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  api)
+    shift
+    case "$1" in
+      *commits/*/pulls)
+        echo '[{"number": 777, "state": "closed", "merged_at": "2026-01-01T00:00:00Z", "head": {"sha": "deadbeef"}, "merge_commit_sha": "cafef00d"}]'
+        ;;
+      *pulls/777*) echo '{"number": 777, "head": {"sha": "deadbeef"}}' ;;
+      *commits/*/check-runs*)
+        echo '{"total_count": 1, "check_runs": [{"name": "review-sub-pr", "status": "completed", "conclusion": "success"}]}'
+        ;;
+      *) echo "{}" ;;
+    esac ;;
+  *) echo "{}" ;;
+esac
+STUB
+chmod +x "$_shim_dir/gh"
+
 actual_exit=0
+PATH="$_shim_dir:$PATH" \
+GH_REPO="test/test" \
 DSO_REPO_PATH="$_test_repo" \
 DSO_BASE_SHA="$_base_sha" \
 DSO_SESSION_HEAD="$_session_head" \
@@ -82,9 +124,10 @@ DSO_ARTIFACT_DIR="$_artifact_dir" \
     bash "$PROVENANCE_SCRIPT" > /dev/null 2>&1 || actual_exit=$?
 
 assert_eq \
-    "verify-session-provenance exits 0 for squash commit with DSO-Story-Merge trailer" \
+    "verify-session-provenance exits 0 for squash commit with covering PR (review-sub-pr passing)" \
     "0" \
     "$actual_exit"
+rm -rf "$_shim_dir"
 
 # ── Test 4: Script exits 1 when squash commit lacks DSO-Story-Merge trailer ────
 echo "Test 4: Script exits 1 when squash commit has no DSO-Story-Merge trailer"
