@@ -525,7 +525,7 @@ plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cle
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
 plugins/dso/scripts/migrate-ledger-v11-to-v12.sh:tests/scripts/test-migrate-ledger-v11-to-v12.sh
 plugins/dso/scripts/verify-duckdb.sh:tests/scripts/test-verify-duckdb.sh
-plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh,tests/scripts/test-verify-session-provenance-contract.sh,tests/scripts/test-verify-session-provenance-cases.sh
+plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh,tests/scripts/test-verify-session-provenance-contract.sh,tests/scripts/test-verify-session-provenance-cases.sh,tests/scripts/test-verify-session-provenance-no-trailer-shortcut.sh
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh

@@ -819,12 +819,29 @@ _phase_staged_intermediate() {
     fi
     # DSO_SKIP_STAGED_INTERMEDIATE opt-out removed in PR-R1 (post-audit). If
     # the env var is set, treat it as a hard error: it would bypass the
-    # comprehensive review gate without recourse, and the operator should
-    # not be silently allowed to do this.
+    # comprehensive review gate without recourse.
     if [[ -n "${DSO_SKIP_STAGED_INTERMEDIATE:-}" ]]; then
         echo "ERROR: DSO_SKIP_STAGED_INTERMEDIATE is no longer supported (removed in PR-R1)." >&2
         echo "ERROR: The staged-* intermediate is now mandatory for session→main flows." >&2
-        echo "ERROR: If you genuinely need to bypass for an emergency, use /dso:fp-recovery." >&2
+        echo "" >&2
+        echo "MIGRATION GUIDE:" >&2
+        echo "  Legitimate use cases the flag previously served, with new alternatives:" >&2
+        echo "" >&2
+        echo "  1. 'I am testing merge-to-main without wanting to actually push':" >&2
+        echo "     Use DSO_DRY_RUN=1 instead — emits the planned PR payload to stdout" >&2
+        echo "     without hitting the GitHub API." >&2
+        echo "" >&2
+        echo "  2. 'I need to land an emergency fix that bypasses review-sub-pr':" >&2
+        echo "     Use /dso:fp-recovery <pr_number>. The skill handles the bypass" >&2
+        echo "     atomically and creates an audit-trail entry — DSO_SKIP_STAGED_INTERMEDIATE" >&2
+        echo "     never did either." >&2
+        echo "" >&2
+        echo "  3. 'I want to revert the two-tier model':" >&2
+        echo "     Revert PR-C, PR-R1, and the ruleset PATCHes per" >&2
+        echo "     docs/runbooks/rulesets-rollback.md — a wholesale rollback is the" >&2
+        echo "     correct path, not a per-invocation bypass." >&2
+        echo "" >&2
+        echo "  Audit ref: docs/handoff/llm-review-enforcement-handoff.md (post-audit Finding 3)." >&2
         return 1
     fi
     # Auto-skip when there's no real GitHub origin (test fixtures use tmpdir

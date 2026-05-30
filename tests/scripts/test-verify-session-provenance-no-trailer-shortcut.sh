@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 # Regression test for PR-R1 (post-audit Finding 3).
 #
+# gh API shim contract — field-name traceability to verifier code:
+#   The shim below returns JSON with field names {"conclusion", "check_runs",
+#   "name", "number", "state", "merged_at", "head.sha", "merge_commit_sha"}.
+#   These are NOT hypothetical — the production verifier reads exactly these
+#   names against real GitHub at:
+#     - verify-session-provenance.sh:605  data.get('check_runs', [])
+#     - verify-session-provenance.sh:607  r.get('name', '')  (checks 'review-sub-pr')
+#     - verify-session-provenance.sh:610  r.get('conclusion')
+#     - verify-session-provenance.sh:481  pr.get('state'), pr.get('merged_at')
+#     - verify-session-provenance.sh:492  pr.get('head').get('sha')
+#     - verify-session-provenance.sh:496  pr.get('merge_commit_sha')
+#   The shim documents the contract the verifier already depended on against
+#   real GitHub before PR-R1. If GitHub changes the response shape (extremely
+#   rare for ruleset-API-adjacent endpoints), BOTH the verifier and the shim
+#   need updating in lockstep.
+#
 # Before PR-R1, verify-session-provenance.sh:362 short-circuited on the
 # presence of a `DSO-Story(-Merge):` trailer — accepting the trailer as
 # evidence of review without verifying the covering PR's review-sub-pr
