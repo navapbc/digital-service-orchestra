@@ -22,7 +22,8 @@ on:
 # If the secret is missing, the test skips with a precondition-not-met
 # message rather than failing — this lets the workflow remain wired as
 # a required check while the secret is being provisioned. Once provisioned,
-# all 9 invariants enforce on every PR to main.
+# the 7 numbered invariants (I1-I7) + 2 existence preconditions
+# (sub-PR and main ruleset present) enforce on every PR to main.
 permissions:
   contents: read
 

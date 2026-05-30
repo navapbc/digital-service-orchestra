@@ -66,6 +66,12 @@ _track_tmp() { _TRACKED_TMP_FILES+=("$1"); }
 _cleanup_tmps() {
     local _f
     for _f in "${_TRACKED_TMP_FILES[@]:-}"; do
+        # `|| true` is load-bearing here, NOT redundant: cleanup runs under an
+        # EXIT trap, where Bash uses the trap's last command status as the
+        # script's exit code. A transient `rm -f` failure (permission flake,
+        # FS error) would otherwise mask a passing test run with a non-zero
+        # exit. The 2>/dev/null + `|| true` pair guarantees the EXIT trap is
+        # a no-op for exit-code purposes regardless of cleanup outcome.
         [[ -n "$_f" ]] && rm -f "$_f" 2>/dev/null || true
     done
 }
