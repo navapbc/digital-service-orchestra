@@ -376,10 +376,112 @@ jobs:
           bash plugins/dso/scripts/review-defense-store.sh list --pr "$PR_NUMBER" \
             | bash plugins/dso/scripts/mirror-defenses-to-pr.sh "$PR_NUMBER" || true
 
-  # ── LLM code review ─────────────────────────────────────────
+  # ── Per-sub-PR LLM review (migrated from review-sub-pr.yml) ─────────
+  #
+  # Gated behind the deterministic checks so we don't pay for an LLM API
+  # call when the PR is already failing on free signals. Same skip-handling
+  # pattern as the other jobs: the job always runs (so the required check
+  # always reports), but expensive steps have `if: code_changed == 'true'`
+  # to skip when no relevant files changed.
+  #
+  # HOST PROJECT NOTE: GitHub Actions YAML cannot dynamically read a host's
+  # default branch. The literal `'main'` below matches the sub-PR ruleset's
+  # exclude pattern (provision-ruleset.sh emits include="refs/heads/staged-*"
+  # — review fires on PRs into staged-* but not into main). If your host
+  # project's default branch is not "main", change the literal here AND
+  # re-run `provision-ruleset.sh` so the live ruleset matches.
+  #
+  # KNOWN LEAK: ticket-platform-matrix.yml runs in a separate workflow file
+  # and cannot be referenced via `needs:` here. If ticket tests fail there
+  # while ci.yml is green, this expensive LLM-review call will still fire
+  # and incur API cost. The leak is bounded because ticket-platform-matrix
+  # has a `paths:` filter restricting it to ticket-system files; most PRs
+  # don't trigger it at all.
+
+  llm-review-sub-pr:
+    # `name:` MUST stay "review-sub-pr" — the sub-PR ruleset (16961402)
+    # requires this exact check context. Changing it requires a ruleset PATCH
+    # in lockstep, or all sub-PRs deadlock.
+    name: review-sub-pr
+    needs: [changes, actionlint, shellcheck, lint-python, test-hooks, test-scripts]
+    if: github.event_name == 'pull_request' && github.base_ref != 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Single source of truth for the findings-artifact path. Both the
+      # `Compute diff and run reviewer` step (writer) and the `Assert
+      # review liveness` step (validator) reference this var.
+      DSO_CI_REVIEW_FINDINGS_PATH: /tmp/findings.json
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        if: needs.changes.outputs.code_changed == 'true'
+        with:
+          python-version: '3.13'
+      - name: Install Python dependencies
+        if: needs.changes.outputs.code_changed == 'true'
+        run: pip install litellm==1.83.7
+      - name: Compute diff and run reviewer
+        if: needs.changes.outputs.code_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PR_NUMBER: ${{ github.event.number }}
+          # c131-0f34: persist the runner's findings JSON so the liveness
+          # step below can assert it exists and is well-formed.
+          DSO_CI_REVIEW_OUTPUT_PATH: ${{ env.DSO_CI_REVIEW_FINDINGS_PATH }}
+        shell: bash -eo pipefail {0}
+        run: |
+          _DIFF_PATH=$(mktemp /tmp/dso-sub-pr-diff.XXXXXX)
+          trap 'rm -f "$_DIFF_PATH"' EXIT
+          gh pr diff "$PR_NUMBER" > "$_DIFF_PATH"
+          # R4 (PR-2): workflow-level empty-diff guard. The runner has an
+          # empty-diff guard (`runner.py:_read_diff`) but a workflow-level
+          # check makes the failure mode visible before the runner is
+          # invoked, resilient to runner-side regressions.
+          if [[ ! -s "$_DIFF_PATH" ]]; then
+              echo "ERROR: gh pr diff produced empty output for PR #$PR_NUMBER" >&2
+              echo "ERROR: refusing to dispatch reviewer with empty diff (force-push race, rebased PR, or closed state)" >&2
+              exit 1
+          fi
+          DSO_CI_REVIEW_DIFF_PATH="$_DIFF_PATH" bash plugins/dso/scripts/ci-llm-review-runner.sh
+
+      - name: Assert review liveness
+        if: needs.changes.outputs.code_changed == 'true'
+        # c131-0f34: end-to-end liveness invariant. Fails the job if the
+        # runner did not write /tmp/findings.json, or if the file is empty
+        # or does not contain the expected `findings` key. Catches the
+        # silent-exit-0 regression class that would otherwise let PRs merge
+        # with no review having actually run.
+        shell: bash -eo pipefail {0}
+        run: |
+          F="${DSO_CI_REVIEW_FINDINGS_PATH:?DSO_CI_REVIEW_FINDINGS_PATH not set}"
+          if [ ! -s "$F" ]; then
+            echo "ERROR [liveness]: $F missing or empty — runner did not produce review output" >&2
+            exit 1
+          fi
+          if ! jq -e 'has("findings") and (.findings | type == "array")' "$F" >/dev/null 2>&1; then
+            echo "ERROR [liveness]: $F malformed — 'findings' missing, not an array, or invalid JSON" >&2
+            head -c 500 "$F" 2>/dev/null | sed 's/^/  | /' >&2 || true
+            exit 1
+          fi
+          echo "review liveness: ok ($(jq -r '.findings | length' "$F") findings)"
+
+  # ── LLM code review (integration scope, on PRs to main) ─────────────
+  #
+  # KNOWN LEAK: ticket-platform-matrix.yml runs in a separate workflow file
+  # and cannot be referenced via `needs:` here. If ticket tests fail there
+  # while ci.yml is green, this expensive LLM-review call will still fire
+  # and incur API cost. The leak is bounded by the workflow's `paths:`
+  # filter; most PRs don't trigger it at all.
 
   llm-review:
-    needs: [changes, test-hooks, test-scripts, mirror-defenses-to-pr]
+    needs: [changes, actionlint, test-hooks, test-scripts, mirror-defenses-to-pr]
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
     # 45-minute ceiling accommodates full-diff fallback when per-story
