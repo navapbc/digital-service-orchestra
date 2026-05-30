@@ -11,7 +11,7 @@ _jira_auth="${JIRA_USER}:${JIRA_API_TOKEN}"
 # Fix 5: helper to execute a curl call, capture HTTP status, and fail loudly on 4xx/5xx.
 _jira_curl() {
     local http_status body tmpfile
-    tmpfile=$(mktemp /tmp/jira-api.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/jira-api.XXXXXX")
     # Write body to tmpfile; print status on last line via -w
     if ! body=$(curl -s --fail-with-body -w "\n%{http_code}" -u "${_jira_auth}" "$@" 2>/tmp/jira-api-err.XXXXXX); then
         # --fail-with-body causes non-zero exit on 4xx/5xx; body still captured

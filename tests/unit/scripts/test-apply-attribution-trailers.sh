@@ -621,7 +621,7 @@ test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled() {
     cat > "$_mock_dir/read-config.sh" <<'MOCK'
 #!/bin/bash
 # Mock: attribution.enabled → false
-if [[ "$1" == "attribution.enabled" ]]; then echo "false"; else echo ""; fi
+case "$1" in dso.workflow) echo "local";; attribution.enabled) echo "false";; *) echo "";; esac
 MOCK
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -667,7 +667,7 @@ test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent() {
     cat > "$_mock_dir/read-config.sh" <<'MOCK'
 #!/bin/bash
 # Mock: attribution.enabled → true
-if [[ "$1" == "attribution.enabled" ]]; then echo "true"; else echo ""; fi
+case "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac
 MOCK
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -716,7 +716,7 @@ test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty() {
     cat > "$_mock_dir/read-config.sh" <<'MOCK'
 #!/bin/bash
 # Mock: attribution.enabled → true
-if [[ "$1" == "attribution.enabled" ]]; then echo "true"; else echo ""; fi
+case "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac
 MOCK
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -763,7 +763,7 @@ test_injection_appends_dso_agent_trailer_to_commit_message() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -811,7 +811,7 @@ test_two_distinct_agents_produce_two_dso_agent_lines() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -859,7 +859,7 @@ test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -932,7 +932,7 @@ test_placement_scan_emits_no_warning_when_trailers_at_bottom() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -986,7 +986,7 @@ test_placement_scan_emits_warning_when_dso_trailer_in_message_body() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1039,7 +1039,7 @@ test_blank_line_separator_present_before_first_dso_trailer_in_output() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1126,7 +1126,7 @@ test_truncate_clears_populated_jsonl_to_zero_bytes() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1170,7 +1170,7 @@ test_truncate_exits_0_when_jsonl_absent() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1218,7 +1218,7 @@ test_truncate_emits_warning_and_exits_0_on_truncation_failure() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1281,7 +1281,7 @@ test_skips_injection_when_trailers_already_present() {
     _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1342,7 +1342,7 @@ PYEOF
     local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1386,7 +1386,7 @@ test_jsonl_flag_path_used_for_guard_and_injection() {
     local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1461,7 +1461,7 @@ test_missing_commit_msg_file_exits_with_usage_error() {
     local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1507,7 +1507,7 @@ test_idempotency_matches_lowercase_existing_trailer() {
     local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
     mkdir -p "$_mock_dir"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_mock_dir/read-config.sh"
     chmod +x "$_mock_dir/read-config.sh"
 
@@ -1552,7 +1552,7 @@ test_sc2_guard_resolves_read_config_via_claude_plugin_root() {
     local _plugin_root; _plugin_root="$(_make_tmpdir)/plugin"
     mkdir -p "$_plugin_root/scripts"
     # shellcheck disable=SC2016
-    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+    printf '#!/bin/bash\ncase "$1" in dso.workflow) echo "ci-pr";; attribution.enabled) echo "true";; *) echo "";; esac\n' \
         > "$_plugin_root/scripts/read-config.sh"
     chmod +x "$_plugin_root/scripts/read-config.sh"
 

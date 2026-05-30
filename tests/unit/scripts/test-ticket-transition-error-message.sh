@@ -36,7 +36,11 @@ _create_ticket() {
     local title="${3:-Test ticket}"
     local out
     out=$(cd "$repo" && bash "$TICKET_SCRIPT" create "$ticket_type" "$title" 2>/dev/null) || true
-    echo "$out"
+    # `ticket create` prints a human-readable "Created ticket <alias> (<id>): <title>"
+    # line followed by the bare canonical ID on the final line. Take the last
+    # line — the bare ID — not the whole blob (matches the create-bug SKILL's
+    # `tail -1` convention).
+    printf '%s\n' "$out" | tail -1
 }
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────

@@ -29,7 +29,11 @@ repos:
         language: system
         pass_filenames: true
         stages: [pre-commit]
-        files: ^tests/(.*/)?test-[^/]*\.sh$
+        # All *.sh under tests/ — the script self-filters scope (excludes
+        # fixtures/) and silently ignores non-test paths. Broadened from the
+        # prior test-*.sh-only glob, which exempted test_*.sh / run.sh /
+        # setup.sh / tests/lib where real violations accumulated (Finding 6).
+        files: ^tests/(.*/)?[^/]*\.sh$
 
       # Note (3aaa-0238 boundary): check-precondition-emit.sh only scans staged diff;
       # no interaction with CI gate manifest or pre-commit-wrapper.sh timeout mechanism.
