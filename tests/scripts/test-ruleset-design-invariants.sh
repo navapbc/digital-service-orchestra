@@ -33,6 +33,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 GH_REPO="${GH_REPO:-navapbc/digital-service-orchestra}"
 
+# Ruleset names — intentional coupling with provision-ruleset.sh.
+# These names appear in BOTH this test AND the provisioner that creates
+# the rulesets. If the names ever change (e.g., via a UI rename without
+# re-provisioning), this test will fail with "ruleset not found" — which
+# is the correct signal: live state has drifted from the provisioner's
+# expectation. Override via env vars for forks / multi-repo deployments.
+SUB_PR_RULESET_NAME="${DSO_SUB_PR_RULESET_NAME:-DSO Sub-PR Review Enforcement}"
+MAIN_RULESET_NAME="${DSO_MAIN_RULESET_NAME:-DSO CI Enforcement}"
+
 PASS=0
 FAIL=0
 
@@ -118,59 +127,70 @@ fi
 
 # Extract IDs, surfacing parse errors instead of empty fallthrough.
 _extract_stderr=$(mktemp); _track_tmp "$_extract_stderr"
-SUB_PR_ID="$(echo "$RULESETS_JSON" | python3 -c "
-import json,sys
+SUB_PR_ID="$(echo "$RULESETS_JSON" | DSO_RULESET_NAME="$SUB_PR_RULESET_NAME" python3 -c "
+import json,os,sys
+target = os.environ['DSO_RULESET_NAME']
 try:
     data = json.load(sys.stdin)
 except Exception as exc:
     print(f'PARSE_ERROR: {type(exc).__name__}: {exc}', file=sys.stderr)
     sys.exit(2)
 for r in data:
-    if r.get('name') == 'DSO Sub-PR Review Enforcement':
+    if r.get('name') == target:
         print(r.get('id', ''))
         sys.exit(0)
+# Distinct exit code: not-found vs parse-error vs JSON shape error.
+print(f'NOT_FOUND: ruleset named {target!r}', file=sys.stderr)
+sys.exit(3)
 " 2>"$_extract_stderr")"
 _sub_pr_extract_rc=$?
 _sub_pr_extract_err="$(cat "$_extract_stderr")"
 rm -f "$_extract_stderr"
 
-if [[ $_sub_pr_extract_rc -ne 0 ]]; then
-    _precondition_not_met "sub-PR ruleset ID extraction failed: ${_sub_pr_extract_err}" \
-        "Check the JSON shape returned by gh api repos/${GH_REPO}/rulesets"
-fi
+case "$_sub_pr_extract_rc" in
+  0) ;;
+  2) _precondition_not_met "sub-PR ruleset JSON parse failed: ${_sub_pr_extract_err}" \
+        "Inspect: gh api repos/${GH_REPO}/rulesets" ;;
+  3) _precondition_not_met "no ruleset named '${SUB_PR_RULESET_NAME}' on ${GH_REPO}" \
+        "Run provision-ruleset.sh to (re-)create the ruleset, or override DSO_SUB_PR_RULESET_NAME if the name has changed." ;;
+  *) _precondition_not_met "sub-PR ruleset extraction failed (rc=${_sub_pr_extract_rc}): ${_sub_pr_extract_err}" \
+        "Check the JSON shape returned by gh api repos/${GH_REPO}/rulesets" ;;
+esac
 
 _extract_stderr=$(mktemp); _track_tmp "$_extract_stderr"
-MAIN_ID="$(echo "$RULESETS_JSON" | python3 -c "
-import json,sys
+MAIN_ID="$(echo "$RULESETS_JSON" | DSO_RULESET_NAME="$MAIN_RULESET_NAME" python3 -c "
+import json,os,sys
+target = os.environ['DSO_RULESET_NAME']
 try:
     data = json.load(sys.stdin)
 except Exception as exc:
     print(f'PARSE_ERROR: {type(exc).__name__}: {exc}', file=sys.stderr)
     sys.exit(2)
 for r in data:
-    if r.get('name') == 'DSO CI Enforcement':
+    if r.get('name') == target:
         print(r.get('id', ''))
         sys.exit(0)
+print(f'NOT_FOUND: ruleset named {target!r}', file=sys.stderr)
+sys.exit(3)
 " 2>"$_extract_stderr")"
 _main_extract_rc=$?
 _main_extract_err="$(cat "$_extract_stderr")"
 rm -f "$_extract_stderr"
 
-if [[ $_main_extract_rc -ne 0 ]]; then
-    _precondition_not_met "main ruleset ID extraction failed: ${_main_extract_err}" \
-        "Check the JSON shape returned by gh api repos/${GH_REPO}/rulesets"
-fi
+case "$_main_extract_rc" in
+  0) ;;
+  2) _precondition_not_met "main ruleset JSON parse failed: ${_main_extract_err}" \
+        "Inspect: gh api repos/${GH_REPO}/rulesets" ;;
+  3) _precondition_not_met "no ruleset named '${MAIN_RULESET_NAME}' on ${GH_REPO}" \
+        "Run provision-ruleset.sh, or override DSO_MAIN_RULESET_NAME if the name has changed." ;;
+  *) _precondition_not_met "main ruleset extraction failed (rc=${_main_extract_rc}): ${_main_extract_err}" \
+        "Check the JSON shape returned by gh api repos/${GH_REPO}/rulesets" ;;
+esac
 
-if [[ -z "$SUB_PR_ID" ]]; then
-    _fail "test_sub_pr_ruleset_exists" "no ruleset named 'DSO Sub-PR Review Enforcement' on ${GH_REPO}"
-else
-    _pass "test_sub_pr_ruleset_exists"
-fi
-if [[ -z "$MAIN_ID" ]]; then
-    _fail "test_main_ruleset_exists" "no ruleset named 'DSO CI Enforcement' on ${GH_REPO}"
-else
-    _pass "test_main_ruleset_exists"
-fi
+# Both IDs guaranteed non-empty here — the case blocks above exit early on
+# any failure path. _pass for symmetry with the rest of the test output.
+_pass "test_sub_pr_ruleset_exists"
+_pass "test_main_ruleset_exists"
 
 # ── Fetch full ruleset payloads (with explicit error handling) ──────────────
 _sub_pr_stderr=$(mktemp); _track_tmp "$_sub_pr_stderr"
