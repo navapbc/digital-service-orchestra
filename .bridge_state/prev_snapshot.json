@@ -181424,6 +181424,261 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "statusCategory": {
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+      }
+    },
+    "summary": "[llm-review dispatch]: deep-tier specialist emits Anthropic tool-use markup as literal text -> JSON parser rejects response with 'cannot parse as findings'"
+  },
+  "DIG-5054": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** [current main]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Discovered by:** local code-reviewer-standard review of PR #482 (post-merge)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Coverage gap",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "`tests/scripts/test-ruleset-design-invariants.sh` should detect drift in BOTH directions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(a) live ruleset state diverges from documented design (current coverage), AND",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(b) running `provision-ruleset.sh` on a clean repo would produce a different shape than current live state.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The test asserts (a) only. A manually-applied UI ruleset change (or a previous provisioner run with a different shape) can leave live state matching the test's expected values WHILE `provision-ruleset.sh` still emits a stale shape. A future fresh provisioner run would silently overwrite the working state.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This is Finding 1 of the 2026-05-29 DSO Review audit (\"Sub-PR ruleset/review contract drift\") \u2014 five inconsistent representations of how sub-PR review is enforced coexist; this test locks in only one of them.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 3. Proposed Remediation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Part of the broader \"Canonical sub-PR enforcement contract\" epic:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. Author `plugins/dso/docs/contracts/sub-pr-enforcement.md` as single source of truth",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. Rewrite `provision-ruleset.sh` to emit `required_status_checks` (current live shape) instead of stale `required_workflows`",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. Regenerate `check-ruleset-preflight.sh` \"good\" fixture from `provision-ruleset.sh --dry-run` so the fixture cannot drift from the provisioner",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "4. Add CI round-trip test: dry-run payload \u2192 preflight accepts it",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "5. Update `test-branch-pattern-alignment.sh` Test 4 (currently asserts `workflows` rule type \u2014 locks in wrong direction)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "6. Update INSTALL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "detected_by:review-llm",
+      "dso-id:df90-8e29-d734-49ec"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
       "id": "21057",
       "name": "To Do",
       "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
@@ -181435,6 +181690,6 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "[llm-review dispatch]: deep-tier specialist emits Anthropic tool-use markup as literal text -> JSON parser rejects response with 'cannot parse as findings'"
+    "summary": "[provision-ruleset.sh + test-ruleset-design-invariants.sh]: provisioner output drift goes undetected -> live rulesets and provisioner shape can diverge silently"
   }
 }
