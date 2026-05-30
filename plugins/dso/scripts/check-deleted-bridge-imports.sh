@@ -82,7 +82,12 @@ scan_zone() {
         fi
     else
         if [[ -e "$zone_path" ]]; then
-            hits=$(grep -rnE "$pattern" "$zone_path" 2>/dev/null || true)
+            # --exclude-dir=.git: match rg's behavior (rg skips .git and
+            # .gitignored paths). Without this the grep fallback scans .git/
+            # internals (logs, COMMIT_EDITMSG, packed refs) where commit-message
+            # prose mentioning these module names produces spurious hits — only
+            # in environments without ripgrep (e.g. CI runners). bug 5ff0 sibling.
+            hits=$(grep -rnE --exclude-dir=.git "$pattern" "$zone_path" 2>/dev/null || true)
         fi
     fi
     if [[ -n "$hits" ]]; then
@@ -90,7 +95,13 @@ scan_zone() {
     fi
     echo "Zone $zone_name: $count hits"
     if [[ "$count" -gt 0 ]]; then
-        echo "$hits" | head -20
+        # Here-string, NOT `echo "$hits" | head -20`: under `set -o pipefail`,
+        # head closes the pipe after 20 lines; on a large hit set echo is still
+        # writing and takes SIGPIPE (exit 141), which pipefail+`set -e` turn
+        # into a whole-script abort — printing zone lines but never the
+        # "TOTAL HITS:" footer. Flaked in CI (no rg → grep scanned .git → big
+        # hit set), passed locally (rg → 0 hits). Here-strings have no pipe.
+        head -20 <<<"$hits"
     fi
     TOTAL_HITS=$((TOTAL_HITS + count))
 }
