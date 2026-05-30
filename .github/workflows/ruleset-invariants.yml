@@ -1,0 +1,62 @@
+name: ruleset-design-invariants
+
+# Runs the two-tier promotion gate invariant test against the live GitHub
+# Rulesets state. The check is wired into .github/required-checks.txt as
+# a required status check on the main ruleset — drift detected = merge
+# blocked.
+#
+# IMPORTANT: this workflow MUST fire on every PR to main. A required check
+# that doesn't run leaves the PR's mergeability state pending forever
+# (GitHub treats absent required checks as blocking). The previous
+# `on.pull_request.paths` filter created exactly that deadlock — any PR
+# not touching one of the listed files would have a missing required check.
+# Removing the filter; the workflow is cheap (~3 API calls, ~30s) and the
+# drift signal is worth firing on every PR.
+on:
+  pull_request:
+
+# The Rulesets API requires repository Administration permission, which
+# GITHUB_TOKEN cannot grant via the permissions block (no `administration`
+# scope exists on the default token). A PAT or App token with Admin:read
+# must be provided via the DSO_RULESETS_READ_TOKEN secret.
+# If the secret is missing, the test skips with a precondition-not-met
+# message rather than failing — this lets the workflow remain wired as
+# a required check while the secret is being provisioned. Once provisioned,
+# all 9 invariants enforce on every PR to main.
+permissions:
+  contents: read
+
+jobs:
+  ruleset-design-invariants:
+    name: ruleset-design-invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      # Pinned to commit SHA per repo security guidance. persist-credentials:
+      # false prevents the action from leaving GITHUB_TOKEN in .git/config
+      # after checkout, so subsequent gh calls use the explicit GH_TOKEN env
+      # instead.
+      - uses: actions/checkout@fd084cde189b7b76ec305d52e27be545a0172823  # v4
+        with:
+          persist-credentials: false
+
+      - name: Run invariant test
+        env:
+          # Prefer the rulesets-scoped PAT when configured; fall back to
+          # GITHUB_TOKEN (which produces a 403 from rulesets API and is
+          # handled as a precondition-not-met by the test).
+          GH_TOKEN: ${{ secrets.DSO_RULESETS_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set +e
+          bash tests/scripts/test-ruleset-design-invariants.sh
+          rc=$?
+          # exit 78 = EX_CONFIG (precondition not met — e.g. token lacks
+          # rulesets:read). During rollout the secret may not yet be
+          # provisioned; treat as warning so the required check passes.
+          # Drift (exit 1) and pass (exit 0) propagate normally.
+          if [ "$rc" -eq 78 ]; then
+            echo "::warning::ruleset-invariants precondition not met (likely missing DSO_RULESETS_READ_TOKEN secret) — drift detection not enforced this run"
+            exit 0
+          fi
+          exit $rc

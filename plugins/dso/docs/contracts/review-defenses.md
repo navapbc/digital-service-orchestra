@@ -239,6 +239,41 @@ The following ruling values from the pre-cycle-end arbiter (per-finding severity
 
 ---
 
+## Two-Tier Promotion Gate
+
+Establishes the load-bearing review gate for code reaching `main`. This contract is the design rationale for the post-PR-R1 verifier behavior and the ruleset scoping decisions in `provision-ruleset.sh`.
+
+### Topology
+
+```text
+feature-branch / worktree-<ts>  (unrestricted: no ruleset, push freely)
+    ↓ PR1 — review-sub-pr workflow required (sub-PR ruleset, ID 16961402)
+staged-<short-sha>-<unix-ts>     (ephemeral; created from main HEAD on session close)
+    ↓ PR2 — check-staged-head + standard required checks (main ruleset, ID 15629023)
+main
+```
+
+### Invariants
+
+1. **PR1 is the comprehensive review gate.** The sub-PR ruleset targets `refs/heads/staged-*` and requires `review-sub-pr` to pass on every PR landing into a `staged-*` branch. Every commit reaching `main` has passed through review-sub-pr at PR1 time.
+2. **Main only accepts `staged-*` heads.** The main ruleset's `check-staged-head` required check fails any PR to main whose head doesn't match the `staged-*` pattern.
+3. **Pushes to `staged-*` branches are unrestricted at ref-update time** (`do_not_enforce_on_create: true`), enabling the `_create_staged_ref` helper in `merge-to-main-pr.sh` to fast-create the ref from `origin/main` HEAD. The required status check fires at PR-merge time.
+4. **Direct commits to `main` are impossible.** No bypass channel under `bypass_mode: pull_request`; admin bypass at PR-merge time produces a visible PR-time audit-trail entry.
+
+### What this contract means for `verify-session-provenance.sh`
+
+Because PR1 has already verified `review-sub-pr` for every worktree commit, the verifier's covering-PR API lookup at PR2 time finds PR1 with `review-sub-pr=success` for each commit in `BASE_SHA..SESSION_HEAD`. Under v4 (PR-R1), the verifier no longer parses `DSO-Story(-Merge):` trailers for provenance — the trailer was a self-attested claim, not evidence. The trailer remains in commit messages as human-readable attribution metadata.
+
+### Drift detection
+
+`tests/scripts/test-ruleset-design-invariants.sh` (wired into CI via `.github/workflows/ruleset-invariants.yml` as a required check) asserts the live ruleset state against the design invariants above. Any drift — sub-PR ruleset broadened to `~ALL`, `check-staged-head` removed from main's required list, bypass_mode reverted to `always` — fails the check and blocks the PR that caused the drift.
+
+### Anti-pattern: do NOT broaden the sub-PR ruleset to `~ALL minus main`
+
+A previous design used `include=["~ALL"]` with `exclude=["refs/heads/main"]`. That re-introduces the chicken-and-egg where pushing any new feature branch is blocked because `review-sub-pr` cannot run before a PR exists. The `staged-*` scoping plus `do_not_enforce_on_create: true` is the resolution; the operator-warning comment block above `SUB_PR_INCLUDE_JSON` in `provision-ruleset.sh` is there to prevent regression.
+
+---
+
 ## Runner Exit Code Contract
 
 The `dso_ci_review.runner.main()` function uses three exit codes to communicate the review outcome to the CI workflow's "Classify llm-review failure" step:
