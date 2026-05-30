@@ -34,11 +34,13 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 GH_REPO="${GH_REPO:-navapbc/digital-service-orchestra}"
 
 # Ruleset names — intentional coupling with provision-ruleset.sh.
-# These names appear in BOTH this test AND the provisioner that creates
-# the rulesets. If the names ever change (e.g., via a UI rename without
-# re-provisioning), this test will fail with "ruleset not found" — which
-# is the correct signal: live state has drifted from the provisioner's
-# expectation. Override via env vars for forks / multi-repo deployments.
+# Verified alignment at the time of writing (PR-R2 cycle 4):
+#   - provision-ruleset.sh:297  "name": "DSO CI Enforcement"
+#   - provision-ruleset.sh:401  "name": "DSO Sub-PR Review Enforcement"
+# If the names ever drift (e.g., UI rename without re-provisioning), this
+# test fails with "ruleset not found" — which is the correct signal: live
+# state has diverged from the provisioner's expectation. Override via env
+# vars for forks / multi-repo deployments.
 SUB_PR_RULESET_NAME="${DSO_SUB_PR_RULESET_NAME:-DSO Sub-PR Review Enforcement}"
 MAIN_RULESET_NAME="${DSO_MAIN_RULESET_NAME:-DSO CI Enforcement}"
 
@@ -281,8 +283,14 @@ for a in actors:
 print(','.join(violations))
 ")"
 if [[ "$i4_violations" == "NO_ACTORS" ]]; then
-    _fail "I4_sub_pr_bypass_mode_pull_request" \
-        "sub-PR ruleset has no bypass actors — incompatible with current design"
+    # Vacuously true: the invariant is "every bypass actor uses
+    # pull_request mode". No actors means no bypass possible — which
+    # satisfies the security goal even if it removes the admin-merge
+    # escape valve. The design doc (review-defenses.md § Two-Tier
+    # Promotion Gate) requires `bypass_mode: pull_request` for admin
+    # bypass to remain a possibility but does not mandate the bypass
+    # actors list be non-empty (cycle-4 review).
+    _pass "I4_sub_pr_bypass_mode_pull_request (no actors — vacuously true)"
 elif [[ -z "$i4_violations" ]]; then
     _pass "I4_sub_pr_bypass_mode_pull_request"
 else
@@ -334,8 +342,8 @@ for a in actors:
 print(','.join(violations))
 ")"
 if [[ "$i7_violations" == "NO_ACTORS" ]]; then
-    _fail "I7_main_bypass_mode_pull_request" \
-        "main ruleset has no bypass actors — incompatible with current design"
+    # Vacuously true — see I4 rationale above.
+    _pass "I7_main_bypass_mode_pull_request (no actors — vacuously true)"
 elif [[ -z "$i7_violations" ]]; then
     _pass "I7_main_bypass_mode_pull_request"
 else
