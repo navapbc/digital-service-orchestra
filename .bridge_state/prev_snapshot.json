@@ -31043,15 +31043,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "brainstorm(w21-bsnz): agent contracts undefined -> implementation agents invent incompatible interfaces"
@@ -31744,6 +31744,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "brainstorm:complete",
       "dso-id:3e36-a1b8-4671-450c"
     ],
     "priority": {
@@ -31755,15 +31757,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "Complete Jira reconciler \u2014 implement inbound leaves + cap routing + validation-class obligation tracking"
@@ -32292,6 +32294,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:3e74-56da"
     ],
     "priority": {
@@ -32303,15 +32306,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Merge-safe ticket IDs and concurrent-edit hardening"
@@ -32981,6 +32984,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:3e9b-afee"
     ],
     "priority": {
@@ -33530,6 +33535,7 @@
       "subtask": false
     },
     "labels": [
+      "detected_by:internal-dogfood",
       "dso-id:3f69-6ec7-5039-445e"
     ],
     "priority": {
@@ -34694,7 +34700,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:4017-e054-98d2-415d"
+      "dso-id:4017-e054-98d2-415d",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -35914,6 +35921,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "brainstorm:complete",
       "dso-id:4047-3cb1-6cb4-46a1"
     ],
     "priority": {
@@ -35925,15 +35934,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "Derivable level-triggered Jira reconciler with direction-tagged mutation contract"
@@ -35967,7 +35976,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:408a-7023-e745-4f80"
+      "dso-id:408a-7023-e745-4f80",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -37504,6 +37514,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:4100-95a4-07ce-41ab"
     ],
     "priority": {
@@ -37515,15 +37526,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Pre-surfacing reviewer-findings verifier agent (Approach 3)"
@@ -38859,7 +38870,10 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:411b-a047-18de-4516"
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
+      "dso-id:411b-a047-18de-4516",
+      "north-star"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -39502,21 +39516,7 @@
     "summary": "implementation-plan SKILL.md post-rendering integration (last hook)"
   },
   "DIG-4296": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -39807,7 +39807,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:41ce-53e5-b099-4626"
+      "dso-id:41ce-53e5-b099-4626",
+      "learning-from-oz",
+      "planning"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
@@ -39860,7 +39862,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:43e4-c563-c893-4922"
+      "dso-id:43e4-c563-c893-4922",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -40714,7 +40717,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:450a-42d4-ad02-4996"
+      "dso-id:450a-42d4-ad02-4996",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -41642,7 +41646,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:46c7-c221-0e4b-4bd0"
+      "dso-id:46c7-c221-0e4b-4bd0",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -42496,7 +42501,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:4758-0e24-cba1-40aa"
+      "dso-id:4758-0e24-cba1-40aa",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -43350,7 +43356,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:475d-847f-e0f5-44a0"
+      "dso-id:475d-847f-e0f5-44a0",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -44204,7 +44211,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:4815-2256-f6b7-4e95"
+      "dso-id:4815-2256-f6b7-4e95",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -45261,7 +45269,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:4901-b8f7-22d7-4d44"
+      "dso-id:4901-b8f7-22d7-4d44",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -45943,6 +45952,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:4911-c7ba"
     ],
     "priority": {
@@ -45954,15 +45965,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Bug-classification coverage registry + audit + fix-bug tagging + retro analysis (broadened from rubric expansion)"
@@ -46512,6 +46523,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:4931-f639"
     ],
     "priority": {
@@ -46523,15 +46535,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Ticket system validation and classification layer: validate, classify, quality gates"
@@ -46789,7 +46801,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:49b0-ff0d-fd97-428a"
+      "dso-id:49b0-ff0d-fd97-428a",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -47255,6 +47268,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:4b8f-924d"
     ],
     "priority": {
@@ -47266,15 +47280,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Severity-only review schema: remove scores and boolean from review output"
@@ -48057,7 +48071,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:4c54-4205"
+      "dso-id:4c54-4205",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -49187,6 +49202,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
       "dso-id:4e50-5024-0907-4ba8"
     ],
     "priority": {
@@ -49684,6 +49701,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:4e55-a6ba"
     ],
     "priority": {
@@ -49695,15 +49713,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "PR-merge mode and enforcement-strategy config: configurable merge-to-main with autonomous PR-comment resolution"
@@ -49960,21 +49978,7 @@
     "summary": "As a DSO plugin developer, reducer schema supports tokens_estimated and tokens_measured fields"
   },
   "DIG-4322": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -50383,6 +50387,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:4f8e-a7a6"
     ],
     "priority": {
@@ -51237,7 +51243,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:5003-be60-3a83-4785"
+      "dso-id:5003-be60-3a83-4785",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -51494,6 +51501,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:5018-64ce"
     ],
     "priority": {
@@ -51762,7 +51770,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:524e-687c-ea35-46a3"
+      "dso-id:524e-687c-ea35-46a3",
+      "mutation-history"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -52616,7 +52625,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:5257-00f4-79c5-4121"
+      "dso-id:5257-00f4-79c5-4121",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -53470,7 +53480,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:5289-468c-a089-4f22"
+      "dso-id:5289-468c-a089-4f22",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -55153,6 +55164,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:53ef-d6fd-5ca5-4d62"
     ],
     "priority": {
@@ -56394,6 +56407,7 @@
       "subtask": false
     },
     "labels": [
+      "calibration-program-health",
       "dso-id:583f-693d-7355-4697"
     ],
     "priority": {
@@ -56659,7 +56673,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:599f-d8e3-3f30-4d9d"
+      "dso-id:599f-d8e3-3f30-4d9d",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -57513,7 +57528,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:5a58-0ada-45af-4321"
+      "dso-id:5a58-0ada-45af-4321",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -57566,7 +57582,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:5c03-f2ff-7953-465a"
+      "dso-id:5c03-f2ff-7953-465a",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -58063,6 +58080,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:5d92-105c-a047-4d07"
     ],
     "priority": {
@@ -59191,7 +59209,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:5efb-06ea-0a65-4e96"
+      "dso-id:5efb-06ea-0a65-4e96",
+      "tooling"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -60121,7 +60140,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:6284-dcfd-dcb7-4499"
+      "dso-id:6284-dcfd-dcb7-4499",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -60502,15 +60522,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[sprint-trailer-enforcement]: DSO_SPRINT_ACTIVE=0 escape hatch can be invoked without justification or logging -> orchestrator silently bypasses per-branch review architecture"
@@ -60775,6 +60795,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:67a5-5da5-b633-494c"
     ],
     "priority": {
@@ -60786,15 +60807,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[sprint-story-review.yml]: Upload review artifact step -> uploads only story-diff.patch, not reviewer-findings.json"
@@ -61171,7 +61192,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:6857-4c50-3dab-49f5"
+      "dso-id:6857-4c50-3dab-49f5",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -61196,21 +61218,7 @@
     "summary": "Update brainstorm SKILL.md \u2014 no-args epic selection + gap analysis one-at-a-time fix"
   },
   "DIG-4362": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -61433,6 +61441,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:6863-7b38"
     ],
     "priority": {
@@ -61444,15 +61453,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Figma design collaboration: Pull via REST API and manifest merge"
@@ -61486,7 +61495,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:6867-f7ff-6050-4835"
+      "dso-id:6867-f7ff-6050-4835",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -62505,7 +62515,10 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:69e8-af39-7886-4ee9"
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
+      "dso-id:69e8-af39-7886-4ee9",
+      "north-star"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -63595,6 +63608,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:6add-c1fc"
     ],
     "priority": {
@@ -65073,6 +65088,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:6da2-4cff-ff38-4056"
     ],
     "priority": {
@@ -65084,15 +65100,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Harden Code Review Reliability: Severity Calibration, Evidence Anchoring, and Diff-Boundary Discipline"
@@ -66497,7 +66513,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:6f1c-5036-c36d-4746"
+      "dso-id:6f1c-5036-c36d-4746",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -66550,7 +66567,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:6f23-3c3f-81c3-4a6c"
+      "dso-id:6f23-3c3f-81c3-4a6c",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -66693,7 +66711,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:6f33-2392"
+      "dso-id:6f33-2392",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -67103,6 +67122,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:6f7a-4ba6"
     ],
     "priority": {
@@ -67114,15 +67134,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Add ticket delete subcommand with Jira propagation and dependency cleanup"
@@ -67627,6 +67647,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:70d5-37ee"
     ],
     "priority": {
@@ -68518,6 +68539,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:70fe-1c39-121b-4e08"
     ],
     "priority": {
@@ -69161,6 +69183,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:71df-5bd8"
     ],
     "priority": {
@@ -69214,7 +69238,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:723a-ea62-35f8-45aa"
+      "dso-id:723a-ea62-35f8-45aa",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -69546,7 +69571,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:7271-e463-0671-4204"
+      "dso-id:7271-e463-0671-4204",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -69845,6 +69871,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:7315-5768-34fc-4060"
     ],
     "priority": {
@@ -70364,6 +70391,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:74f3-f5d0-2639-478a"
     ],
     "priority": {
@@ -70981,6 +71009,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "brainstorm:complete",
       "dso-id:750c-6033-e04f-4682"
     ],
     "priority": {
@@ -70992,15 +71022,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Make HARD-GATE per-step workflow compliance load-bearing via wrapper-driven artifact verification"
@@ -71475,6 +71505,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:7510-0198-3e2b-4ca5"
     ],
     "priority": {
@@ -71984,7 +72016,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:7575-5a90"
+      "dso-id:7575-5a90",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -72037,7 +72070,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:7640-f95b-11d9-4c92"
+      "dso-id:7640-f95b-11d9-4c92",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -72891,7 +72925,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:7661-9ce7-6210-4547"
+      "dso-id:7661-9ce7-6210-4547",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -73991,6 +74026,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:7890-db5b-350a-4d56"
     ],
     "priority": {
@@ -74002,15 +74038,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[sprint-story-review.yml]: Run LLM review step -> ANTHROPIC_API_KEY env var not set in CI"
@@ -74895,6 +74931,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:78fc-3858"
     ],
     "priority": {
@@ -74906,15 +74943,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Reduce ticket CLI subprocess overhead via sourceable ticket-lib API"
@@ -75417,7 +75454,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:7952-9785-4b1f-4b1b"
+      "dso-id:7952-9785-4b1f-4b1b",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -76413,21 +76451,7 @@
     "summary": "ref-library-loader.sh pipeline with local-first merge and per-entry LLM judgment"
   },
   "DIG-4411": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -77057,21 +77081,7 @@
     "summary": "Plan E: Semantic grafting of spatial intent into design manifest schema"
   },
   "DIG-4414": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -78243,7 +78253,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:7ee4-8d84-bd7e-4055"
+      "dso-id:7ee4-8d84-bd7e-4055",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -79109,7 +79120,10 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:7f42-e41f-a501-4007"
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
+      "dso-id:7f42-e41f-a501-4007",
+      "north-star"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -80058,7 +80072,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:7fb2-0068-a0b3-45a0"
+      "dso-id:7fb2-0068-a0b3-45a0",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -80083,21 +80098,7 @@
     "summary": "[PR #42] Deferred review comment: Agreed, we should track this separately."
   },
   "DIG-4420": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -81335,7 +81336,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:82d8-26eb-5686-4909"
+      "dso-id:82d8-26eb-5686-4909",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -81956,7 +81958,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:83ee-934f-6111-45be"
+      "dso-id:83ee-934f-6111-45be",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -82150,6 +82153,7 @@
       "subtask": false
     },
     "labels": [
+      "audit-remediation-week3",
       "dso-id:842f-9f11-b075-4b34"
     ],
     "priority": {
@@ -82379,7 +82383,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:8464-96fa-04cf-4615"
+      "dso-id:8464-96fa-04cf-4615",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -83633,7 +83638,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:8515-d477-43b3-43cb"
+      "dso-id:8515-d477-43b3-43cb",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -84588,7 +84594,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:855c-0f2e-2fc7-4b40"
+      "dso-id:855c-0f2e-2fc7-4b40",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -85423,7 +85430,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:85cb-734a-d1c2-449f"
+      "dso-id:85cb-734a-d1c2-449f",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -86423,6 +86431,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:8623-8d6a-0bc1-4c6e"
     ],
     "priority": {
@@ -87024,6 +87034,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:86c8-2d40"
     ],
     "priority": {
@@ -87035,15 +87046,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "File impact as first-class ticket field with Jira bridge surfacing"
@@ -87528,7 +87539,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:87b1-7fd0-edce-45d0"
+      "dso-id:87b1-7fd0-edce-45d0",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -88157,6 +88169,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:87e9-0bc8"
     ],
     "priority": {
@@ -88182,21 +88196,7 @@
     "summary": "Polyglot Test Gate: stack-agnostic test runner config and gate scripts"
   },
   "DIG-4444": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -88730,6 +88730,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:88d2-6756"
     ],
     "priority": {
@@ -89000,21 +89002,7 @@
     "summary": "As a DSO preplanning user, I want the ui-designer to emit DESIGN.md-additions and the preplanning orchestrator to surface them for approval, so that token introductions are deliberate design decisions."
   },
   "DIG-4447": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -89259,20 +89247,7 @@
     "summary": "As a validation process, I can export Figma design frames as PNG with rate-limit awareness"
   },
   "DIG-4448": {
-    "assignee": {
-      "accountId": "712020:25ee6eba-2e21-48d9-ad30-3f6c26e7435f",
-      "accountType": "app",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png",
-        "24x24": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png",
-        "32x32": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png",
-        "48x48": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png"
-      },
-      "displayName": "TSS Bot",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A25ee6eba-2e21-48d9-ad30-3f6c26e7435f",
-      "timeZone": "America/Chicago"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -89300,7 +89275,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:88fd-8109-8640-4b73"
+      "dso-id:88fd-8109-8640-4b73",
+      "e2e-validation",
+      "probe-test"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -89758,21 +89735,7 @@
     "summary": "Add Migration Check blocks to 7 skill files"
   },
   "DIG-4451": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -90201,7 +90164,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:8b08-3072-5c20-45a9"
+      "dso-id:8b08-3072-5c20-45a9",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -91055,7 +91019,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:8b0b-9436-4818-47cb"
+      "dso-id:8b0b-9436-4818-47cb",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -91108,7 +91073,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:8b3e-8f0e-73de-4e19"
+      "dso-id:8b3e-8f0e-73de-4e19",
+      "suite-churn-history"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -91962,7 +91928,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:8c50-51ab-08d3-4621"
+      "dso-id:8c50-51ab-08d3-4621",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -92521,7 +92488,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:8d1f-5306-7f91-4342"
+      "dso-id:8d1f-5306-7f91-4342",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
@@ -93890,6 +93858,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "detected_by:user-report",
       "dso-id:8fc3-d3b1-58f3-40da"
     ],
     "priority": {
@@ -95517,15 +95487,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "brainstorm(w21-bsnz): config validation behavior unspecified -> invalid thresholds cause silent failure or unsafe routing"
@@ -96482,7 +96452,10 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:94ed-f55c-51f5-45f6"
+      "arch-evidence:remediation-partial",
+      "brainstorm:complete",
+      "dso-id:94ed-f55c-51f5-45f6",
+      "north-star"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -96609,15 +96582,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "brainstorm(w21-bsnz): monorepo multi-stack behavior unspecified -> wrong confidence scores for non-primary stack files"
@@ -96672,7 +96645,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:9618-ab26-1527-4ec8"
+      "dso-id:9618-ab26-1527-4ec8",
+      "origin:arbiter"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -97177,6 +97151,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:9679-695c-6e11-4d95"
     ],
     "priority": {
@@ -98221,6 +98196,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "detected_by:user-report",
       "dso-id:986d-4546-e65d-4a3c"
     ],
     "priority": {
@@ -99392,7 +99369,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:9933-f0ac-46b9-4160"
+      "dso-id:9933-f0ac-46b9-4160",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -99865,7 +99843,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:99f1-153c"
+      "dso-id:99f1-153c",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -100173,6 +100152,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:9b61-6b8e-2ec1-45d4"
     ],
     "priority": {
@@ -100754,6 +100734,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:9bf6-fec9-a2b9-4c1f"
     ],
     "priority": {
@@ -101000,21 +100981,7 @@
     "summary": "As a maintainer, weekly drift-detection CI cron opens advisory PR on substantive upstream change"
   },
   "DIG-4483": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -103045,7 +103012,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:a03c-d55e-1393-4f27"
+      "brainstorm:complete",
+      "dso-id:a03c-d55e-1393-4f27",
+      "north-star"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -103056,15 +103025,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Closure Checks schema migration: separate end-state intent from transitional work across all planning artifacts"
@@ -103084,7 +103053,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:a044-eb61-f059-4a20"
+      "dso-id:a044-eb61-f059-4a20",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -104267,7 +104237,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:a329-3d2f-7f10-4413"
+      "dso-id:a329-3d2f-7f10-4413",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -104858,7 +104829,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:a47f-b451-8f4c-46b1"
+      "dso-id:a47f-b451-8f4c-46b1",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -106079,6 +106051,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:a524-fded"
     ],
     "priority": {
@@ -107288,7 +107262,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:a5d5-056b-522d-4073"
+      "dso-id:a5d5-056b-522d-4073",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -108142,7 +108117,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:a608-aec0-07f1-4ad8"
+      "dso-id:a608-aec0-07f1-4ad8",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -108693,6 +108669,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "bug-type-llm-output-format-drift",
       "dso-id:a6e3-47fb-b9e4-40e9"
     ],
     "priority": {
@@ -108704,15 +108682,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[arbiter-agent]: agent returns 1 consolidated ruling for N findings even after eb3d wiring fix -> length-mismatch fallback still triggers"
@@ -110040,7 +110018,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:a838-dc61-e296-4f8e"
+      "dso-id:a838-dc61-e296-4f8e",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -110894,7 +110873,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:a886-99be-080a-493e"
+      "dso-id:a886-99be-080a-493e",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -111061,7 +111041,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:a8e8-0b23"
+      "dso-id:a8e8-0b23",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -111291,6 +111272,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:a93f-8ddf-9c27-4ad6"
     ],
     "priority": {
@@ -111302,15 +111284,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[sprint-story-review.yml]: Upload review artifact step -> rejected because artifact name contains forward slash"
@@ -111452,7 +111434,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:aaa1-7100"
+      "dso-id:aaa1-7100",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -111915,6 +111898,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "bug-type-stale-cache-read",
       "dso-id:ab89-4fbb-f2b3-46d5"
     ],
     "priority": {
@@ -111926,15 +111911,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[cycle_dispatcher]: SHORT_CIRCUIT check is filesystem-only -> idempotency violated across CI reruns on same SHA"
@@ -112367,6 +112352,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:ac1b-5e35"
     ],
     "priority": {
@@ -112378,15 +112364,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "PR comment response: accept/defend/defer for engineer-authored PR review comments"
@@ -112716,6 +112702,7 @@
       "subtask": false
     },
     "labels": [
+      "detected_by:review-llm",
       "dso-id:ad1d-c14f-1166-4db8"
     ],
     "priority": {
@@ -112982,6 +112969,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:ada8-4478-b931-4c28"
     ],
     "priority": {
@@ -112993,15 +112981,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[sprint-story-review.yml]: Run LLM review step -> ModuleNotFoundError: No module named 'litellm' in CI runner"
@@ -113352,6 +113340,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:af26-dd5a-df6d-4f81"
     ],
     "priority": {
@@ -113966,7 +113955,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:b064-db87-c96e-4b6d"
+      "dso-id:b064-db87-c96e-4b6d",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -114330,7 +114320,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:b08c-ce99-821a-44d7"
+      "dso-id:b08c-ce99-821a-44d7",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -114383,7 +114374,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:b293-83ec-06e7-48e2"
+      "dso-id:b293-83ec-06e7-48e2",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -115010,7 +115002,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:b373-0acd-3489-47d1"
+      "dso-id:b373-0acd-3489-47d1",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -117636,6 +117629,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-needed",
+      "brainstorm:complete",
       "dso-id:b575-ac1c-f720-4839"
     ],
     "priority": {
@@ -117647,15 +117642,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Cycle-end arbiter + workflow unification (BLOCK/DEFER/DROP rulings, max_cycles, parity local+PR)"
@@ -118875,6 +118870,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:b92c-e358-1dcb-447a"
     ],
     "priority": {
@@ -119104,7 +119100,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:ba8f-87cc-b4c1-4aa8"
+      "dso-id:ba8f-87cc-b4c1-4aa8",
+      "learning-from-oz",
+      "planning"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
@@ -119276,15 +119274,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "DSO NextJS Starter: one-command bootstrap for non-engineer prototyping"
@@ -119420,7 +119418,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:bb93-c474-d065-4d06"
+      "dso-id:bb93-c474-d065-4d06",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -119977,7 +119976,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:bc47-7c5a-1137-43b5"
+      "dso-id:bc47-7c5a-1137-43b5",
+      "placeholder",
+      "research"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
@@ -120560,6 +120561,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:bc7f-1a0d"
     ],
     "priority": {
@@ -121292,6 +121294,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:bd19-d744-b8c7-4079"
     ],
     "priority": {
@@ -121303,15 +121306,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "As a reconciler operator, I want the 5 unimplemented inbound applier leaves to write real local-ticket changes when dispatched, and a structural test guaranteeing _LEAVES never again points at a no-op body"
@@ -121698,7 +121701,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:c121-8f3e-5e87-40cb"
+      "detected_by:internal-review",
+      "dso-id:c121-8f3e-5e87-40cb",
+      "tag:test_gap"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -121723,21 +121728,7 @@
     "summary": "[debug-everything]: two-phase pipeline lacks functional integration test \u2014 only structural assertions cover the contract"
   },
   "DIG-4553": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -122296,6 +122287,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:c13f-6196"
     ],
     "priority": {
@@ -124050,6 +124043,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:c206-5acb-9c69-4612"
     ],
     "priority": {
@@ -124089,7 +124084,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:c245-b13d-64a8-46c3"
+      "dso-id:c245-b13d-64a8-46c3",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -124142,7 +124138,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:c2ac-babe-9a17-45cb"
+      "dso-id:c2ac-babe-9a17-45cb",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -124603,6 +124600,9 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
+      "dir-monitor",
       "dso-id:c2cc-e3c4"
     ],
     "priority": {
@@ -124628,20 +124628,7 @@
     "summary": "Directory size monitor: advisory session-start hook with auto-ticketing"
   },
   "DIG-4591": {
-    "assignee": {
-      "accountId": "712020:25ee6eba-2e21-48d9-ad30-3f6c26e7435f",
-      "accountType": "app",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png",
-        "24x24": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png",
-        "32x32": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png",
-        "48x48": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png"
-      },
-      "displayName": "TSS Bot",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A25ee6eba-2e21-48d9-ad30-3f6c26e7435f",
-      "timeZone": "America/Chicago"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -124670,7 +124657,9 @@
     },
     "labels": [
       "dso-id:1418-8cd7-2051-450e",
-      "dso-id:jira-dig-4591"
+      "dso-id:jira-dig-4591",
+      "e2e-validation",
+      "probe-test"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -124724,7 +124713,9 @@
     },
     "labels": [
       "dso-id:1e89-0ea2-4c58-4551",
-      "dso-id:jira-dig-4592"
+      "dso-id:jira-dig-4592",
+      "field-val",
+      "probe-1779927164"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -124749,20 +124740,7 @@
     "summary": "FIELD-VAL: create test 1779927164"
   },
   "DIG-4593": {
-    "assignee": {
-      "accountId": "5b69ff2b85ee4d3d958602b0",
-      "accountType": "app",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://secure.gravatar.com/avatar/e2925cc447de2d2f37f259a8c7370371?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Fdefault-avatar-4.png",
-        "24x24": "https://secure.gravatar.com/avatar/e2925cc447de2d2f37f259a8c7370371?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Fdefault-avatar-4.png",
-        "32x32": "https://secure.gravatar.com/avatar/e2925cc447de2d2f37f259a8c7370371?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Fdefault-avatar-4.png",
-        "48x48": "https://secure.gravatar.com/avatar/e2925cc447de2d2f37f259a8c7370371?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Fdefault-avatar-4.png"
-      },
-      "displayName": "GitHub (production)",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=5b69ff2b85ee4d3d958602b0",
-      "timeZone": "America/Chicago"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -124968,7 +124946,8 @@
     },
     "labels": [
       "dso-id:3825-0829-4705-4b34",
-      "dso-id:jira-dig-4593"
+      "dso-id:jira-dig-4593",
+      "heartbeat-alert"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -125432,6 +125411,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:87e4-b14e-f816-4af5",
       "dso-id:jira-dig-4594"
     ],
@@ -125444,15 +125424,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[reconciler:outbound-update]: local field edits do not propagate to Jira -> Jira retains original values; matrix shows FAIL for all updatable fields"
@@ -125880,7 +125860,8 @@
     },
     "labels": [
       "dso-id:c337-ed61",
-      "dso-id:jira-dig-4595"
+      "dso-id:jira-dig-4595",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -125934,7 +125915,8 @@
     },
     "labels": [
       "dso-id:c3a4-b6a8-b22a-4035",
-      "dso-id:jira-dig-4596"
+      "dso-id:jira-dig-4596",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -126857,6 +126839,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
       "dso-id:c6bf-19df-ac83-43fb",
       "dso-id:jira-dig-4600"
     ],
@@ -127709,6 +127693,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:c6de-76e7-5e4b-4968",
       "dso-id:jira-dig-4602"
     ],
@@ -127721,15 +127706,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Migrate CI LLM review runner from bash to Python module + LiteLLM provider abstraction (Anthropic + OpenAI)"
@@ -128778,7 +128763,8 @@
     },
     "labels": [
       "dso-id:c7b9-f1a1-cdbb-453e",
-      "dso-id:jira-dig-4604"
+      "dso-id:jira-dig-4604",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -129035,15 +129021,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Retro 2026-04-16: Error resilience \u2014 systematic fail-open coverage"
@@ -129840,7 +129826,8 @@
     },
     "labels": [
       "dso-id:c96b-2f56-ef28-4a86",
-      "dso-id:jira-dig-4610"
+      "dso-id:jira-dig-4610",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -130777,21 +130764,7 @@
     "summary": "Integrate ACCESSIBILITY_REVIEWER agent into DSO review pipeline"
   },
   "DIG-4615": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -131852,7 +131825,8 @@
     },
     "labels": [
       "dso-id:ccfc-b89a-7eac-406f",
-      "dso-id:jira-dig-4616"
+      "dso-id:jira-dig-4616",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -132129,21 +132103,7 @@
     "summary": "As a maintainer of the DSO project, our own CI pipeline runs the new Semgrep gate (self-use Probe-1)"
   },
   "DIG-4618": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": null,
     "issuetype": {
       "avatarId": 10307,
@@ -132212,7 +132172,9 @@
     },
     "labels": [
       "dso-id:ce30-dc3d-5214-4bfd",
-      "dso-id:jira-dig-4619"
+      "dso-id:jira-dig-4619",
+      "field-val",
+      "probe-1779927117"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -133262,7 +133224,8 @@
     },
     "labels": [
       "dso-id:cedb-9e98-07cc-4f7d",
-      "dso-id:jira-dig-4621"
+      "dso-id:jira-dig-4621",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -135331,6 +135294,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "brainstorm:complete",
       "dso-id:d076-d35e-55db-4843",
       "dso-id:jira-dig-4627"
     ],
@@ -135343,15 +135308,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Per-branch CI review + branch protection: unified sub-branch-to-session PR architecture for sprint and debug-everything in ci-pr mode"
@@ -135641,7 +135606,8 @@
     },
     "labels": [
       "dso-id:d08f-03d7-a148-43d0",
-      "dso-id:jira-dig-4628"
+      "dso-id:jira-dig-4628",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
@@ -137119,6 +137085,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:d2f9-ee1a-48ab-4bf6",
       "dso-id:jira-dig-4630"
     ],
@@ -137131,15 +137099,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Code review telemetry infrastructure: ingest endpoint, canonical schema, stats retrieval"
@@ -137975,7 +137943,8 @@
     },
     "labels": [
       "dso-id:d45e-69d5-bd34-4ec2",
-      "dso-id:jira-dig-4631"
+      "dso-id:jira-dig-4631",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -138502,8 +138471,10 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:d566-afa6-1aa3-4293",
-      "dso-id:jira-dig-4632"
+      "dso-id:jira-dig-4632",
+      "north-star"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -139358,7 +139329,8 @@
     },
     "labels": [
       "dso-id:d5dc-ae34-fee5-47f4",
-      "dso-id:jira-dig-4633"
+      "dso-id:jira-dig-4633",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -139550,7 +139522,8 @@
     },
     "labels": [
       "dso-id:d63f-2c74",
-      "dso-id:jira-dig-4634"
+      "dso-id:jira-dig-4634",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -140405,7 +140378,8 @@
     },
     "labels": [
       "dso-id:d670-81be-097c-4c0c",
-      "dso-id:jira-dig-4635"
+      "dso-id:jira-dig-4635",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -141229,6 +141203,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:d765-a3b6-84bd-4816",
       "dso-id:jira-dig-4637"
     ],
@@ -141910,6 +141886,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
       "dso-id:d792-2c16-71a5-4687",
       "dso-id:jira-dig-4638"
     ],
@@ -142378,6 +142356,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:d8e1-38c7-e45e-45e5",
       "dso-id:jira-dig-4640"
     ],
@@ -143824,6 +143803,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:da4e-4e9a-250b-4a8b",
       "dso-id:jira-dig-4644"
     ],
@@ -144778,6 +144759,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:dbbc-cf67-8cfc-4b4d",
       "dso-id:jira-dig-4647"
     ],
@@ -144790,15 +144772,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Stateful re-review with CI/local parity, arbitration, and tier-decoupling"
@@ -144956,7 +144938,8 @@
     },
     "labels": [
       "dso-id:dbf7-ab28-a140-415b",
-      "dso-id:jira-dig-4649"
+      "dso-id:jira-dig-4649",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -145574,7 +145557,8 @@
     },
     "labels": [
       "dso-id:ddcb-1590-5f3f-42f6",
-      "dso-id:jira-dig-4651"
+      "dso-id:jira-dig-4651",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -145701,21 +145685,7 @@
     "summary": "Loosely Coupled Architecture as an enforced architectural principle"
   },
   "DIG-4653": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": null,
     "issuetype": {
       "avatarId": 10307,
@@ -145755,21 +145725,7 @@
     "summary": "Project level config flags to modify behavior"
   },
   "DIG-4654": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -146105,21 +146061,7 @@
     "summary": "Extract review and evaluation sub-agents into dedicated plugin agents"
   },
   "DIG-4655": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": null,
     "issuetype": {
       "avatarId": 10307,
@@ -146159,21 +146101,7 @@
     "summary": "Add a preflight check to sprint that validates current project state"
   },
   "DIG-4656": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": null,
     "issuetype": {
       "avatarId": 10307,
@@ -146213,21 +146141,7 @@
     "summary": "Add full autonomous mode session override"
   },
   "DIG-4657": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": null,
     "issuetype": {
       "avatarId": 10307,
@@ -146267,21 +146181,7 @@
     "summary": "Retro skill should include an overall visual review"
   },
   "DIG-4658": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": null,
     "issuetype": {
       "avatarId": 10307,
@@ -146307,35 +146207,21 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Dedicated RED test writer sub-agent"
   },
   "DIG-4659": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -146605,21 +146491,7 @@
     "summary": "Implementation planning schema validation"
   },
   "DIG-4661": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": null,
     "issuetype": {
       "avatarId": 10307,
@@ -146659,21 +146531,7 @@
     "summary": "Incorporate Semantic Search & MCP (Model Context Protocol)"
   },
   "DIG-4662": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -147244,6 +147102,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:dso-t7af",
       "dso-id:jira-dig-4662"
     ],
@@ -147256,35 +147115,21 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Remove 5-sub-agent cap for orchestration"
   },
   "DIG-4663": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -147831,6 +147676,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:dso-to7x",
       "dso-id:jira-dig-4663"
     ],
@@ -147843,35 +147689,21 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Allow coding sub-agents to use worktree isolation"
   },
   "DIG-4664": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": null,
     "issuetype": {
       "avatarId": 10307,
@@ -147911,21 +147743,7 @@
     "summary": "Make implementation plan migration aware"
   },
   "DIG-4665": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": null,
     "issuetype": {
       "avatarId": 10307,
@@ -148248,6 +148066,7 @@
       "subtask": false
     },
     "labels": [
+      "detected_by:user-report",
       "dso-id:e018-e705-ca25-4bb0",
       "dso-id:jira-dig-4666"
     ],
@@ -149382,6 +149201,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:e1b2-2653",
       "dso-id:jira-dig-4670"
     ],
@@ -149394,35 +149214,21 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Ticket system boundary enforcement and documentation sweep"
   },
   "DIG-4671": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -149745,7 +149551,8 @@
     },
     "labels": [
       "dso-id:e22e-b7a2-aaef-4a70",
-      "dso-id:jira-dig-4672"
+      "dso-id:jira-dig-4672",
+      "north-star"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -150600,7 +150407,8 @@
     },
     "labels": [
       "dso-id:e35e-8141-0d58-41db",
-      "dso-id:jira-dig-4673"
+      "dso-id:jira-dig-4673",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -151787,6 +151595,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:e471-dda3",
       "dso-id:jira-dig-4675"
     ],
@@ -152297,6 +152107,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:e612-3287-89d4-488d",
       "dso-id:jira-dig-4677"
     ],
@@ -152768,6 +152579,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:e710-f43a-494a-4d86",
       "dso-id:jira-dig-4679"
     ],
@@ -153167,8 +152979,11 @@
       "subtask": false
     },
     "labels": [
+      "bridge",
       "dso-id:e7d6-8013-7d35-46b1",
-      "dso-id:jira-dig-4680"
+      "dso-id:jira-dig-4680",
+      "follow-up",
+      "planning"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -153845,8 +153660,10 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:e7f3-2b45-8d7d-4c68",
-      "dso-id:jira-dig-4681"
+      "dso-id:jira-dig-4681",
+      "north-star"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -153857,15 +153674,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Code review calibration: reduce review passes, false positives, and severity inflation"
@@ -154752,7 +154569,8 @@
     },
     "labels": [
       "dso-id:e884-d0ad",
-      "dso-id:jira-dig-4683"
+      "dso-id:jira-dig-4683",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -155607,7 +155425,8 @@
     },
     "labels": [
       "dso-id:e8aa-e844-39bb-404c",
-      "dso-id:jira-dig-4684"
+      "dso-id:jira-dig-4684",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -155733,7 +155552,8 @@
     },
     "labels": [
       "dso-id:e8ac-6a65-62f6-47b8",
-      "dso-id:jira-dig-4685"
+      "dso-id:jira-dig-4685",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -155758,20 +155578,7 @@
     "summary": "Code review telemetry reporting/dashboard placeholder"
   },
   "DIG-4686": {
-    "assignee": {
-      "accountId": "712020:25ee6eba-2e21-48d9-ad30-3f6c26e7435f",
-      "accountType": "app",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png",
-        "24x24": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png",
-        "32x32": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png",
-        "48x48": "https://secure.gravatar.com/avatar/482d2fa26fc481a9c73c730f6d20870f?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FTB-3.png"
-      },
-      "displayName": "TSS Bot",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A25ee6eba-2e21-48d9-ad30-3f6c26e7435f",
-      "timeZone": "America/Chicago"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -155800,7 +155607,9 @@
     },
     "labels": [
       "dso-id:e934-505c-742a-45e1",
-      "dso-id:jira-dig-4686"
+      "dso-id:jira-dig-4686",
+      "e2e-validation",
+      "probe-test"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -155854,7 +155663,8 @@
     },
     "labels": [
       "dso-id:e939-421e-ff84-4abb",
-      "dso-id:jira-dig-4687"
+      "dso-id:jira-dig-4687",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -156294,6 +156104,8 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
+      "bug-type-integration-test-missing",
       "dso-id:eb3d-f283-b35b-40df",
       "dso-id:jira-dig-4688"
     ],
@@ -156306,15 +156118,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[arbiter]: cycle-end arbiter returns 1 ruling for N findings on live PR -> safety fallback all-BLOCK; DEFER/DROP unreachable"
@@ -156952,7 +156764,8 @@
     },
     "labels": [
       "dso-id:ed62-08cd",
-      "dso-id:jira-dig-4690"
+      "dso-id:jira-dig-4690",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -157861,7 +157674,8 @@
     },
     "labels": [
       "dso-id:f054-11e1-d866-4401",
-      "dso-id:jira-dig-4692"
+      "dso-id:jira-dig-4692",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -159459,6 +159273,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:f27a-3c6a-1a4e-48ae",
       "dso-id:jira-dig-4696"
     ],
@@ -159514,7 +159330,8 @@
     },
     "labels": [
       "dso-id:f332-1e99-6985-4362",
-      "dso-id:jira-dig-4697"
+      "dso-id:jira-dig-4697",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -160185,6 +160002,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:f360-3a5b-b8f3-4f86",
       "dso-id:jira-dig-4699"
     ],
@@ -160197,15 +160015,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Gov-copy sub-agent for empathetic, plain-language UI copy"
@@ -160330,7 +160148,8 @@
     },
     "labels": [
       "dso-id:f3de-f651",
-      "dso-id:jira-dig-4700"
+      "dso-id:jira-dig-4700",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -161331,6 +161150,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:f61f-7e0a-36d3-4e7d",
       "dso-id:jira-dig-4702"
     ],
@@ -161343,15 +161163,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Per-Story PR Review Structure with Incremental Attestation"
@@ -162174,6 +161994,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:f691-681e-0db9-4260",
       "dso-id:jira-dig-4703"
     ],
@@ -162186,15 +162007,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Restore per-sub-PR LLM review + provenance-narrowed integration review + chunked oversized-PR fallback + merge-pipeline guards"
@@ -163059,6 +162880,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:f6cc-b174-9e9a-435c",
       "dso-id:jira-dig-4705"
     ],
@@ -163323,6 +163145,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:f713-996c-e837-4be6",
       "dso-id:jira-dig-4706"
     ],
@@ -163845,6 +163668,8 @@
       "subtask": false
     },
     "labels": [
+      "arch-evidence:remediation-complete",
+      "brainstorm:complete",
       "dso-id:f7d5-59e4",
       "dso-id:jira-dig-4707"
     ],
@@ -163900,7 +163725,8 @@
     },
     "labels": [
       "dso-id:f870-df1d-6316-435f",
-      "dso-id:jira-dig-4708"
+      "dso-id:jira-dig-4708",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -164560,7 +164386,8 @@
     },
     "labels": [
       "dso-id:f9a2-b164-13fb-4d15",
-      "dso-id:jira-dig-4712"
+      "dso-id:jira-dig-4712",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -164614,7 +164441,8 @@
     },
     "labels": [
       "dso-id:f9d6-0e4a-4ded-40d8",
-      "dso-id:jira-dig-4713"
+      "dso-id:jira-dig-4713",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -164788,7 +164616,8 @@
     },
     "labels": [
       "dso-id:f9f8-a15c-79e0-4dc3",
-      "dso-id:jira-dig-4714"
+      "dso-id:jira-dig-4714",
+      "scrutiny:pending"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
@@ -165044,7 +164873,8 @@
     },
     "labels": [
       "dso-id:fb32-215c-4c78-4e36",
-      "dso-id:jira-dig-4716"
+      "dso-id:jira-dig-4716",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -165254,7 +165084,8 @@
     },
     "labels": [
       "dso-id:fb3e-b01b-53f5-443f",
-      "dso-id:jira-dig-4717"
+      "dso-id:jira-dig-4717",
+      "north-star"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
@@ -166295,7 +166126,8 @@
     },
     "labels": [
       "dso-id:fd5e-5ee4-777b-45b9",
-      "dso-id:jira-dig-4719"
+      "dso-id:jira-dig-4719",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -166349,7 +166181,8 @@
     },
     "labels": [
       "dso-id:fda3-acf1-feab-484d",
-      "dso-id:jira-dig-4720"
+      "dso-id:jira-dig-4720",
+      "jira-sync-audit-20260511"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -166374,21 +166207,7 @@
     "summary": "Add epic-closure validator to completion-verifier.md (entry/exit hooks, ordering before compaction)"
   },
   "DIG-4721": {
-    "assignee": {
-      "accountId": "712020:6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "accountType": "atlassian",
-      "active": true,
-      "avatarUrls": {
-        "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/16",
-        "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/24",
-        "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/32",
-        "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:6471376f-4e5e-4ed2-8c05-330827bc387e/c9f3f52f-0a2a-4dd9-a376-afc5dff5b245/48"
-      },
-      "displayName": "Joe Oakhart",
-      "emailAddress": "joeoakhart@navapbc.com",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/user?accountId=712020%3A6471376f-4e5e-4ed2-8c05-330827bc387e",
-      "timeZone": "America/Los_Angeles"
-    },
+    "assignee": null,
     "description": {
       "content": [
         {
@@ -167178,6 +166997,7 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:jira-dig-4721",
       "dso-id:w21-bsnz"
     ],
@@ -167427,7 +167247,8 @@
     },
     "labels": [
       "dso-id:5fd8-edd0-28c0-42f4",
-      "dso-id:jira-dig-4725"
+      "dso-id:jira-dig-4725",
+      "field-probe-1779984990"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -168182,6 +168003,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:f058-3706-fa08-46ec",
       "dso-id:jira-dig-4742"
     ],
@@ -168194,15 +168016,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[reconciler:apply_batch]: HeadDriftError persists after d822 defer-fix -> bindings unsaved despite Jira creates succeeding"
@@ -168599,6 +168421,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:3b5f-6576-e7c0-476b",
       "dso-id:jira-dig-4754"
     ],
@@ -168611,15 +168434,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[reconciler:outbound-update]: post-C2 fix, Jira still doesn't reflect local field edits \u2014 no errors, no propagation"
@@ -169495,7 +169318,8 @@
     },
     "labels": [
       "dso-id:1ce4-702e-7549-4118",
-      "dso-id:jira-dig-4778"
+      "dso-id:jira-dig-4778",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -170350,7 +170174,8 @@
     },
     "labels": [
       "dso-id:6032-c826-510b-4d8f",
-      "dso-id:jira-dig-4779"
+      "dso-id:jira-dig-4779",
+      "pr-42-deferred"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -170598,6 +170423,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:85a1-f581-2252-4a21",
       "dso-id:jira-dig-4780"
     ],
@@ -170610,15 +170436,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[dso_reconciler/applier]: outbound CREATE+UPDATE silently no-op -> reconciler reports converged but Jira state never changes; idempotency does not converge (3 consecutive no-op passes still compute 21 filtered mutations)"
@@ -173053,17 +172879,7 @@
   "DIG-4983": {
     "assignee": null,
     "description": {
-      "content": [
-        {
-          "content": [
-            {
-              "text": "H3-verify-desc-1780025009",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        }
-      ],
+      "content": [],
       "type": "doc",
       "version": 1
     },
@@ -173679,15 +173495,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[ticket-cli]: ticket create push fails -> 'tickets branch push failed (merge conflict, attempt 1)' with no retry escalation"
@@ -175114,15 +174930,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[dso_reconciler/acli-integration]: ACLI exits 0 on failure -> reconciler reports mutation applied while Jira state diverges silently"
@@ -175549,15 +175365,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[ci-llm-review-strategy-f]: per-cluster LLM result is str -> 'str' object has no attribute get raised in aggregator"
@@ -176428,15 +176244,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[dso_reconciler/applier+acli]: Phase 4 status outbound silently fails post-Gap8 -> Jira stays To Do; no FILTERED/filter/OK/ERROR output from reconciler"
@@ -176970,15 +176786,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[ci-llm-review]: LLM returns non-JSON + Reviews API 422 -> stale prior-cycle findings surfaced as blocking"
@@ -177169,6 +176985,7 @@
     },
     "labels": [
       "CLI_user",
+      "bug-type-unhandled-edge-case",
       "detected_by:internal-dogfood",
       "dso-id:f871-9869-9775-4aa0",
       "dso-id:jira-dig-5007"
@@ -177182,15 +176999,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "ticket child-enumeration: deleted children counted as children -> all-deleted epic mis-routed as complete"
@@ -177485,15 +177302,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/applier]: inbound update on bound ticket -> creates duplicate jira-dig-* ticket and silent data loss on bound local"
@@ -177651,15 +177468,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/applier]: label add on bound ticket -> not propagated in either direction"
@@ -177802,15 +177619,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/outbound_differ]: dso-id label prefix mismatch -> outbound updates blocked on every bound ticket"
@@ -178093,6 +177910,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:3bf8-772b-3099-4d56",
       "dso-id:jira-dig-5018"
     ],
@@ -178105,15 +177923,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/inbound_differ]: inbound differ emits spurious label-remove for just-added local labels -> local tag wiped in bidirectional pass"
@@ -178345,15 +178163,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/applier]: inbound labels apply regression -> clears local tags + add still not propagating"
@@ -178598,15 +178416,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/applier]: inbound label add still not propagating to local (post #453 + #457)"
@@ -178802,6 +178620,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:eadb-43a0-92df-4c26",
       "dso-id:jira-dig-5023"
     ],
@@ -178814,15 +178633,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/differs]: inbound differ leaks dso-id label to local AND bidir suppression cancels legitimate outbound add"
@@ -179024,6 +178843,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:4354-0aa8-cfae-46d0"
     ],
     "priority": {
@@ -179035,15 +178855,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler]: T3 inbound label add still fails AND ghost 'dso-id:jira-dig-*' label appears on Jira for bound tickets"
@@ -179331,15 +179151,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/architecture]: bidirectional local-wins contract drops legitimate inbound label-ADD when outbound emits spurious REMOVE for same label"
@@ -179625,15 +179445,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[gh-ruleset/tickets-branch]: required-check rule blocks direct push -> all session ticket writes fail to reach origin"
@@ -179890,6 +179710,7 @@
     },
     "labels": [
       "CLI_user",
+      "bug-type-uncategorized",
       "detected_by:internal-dogfood",
       "dso-id:bd48-dd36-dc01-4da2"
     ],
@@ -179902,15 +179723,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "merge-to-main.sh: push to worktree-** session branch in non-sprint ci-pr -> rejected by Sub-PR Review Enforcement ruleset, no PR created"
@@ -180133,15 +179954,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/inbound_differ]: ticket_type field synced Jira->local would corrupt epics into bugs"
@@ -181016,15 +180837,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[reconciler/applier]: validate_assignee_exists raises on first bad assignee -> entire reconcile_once pass dies"
