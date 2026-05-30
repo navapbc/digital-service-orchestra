@@ -36,8 +36,15 @@ if [[ -n "$_legacy_output" ]]; then
 fi
 
 # Dual-output mode: invoke build-composed-agents.sh twice, once per variant.
-_PLUGIN_DIR="${DSO_PLUGIN_DIR:-$_PLUGIN_ROOT}"
+# Resolution order matches build-composed-agents.sh:_DEFAULT_AGENTS_DIR
+# (DSO_PLUGIN_DIR > CLAUDE_PLUGIN_ROOT > _PLUGIN_ROOT). Keeping this in lockstep
+# with the composer ensures tests, dispatchers, and the build all read/write
+# to the same agents/ tree even when one is overridden.
+_PLUGIN_DIR="${DSO_PLUGIN_DIR:-${CLAUDE_PLUGIN_ROOT:-$_PLUGIN_ROOT}}"
 
+# set -e is already in effect (line 8) — if the orchestrator build fails the
+# script exits before reaching the CI build, so the agents/ tree is never
+# left in a half-orchestrator / half-CI state on error.
 DISPATCH_VARIANT=orchestrator bash "$SCRIPT_DIR/build-composed-agents.sh" \
     --namespace reviewer \
     --generator-name "build-review-agents.sh" \

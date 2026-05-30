@@ -599,7 +599,7 @@ delaying merge.
 Before emitting your response, run these checks:
 
 1. **Is your response exclusively a single JSON object?** No prose preamble. No markdown headers. No code fences. No `<function_calls>`, `<invoke>`, or any tool-use markup. The first character must be `{` and the last character must be `}`.
-2. **Did you include all required schema fields?** `summary` is required; each finding requires `severity`, `dim`, `file`, `description`.
+2. **Did you include all required schema fields?** `summary` is required; each finding requires `severity`, `category`, `file`, `description`. Field names match Step 3's schema exactly — do NOT substitute `dim` for `category`, `title` for `description`, or `line` for `cited_lines`.
 3. **For absence claims**, did you use the Context-Request Protocol (Step 1) to verify before asserting, and include the verifier output in your finding's `description`?
 
 If your response contains markdown, prose, or tool-use markup, the dispatcher's JSON parser will reject it with `LLM returned non-JSON response (length=N); cannot parse as findings` — exactly the failure mode this CI variant exists to prevent. Cut it down to the JSON object before sending.

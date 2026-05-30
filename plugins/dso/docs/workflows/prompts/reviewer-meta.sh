@@ -84,13 +84,9 @@ _meta_substitute_base() {
     local canonical
     canonical="$(_canonical_tier_for_variant "$variant")"
 
-    local _dispatch_filter
-    case "${DISPATCH_VARIANT:-}" in
-        orchestrator) _dispatch_filter="_meta_dispatch_strip ci" ;;
-        ci)           _dispatch_filter="_meta_dispatch_strip orchestrator" ;;
-        *)            _dispatch_filter="cat" ;;
-    esac
-
+    # Pick the dispatch filter using an explicit if/else so the function call is
+    # invoked directly — no `eval`. The DISPATCH_VARIANT value is only ever used
+    # as a literal argument to _meta_dispatch_strip, never interpreted as shell.
     if [[ "$variant" == "light" ]]; then
         # Replace {{CANONICAL_TIER}}, apply DISPATCH filter, then strip the full
         # context-request protocol section. The section spans from "### Context-Request
@@ -110,8 +106,16 @@ content = re.sub(
 )
 sys.stdout.write(content)
 '
-        sed "s|{{CANONICAL_TIER}}|${canonical}|g" | eval "$_dispatch_filter" | python3 -c "$_py_script"
+        case "${DISPATCH_VARIANT:-}" in
+            orchestrator) sed "s|{{CANONICAL_TIER}}|${canonical}|g" | _meta_dispatch_strip ci           | python3 -c "$_py_script" ;;
+            ci)           sed "s|{{CANONICAL_TIER}}|${canonical}|g" | _meta_dispatch_strip orchestrator | python3 -c "$_py_script" ;;
+            *)            sed "s|{{CANONICAL_TIER}}|${canonical}|g"                                     | python3 -c "$_py_script" ;;
+        esac
     else
-        sed "s|{{CANONICAL_TIER}}|${canonical}|g" | eval "$_dispatch_filter"
+        case "${DISPATCH_VARIANT:-}" in
+            orchestrator) sed "s|{{CANONICAL_TIER}}|${canonical}|g" | _meta_dispatch_strip ci ;;
+            ci)           sed "s|{{CANONICAL_TIER}}|${canonical}|g" | _meta_dispatch_strip orchestrator ;;
+            *)            sed "s|{{CANONICAL_TIER}}|${canonical}|g" ;;
+        esac
     fi
 }
