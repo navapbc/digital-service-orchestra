@@ -49,9 +49,15 @@ echo ""
 
 # Collect test files from scripts/, plugin/, and scratch/
 # scratch/ tests cover the ticket-scratch CLI surface and the 5-site migration.
+# Glob is `test[-_]*.sh` (both hyphen and underscore): underscore-named files
+# (e.g. test_write_cycle_ledger_v110.sh) were previously matched by neither
+# this runner nor the mktemp-tmpdir lint, so they ran nowhere (external review
+# Finding 6 part 4). NOTE: tests/unit/scripts/ remains an orphaned directory
+# wired to no runner — see ticket fb67-ead2-6819-4c12; do not assume coverage
+# of files there.
 SCRATCH_DIR="$(cd "$SCRIPT_DIR/../scratch" 2>/dev/null && pwd || echo "")"
 test_files=()
-for f in "$SCRIPT_DIR"/test-*.sh "$PLUGIN_DIR"/test-*.sh ${SCRATCH_DIR:+"$SCRATCH_DIR"/test-*.sh}; do
+for f in "$SCRIPT_DIR"/test[-_]*.sh "$PLUGIN_DIR"/test[-_]*.sh ${SCRATCH_DIR:+"$SCRATCH_DIR"/test[-_]*.sh}; do
     [ -f "$f" ] || continue
     test_files+=("$f")
 done

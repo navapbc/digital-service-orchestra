@@ -63,10 +63,19 @@ scan_zone() {
     local alt
     alt=$(IFS='|'; echo "${MODULES[*]}")
     # Match real module references only:
-    #   1. <module>.py — filename references (subprocess invocations, docstrings)
-    #   2. (from|import) ... <module> — Python import statements (incl. relative)
-    # This avoids matching the generic English word "bootstrap" used elsewhere.
-    local pattern="($alt)\\.py|(^|[^A-Za-z0-9_.])(from|import)[[:space:]]+(\\.+)?($alt)([[:space:]]|\$|,|\\.)"
+    #   1. <module>.py            — filename references (subprocess, docstrings)
+    #   2. import [.]<module>     — plain import statements (incl. relative)
+    #   3. from [.]<module>[.x] import
+    #                             — from-import statements (incl. relative/dotted)
+    # The from-branch REQUIRES a trailing `import` keyword. Without it, the bare
+    # `from <module>` form matched English prose such as "attestations from
+    # bootstrap phases" in docs (false positive — the case this comment
+    # previously claimed to avoid). The `import` keyword is the discriminator
+    # between a Python statement and ordinary prose.
+    local pat_py="($alt)\\.py"
+    local pat_import="(^|[^A-Za-z0-9_.])import[[:space:]]+(\\.+)?($alt)([[:space:]]|\$|,|\\.)"
+    local pat_from="(^|[^A-Za-z0-9_.])from[[:space:]]+(\\.+)?($alt)[A-Za-z0-9_.]*[[:space:]]+import([[:space:]]|\$)"
+    local pattern="$pat_py|$pat_import|$pat_from"
     if command -v rg >/dev/null 2>&1; then
         if [[ -e "$zone_path" ]]; then
             hits=$(rg --no-heading --line-number -e "$pattern" "$zone_path" 2>/dev/null || true)

@@ -42,4 +42,40 @@ else
     echo "FAIL: strict + CLAUDE_PLUGIN_ROOT external (got $RC)"; exit 1
 fi
 
+# Tests 7-8 run the check against isolated single-purpose repos so the
+# assertions don't depend on the surrounding tree. `git init` forces the
+# script's `git rev-parse --show-toplevel` to resolve REPO_ROOT to the temp
+# dir regardless of where TMPDIR points.
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/bridge-check.XXXXXX")
+trap 'rm -rf "$FAKE_PLUGIN_ROOT" "$WORK"' EXIT
+
+# Test 7: prose "from <module> phases" must NOT be flagged. Regression for the
+# false positive where the bare from-branch matched English text in docs
+# (e.g. CONFIGURATION-REFERENCE.md "attestations from bootstrap phases").
+mkdir -p "$WORK/prose"; git init -q "$WORK/prose"
+printf '%s\n' '| bridge_state/bootstrap/x.json | attestations from bootstrap phases |' \
+    > "$WORK/prose/CONFIG.md"
+RC=0
+( cd "$WORK/prose" && "$SCRIPT" --strict ) >/dev/null 2>&1 || RC=$?
+if [[ "$RC" -eq 0 ]]; then
+    echo "PASS: prose 'from bootstrap phases' not flagged"
+else
+    echo "FAIL: prose false-positive (got $RC)"; exit 1
+fi
+
+# Test 8: a real `from <module> import` statement MUST still be flagged.
+# The fixture's import line is assembled with the keyword in $KW so THIS test
+# file's own source never contains the contiguous `from bootstrap import`
+# token (the check scans the tests/ zone, including this file).
+mkdir -p "$WORK/code"; git init -q "$WORK/code"
+KW=import
+printf 'from bootstrap %s reconcile\n' "$KW" > "$WORK/code/m.py"
+RC=0
+( cd "$WORK/code" && "$SCRIPT" --strict ) >/dev/null 2>&1 || RC=$?
+if [[ "$RC" -eq 1 ]]; then
+    echo "PASS: real 'from bootstrap import' flagged"
+else
+    echo "FAIL: real import not flagged (got $RC)"; exit 1
+fi
+
 echo "All tests pass"
