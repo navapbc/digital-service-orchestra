@@ -2820,6 +2820,31 @@ except Exception:
     print('')
 " 2>/dev/null || true)
     fi
+
+    # GitHub-side fallback (bug 5ff0-5e4b-84b3-4396): the state file is
+    # absent (auto-deleted on prior success at line ~3064) or stale
+    # (>4h triggers _state_init skeleton overwrite at merge-helpers.sh:131).
+    # In either case the in-memory pr_url is empty even though an open
+    # non-draft PR1 still exists on GitHub. Ask GitHub directly. Without
+    # this, --resume falls through to _phase_staged_intermediate and
+    # creates a duplicate staged-* ref + duplicate PR1 (observed: PRs
+    # #490/#492 same source branch, different staged bases).
+    if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
+        _RESUME_STATE_PR_URL=$(gh pr list --head "$BRANCH" --state open \
+            --json url,isDraft 2>/dev/null \
+            | python3 -c "
+import json, sys
+try:
+    prs = json.load(sys.stdin)
+    print(next((p['url'] for p in prs if not p.get('isDraft', False)), ''))
+except Exception:
+    print('')
+" 2>/dev/null || true)
+        if [[ -n "$_RESUME_STATE_PR_URL" ]]; then
+            echo "INFO: --resume found existing open non-draft PR for ${BRANCH}: ${_RESUME_STATE_PR_URL}" >&2
+            echo "INFO: skipping PR-create phases; resuming at PR-wait stage" >&2
+        fi
+    fi
 fi
 
 # Skip the duplicate-PR guard when resuming with a recorded PR.
