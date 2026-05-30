@@ -569,7 +569,9 @@ Before you emit your response, run these THREE mechanical checks. Do NOT skip. D
 
 The CI dispatcher parses your response body **directly as JSON**. There is no `write-reviewer-findings.sh` to call — the dispatcher persists findings on your behalf after parsing your response.
 
-**Your entire response MUST be a single JSON object** matching this schema:
+**Your entire response MUST be a single JSON object** matching the canonical
+findings schema (same fields as the orchestrator path's `write-reviewer-findings.sh`
+contract — see Schema Enforcement above and `docs/contracts/reviewer-findings.md`):
 
 ```json
 {
@@ -577,15 +579,20 @@ The CI dispatcher parses your response body **directly as JSON**. There is no `w
   "findings": [
     {
       "severity": "critical|important|minor",
-      "dim": "correctness|verification|hygiene|design|completeness",
+      "category": "<one of the categories listed in the Schema Enforcement section above>",
+      "description": "<full reasoning, including verification_evidence for absence claims>",
       "file": "path/to/file.ext",
-      "line": 123,
-      "title": "<short title>",
-      "description": "<full reasoning, including verification_evidence for absence claims>"
+      "cited_lines": ["path/to/file.ext:123", "path/to/file.ext:456"]
     }
   ]
 }
 ```
+
+Field-name discipline (do NOT substitute synonyms): use `category` (not `dim`),
+`description` (not `title`), `cited_lines` as an array of `path:line` strings
+(not a bare `line` integer). The dispatcher's validator (`validate-review-output.sh`)
+rejects synonym fields and the dispatch retries — wasting an LLM call and
+delaying merge.
 
 ## Step 4 — Final output discipline (CI mode)
 
