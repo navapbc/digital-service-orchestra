@@ -29,8 +29,8 @@ set -uo pipefail
 # two-tier promotion model can be a staged-<sha>-<ts> branch that doesn't
 # exist in the test fixture's tmp repo. Test fixtures construct their own
 # `origin/main` ref; clearing GITHUB_BASE_REF here forces the dispatcher
-# to fall back to that default. (This fix is also on PR-R2's branch but
-# PR 482 hasn't landed; mirrored here to unblock PR 484.)
+# to fall back to that default. Without this, every fixture would need to
+# create a staged-<sha>-<ts> ref matching the live PR's base — brittle.
 unset GITHUB_BASE_REF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
