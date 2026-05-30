@@ -141,7 +141,7 @@ test_bundle_success() {
     local gate_dir artifact_root log_file stub_cli
     gate_dir="$(_make_satisfied_gate_dir "$phase")"
     artifact_root="$(mktemp -d)"
-    log_file="$(mktemp /tmp/ticket_stub_log.XXXXXX)"
+    log_file="$(mktemp "${TMPDIR:-/tmp}/ticket_stub_log.XXXXXX")"
     stub_cli="$(_make_ticket_cli_stub "$log_file")"
 
     trap 'rm -rf "$gate_dir" "$artifact_root" "$(dirname "$stub_cli")" "$log_file"' RETURN
@@ -215,7 +215,7 @@ test_missing_prereq_exits_6() {
     local gate_dir artifact_root log_file stub_cli
     gate_dir="$(_make_satisfied_gate_dir "$phase")"
     artifact_root="$(mktemp -d)"
-    log_file="$(mktemp /tmp/ticket_stub_log.XXXXXX)"
+    log_file="$(mktemp "${TMPDIR:-/tmp}/ticket_stub_log.XXXXXX")"
     stub_cli="$(_make_ticket_cli_stub "$log_file")"
 
     trap 'rm -rf "$gate_dir" "$artifact_root" "$(dirname "$stub_cli")" "$log_file"' RETURN
@@ -264,7 +264,7 @@ test_epic_comment_posted() {
     local gate_dir artifact_root log_file stub_cli
     gate_dir="$(_make_satisfied_gate_dir "$phase")"
     artifact_root="$(mktemp -d)"
-    log_file="$(mktemp /tmp/ticket_stub_log.XXXXXX)"
+    log_file="$(mktemp "${TMPDIR:-/tmp}/ticket_stub_log.XXXXXX")"
     stub_cli="$(_make_ticket_cli_stub "$log_file")"
 
     trap 'rm -rf "$gate_dir" "$artifact_root" "$(dirname "$stub_cli")" "$log_file"' RETURN
@@ -318,7 +318,7 @@ test_dd3_overall_pass_false_propagates() {
     local gate_dir artifact_root log_file stub_cli
     gate_dir="$(_make_satisfied_gate_dir "$phase")"
     artifact_root="$(mktemp -d)"
-    log_file="$(mktemp /tmp/ticket_stub_log.XXXXXX)"
+    log_file="$(mktemp "${TMPDIR:-/tmp}/ticket_stub_log.XXXXXX")"
     stub_cli="$(_make_ticket_cli_stub "$log_file")"
 
     trap 'rm -rf "$gate_dir" "$artifact_root" "$(dirname "$stub_cli")" "$log_file"' RETURN
