@@ -22,25 +22,39 @@ echo "=== test-bug-reproducer-cafb.sh ==="
 echo "Bug: squash-merged commits falsely flagged as un-provenanced; DSO-Story-Merge trailer not recognized"
 echo ""
 
-# ── Test 1: verify-session-provenance.sh still reads commit bodies ──────────
-# PR-R1 update: the script previously used a DSO-Story-Merge trailer
-# shortcut to mark commits provenanced without API verification. That
-# shortcut was removed (audit Finding 3, self-attested claim ≠ evidence).
-# The verifier still reads commit bodies for the DSO-Over-Bound: marker
-# (acknowledged non-provenanced) but no longer greps for DSO-Story.
-echo "Test 1: verify-session-provenance.sh still reads commit bodies (for DSO-Over-Bound marker)"
-script_content="$(cat "$PROVENANCE_SCRIPT")"
-assert_contains \
-    "verify-session-provenance.sh still greps for DSO-Over-Bound: marker" \
-    "DSO-Over-Bound:" \
-    "$script_content"
+# ── Tests 1 + 2 retired (PR-R1 cycle 2): source-file-grepping anti-pattern ──
+# The prior tests asserted the script's source text contained literal
+# substrings (`DSO-Story(-Merge)?:`, `--format="%B"`). That tests
+# implementation, not observable behavior — Rule 3 (Execute, don't
+# inspect). Removed. Behavioral coverage of the OVER_BOUND path follows
+# below as Test 2 (renumbered).
 
-# ── Test 2: Commit-body read mechanism unchanged ────────────────────────────
-echo "Test 2: Provenance check reads commit body via git log --format=%B"
-assert_contains \
-    "script reads full commit body via git log --format=%B" \
-    '--format="%B"' \
-    "$script_content"
+# ── Test 1: DSO-Over-Bound: marker → exits with documented over-bound code ──
+# Behavioral assertion: a commit carrying the DSO-Over-Bound: trailer is
+# classified as acknowledged non-provenanced (exit code 3 per the contract
+# in test-verify-session-provenance-contract.sh `test_over_bound_marker_exits_3`).
+echo "Test 1: DSO-Over-Bound: commit → exit 3 (acknowledged non-provenanced)"
+_t1_dir="$(mktemp -d "${TMPDIR:-/tmp}/cafb-t1.XXXXXX")"
+_t1_artifacts="$(mktemp -d "${TMPDIR:-/tmp}/cafb-t1-art.XXXXXX")"
+# shellcheck disable=SC2064  # intentional
+trap "rm -rf '$_t1_dir' '$_t1_artifacts'" EXIT
+git -C "$_t1_dir" init -q
+git -C "$_t1_dir" config user.email "t@t.local"
+git -C "$_t1_dir" config user.name "t"
+git -C "$_t1_dir" commit --allow-empty -m "base" -q
+_t1_base="$(git -C "$_t1_dir" rev-parse HEAD)"
+git -C "$_t1_dir" commit --allow-empty -q -m "$(printf 'large-diff: routed to FP-recovery\n\nDSO-Over-Bound: ack')"
+_t1_head="$(git -C "$_t1_dir" rev-parse HEAD)"
+_t1_exit=0
+DSO_REPO_PATH="$_t1_dir" \
+DSO_BASE_SHA="$_t1_base" \
+DSO_SESSION_HEAD="$_t1_head" \
+DSO_ARTIFACT_DIR="$_t1_artifacts" \
+    bash "$PROVENANCE_SCRIPT" > /dev/null 2>&1 || _t1_exit=$?
+assert_eq \
+    "DSO-Over-Bound: commit exits 3 (acknowledged non-provenanced)" \
+    "3" \
+    "$_t1_exit"
 
 # ── Test 3: Squash commit with trailer + valid covering PR → exits 0 ─────────
 # Post-PR-R1: the trailer is no longer load-bearing; provenance is established
