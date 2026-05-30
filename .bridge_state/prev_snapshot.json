@@ -180619,5 +180619,278 @@
       }
     },
     "summary": "[reconciler/applier]: validate_assignee_exists raises on first bad assignee -> entire reconcile_once pass dies"
+  },
+  "DIG-5050": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** bdd28b37f13d6bc86c956f76c3dacabaddd345e1",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Sub-Agent/Autonomous discovery (during external-review Finding 6 part 4 investigation)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "All test files under tests/unit/scripts/ should be executed by some runner (CI or run-all.sh). Per the project's test conventions, *.sh test files that exist should run.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "tests/unit/scripts/ is referenced by NO runner: not run-all.sh (5 suites: hooks/scripts/evals/python/skill-bash + integration), not tests/scripts/run-script-tests.sh (scans tests/scripts + plugin + scratch only), not ci.yml, not Makefile. The directory's 20 test files run nowhere. Running them manually reveals 2 pre-existing failures, hidden because nothing executes them:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - tests/unit/scripts/test-apply-attribution-trailers.sh: PASSED 47 / FAILED 9",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - tests/unit/scripts/test-ticket-transition-error-message.sh: PASSED 0 / FAILED 5",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The other 18 files (incl. all test_audit_*, test_check_deleted_bridge_imports.sh) pass. Wiring the directory into run-script-tests.sh is therefore blocked until these 2 are fixed, or CI would turn red.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Related: ticket fb67-ead2-6819-4c12 (test-/test_ naming split). The run-script-tests.sh glob was broadened to test[-_]*.sh (closes the naming gap for tests/scripts), but the tests/unit/scripts DIRECTORY-level orphaning is tracked here separately. test-apply-attribution-trailers.sh and test-ticket-transition-error-message.sh are attribution/ticket-transition domain \u2014 coordinate with any parallel reconciler/ticket work before fixing.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 6. Logs",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Reproduce: `for t in tests/unit/scripts/*.sh; do bash \"$t\"; done` (CLAUDE_PLUGIN_ROOT=$PWD/plugins/dso).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "detected_by:tests",
+      "dso-id:badf-298f-ade3-40f1"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[tests/unit/scripts]: directory wired to no test runner -> 2 test files (14 assertions) silently failing"
+  },
+  "DIG-5051": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "External review Finding 6 follow-up. tests/lib/run-script-tests.sh discovers only test-*.sh (hyphen); underscore-named test_*.sh files (tests/scripts/test_write_cycle_ledger_v110.sh, tests/unit/scripts/test_audit_dd5_bundle.sh, tests/unit/scripts/test_check_deleted_bridge_imports.sh) are never run by the bash suite. The TMPDIR-isolation lint glob was broadened to cover them (PR for Finding 6), but DISCOVERY was not. Evidence of bit-rot: tests/unit/scripts/test_check_deleted_bridge_imports.sh has a PRE-EXISTING failing assertion ('strict + CLAUDE_PLUGIN_ROOT unset') confirmed failing on unmodified HEAD \u2014 it has been silently un-run. Scope: (1) decide whether each test_*.sh should run (rename to test-*.sh) or be retired; (2) fix or delete the failing bridge-imports test; (3) align run-script-tests.sh discovery with the lint glob. NOTE: bridge-imports test touches reconciler logic \u2014 coordinate with the CI/PR session.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:fb67-ead2-6819-4c12",
+      "tech-debt"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Reconcile test-/test_ naming split so underscore tests are discovered (Finding 6 part 4)"
   }
 }
