@@ -1,0 +1,41 @@
+name: ruleset-design-invariants
+
+# Runs the two-tier promotion gate invariant test against the live GitHub
+# Rulesets state. Fires on PRs touching anything that could drift the live
+# state away from the design documented in
+# plugins/dso/docs/contracts/review-defenses.md § "Two-Tier Promotion Gate".
+#
+# Wired into .github/required-checks.txt so the main ruleset enforces it.
+# Drift = block.
+
+on:
+  pull_request:
+    paths:
+      - "plugins/dso/scripts/onboarding/provision-ruleset.sh"
+      - "plugins/dso/scripts/onboarding/sync-sub-pr-ruleset.sh"
+      - "plugins/dso/scripts/onboarding/promote-ruleset-required.sh"
+      - "tests/scripts/test-ruleset-design-invariants.sh"
+      - ".github/workflows/ruleset-invariants.yml"
+      - ".github/workflows/review-sub-pr.yml"
+      - ".github/workflows/check-staged-head.yml"
+      - ".github/required-checks.txt"
+      - "plugins/dso/docs/contracts/review-defenses.md"
+      - "docs/runbooks/rulesets-rollback.md"
+
+permissions:
+  contents: read
+
+jobs:
+  ruleset-design-invariants:
+    name: ruleset-design-invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run invariant test
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          bash tests/scripts/test-ruleset-design-invariants.sh

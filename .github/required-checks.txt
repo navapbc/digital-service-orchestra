@@ -40,6 +40,15 @@ Ticket tests (alpine-busybox)
 # from bypassing the staged-* promotion path.
 check-staged-head
 
+# ── ruleset-invariants.yml check ────────────────────────────────────────────
+# Asserts the live GitHub Rulesets state matches the two-tier promotion gate
+# design documented in plugins/dso/docs/contracts/review-defenses.md. Runs
+# on PRs touching provision-ruleset.sh, the workflows directory, the runbook,
+# or this list itself. Drift detection — if the live ruleset state diverges
+# (e.g., sub-PR include broadened to ~ALL, check-staged-head removed from
+# main, bypass_mode flipped to always), this check fails and blocks merge.
+ruleset-design-invariants
+
 # NOTE: review-sub-pr is intentionally NOT listed here. Enforcement for
 # review-sub-pr lives on the sub-PR ruleset 16961402 as a required_workflows
 # rule that evaluates at PR-merge time on PRs into staged-* branches.
