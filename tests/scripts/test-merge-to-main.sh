@@ -724,14 +724,19 @@ assert_eq "test_ensure_precommit_before_merge: merge-to-main.sh must call ensure
 assert_pass_if_clean "test_ensure_precommit_before_merge"
 
 # =============================================================================
-# Outbound Bridge dispatch guard tests (71fa-c068)
+# Outbound-bridge-dispatch tests (removed in epic 3a03 cutover; see tombstone
+# below). Kept as a header tombstone so future greppers find this file when
+# searching for "Outbound Bridge" / "outbound-bridge".
 # =============================================================================
 
 # =============================================================================
 # Outbound-bridge tests removed in PR 6 (epic 3a03 cutover) — the
 # outbound-bridge.yml workflow was deleted in favor of the reconciler
 # (reconcile-bridge.yml). Tests that asserted properties of the deleted
-# workflow are no longer applicable.
+# workflow are no longer applicable. The remaining merge-to-main-direct.sh
+# dispatch reference to the deleted workflow was retired in the
+# 2026-05-30 terminology cleanup; merge-to-main-direct.sh now relies on
+# the every-20-min reconcile-bridge.yml cron to pick up tickets-branch pushes.
 # =============================================================================
 
 # =============================================================================
