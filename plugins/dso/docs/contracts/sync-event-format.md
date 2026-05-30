@@ -31,7 +31,7 @@ and apply the change idempotently.
 
 ## Parser
 
-Inbound bridge — story w21-gykt
+Reconciler inbound path — story w21-gykt
 
 `dso_reconciler.applier` consumes local SYNC events as the post-cutover outbound consumer (translating SYNC into Jira mutations via the band system). It uses `jira_key` to
 identify the target Jira issue, `local_id` to correlate with the local ticket store, and `run_id`

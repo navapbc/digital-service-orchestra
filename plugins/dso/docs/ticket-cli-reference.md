@@ -855,7 +855,7 @@ Classify one or more tickets for routing (model, subagent, complexity, priority)
 
 ### `purge-bridge`
 
-Remove inbound bridge tickets whose project key does not match the specified project key.
+Remove Jira-sourced tickets (`jira-*` prefix, materialized by the reconciler's inbound applier) whose project key does not match the specified project key.
 
 ```
 .claude/scripts/dso ticket purge-bridge --keep=<PROJECT_KEY> [--dry-run]

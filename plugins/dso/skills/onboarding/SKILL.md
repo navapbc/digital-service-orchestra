@@ -757,7 +757,7 @@ Approved sync exceptions (NOT propagated, by design):
                                       BRIDGE_USER_MAP. (bug 17b5)
 
 Label semantics:
-  - dso-id:<local_uuid>               canonical marker the bridge writes
+  - dso-id:<local_uuid>               canonical marker the reconciler writes
                                       onto every Jira issue it creates;
                                       identifies the local owner. Both
                                       directions exclude dso-id:*, dso-id-*
