@@ -140,8 +140,9 @@ Until that migration is complete, consumers reading `BRIDGE_ALERT` files must ha
 - **`ticket-event-format.md`**: defines the base schema that all ticket event files share
   (`timestamp`, `uuid`, `event_type`, `env_id`, `data`). `BRIDGE_ALERT` adopts this base schema
   and adds `ticket_id` as a denormalized convenience field.
-- **`sync-event-format.md`**: defines the `SYNC` event written by the outbound bridge on
-  successful Jira push. `BRIDGE_ALERT` and `SYNC` are mutually exclusive outcomes for a given
-  bridge processing attempt on a ticket.
+- **`sync-event-format.md`**: defines the `SYNC` event written by the reconciler's outbound
+  path on successful Jira push (per the Historical note above, the legacy outbound bridge
+  used the same schema before the level-triggered cutover). `BRIDGE_ALERT` and `SYNC` are
+  mutually exclusive outcomes for a given processing attempt on a ticket.
 - `BRIDGE_ALERT` files are **not** consumed by the ticket reducer (`ticket-reducer.py`) and do not
   affect compiled ticket state. They exist solely as an operator-visible audit trail.
