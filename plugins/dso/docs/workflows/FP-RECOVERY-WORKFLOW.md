@@ -115,7 +115,7 @@ This dispatches the real DSO reviewer agent (not a generic agent with the prompt
 - Write `reviewer-findings.json` to `WORKFLOW_PLUGIN_ARTIFACTS_DIR`
 - Emit the 3-line `REVIEWER_HASH=… / FINDING_COUNT=N / FILES: …` shape
 
-A real review should take **several minutes** and use **15+ tool calls**. If the dispatch returns in under a minute or uses fewer than 10 tool calls, treat the result as invalid and re-dispatch with stricter verification instructions.
+A real review should use multiple tool calls and take at least 30 seconds. If the dispatch returns in under 30 seconds or uses fewer than 5 tool calls, treat the result as invalid and re-dispatch with stricter verification instructions. Earlier thresholds (10 calls / 60s) over-fired on legitimately concise reviews — lowered after observation on bug 4a30 fp-recovery (a focused review on a tightly-scoped diff hit 7 calls / 52s on first dispatch).
 
 ### Step 3: Read the findings
 
@@ -138,7 +138,7 @@ The schema is documented in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/review-finding
 1. Zero findings with severity `critical`.
 2. Zero findings with severity `important`.
 3. Zero findings with severity `fragile`.
-4. The manual review dispatch used ≥10 tool calls and ≥60s of runtime (proxy: did the reviewer actually do the work).
+4. The manual review dispatch used ≥5 tool calls and ≥30s of runtime (proxy: did the reviewer actually do the work). Earlier 10/60 thresholds over-fired on focused reviews.
 
 If any criterion fails, do NOT force-merge. Either:
 - Fix the underlying issue and push a new commit (CI re-reviews).
