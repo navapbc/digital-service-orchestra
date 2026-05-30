@@ -718,8 +718,63 @@ Operational artifacts (written by the reconciler, audit only):
   - bridge_state/mapping.json                   local↔Jira identity mapping
   - bridge_state/bootstrap/*.manifest.json      per-band reviewer attestations
   - bridge_state/health/*.json                  per-pass health signals
+  - bridge_state/bridge_alerts/<date>.jsonl     daily JSONL alert log written
+                                                by alert_store.append. Each
+                                                line is a recoverable soft-fail
+                                                record (one mutation that the
+                                                pass logged and skipped instead
+                                                of aborting). Common kinds:
+                                                  outbound-update-assignee-unresolved
+                                                  fetcher-dedup-suppressed
+                                                  dso-id-label-invariant-violation
   - .tickets-tracker/<id>/*-BRIDGE_ALERT.json   per-ticket alerts (unbounded
                                                 replay prevented via dedup_key)
+
+Cron cadence and mode:
+  - reconcile-bridge.yml runs every 20 minutes (`*/20 * * * *`) on schedule
+  - default mode is Mode.LIVE (uncapped writes); workflow_dispatch lets
+    operators select dry-run | bootstrap-strict (cap=10) | bootstrap-throttle
+    (cap=100) | live | validate
+  - first live run after enablement may produce a burst of mutations as
+    accumulated local drift flushes outbound
+
+Approved sync exceptions (NOT propagated, by design):
+  - ticket_type / issuetype           NOT synced in either direction. Local
+                                      types (epic/story/task/bug) don't map
+                                      cleanly to Jira's type taxonomy and
+                                      cross-hierarchy transitions are often
+                                      rejected by Jira workflows. Set the
+                                      type once on create; future changes
+                                      live locally only. (bug 36af)
+  - local ticket deletions            NOT propagated to Jira. Delete locally
+                                      then close/delete on the Jira side
+                                      manually if desired.
+  - assignee that doesn't match a     Soft-failed per mutation: logged to
+    real Jira account                 bridge_alerts/<date>.jsonl with kind
+                                      `outbound-update-assignee-unresolved`,
+                                      pass continues. Resolve by clearing
+                                      the local assignee or mapping it via
+                                      BRIDGE_USER_MAP. (bug 17b5)
+
+Label semantics:
+  - dso-id:<local_uuid>               canonical marker the bridge writes
+                                      onto every Jira issue it creates;
+                                      identifies the local owner. Both
+                                      directions exclude dso-id:*, dso-id-*
+                                      (legacy hyphen form), and imported:*
+                                      from user-label diffs.
+  - local user labels propagate       outbound only when the local user
+                                      explicitly added them (via the local
+                                      event log). Labels acknowledged from
+                                      Jira via inbound apply are NOT
+                                      re-pushed (no echo loop). (bug a06c)
+
+"Outbound-mostly" expectation:
+  - A Jira issue without a dso-id:<uuid> label will be picked up by the
+    legacy inbound-create differ and materialize a NEW local ticket.
+    If you don't want any Jira issue to ever create a local ticket,
+    avoid creating issues directly in the Jira UI — let the reconciler
+    create them outbound from local instead.
 
 Verification: after setting the env vars, run
 `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-bridge-fsck.py` (read-only
@@ -728,6 +783,16 @@ For a live end-to-end check, trigger reconcile-bridge.yml via
 `gh workflow run reconcile-bridge.yml` and confirm the run exits 0 with
 ACLI authentication succeeding and the per-pass mutation count under
 the per-pass cap.
+
+Operational gaps still pending (none block enablement; affect blast radius):
+  - No in-pass kill switch yet — to pause, disable the workflow in GHA
+  - No alert routing yet — bridge_alerts JSONL is on disk only; no
+    Slack/dashboard/PR-comment destination
+  - LIVE mode is uncapped — bootstrap-throttle (cap=100) is the most
+    conservative mode an operator can pin via workflow_dispatch
+  - Monitoring: pair Reconcile Bridge with the Reconcile Bridge Canary
+    workflow (reconcile-bridge-canary.yml, 2h staleness threshold) to detect when the cron
+    stops succeeding
 
 Reference: the reconciler package ships under the dso plugin scripts dir —
 see the package docstring and each band module for behavior details.

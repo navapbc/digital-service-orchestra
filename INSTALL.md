@@ -209,13 +209,60 @@ Some DSO skills integrate with external tools. Each integration is optional and 
 
 ### Jira
 
-DSO's ticket system can sync to Jira issues. To enable, set:
+DSO's ticket system can sync to Jira issues bidirectionally via the **DSO reconciler bridge**. Local tickets are the source of truth; the reconciler mirrors them to a Jira project and pulls back Jira-side edits for already-bound tickets. The bridge runs every 20 minutes in CI via the `reconcile-bridge.yml` workflow and pairs with a `reconcile-bridge-canary.yml` workflow that flags 2h staleness.
+
+#### Required environment variables
+
+For workstation runs AND in the GitHub repo secrets (CI):
 
 - `JIRA_URL` — your Jira base URL (e.g., `https://your-org.atlassian.net`)
-- `JIRA_USER` — the email address of the Atlassian account used for API access
-- `JIRA_API_TOKEN` — an Atlassian API token
+- `JIRA_USER` — the service-account email used for ACLI / REST API access
+- `JIRA_API_TOKEN` — an Atlassian API token (NEVER commit)
+- `JIRA_PROJECT` — Jira project key (e.g., `DIG`); same value as `jira.project` in `.claude/dso-config.conf`
+- `BRIDGE_ENV_ID` — UUID identifying this reconciler environment; MUST be set (empty value fails fast). Generate via `uuidgen`. One UUID per logical project.
+- `BRIDGE_USER_MAP` — JSON map of email → Jira accountId, e.g. `{"alice@example.com": "5fa..."}`. Required for outbound assignee sync; empty `{}` disables assignee sync.
+
+#### Optional environment variables
+
+- `BRIDGE_BOT_NAME` (default `dso-bridge[bot]`) — git author name on bridge commits
+- `BRIDGE_BOT_EMAIL` (default `dso-bridge@users.noreply.github.com`) — git author email on bridge commits
 
 Create an API token at: https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/
+
+#### Config keys
+
+- `jira.project=<KEY>` in `.claude/dso-config.conf` — Jira project key
+
+#### Approved sync exceptions (NOT propagated, by design)
+
+- **`ticket_type` / `issuetype`** — not synced in either direction. Local types (`epic`/`story`/`task`/`bug`) don't map cleanly to Jira's type taxonomy and cross-hierarchy transitions are often rejected by Jira workflows. Set the type once on create; changes after that are local-only.
+- **Local ticket deletions** — not propagated to Jira. Delete locally and, if desired, close/delete the Jira issue manually.
+- **Assignees that don't map to a real Jira user** — soft-failed per mutation: logged to `bridge_state/bridge_alerts/<date>.jsonl` with kind `outbound-update-assignee-unresolved`; the pass continues. Resolve by clearing the local assignee or mapping the user via `BRIDGE_USER_MAP`.
+
+#### "Outbound-mostly" expectation
+
+Any Jira issue without a `dso-id:<local_uuid>` marker label will be picked up by the legacy inbound-create differ and materialize a new local ticket. If you don't want Jira issues to ever create local tickets, avoid creating issues directly in the Jira UI — let the reconciler create them outbound from local instead.
+
+#### Verification
+
+```bash
+# Read-only audit (safe to run before first bootstrap):
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-bridge-fsck.py
+
+# Live end-to-end check (writes to Jira):
+gh workflow run reconcile-bridge.yml -F mode=validate
+
+# Or trigger a non-write dry-run pass:
+gh workflow run reconcile-bridge.yml -F mode=dry-run
+```
+
+Rollout-safety modes available via `workflow_dispatch`: `dry-run` (no writes), `bootstrap-strict` (cap=10 mutations/pass), `bootstrap-throttle` (cap=100), `live` (default; uncapped), `validate` (full e2e probe + cleanup).
+
+#### Operational gaps to know about
+
+- No in-pass kill switch yet — pause by disabling the workflow in GitHub Actions.
+- `bridge_state/bridge_alerts/<date>.jsonl` is on-disk only; no Slack / dashboard / PR-comment routing.
+- `live` mode is uncapped; use `bootstrap-throttle` for the most conservative cap if you need a per-pass blast-radius bound.
 
 ### Figma
 
