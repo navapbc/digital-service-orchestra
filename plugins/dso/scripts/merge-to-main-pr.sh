@@ -747,12 +747,20 @@ _phase_source_branch_version_bump() {
 # review-sub-pr, merges PR1, then re-points BRANCH to the staged-* branch so
 # the subsequent _phase_merge opens PR2 (staged-* → main).
 #
-# Skip conditions:
+# Skip conditions (only the two legitimate-skip cases — no opt-out env var):
 #   - STORY_PR_BASE set: story-PR mode, base is not main, nothing to do
 #   - BRANCH already matches staged-*: caller (or prior --resume) already
 #     ran this phase; skip
-#   - DSO_SKIP_STAGED_INTERMEDIATE=1: explicit opt-out for testing /
-#     rollback scenarios
+#   - Origin is not github.com: tests / local fixtures cannot create the
+#     staged ref via gh api; no-op
+#
+# DSO_SKIP_STAGED_INTERMEDIATE=1 was removed in PR-R1 (post-audit Finding 3).
+# The flag had no documented operational use case but did create a silent
+# bypass of the comprehensive review gate (PR1). Under the two-tier model
+# `verify-session-provenance.sh` no longer accepts trailer self-attestation
+# as evidence of review (v4 cache), so a bypass of PR1 would now correctly
+# fail provenance at PR2 time anyway — but removing the bypass surface is
+# cleaner than tolerating it.
 
 _create_staged_ref() {
     # Print the new staged-* branch name on stdout. Return 0 on success.
@@ -809,9 +817,15 @@ _phase_staged_intermediate() {
         echo "INFO: staged-intermediate phase skipped (BRANCH is already staged-*: $BRANCH)"
         return 0
     fi
-    if [[ "${DSO_SKIP_STAGED_INTERMEDIATE:-0}" == "1" ]]; then
-        echo "INFO: staged-intermediate phase skipped (DSO_SKIP_STAGED_INTERMEDIATE=1)"
-        return 0
+    # DSO_SKIP_STAGED_INTERMEDIATE opt-out removed in PR-R1 (post-audit). If
+    # the env var is set, treat it as a hard error: it would bypass the
+    # comprehensive review gate without recourse, and the operator should
+    # not be silently allowed to do this.
+    if [[ -n "${DSO_SKIP_STAGED_INTERMEDIATE:-}" ]]; then
+        echo "ERROR: DSO_SKIP_STAGED_INTERMEDIATE is no longer supported (removed in PR-R1)." >&2
+        echo "ERROR: The staged-* intermediate is now mandatory for session→main flows." >&2
+        echo "ERROR: If you genuinely need to bypass for an emergency, use /dso:fp-recovery." >&2
+        return 1
     fi
     # Auto-skip when there's no real GitHub origin (test fixtures use tmpdir
     # remotes; the phase's gh api calls would hang or produce garbage).
