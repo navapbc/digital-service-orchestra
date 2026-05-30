@@ -25,7 +25,17 @@ set -uo pipefail
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# bug 3706: host-portable REPO_ROOT resolution. This script is a MUTATOR — it
+# rewrites /skill -> /dso:skill across CLAUDE.md, docs, and skill files. The
+# prior `$SCRIPT_DIR/..` resolved to the plugin cache root when invoked on a
+# host project via the shim, so the script mutated plugin-cache files
+# (violating CLAUDE.md rule:no-edit-plugin-cache) and the host's actual files
+# went unqualified. Established pattern from check-rule-anchors.sh:48.
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+if [[ -z "$REPO_ROOT" ]]; then
+  echo "ERROR: cannot resolve REPO_ROOT (not in a git repo and PROJECT_ROOT unset)" >&2
+  exit 1
+fi
 
 # ── Read canonical skill list from check-skill-refs.sh ───────────────────────
 # check-skill-refs.sh is the single source of truth for DSO_SKILLS — since
