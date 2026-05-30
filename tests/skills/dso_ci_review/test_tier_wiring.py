@@ -33,7 +33,11 @@ from dso_ci_review.dispatch import dispatch_review  # noqa: E402
 _DIFF_TEXT = "--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
 _PRIMARY_MODEL = "claude-haiku-4-5"
 
-_AGENTS_DIR = _REPO_ROOT / "plugins" / "dso" / "agents"
+# CI variants live under agents/ci/ after bug 4a30 dispatch-split. The tier
+# wiring contract applies to the CI-dispatched prompts only — orchestrator
+# variants instruct Read/Grep/Glob tool use instead of the context-request
+# protocol, so the contract reference is intentionally absent from them.
+_AGENTS_DIR = _REPO_ROOT / "plugins" / "dso" / "agents" / "ci"
 _CONTRACT_REF = "docs/contracts/ci-review-context-request.md"
 
 # Standard/deep/overlay reviewer agent files (non-light)
