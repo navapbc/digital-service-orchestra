@@ -11,14 +11,19 @@ test -x "$SCRIPT" || { echo "FAIL: script not executable"; exit 1; }
 OUT=$("$SCRIPT" --advisory 2>&1) && echo "PASS: advisory exit 0"
 
 # Test 3: output mentions all 4 zones
-echo "$OUT" | grep -q "Zone reconciler:" || { echo "FAIL: missing reconciler zone"; exit 1; }
-echo "$OUT" | grep -q "Zone workflows:" || { echo "FAIL: missing workflows zone"; exit 1; }
-echo "$OUT" | grep -q "Zone tests:" || { echo "FAIL: missing tests zone"; exit 1; }
-echo "$OUT" | grep -q "Zone repo:" || { echo "FAIL: missing repo zone"; exit 1; }
+# Use here-strings, not `echo "$OUT" | grep -q`: under `set -o pipefail`,
+# grep -q exits as soon as it matches, echo then gets SIGPIPE (exit 141), and
+# pipefail propagates that 141 as a pipeline failure — a false negative even
+# though the pattern WAS present. Timing-dependent (flaked in CI, passed
+# locally). Here-strings have no pipe, so no SIGPIPE.
+grep -q "Zone reconciler:" <<<"$OUT" || { echo "FAIL: missing reconciler zone"; exit 1; }
+grep -q "Zone workflows:" <<<"$OUT" || { echo "FAIL: missing workflows zone"; exit 1; }
+grep -q "Zone tests:" <<<"$OUT" || { echo "FAIL: missing tests zone"; exit 1; }
+grep -q "Zone repo:" <<<"$OUT" || { echo "FAIL: missing repo zone"; exit 1; }
 echo "PASS: all 4 zones reported"
 
 # Test 4: TOTAL HITS line printed
-echo "$OUT" | grep -q "TOTAL HITS:" || { echo "FAIL: missing total"; exit 1; }
+grep -q "TOTAL HITS:" <<<"$OUT" || { echo "FAIL: missing total"; exit 1; }
 echo "PASS: total hits reported"
 
 # Test 5: strict mode exits 0 with CLAUDE_PLUGIN_ROOT unset
