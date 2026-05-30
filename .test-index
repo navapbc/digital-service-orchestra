@@ -539,7 +539,6 @@ plugins/dso/scripts/run-architectural-probe.sh:tests/scripts/test-architectural-
 plugins/dso/scripts/validate-pil-handoff.sh:tests/scripts/test-pil-handoff-integration.sh
 plugins/dso/scripts/spec-fidelity-check.sh:tests/scripts/test-spec-fidelity-check.sh
 plugins/dso/scripts/bypass-log-check.sh:tests/scripts/test-bypass-log-enforcement.sh
-.github/workflows/review-sub-pr.yml:tests/workflows/test-review-sub-pr-trigger.sh
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh,tests/workflows/test-red-test-blocker-merged-tree-scan.sh,tests/scripts/test-scan-red-markers-vs-parse-test-index-parity.sh,tests/workflows/test-sprint-fixture-red-marker-blocker.sh
 plugins/dso/scripts/exempt-in-flight-prs.sh:tests/scripts/test-exempt-in-flight-prs.sh
 plugins/dso/scripts/rollback-sub-pr-cutover.sh:tests/scripts/test-rollback-sub-pr-cutover.sh

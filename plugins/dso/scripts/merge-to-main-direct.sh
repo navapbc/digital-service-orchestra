@@ -892,10 +892,11 @@ _phase_push() {
 
     _state_mark_complete "push"
 
-    # --- Push tickets branch (triggers outbound bridge) ---
+    # --- Push tickets branch (published for the reconciler cron to pick up) ---
     # The ticket CLI commits events to the local tickets branch but never pushes.
-    # Push here so the outbound bridge workflow picks up local ticket changes.
-    # Pull first (with rebase) to incorporate inbound bridge changes from CI.
+    # Push here so the level-triggered Reconcile Bridge cron picks up the new
+    # commits on its next pass (every 20 minutes). Pull first (with rebase) to
+    # incorporate reconciler-applied changes already on origin/tickets.
     _TRACKER_DIR="$MAIN_REPO/${_CFG_TKDIR}"
     if [ -d "$_TRACKER_DIR" ] && git -C "$_TRACKER_DIR" rev-parse --verify tickets &>/dev/null; then
         echo "Syncing tickets branch..."
@@ -915,15 +916,15 @@ _phase_push() {
                 echo "INFO: Removed stale SNAPSHOT before tickets sync: $_snap_rel" || true
         done < <(git -C "$_TRACKER_DIR" ls-files --others 2>/dev/null | grep -E "SNAPSHOT\.json$" || true)
 
-        # Pull inbound bridge changes (SYNC events, Jira-originated tickets)
+        # Pull reconciler-applied changes from origin/tickets
+        # (SYNC events, Jira-originated tickets, etc.)
         if git -C "$_TRACKER_DIR" pull --rebase origin tickets 2>&1; then
-            # Capture remote SHA before push to detect no-op pushes (71fa-c068).
-            _REMOTE_SHA_BEFORE=$(git -C "$_TRACKER_DIR" rev-parse origin/tickets 2>/dev/null || echo "")
-            # Read HEAD (not refs/heads/tickets) because .tickets-tracker is
-            # normally in detached HEAD — commits advance HEAD but not the
-            # local branch ref. Bug 27d8-b230.
-            _LOCAL_SHA=$(git -C "$_TRACKER_DIR" rev-parse HEAD 2>/dev/null || echo "")
-            # Push local ticket events to trigger outbound bridge.
+            # Push local ticket events. The Reconcile Bridge cron
+            # (.github/workflows/reconcile-bridge.yml) runs every 20 minutes
+            # and picks up new commits automatically; no push-trigger needed.
+            # (The legacy edge-triggered "Outbound Bridge" YAML workflow was
+            # removed in epic 3a03 cutover; the explicit gh workflow run
+            # dispatch was retired here when its target workflow was deleted.)
             # Skip hooks: the tickets orphan branch has no .pre-commit-config.yaml
             # and pre-push hooks are designed for the main branch, not ticket data.
             # (ticket-lib.sh already uses --no-verify for ticket commits.)
@@ -931,16 +932,6 @@ _phase_push() {
             # rather than the stale refs/heads/tickets ref. Bug 27d8-b230.
             if PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$_TRACKER_DIR" push origin HEAD:tickets 2>&1; then
                 echo "OK: Tickets branch synced with remote."
-                # Only dispatch outbound bridge when the push actually sent new
-                # commits. Prevents dispatch storms when multiple merge-to-main
-                # runs push an already-up-to-date tickets branch (71fa-c068).
-                if [ "$_LOCAL_SHA" != "$_REMOTE_SHA_BEFORE" ] && command -v gh &>/dev/null; then
-                    gh workflow run "Outbound Bridge" --ref "$_DEFAULT_BRANCH" 2>/dev/null && \
-                        echo "OK: Outbound Bridge triggered." || \
-                        echo "WARNING: Could not trigger Outbound Bridge workflow."
-                elif [ "$_LOCAL_SHA" = "$_REMOTE_SHA_BEFORE" ]; then
-                    echo "INFO: Tickets branch already up-to-date — skipping Outbound Bridge dispatch."
-                fi
             else
                 echo "WARNING: Tickets branch push failed — ticket changes will sync on next merge."
             fi

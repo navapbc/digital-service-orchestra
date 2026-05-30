@@ -44,7 +44,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
 **Ticket type terminology**: `epic` = container for a feature area; `story` = user story (epic children, written as "As a [user], [goal]"); `task` = implementation work item. Ticket titles must be ≤ 255 characters (Jira sync limit). `deleted` = terminal status; ticket is excluded from ticket list by default; requires `--user-approved` gate; all children must be deleted first.
 
-**`jira-*` IDs are first-class**: a ticket whose ID starts with `jira-` (e.g., `jira-dig-2564`) is a normal local ticket sourced from the Jira inbound bridge. Accept these IDs anywhere a native ID is accepted — `/dso:fix-bug jira-...`, transitions, `--parent`, batch queues. The prefix is a sourcing label, not an out-of-system signal. A sparse `ticket show` for a `jira-*` ID indicates Jira-mirror sync lag (check `bridge_alerts`), not non-existence. Out-of-scope decisions for `jira-*` tickets follow the same triage criteria as any other ticket — never the prefix alone.
+**`jira-*` IDs are first-class**: a ticket whose ID starts with `jira-` (e.g., `jira-dig-2564`) is a normal local ticket sourced from the Reconcile Bridge's inbound applier (a Jira-originated issue materialized locally by the reconciler). Accept these IDs anywhere a native ID is accepted — `/dso:fix-bug jira-...`, transitions, `--parent`, batch queues. The prefix is a sourcing label, not an out-of-system signal. A sparse `ticket show` for a `jira-*` ID indicates Jira-mirror sync lag (check `bridge_alerts`), not non-existence. Out-of-scope decisions for `jira-*` tickets follow the same triage criteria as any other ticket — never the prefix alone.
 
 ## Architecture (pointers)
 

@@ -908,7 +908,7 @@ class AcliClient:
         """
         return _run_acli(cmd, acli_cmd=self._acli_cmd)
 
-    # --- Outbound bridge methods ---
+    # --- Outbound API methods (local → Jira) ---
 
     def create_issue(self, ticket_data: dict[str, Any]) -> dict[str, Any]:
         """Create a Jira issue from a ticket data dict.
@@ -1029,7 +1029,7 @@ class AcliClient:
         ACLI Go has no offset flag, so --paginate fetches all results in one
         call. Results are cached per-JQL to avoid redundant fetches when the
         caller paginates. Returns a slice of ``[start_at:start_at+max_results]``
-        to satisfy the bridge's pagination loop contract.
+        to satisfy the reconciler's pagination loop contract.
         """
         # Cache the full result set for this JQL to avoid re-fetching
         if not hasattr(self, "_search_cache"):

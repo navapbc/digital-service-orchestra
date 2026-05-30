@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ticket-purge-bridge.sh — Canonical implementation — invoked by dispatcher (ticket purge-bridge)
 # and thin wrapper purge-non-project-tickets.sh.
-# Remove inbound bridge tickets from non-target Jira projects.
+# Remove Jira-sourced tickets (jira-* prefix, materialized by the reconciler's
+# inbound applier) from non-target Jira projects.
 #
 # Usage: ticket-purge-bridge.sh --keep=<PROJECT_KEY> [--dry-run]
 #
@@ -52,7 +53,7 @@ if [ ! -d "$TRACKER_DIR" ]; then
     exit 1
 fi
 
-echo "Scanning for non-$KEEP_PROJECT inbound bridge tickets..."
+echo "Scanning for non-$KEEP_PROJECT Jira-sourced tickets (jira-* prefix)..."
 
 # Find all jira-* directories and check their project key
 DELETE_LIST=""
@@ -126,7 +127,7 @@ echo "Deleted $deleted ticket directories."
 if git -C "$TRACKER_DIR" rev-parse --git-dir >/dev/null 2>&1; then
     echo "Committing deletion on tickets branch..."
     git -C "$TRACKER_DIR" add -A
-    git -C "$TRACKER_DIR" commit --no-verify -m "purge: remove $deleted non-$KEEP_PROJECT inbound bridge tickets" || echo "Nothing to commit"
+    git -C "$TRACKER_DIR" commit --no-verify -m "purge: remove $deleted non-$KEEP_PROJECT Jira-sourced (jira-*) tickets" || echo "Nothing to commit"
 fi
 
 echo "Done."
