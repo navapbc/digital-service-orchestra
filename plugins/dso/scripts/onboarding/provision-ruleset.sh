@@ -376,6 +376,23 @@ else
   REPO_ID=$(gh api "repos/${REPO}" --jq .id 2>/dev/null || echo "1183266892")
 fi
 
+# ── OPERATOR WARNING — DO NOT BROADEN THIS INCLUDE ───────────────────────────
+# The sub-PR ruleset MUST target only `refs/heads/staged-*`. Earlier designs
+# used `~ALL` (with `refs/heads/main` excluded), which re-introduced the
+# chicken-and-egg between push-time required_status_checks enforcement and
+# PR-time review-sub-pr workflow execution: every new feature branch's first
+# push would fail because review-sub-pr can only run inside a PR event, not
+# at ref-update time.
+#
+# The current shape — `["refs/heads/staged-*"]` with `do_not_enforce_on_create: true`
+# — resolves that: feature branches are unrestricted, staged-* ref creation
+# from main HEAD works because creation is exempted, and PR-merge into a
+# staged-* branch fires the required check. See:
+#   - ${CLAUDE_PLUGIN_ROOT}/docs/contracts/review-defenses.md § "Two-Tier Promotion Gate"
+#   - tests/scripts/test-ruleset-design-invariants.sh (asserts this scoping)
+#
+# Drift detection: any PR touching this line runs `ruleset-invariants.yml`
+# which fails if the include is broadened back to ~ALL.
 SUB_PR_INCLUDE_JSON='["refs/heads/staged-*"]'
 SUB_PR_EXCLUDE_JSON='[]'
 

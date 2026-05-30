@@ -2226,7 +2226,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Required non-empty UUID identifying this repo's bridge environment. Both the outbound and inbound bridges fail-fast on startup when this variable is empty or unset. Also drives BRIDGE_ALERT migration semantics: the first run after `BRIDGE_ENV_ID` transitions from empty emits a one-shot alert. **DEPRECATED (stateless reconciler — see epic 4047-3cb1-6cb4-46a1)** — the one-shot BRIDGE_ALERT migration path depended on `prev_snapshot` semantics from the edge-triggered bridge; the level-triggered Jira reconciler does not emit this alert. Provision with: `gh variable set BRIDGE_ENV_ID --body "$(python3 -c 'import uuid; print(uuid.uuid4())')"` |
+| **Description** | Required non-empty UUID identifying this repo's bridge environment. Both the outbound and inbound bridges fail-fast on startup when this variable is empty or unset, so it remains required to run the reconciler. **Partial deprecation note (epic 4047-3cb1-6cb4-46a1):** the legacy one-shot BRIDGE_ALERT migration path keyed off `BRIDGE_ENV_ID` transitions, and that path is no longer emitted by the level-triggered Jira reconciler. The variable itself is still required for environment identification (start-up fail-fast); only the BRIDGE_ALERT migration semantic is deprecated. Provision with: `gh variable set BRIDGE_ENV_ID --body "$(python3 -c 'import uuid; print(uuid.uuid4())')"` |
 | **Type** | GitHub repo variable (set via `gh variable set`) |
 | **Required** | Required — bridges will not start without it |
 | **Default** | None |
@@ -2242,6 +2242,85 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Required** | Optional — defaults to `{}` (all contributors fall through to BRIDGE_ALERT + unassigned path) |
 | **Default** | `{}` |
 | **Usage context** | `scripts/dso_reconciler/` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
+### `BRIDGE_BOT_NAME`
+
+| | |
+|---|---|
+| **Description** | Git author name the reconciler uses when committing events back to the orphan `tickets` branch and when posting bridge-authored Jira comments. Resolved by `${CLAUDE_PLUGIN_ROOT}/scripts/gh-identity-resolver.sh` during onboarding (e.g. user's git config name, or `"GitHub Actions"` when running in CI). |
+| **Type** | GitHub repo variable (and local environment variable for workstation runs) |
+| **Required** | Optional — falls back to a default per the resolver |
+| **Default** | `dso-bridge[bot]` when neither this var nor the resolver yields a value |
+| **Usage context** | `.github/workflows/reconcile-bridge.yml`, `scripts/dso_reconciler/`, `${CLAUDE_PLUGIN_ROOT}/scripts/gh-identity-resolver.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
+---
+
+### `BRIDGE_BOT_EMAIL`
+
+| | |
+|---|---|
+| **Description** | Git author email paired with `BRIDGE_BOT_NAME` for the same commits + Jira comments. Resolved during onboarding by `gh-identity-resolver.sh`; in CI defaults to `41898282+github-actions[bot]@users.noreply.github.com`. |
+| **Type** | GitHub repo variable (and local environment variable for workstation runs) |
+| **Required** | Optional — falls back to a default per the resolver |
+| **Default** | `dso-bridge@users.noreply.github.com` when neither this var nor the resolver yields a value |
+| **Usage context** | `.github/workflows/reconcile-bridge.yml`, `scripts/dso_reconciler/`, `${CLAUDE_PLUGIN_ROOT}/scripts/gh-identity-resolver.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
+---
+
+### `BRIDGE_FSCK_CMD`
+
+| | |
+|---|---|
+| **Description** | Override the fsck command the audit scripts (`audit_dd1_baseline.sh`, `audit_dd2_orphan_count.sh`) execute when counting bridge orphans. Defaults to `bridge-fsck --count-only`. Useful in test/CI shims that need a stubbed counter. |
+| **Type** | Environment variable (command string) |
+| **Required** | Optional |
+| **Default** | `bridge-fsck --count-only` |
+| **Usage context** | `scripts/dso_reconciler/audits/audit_dd1_baseline.sh`, `scripts/dso_reconciler/audits/audit_dd2_orphan_count.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
+---
+
+### `DSO_RECONCILER_VERBOSE`
+
+| | |
+|---|---|
+| **Description** | When set to `1`, the outbound differ emits one `RECON: field_diff` line per detected field-difference, with truncated local/jira values. Off by default to keep production stderr quiet. Use for debugging idempotency churn or phantom-mutation classes; pair with `--mode dry-run` to inspect what the differ would push without writing. |
+| **Type** | Environment variable (string `"1"` enables; any other value disables) |
+| **Required** | Optional |
+| **Default** | `0` |
+| **Usage context** | `scripts/dso_reconciler/outbound_differ.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
+### `DSO_RECONCILER_LOCK_RETRY_BUDGET`
+
+| | |
+|---|---|
+| **Description** | Outer retry budget for the reconciler's advisory pass-lock acquisition. Wraps the inner 3-attempt drift budget in an exponential backoff loop (200ms base, ×2 factor, 5s cap, ±30% jitter). Production CI sees no harness contention and stays at the default; raise temporarily during dev probes that compete with concurrent ticket-branch writes. Treats `0` as "disable outer retry" (equivalent to 1 attempt). Non-integer values fall back to the default with a warning. |
+| **Type** | Environment variable (integer string) |
+| **Required** | Optional |
+| **Default** | `5` |
+| **Usage context** | `scripts/dso_reconciler/_advisory_lock.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
+### Reconciler artifacts and rollout modes
+
+The bridge writes the following artifacts during normal operation. None require manual provisioning; they exist so operators can audit pass behavior.
+
+| Path | Purpose |
+|---|---|
+| `bridge_state/mapping.json` | Persisted local↔Jira identity mapping. |
+| `bridge_state/bootstrap/*.manifest.json` | Per-band reviewer attestations from bootstrap phases. |
+| `bridge_state/health/*.json` | Per-pass health signals consumed by the Reconcile Bridge Canary workflow. |
+| `bridge_state/bridge_alerts/<date>.jsonl` | Daily JSONL alert log written by `alert_store.append`. Each line is a recoverable soft-fail record (one mutation logged-and-skipped instead of aborting the pass). Common kinds: `outbound-update-assignee-unresolved`, `fetcher-dedup-suppressed`, `dso-id-label-invariant-violation`. |
+| `.tickets-tracker/<id>/*-BRIDGE_ALERT.json` | Per-ticket alerts (replay prevented via `dedup_key`). <!-- # tickets-boundary-ok: doc path reference, not direct access --> |
+
+Rollout-safety modes available via `workflow_dispatch` on `reconcile-bridge.yml`:
+
+| Mode | Cap | Writes? |
+|---|---|---|
+| `dry-run` | 0 (apply nothing) | No — read-only diff analysis; manifest still lists every mutation as deferred. |
+| `bootstrap-strict` | 10 mutations/pass | Yes — applies first 10 (sorted by direction/action/target); defers the rest. |
+| `bootstrap-throttle` | 100 mutations/pass | Yes — applies first 100; defers the rest. |
+| `live` (default on schedule) | unlimited | Yes — applies all, no manifest. |
+| `validate` | n/a | Runs the full e2e validation probe + cleanup; bypasses the regular dispatch loop. |
+
 ---
 
 ### `ARTIFACTS_DIR`

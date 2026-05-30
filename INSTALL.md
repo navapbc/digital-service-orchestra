@@ -239,9 +239,14 @@ Create an API token at: https://support.atlassian.com/atlassian-account/docs/man
 - **Local ticket deletions** — not propagated to Jira. Delete locally and, if desired, close/delete the Jira issue manually.
 - **Assignees that don't map to a real Jira user** — soft-failed per mutation: logged to `bridge_state/bridge_alerts/<date>.jsonl` with kind `outbound-update-assignee-unresolved`; the pass continues. Resolve by clearing the local assignee or mapping the user via `BRIDGE_USER_MAP`.
 
-#### "Outbound-mostly" expectation
+#### Bidirectional flow (Jira-side ticket creation is a first-class entry point)
 
-Any Jira issue without a `dso-id:<local_uuid>` marker label will be picked up by the legacy inbound-create differ and materialize a new local ticket. If you don't want Jira issues to ever create local tickets, avoid creating issues directly in the Jira UI — let the reconciler create them outbound from local instead.
+The bridge is fully bidirectional. Either side can originate work:
+
+- **Local → Jira**: a local ticket created via `dso ticket create` is pushed outbound on the next reconcile pass; the reconciler writes a `dso-id:<local_uuid>` marker label on the new Jira issue to dedupe future passes.
+- **Jira → local**: a Jira issue created directly in the Jira UI (or via Linear sync, automation, etc.) that lacks the `dso-id:<local_uuid>` marker is picked up by the snapshot-diff differ on the next pass and materialized locally as `jira-dig-<NNNN>` with the `imported:reconciler-bootstrap` tag. The reconciler writes the dso-id marker back to Jira so the issue is recognized as bound on subsequent passes.
+
+Expect ~20-minute end-to-end latency in either direction (the cron cadence).
 
 #### Verification
 

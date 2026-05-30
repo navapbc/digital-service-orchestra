@@ -122,7 +122,15 @@ fi
 #     success classification; v3 uses collect-all-then-classify with failure
 #     poisoning the SHA. v2 cached verdicts may have masked failures, so they
 #     are invalidated on first read under v3.
-CACHE_VERSION=3
+#   v3 → v4: removal of the DSO-Story(-Merge) trailer self-attestation
+#     shortcut (PR-R1, post-audit Finding 3). v3 may have cached commits as
+#     `provenanced` based solely on trailer presence, without verifying the
+#     covering PR's review-sub-pr status. Under the two-tier promotion model
+#     (PR-C: feature → staged-* → main), every commit reaching main has a
+#     covering PR (PR1 = worktree-* → staged-*) whose review-sub-pr is
+#     required by the sub-PR ruleset; the API path at :476+ now serves as
+#     the sole authority. v3 cache entries are invalidated on first load.
+CACHE_VERSION=4
 
 # ── Initialize cache ──────────────────────────────────────────────────────────
 _cache_init() {
@@ -357,17 +365,18 @@ fi
 while IFS=' ' read -r sha subject; do
     [[ -z "$sha" ]] && continue
 
-    # Step 1: Check for DSO-Story-Merge trailer in commit message
+    # Step 1 (was: DSO-Story trailer shortcut) — REMOVED in v4 (PR-R1).
+    # The trailer-presence shortcut was a self-attested claim, not evidence:
+    # a commit with a fabricated trailer was previously marked `provenanced`
+    # without any covering-PR verification (audit Finding 3). Removed so that
+    # every commit is verified through the same API path (covering PR with
+    # passing review-sub-pr). Under the two-tier promotion model (PR-C), the
+    # covering PR for worktree-* commits is PR1 (worktree-* → staged-*),
+    # whose review-sub-pr is required by the sub-PR ruleset; squash-merged
+    # story commits also resolve to PR1 via the GitHub commits/<sha>/pulls
+    # endpoint. The trailer remains in commit messages as human-readable
+    # attribution metadata; it is no longer load-bearing for provenance.
     commit_body="$(git -C "$GIT_REPO_PATH" log -1 --format="%B" "$sha" 2>/dev/null)" || true
-    if echo "$commit_body" | grep -qE "^DSO-Story(-Merge)?:"; then
-        # Commit is provenanced via story merge trailer — cache and skip.
-        # `|| true` keeps the script alive if _cache_set fails (per the
-        # documented "bypass cache for this run" semantics); without it,
-        # `set -e` would abort the entire walk on a cache write error.
-        _cache_set "$sha" "provenanced" || true
-        _covered_shas+=("$sha")   # bug 8a77 v2 MF2 site (a): trailer-provenanced
-        continue
-    fi
 
     # Step 1b: Check for DSO-Over-Bound: marker (acknowledged non-provenanced)
     if echo "$commit_body" | grep -q "^DSO-Over-Bound:"; then
