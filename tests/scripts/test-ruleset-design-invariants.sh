@@ -66,7 +66,7 @@ _track_tmp() { _TRACKED_TMP_FILES+=("$1"); }
 _cleanup_tmps() {
     local _f
     for _f in "${_TRACKED_TMP_FILES[@]:-}"; do
-        [[ -n "$_f" ]] && rm -f "$_f" 2>/dev/null || true
+        [[ -n "$_f" ]] && rm -f "$_f" 2>/dev/null
     done
 }
 trap _cleanup_tmps EXIT
