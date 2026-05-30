@@ -271,7 +271,13 @@ def _load_agent_prompt(agent_id: str) -> str:
         raise RuntimeError(
             f'agent_id must not be empty or "unknown"; got: {agent_id!r}'
         )
+    # CI-dispatched code-reviewer-* agents live at agents/ci/ (dispatch-split,
+    # bug 4a30). Other CI-dispatched agents (schema-correction, arbiter,
+    # verifier, etc.) do not have CI variants and live at agents/. Try ci/
+    # first; fall back to agents/ when the file is absent.
     agent_file = _AGENTS_DIR / f"{agent_id}.md"
+    if not agent_file.exists():
+        agent_file = _PLUGIN_ROOT / "agents" / f"{agent_id}.md"
     try:
         text = agent_file.read_text(encoding="utf-8")
     except OSError:
