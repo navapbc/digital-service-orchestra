@@ -25,6 +25,42 @@ VERIFIER="$REPO_ROOT/plugins/dso/scripts/verify-session-provenance.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
+# PR-R1: file-level gh shim controlled by DSO_TEST_GH_MOCK env var.
+# success → covering PR with passing review-sub-pr (provenanced)
+# unset   → empty result (unprovenanced)
+_GLOBAL_GH_SHIM_DIR="$(mktemp -d -t dso-gh-shim-contract-XXXXXX)"
+cat > "$_GLOBAL_GH_SHIM_DIR/gh" <<'STUB'
+#!/usr/bin/env bash
+case "$1" in
+  api)
+    shift
+    case "${DSO_TEST_GH_MOCK:-}" in
+      success)
+        case "$1" in
+          *commits/*/pulls)
+            echo '[{"number": 777, "state": "closed", "merged_at": "2026-01-01T00:00:00Z", "head": {"sha": "deadbeef"}, "merge_commit_sha": "cafef00d"}]'
+            ;;
+          *pulls/777*) echo '{"number": 777, "head": {"sha": "deadbeef"}}' ;;
+          *commits/*/check-runs*)
+            echo '{"total_count": 1, "check_runs": [{"name": "review-sub-pr", "status": "completed", "conclusion": "success"}]}'
+            ;;
+          *) echo "{}" ;;
+        esac ;;
+      *)
+        case "$1" in
+          *commits/*/pulls) echo "[]" ;;
+          *commits/*/check-runs*) echo '{"total_count": 0, "check_runs": []}' ;;
+          *) echo "{}" ;;
+        esac ;;
+    esac ;;
+  *) echo "{}" ;;
+esac
+STUB
+chmod +x "$_GLOBAL_GH_SHIM_DIR/gh"
+export PATH="$_GLOBAL_GH_SHIM_DIR:$PATH"
+export GH_REPO="test-owner/test-repo"
+trap 'rm -rf "$_GLOBAL_GH_SHIM_DIR" 2>/dev/null || true' EXIT
+
 echo "=== test-verify-session-provenance-contract.sh ==="
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
@@ -90,6 +126,7 @@ test_all_provenanced_exits_exactly_0() {
     artifact_dir="$(mktemp -d)"
 
     local exit_code=99
+    DSO_TEST_GH_MOCK=success \
     DSO_REPO_PATH="$repo" \
     DSO_BASE_SHA="$base_sha" \
     DSO_SESSION_HEAD="$session_head" \
@@ -124,6 +161,7 @@ test_dso_story_trailer_exits_0() {
     artifact_dir="$(mktemp -d)"
 
     local exit_code=99
+    DSO_TEST_GH_MOCK=success \
     DSO_REPO_PATH="$repo" \
     DSO_BASE_SHA="$base_sha" \
     DSO_SESSION_HEAD="$session_head" \
@@ -633,6 +671,7 @@ test_covered_shas_written_for_trailer_provenanced() {
     local artifact_dir
     artifact_dir="$(mktemp -d)"
 
+    DSO_TEST_GH_MOCK=success \
     DSO_REPO_PATH="$repo" \
     DSO_BASE_SHA="$base_sha" \
     DSO_SESSION_HEAD="$session_head" \

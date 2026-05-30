@@ -105,6 +105,40 @@ else
     _fail "test_script_syntax_valid" "bash -n reported syntax errors"
 fi
 
+# ── Test 11: DSO_SKIP_STAGED_INTERMEDIATE=1 returns hard error (PR-R1) ───────
+# Behavioral test: source the script's _phase_staged_intermediate function in
+# isolation, set DSO_SKIP_STAGED_INTERMEDIATE=1, and assert the function
+# returns non-zero with the deprecation error message. Prevents accidental
+# restoration of the silent-skip bypass channel.
+# Build a minimal harness: source merge-to-main-pr.sh in a subshell where
+# the early script-init logic exits cleanly, capture function return code.
+_harness="$(mktemp -d -t dso-staged-bypass-XXXXXX)"
+# shellcheck disable=SC2064  # intentional: bind at trap-set
+trap "rm -rf '$_harness'" EXIT
+
+cat > "$_harness/harness.sh" <<'HARNESS'
+#!/usr/bin/env bash
+# Stub the early script-init env so we reach _phase_staged_intermediate.
+BRANCH="worktree-test"  # Not staged-*, so skip-condition doesn't fire
+STORY_PR_BASE=""
+# Source only the function definition; can't source the whole script
+# because it has top-level executable logic.
+# Extract _phase_staged_intermediate via awk and eval it.
+fn=$(awk '/^_phase_staged_intermediate\(\)/,/^}$/' "$1")
+eval "$fn"
+DSO_SKIP_STAGED_INTERMEDIATE=1 _phase_staged_intermediate 2>&1
+echo "EXIT_CODE=$?"
+HARNESS
+chmod +x "$_harness/harness.sh"
+output="$(bash "$_harness/harness.sh" "$TARGET_SCRIPT" 2>&1 || true)"
+if echo "$output" | grep -qF "EXIT_CODE=1" && \
+   echo "$output" | grep -qF "DSO_SKIP_STAGED_INTERMEDIATE is no longer supported"; then
+    _pass "test_dso_skip_staged_intermediate_is_hard_error"
+else
+    _fail "test_dso_skip_staged_intermediate_is_hard_error" \
+        "expected exit 1 + deprecation message; got: ${output:0:400}"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
