@@ -32,7 +32,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PATTERNS_FILE="$REPO_ROOT/plugins/dso/config/sub-pr-branch-patterns.txt"
 DISPATCHER="$REPO_ROOT/plugins/dso/scripts/llm-review-dispatch-or-skip.sh"
 PROVISIONER="$REPO_ROOT/plugins/dso/scripts/onboarding/provision-ruleset.sh"
-WORKFLOW="$REPO_ROOT/.github/workflows/review-sub-pr.yml"
+# post-migration: review-sub-pr is now a job in ci.yml (was its own workflow
+# file). Tests below assert the job-level if: predicate, not workflow-trigger
+# level.
+WORKFLOW="$REPO_ROOT/.github/workflows/ci.yml"
 
 # shellcheck source=../lib/assert.sh
 source "$REPO_ROOT/tests/lib/assert.sh"
@@ -134,43 +137,46 @@ assert_eq "test_provisioner_emits_workflows_rule: sub-PR ruleset uses required_w
     "yes" "$has_workflows_rule"
 assert_pass_if_clean "test_provisioner_emits_workflows_rule"
 
-# ── Test 5: workflow trigger uses branches-ignore: [main] ─────────────────────
-# review-sub-pr.yml must trigger on every PR not targeting main. Asserting the
-# branches-ignore form keeps the workflow scope aligned with the ruleset
-# scope without enumerating branch patterns.
+# ── Test 5: llm-review-sub-pr job has `if: base_ref != 'main'` ───────────────
+# Post-migration (workflow moved into ci.yml as a job): the review-sub-pr
+# job must fire on every PR whose base is NOT main, gated by an if:
+# predicate at job level (the workflow-trigger-level `branches-ignore` from
+# the prior design no longer exists since ci.yml triggers on all PRs).
 _snapshot_fail
-workflow_uses_branches_ignore="no"
+job_uses_base_ref_check="no"
 if python3 -c "
 import sys, yaml
 with open('$WORKFLOW') as f:
     data = yaml.safe_load(f)
-on = data.get('on') or data.get(True)
-pr = on.get('pull_request', {}) if isinstance(on, dict) else {}
-bi = pr.get('branches-ignore', [])
-sys.exit(0 if 'main' in bi else 1)
+jobs = data.get('jobs', {})
+job = jobs.get('llm-review-sub-pr', {})
+if_expr = job.get('if', '') or ''
+# Accept any predicate that checks base_ref != main (or != default_branch).
+ok = ('base_ref' in if_expr) and ('main' in if_expr) and ('!=' in if_expr)
+sys.exit(0 if ok else 1)
 " 2>/dev/null; then
-    workflow_uses_branches_ignore="yes"
+    job_uses_base_ref_check="yes"
 fi
-assert_eq "test_workflow_uses_branches_ignore_main: workflow triggers on every PR not targeting main" \
-    "yes" "$workflow_uses_branches_ignore"
-assert_pass_if_clean "test_workflow_uses_branches_ignore_main"
+assert_eq "test_job_uses_base_ref_not_main: llm-review-sub-pr job filters PRs whose base is not main" \
+    "yes" "$job_uses_base_ref_check"
+assert_pass_if_clean "test_job_uses_base_ref_not_main"
 
-# ── Test 6: workflow trigger does NOT enumerate branch patterns ───────────────
-# Regression guard against re-introducing the enumeration design.
+# ── Test 6: llm-review-sub-pr job name matches the ruleset's required check ──
+# The sub-PR ruleset's required_status_check context is "review-sub-pr" — the
+# job MUST expose that exact name or the ruleset deadlocks every sub-PR.
 _snapshot_fail
-workflow_no_branches_list="yes"
+job_name_matches="no"
 if python3 -c "
 import sys, yaml
 with open('$WORKFLOW') as f:
     data = yaml.safe_load(f)
-on = data.get('on') or data.get(True)
-pr = on.get('pull_request', {}) if isinstance(on, dict) else {}
-sys.exit(0 if pr.get('branches') else 1)
+job = data.get('jobs', {}).get('llm-review-sub-pr', {})
+sys.exit(0 if job.get('name') == 'review-sub-pr' else 1)
 " 2>/dev/null; then
-    workflow_no_branches_list="no"
+    job_name_matches="yes"
 fi
-assert_eq "test_workflow_has_no_branches_list: workflow uses branches-ignore (not branches enumeration)" \
-    "yes" "$workflow_no_branches_list"
-assert_pass_if_clean "test_workflow_has_no_branches_list"
+assert_eq "test_job_name_matches_ruleset_check: llm-review-sub-pr job's name field is 'review-sub-pr'" \
+    "yes" "$job_name_matches"
+assert_pass_if_clean "test_job_name_matches_ruleset_check"
 
 print_summary
