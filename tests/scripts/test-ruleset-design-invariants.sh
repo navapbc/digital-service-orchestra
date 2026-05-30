@@ -8,11 +8,14 @@
 # directory, the runbook, or this test file causes the live ruleset state to
 # diverge from the design, this test fails.
 #
-# Required env:
+# Inputs (env vars consumed; gh CLI auth required):
 #   GH_REPO          owner/name of the repo to inspect (default:
 #                    navapbc/digital-service-orchestra)
-#   GITHUB_TOKEN     gh CLI auth token; must have `repo` scope to read ruleset
-#                    metadata. CI provides this via actions/checkout.
+#   gh authentication: in CI the gh CLI uses GH_TOKEN (a GitHub Actions
+#                    short-lived permission-scoped token); locally it uses
+#                    the user's gh auth login state. The Rulesets API
+#                    requires `administration: read` on the Actions token,
+#                    or `repo` scope on a personal access token.
 #
 # Invariants asserted:
 #   I1: sub-PR ruleset's include is exactly ["refs/heads/staged-*"]
@@ -27,10 +30,15 @@
 # survives ruleset recreation. If the names change, both this test and the
 # provisioner break in lockstep — that's the intended coupling.
 
+# Intentional `set -uo pipefail` (NOT `-e`): every gh api call below is
+# followed by an explicit `if [[ $_rc -ne 0 ]]; then _precondition_not_met
+# ...; fi` block that surfaces the actual gh error message verbatim.
+# Adding `-e` would cause command-substitution failures to exit the script
+# BEFORE `$?` capture lines run, swallowing the diagnostic message and
+# producing a generic "exited with rc=1" without the operator-facing context.
+# The explicit per-call error handlers are the safety net here, not `-e`.
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 GH_REPO="${GH_REPO:-navapbc/digital-service-orchestra}"
 
 # Ruleset names — intentional coupling with provision-ruleset.sh.
@@ -82,18 +90,26 @@ if ! command -v gh >/dev/null 2>&1; then
         "Install GitHub CLI on the runner."
 fi
 
-# Skip silently when gh isn't authenticated (local-only dev). CI provides
-# secrets.GITHUB_TOKEN; without it we cannot read ruleset metadata, so we
-# bail rather than report false drift.
-if ! gh auth status >/dev/null 2>&1; then
-    echo "SKIP: gh not authenticated; ruleset-invariants test is CI-only"
+# Two skip paths:
+#   1. No GH_TOKEN exported AND no local gh auth → the test isn't expected
+#      to run here (generic test runner, no rulesets PAT). Skip with rc=0
+#      so generic runners stay green; the dedicated ruleset-invariants
+#      workflow sets GH_TOKEN explicitly and won't hit this branch.
+#   2. GH_TOKEN exported but gh auth fails → misconfiguration that should
+#      fail loudly via _precondition_not_met (rc=78).
+if [[ -z "${GH_TOKEN:-}" ]] && ! gh auth status >/dev/null 2>&1; then
+    echo "SKIP: no GH_TOKEN and no local gh auth — ruleset-invariants test runs only when token is provided"
     exit 0
+fi
+if ! gh auth status >/dev/null 2>&1; then
+    _precondition_not_met "GH_TOKEN provided but gh auth failed" \
+        "Verify secrets.DSO_RULESETS_READ_TOKEN or secrets.GITHUB_TOKEN is valid."
 fi
 
 # Validate token scope: ruleset reads require `repo` scope. Check via the
 # Authorization header on a low-impact endpoint, surfacing the actual gh
 # error if it fails.
-_scope_check_stderr=$(mktemp); _track_tmp "$_scope_check_stderr"
+_scope_check_stderr=$(mktemp "${TMPDIR:-/tmp}/dso-ruleset-scope.XXXXXX"); _track_tmp "$_scope_check_stderr"
 if ! gh api "repos/${GH_REPO}" --jq .id >/dev/null 2>"$_scope_check_stderr"; then
     _scope_err="$(cat "$_scope_check_stderr")"
     rm -f "$_scope_check_stderr"
@@ -105,7 +121,7 @@ rm -f "$_scope_check_stderr"
 # ── Resolve ruleset IDs by name ──────────────────────────────────────────────
 # Capture stderr from gh so a 403 / network error / invalid response is
 # surfaced explicitly rather than silently producing an empty result.
-_rulesets_stderr=$(mktemp); _track_tmp "$_rulesets_stderr"
+_rulesets_stderr=$(mktemp "${TMPDIR:-/tmp}/dso-ruleset-list.XXXXXX"); _track_tmp "$_rulesets_stderr"
 RULESETS_JSON="$(gh api "repos/${GH_REPO}/rulesets" 2>"$_rulesets_stderr")"
 _gh_rc=$?
 _rulesets_err="$(cat "$_rulesets_stderr")"
@@ -128,7 +144,7 @@ if ! echo "$RULESETS_JSON" | python3 -c "import sys,json; json.load(sys.stdin)" 
 fi
 
 # Extract IDs, surfacing parse errors instead of empty fallthrough.
-_extract_stderr=$(mktemp); _track_tmp "$_extract_stderr"
+_extract_stderr=$(mktemp "${TMPDIR:-/tmp}/dso-ruleset-extract.XXXXXX"); _track_tmp "$_extract_stderr"
 SUB_PR_ID="$(echo "$RULESETS_JSON" | DSO_RULESET_NAME="$SUB_PR_RULESET_NAME" python3 -c "
 import json,os,sys
 target = os.environ['DSO_RULESET_NAME']
@@ -159,7 +175,7 @@ case "$_sub_pr_extract_rc" in
         "Check the JSON shape returned by gh api repos/${GH_REPO}/rulesets" ;;
 esac
 
-_extract_stderr=$(mktemp); _track_tmp "$_extract_stderr"
+_extract_stderr=$(mktemp "${TMPDIR:-/tmp}/dso-ruleset-extract.XXXXXX"); _track_tmp "$_extract_stderr"
 MAIN_ID="$(echo "$RULESETS_JSON" | DSO_RULESET_NAME="$MAIN_RULESET_NAME" python3 -c "
 import json,os,sys
 target = os.environ['DSO_RULESET_NAME']
@@ -195,7 +211,7 @@ _pass "test_sub_pr_ruleset_exists"
 _pass "test_main_ruleset_exists"
 
 # ── Fetch full ruleset payloads (with explicit error handling) ──────────────
-_sub_pr_stderr=$(mktemp); _track_tmp "$_sub_pr_stderr"
+_sub_pr_stderr=$(mktemp "${TMPDIR:-/tmp}/dso-ruleset-subpr.XXXXXX"); _track_tmp "$_sub_pr_stderr"
 SUB_PR_FULL="$(gh api "repos/${GH_REPO}/rulesets/${SUB_PR_ID}" 2>"$_sub_pr_stderr")"
 _sub_pr_rc=$?
 _sub_pr_err="$(cat "$_sub_pr_stderr")"
@@ -205,7 +221,7 @@ if [[ $_sub_pr_rc -ne 0 ]] || [[ -z "$SUB_PR_FULL" ]]; then
         "Verify the ruleset ID ${SUB_PR_ID} is accessible."
 fi
 
-_main_stderr=$(mktemp); _track_tmp "$_main_stderr"
+_main_stderr=$(mktemp "${TMPDIR:-/tmp}/dso-ruleset-main.XXXXXX"); _track_tmp "$_main_stderr"
 MAIN_FULL="$(gh api "repos/${GH_REPO}/rulesets/${MAIN_ID}" 2>"$_main_stderr")"
 _main_rc=$?
 _main_err="$(cat "$_main_stderr")"

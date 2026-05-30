@@ -245,7 +245,7 @@ Establishes the load-bearing review gate for code reaching `main`. This contract
 
 ### Topology
 
-```
+```text
 feature-branch / worktree-<ts>  (unrestricted: no ruleset, push freely)
     ↓ PR1 — review-sub-pr workflow required (sub-PR ruleset, ID 16961402)
 staged-<short-sha>-<unix-ts>     (ephemeral; created from main HEAD on session close)
