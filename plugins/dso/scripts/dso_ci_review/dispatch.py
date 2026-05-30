@@ -42,7 +42,11 @@ _PLUGIN_ROOT = pathlib.Path(
         "CLAUDE_PLUGIN_ROOT", str(pathlib.Path(__file__).resolve().parent.parent.parent)
     )
 )
-_AGENTS_DIR = _PLUGIN_ROOT / "agents"
+# CI dispatch uses the CI-variant agent prompts at agents/ci/. The orchestrator
+# variant at agents/ is preserved for Claude Code Agent-tool dispatch; the two
+# are generated from the same source (reviewer-base.md) via build-review-agents.sh
+# (DISPATCH_VARIANT env var). See bug 4a30-2937-b404-4a8e.
+_AGENTS_DIR = _PLUGIN_ROOT / "agents" / "ci"
 # Git-relative path to this module (used in synthetic cited_lines to avoid literal plugin paths).
 # Always derived from __file__ itself (5 levels up to repo root), independent of _PLUGIN_ROOT
 # so that CLAUDE_PLUGIN_ROOT overrides don't break the computation.

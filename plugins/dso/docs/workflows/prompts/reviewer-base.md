@@ -102,6 +102,7 @@ When you cannot verify a claim without requesting context: either issue a contex
 
 ## Procedure
 
+<!-- DISPATCH:orchestrator -->
 ### Step 1 — Validate and read the diff file
 
 Run the diff verification script via the `.claude/scripts/dso` shim. Use the `REPO_ROOT` value provided in your dispatch prompt — do NOT re-derive it via `git rev-parse --show-toplevel` (in worktree sessions that returns the worktree path, not the repo root):
@@ -115,7 +116,18 @@ Run the diff verification script via the `.claude/scripts/dso` shim. Use the `RE
 - If the file is missing or empty: STOP and note the error.
 
 Then read the diff from the provided diff file path using the Read tool.
+<!-- /DISPATCH:orchestrator -->
 
+<!-- DISPATCH:ci -->
+### Step 1 — Read the diff from your input
+
+**You have NO tools.** No Bash, no Read, no Grep, no Glob, no shell access of any kind. Do NOT emit Anthropic tool-use markup (e.g., `<function_calls>`, `<invoke>`, `<parameter>`) — such markup becomes literal text in your message body and the dispatcher cannot parse it. There is no API channel through which tools could execute.
+
+The dispatcher has already validated the diff and embedded it directly in the user message you received. Read the diff from the user message content. Do not attempt to invoke any script or read any file path.
+<!-- /DISPATCH:ci -->
+
+
+<!-- DISPATCH:ci -->
 ### Context-Request Protocol (standard / deep / overlay tiers only)
 
 When you need to see a file that is not included in the diff, emit a fenced JSON block
@@ -144,6 +156,7 @@ You may also search for patterns across the repository:
 **Tier availability**: Context-requests are issued only in standard, deep, and overlay
 tiers. Light tier runs single-shot — the dispatcher does not enter the augmentation loop
 and any request block emitted is ignored.
+<!-- /DISPATCH:ci -->
 
 ---
 
@@ -449,6 +462,7 @@ If you find yourself "skipping" the check because you "already know" reachabilit
 
 ---
 
+<!-- DISPATCH:orchestrator -->
 ## Step 3 — Write Findings to Disk (REQUIRED before returning)
 
 Pipe your complete JSON into `write-reviewer-findings.sh` via the `.claude/scripts/dso` shim.
@@ -548,3 +562,40 @@ Before you emit your response, run these THREE mechanical checks. Do NOT skip. D
    - Any fenced code block other than the heredoc used to pipe JSON into `write-reviewer-findings.sh`
 
 **NEGATIVE DIRECTIVE**: Returning prose, markdown, narrative analysis, or any text outside the 3-line emit shape is a contract violation. The dispatcher cannot parse prose — it will fail with `LLM returned non-JSON response (length=N); cannot parse as findings` and the provider fallback chain will exhaust on the same prompt-shaped failure. If your draft is longer than ~150 characters, you are about to emit prose. Cut it down to the 3-line block before sending.
+<!-- /DISPATCH:orchestrator -->
+
+<!-- DISPATCH:ci -->
+## Step 3 — Return findings as JSON in your message body
+
+The CI dispatcher parses your response body **directly as JSON**. There is no `write-reviewer-findings.sh` to call — the dispatcher persists findings on your behalf after parsing your response.
+
+**Your entire response MUST be a single JSON object** matching this schema:
+
+```json
+{
+  "summary": "<one-paragraph overall assessment>",
+  "findings": [
+    {
+      "severity": "critical|important|minor",
+      "dim": "correctness|verification|hygiene|design|completeness",
+      "file": "path/to/file.ext",
+      "line": 123,
+      "title": "<short title>",
+      "description": "<full reasoning, including verification_evidence for absence claims>"
+    }
+  ]
+}
+```
+
+## Step 4 — Final output discipline (CI mode)
+
+Before emitting your response, run these checks:
+
+1. **Is your response exclusively a single JSON object?** No prose preamble. No markdown headers. No code fences. No `<function_calls>`, `<invoke>`, or any tool-use markup. The first character must be `{` and the last character must be `}`.
+2. **Did you include all required schema fields?** `summary` is required; each finding requires `severity`, `dim`, `file`, `description`.
+3. **For absence claims**, did you use the Context-Request Protocol (Step 1) to verify before asserting, and include the verifier output in your finding's `description`?
+
+If your response contains markdown, prose, or tool-use markup, the dispatcher's JSON parser will reject it with `LLM returned non-JSON response (length=N); cannot parse as findings` — exactly the failure mode this CI variant exists to prevent. Cut it down to the JSON object before sending.
+
+**You do NOT emit a `REVIEWER_HASH=...` envelope in CI mode.** The dispatcher writes findings and computes the hash on your behalf after parsing your JSON response.
+<!-- /DISPATCH:ci -->

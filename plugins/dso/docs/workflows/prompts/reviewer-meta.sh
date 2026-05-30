@@ -53,22 +53,49 @@ _meta_description_for() {
     esac
 }
 
-# Substitute {{CANONICAL_TIER}} in the base content with the variant's canonical tier.
-# For the light tier, also remove the "Context-Request Protocol (standard / deep /
-# overlay tiers only)" section from the base, avoiding contradictory guidance in the
-# generated code-reviewer-light.md (bug 57b9-1f14).
-# The light-tier delta already supplies the correct "NOT available for light tier" notice.
+# Strip DISPATCH-marked sections from base content based on the DISPATCH_VARIANT env var.
+# Keeps blocks matching DISPATCH_VARIANT, removes the opposite. When DISPATCH_VARIANT is
+# unset (legacy callers / tests), keeps both blocks — backward compatible.
+# Markers in the source: <!-- DISPATCH:orchestrator --> ... <!-- /DISPATCH:orchestrator -->
+#                       <!-- DISPATCH:ci -->          ... <!-- /DISPATCH:ci -->
+_meta_dispatch_strip() {
+    local strip_variant="$1"  # e.g., "ci" or "orchestrator"
+    python3 -c '
+import sys, re
+strip = sys.argv[1]
+content = sys.stdin.read()
+pattern = r"<!-- DISPATCH:" + re.escape(strip) + r" -->.*?<!-- /DISPATCH:" + re.escape(strip) + r" -->\n?"
+content = re.sub(pattern, "", content, flags=re.DOTALL)
+sys.stdout.write(content)
+' "$strip_variant"
+}
+
+# Substitute {{CANONICAL_TIER}}, strip DISPATCH-opposite blocks based on DISPATCH_VARIANT
+# env var, and for the light tier also remove the "Context-Request Protocol" section
+# (bug 57b9-1f14 — the light-tier delta supplies the correct "NOT available for light
+# tier" notice).
+#
+# DISPATCH_VARIANT semantics:
+#   DISPATCH_VARIANT=orchestrator  → strip <!-- DISPATCH:ci --> blocks
+#   DISPATCH_VARIANT=ci            → strip <!-- DISPATCH:orchestrator --> blocks
+#   DISPATCH_VARIANT unset/other   → no DISPATCH stripping (backward compat)
 _meta_substitute_base() {
     local variant="$1"
     local canonical
     canonical="$(_canonical_tier_for_variant "$variant")"
 
+    local _dispatch_filter
+    case "${DISPATCH_VARIANT:-}" in
+        orchestrator) _dispatch_filter="_meta_dispatch_strip ci" ;;
+        ci)           _dispatch_filter="_meta_dispatch_strip orchestrator" ;;
+        *)            _dispatch_filter="cat" ;;
+    esac
+
     if [[ "$variant" == "light" ]]; then
-        # Replace {{CANONICAL_TIER}} and strip the full context-request protocol section.
-        # The section spans from "### Context-Request Protocol (standard / deep / overlay
-        # tiers only)" through the line before the closing "---" separator preceding Step 2.
-        # We pipe base content through sed first (for CANONICAL_TIER substitution), then
-        # through Python to remove the multi-line protocol section.
+        # Replace {{CANONICAL_TIER}}, apply DISPATCH filter, then strip the full
+        # context-request protocol section. The section spans from "### Context-Request
+        # Protocol (standard / deep / overlay tiers only)" through the line before the
+        # closing "---" separator preceding Step 2.
         local _py_script
         _py_script='
 import sys, re
@@ -83,8 +110,8 @@ content = re.sub(
 )
 sys.stdout.write(content)
 '
-        sed "s|{{CANONICAL_TIER}}|${canonical}|g" | python3 -c "$_py_script"
+        sed "s|{{CANONICAL_TIER}}|${canonical}|g" | eval "$_dispatch_filter" | python3 -c "$_py_script"
     else
-        sed "s|{{CANONICAL_TIER}}|${canonical}|g"
+        sed "s|{{CANONICAL_TIER}}|${canonical}|g" | eval "$_dispatch_filter"
     fi
 }
