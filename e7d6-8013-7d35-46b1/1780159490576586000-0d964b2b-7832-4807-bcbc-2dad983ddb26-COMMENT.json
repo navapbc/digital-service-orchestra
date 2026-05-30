@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"FORCE_CLOSE: verdict hash bypassed by user approval. Reason: \"Superseded by reconcile-bridge.yml\n   plus reconcile-bridge-canary.yml 2026-05-29\". Session: a7e883f8a8."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780159490576586000,"uuid":"0d964b2b-7832-4807-bcbc-2dad983ddb26"}
