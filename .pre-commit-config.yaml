@@ -183,6 +183,20 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/
 
+      # SCRIPT_DIR/.. anti-pattern check (timeout: 10s) — bug 8229
+      # Blocks REPO_ROOT="$SCRIPT_DIR/.." and `: "${REPO_ROOT:=$SCRIPT_DIR/..}"`
+      # patterns in plugin scripts. On host projects via the shim, SCRIPT_DIR
+      # resolves to the plugin cache, so REPO_ROOT silently becomes the plugin
+      # tree (silent PASS for checkers; plugin-cache edits for mutators).
+      # Suppression: '# script-dir-pattern-ok: <rationale>' on the same line.
+      - id: script-dir-pattern-check
+        name: Script Dir Pattern Check (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh script-dir-pattern-check 10 "./.claude/hooks/pre-commit/check-script-dir-pattern.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/.*\.sh$
+
       # Tickets boundary check (timeout: 10s)
       # Blocks commits where non-allowlisted files reference .tickets-tracker/ directly
       # or mention absorbed script names (sprint-next-batch.sh, sprint-list-epics.sh,
