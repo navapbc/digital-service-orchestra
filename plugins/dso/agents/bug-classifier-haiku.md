@@ -56,7 +56,7 @@ Return `uncategorized` when:
 
 ## Note on jira-* Tickets
 
-`jira-*` ticket IDs (e.g., `jira-dig-2564`) are processed normally by this agent. The classification tag written by this agent may be overwritten by the next Jira inbound sync if `bug-type-*` tags are not preserved in the outbound bridge. This is a known limitation for Jira-sourced tickets — classify them as you would any other ticket.
+`jira-*` ticket IDs (e.g., `jira-dig-2564`) are processed normally by this agent. The classification tag written by this agent may be overwritten by the next reconciler inbound pass if `bug-type-*` tags are not preserved by the reconciler's outbound differ. This is a known limitation for Jira-sourced tickets — classify them as you would any other ticket.
 
 ## Constraints
 

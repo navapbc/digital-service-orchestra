@@ -1,12 +1,14 @@
 # Contract: Comment Sync Dedup Interface
 
 - Status: accepted
-- Scope: ticket-system-v3 / Jira bridge (epic w21-bwfw)
+- Scope: ticket-system-v3 / Reconcile Bridge (epic w21-bwfw)
 - Date: 2026-03-21
+
+> **Historical note**: this contract was originally written for the edge-triggered outbound/inbound Jira bridge workflows. The dedup interface itself is unchanged under the current level-triggered reconciler (`reconcile-bridge.yml`, epic 3a03 cutover) — only the architectural framing has been updated: "the outbound bridge" / "the inbound bridge" now refer to the reconciler's outbound differ + applier and inbound fetcher + applier respectively, both running inside the single `dso_reconciler` package.
 
 ## Purpose
 
-This document defines the dedup interface between the outbound Jira bridge (emitter) and the inbound Jira bridge (parser) for preventing echo-imported comments. The outbound bridge embeds a UUID marker in each Jira comment it pushes; the inbound bridge uses Jira comment IDs and the per-ticket dedup state file to skip re-importing comments that originated locally.
+This document defines the dedup interface between the reconciler's outbound differ + applier (emitter) and its inbound fetcher + applier (parser) for preventing echo-imported comments. The outbound side embeds a UUID marker in each Jira comment it pushes; the inbound side uses Jira comment IDs and the per-ticket dedup state file to skip re-importing comments that originated locally.
 
 ---
 
@@ -20,19 +22,19 @@ This document defines the dedup interface between the outbound Jira bridge (emit
 
 `scripts/dso_reconciler/` # shim-exempt: internal implementation path reference
 
-The outbound bridge embeds a UUID marker in every Jira comment it creates so the inbound bridge can
-identify comments that originated locally and skip them during pull (echo prevention).
+The reconciler's outbound path embeds a UUID marker in every Jira comment it creates so the inbound
+path can identify comments that originated locally and skip them during pull (echo prevention).
 
 ---
 
 ## Parser
 
-Inbound bridge — story w21-dww7
+Reconciler inbound path — story w21-dww7
 
-The inbound bridge reads Jira comments via ACLI `getComments`, checks each comment's Jira comment ID
-against the dedup state file, and optionally extracts the UUID marker from the comment body. It must
-use the Jira comment ID as the primary dedup key and treat the UUID marker as secondary confirmation
-only.
+The reconciler's inbound path reads Jira comments via ACLI `getComments`, checks each comment's Jira
+comment ID against the dedup state file, and optionally extracts the UUID marker from the comment
+body. It must use the Jira comment ID as the primary dedup key and treat the UUID marker as
+secondary confirmation only.
 
 ---
 
@@ -59,7 +61,7 @@ only as secondary confirmation.
 
 The parser MUST match against:
 
-- `<!-- origin-uuid:` — prefix match on the last line of a Jira comment body. Any line beginning with `<!-- origin-uuid:` is a valid UUID marker embedded by the outbound bridge. The UUID follows immediately after the space: `<!-- origin-uuid: {event_uuid} -->`.
+- `<!-- origin-uuid:` — prefix match on the last line of a Jira comment body. Any line beginning with `<!-- origin-uuid:` is a valid UUID marker embedded by the reconciler's outbound path. The UUID follows immediately after the space: `<!-- origin-uuid: {event_uuid} -->`.
 
 ---
 
@@ -84,8 +86,8 @@ The parser MUST match against:
 
 | Key                | Type                   | Description                                                         |
 |--------------------|------------------------|---------------------------------------------------------------------|
-| `uuid_to_jira_id`  | object (string→string) | Maps local event UUID → Jira comment ID. Written by outbound bridge after successful comment push. |
-| `jira_id_to_uuid`  | object (string→string) | Maps Jira comment ID → local event UUID. Inverse index; used by inbound bridge for O(1) dedup lookups. |
+| `uuid_to_jira_id`  | object (string→string) | Maps local event UUID → Jira comment ID. Written by the reconciler's outbound path after successful comment push. |
+| `jira_id_to_uuid`  | object (string→string) | Maps Jira comment ID → local event UUID. Inverse index; used by the reconciler's inbound path for O(1) dedup lookups. |
 
 Both dicts are kept in sync: every entry written to one dict must have a corresponding entry in the
 other. An absent key in either dict means no mapping exists (not an error).
@@ -97,21 +99,22 @@ other. An absent key in either dict means no mapping exists (not an error).
 ### Primary dedup key (inbound): Jira comment ID
 
 The Jira comment ID is present in every comment object returned by ACLI `getComments`. It survives
-rich-text editor operations that may strip HTML markers. The inbound bridge MUST use the Jira comment
-ID as the authoritative dedup key by checking `jira_id_to_uuid` in the dedup state file.
+rich-text editor operations that may strip HTML markers. The reconciler's inbound path MUST use the
+Jira comment ID as the authoritative dedup key by checking `jira_id_to_uuid` in the dedup state
+file.
 
 ### Secondary dedup key (inbound): UUID marker
 
 The UUID extracted from `<!-- origin-uuid: ... -->` in the comment body. Used to confirm that a
 comment originated locally, but NOT relied upon when the marker is absent (stripped by editor). If
-the marker is present and the UUID is found in `uuid_to_jira_id`, the bridge may use this as
-additional confirmation that the comment was pushed by local outbound.
+the marker is present and the UUID is found in `uuid_to_jira_id`, the reconciler may use this as
+additional confirmation that the comment was pushed by the local outbound path.
 
 ---
 
 ## Outbound Echo Prevention
 
-Before writing a local COMMENT event on inbound pull, the inbound bridge MUST:
+Before writing a local COMMENT event on inbound pull, the reconciler's inbound path MUST:
 
 1. Check `jira_id_to_uuid` in `.tickets-tracker/<ticket-id>/.jira-comment-map`. # tickets-boundary-ok
 2. If the Jira comment ID is present as a key, **skip** — the comment was pushed by local outbound
@@ -122,7 +125,7 @@ Before writing a local COMMENT event on inbound pull, the inbound bridge MUST:
 
 ## Outbound Write Protocol
 
-After the outbound bridge successfully pushes a local COMMENT event to Jira and receives a Jira
+After the reconciler's outbound path successfully pushes a local COMMENT event to Jira and receives a Jira
 comment ID in response:
 
 1. Read `.tickets-tracker/<ticket-id>/.jira-comment-map` (create empty structure if absent). # tickets-boundary-ok
