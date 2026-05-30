@@ -39,6 +39,19 @@ FAIL=0
 _pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 _fail() { echo "FAIL: $1 ($2)"; FAIL=$((FAIL+1)); }
 
+# All tmp files are tracked in this single list so a single trap on EXIT
+# cleans them up regardless of which path the script exits via (success,
+# drift, precondition failure, SIGTERM from CI timeout).
+_TRACKED_TMP_FILES=()
+_track_tmp() { _TRACKED_TMP_FILES+=("$1"); }
+_cleanup_tmps() {
+    local _f
+    for _f in "${_TRACKED_TMP_FILES[@]:-}"; do
+        [[ -n "$_f" ]] && rm -f "$_f" 2>/dev/null || true
+    done
+}
+trap _cleanup_tmps EXIT
+
 # ── Preconditions: surface missing tooling / auth as PRECONDITION errors ────
 # Distinct exit class from FAIL — operators investigating CI output should
 # see "PRECONDITION_NOT_MET: ..." and know it's not a drift failure.
@@ -69,7 +82,7 @@ fi
 # Validate token scope: ruleset reads require `repo` scope. Check via the
 # Authorization header on a low-impact endpoint, surfacing the actual gh
 # error if it fails.
-_scope_check_stderr=$(mktemp)
+_scope_check_stderr=$(mktemp); _track_tmp "$_scope_check_stderr"
 if ! gh api "repos/${GH_REPO}" --jq .id >/dev/null 2>"$_scope_check_stderr"; then
     _scope_err="$(cat "$_scope_check_stderr")"
     rm -f "$_scope_check_stderr"
@@ -81,7 +94,7 @@ rm -f "$_scope_check_stderr"
 # ── Resolve ruleset IDs by name ──────────────────────────────────────────────
 # Capture stderr from gh so a 403 / network error / invalid response is
 # surfaced explicitly rather than silently producing an empty result.
-_rulesets_stderr=$(mktemp)
+_rulesets_stderr=$(mktemp); _track_tmp "$_rulesets_stderr"
 RULESETS_JSON="$(gh api "repos/${GH_REPO}/rulesets" 2>"$_rulesets_stderr")"
 _gh_rc=$?
 _rulesets_err="$(cat "$_rulesets_stderr")"
@@ -104,7 +117,7 @@ if ! echo "$RULESETS_JSON" | python3 -c "import sys,json; json.load(sys.stdin)" 
 fi
 
 # Extract IDs, surfacing parse errors instead of empty fallthrough.
-_extract_stderr=$(mktemp)
+_extract_stderr=$(mktemp); _track_tmp "$_extract_stderr"
 SUB_PR_ID="$(echo "$RULESETS_JSON" | python3 -c "
 import json,sys
 try:
@@ -126,7 +139,7 @@ if [[ $_sub_pr_extract_rc -ne 0 ]]; then
         "Check the JSON shape returned by gh api repos/${GH_REPO}/rulesets"
 fi
 
-_extract_stderr=$(mktemp)
+_extract_stderr=$(mktemp); _track_tmp "$_extract_stderr"
 MAIN_ID="$(echo "$RULESETS_JSON" | python3 -c "
 import json,sys
 try:
@@ -160,7 +173,7 @@ else
 fi
 
 # ── Fetch full ruleset payloads (with explicit error handling) ──────────────
-_sub_pr_stderr=$(mktemp)
+_sub_pr_stderr=$(mktemp); _track_tmp "$_sub_pr_stderr"
 SUB_PR_FULL="$(gh api "repos/${GH_REPO}/rulesets/${SUB_PR_ID}" 2>"$_sub_pr_stderr")"
 _sub_pr_rc=$?
 _sub_pr_err="$(cat "$_sub_pr_stderr")"
@@ -170,7 +183,7 @@ if [[ $_sub_pr_rc -ne 0 ]] || [[ -z "$SUB_PR_FULL" ]]; then
         "Verify the ruleset ID ${SUB_PR_ID} is accessible."
 fi
 
-_main_stderr=$(mktemp)
+_main_stderr=$(mktemp); _track_tmp "$_main_stderr"
 MAIN_FULL="$(gh api "repos/${GH_REPO}/rulesets/${MAIN_ID}" 2>"$_main_stderr")"
 _main_rc=$?
 _main_err="$(cat "$_main_stderr")"
@@ -226,17 +239,35 @@ else
     _fail "I3_sub_pr_do_not_enforce_on_create" "rsc_info=$rsc_info"
 fi
 
-# I4: sub-PR bypass_mode
-bypass_mode="$(echo "$SUB_PR_FULL" | python3 -c "
+# I4: ALL sub-PR bypass actors must have bypass_mode=pull_request.
+# Iterates every actor in the list (a permissive 'always' on a second
+# actor would otherwise pass the test while breaking the security
+# invariant; cycle-2 review finding).
+i4_violations="$(echo "$SUB_PR_FULL" | python3 -c "
 import json,sys
 d = json.load(sys.stdin)
-for a in d.get('bypass_actors', []):
-    print(a.get('bypass_mode', '')); break
+violations = []
+actors = d.get('bypass_actors', []) or []
+if not actors:
+    print('NO_ACTORS')
+    sys.exit(0)
+for a in actors:
+    if not isinstance(a, dict):
+        violations.append(f'non-dict actor: {a!r}')
+        continue
+    mode = a.get('bypass_mode', '')
+    if mode != 'pull_request':
+        violations.append(f'actor_id={a.get(\"actor_id\", \"?\")} type={a.get(\"actor_type\", \"?\")} bypass_mode={mode!r}')
+print(','.join(violations))
 ")"
-if [[ "$bypass_mode" == "pull_request" ]]; then
+if [[ "$i4_violations" == "NO_ACTORS" ]]; then
+    _fail "I4_sub_pr_bypass_mode_pull_request" \
+        "sub-PR ruleset has no bypass actors — incompatible with current design"
+elif [[ -z "$i4_violations" ]]; then
     _pass "I4_sub_pr_bypass_mode_pull_request"
 else
-    _fail "I4_sub_pr_bypass_mode_pull_request" "expected pull_request, got $bypass_mode"
+    _fail "I4_sub_pr_bypass_mode_pull_request" \
+        "actor(s) with bypass_mode != pull_request: $i4_violations"
 fi
 
 # I5: sub-PR enforcement
@@ -263,17 +294,33 @@ else
         "check-staged-head not in main ruleset required_status_checks"
 fi
 
-# I7: main ruleset bypass_mode
-main_bypass="$(echo "$MAIN_FULL" | python3 -c "
+# I7: ALL main ruleset bypass actors must have bypass_mode=pull_request.
+# Same all-actors iteration as I4.
+i7_violations="$(echo "$MAIN_FULL" | python3 -c "
 import json,sys
 d = json.load(sys.stdin)
-for a in d.get('bypass_actors', []):
-    print(a.get('bypass_mode', '')); break
+violations = []
+actors = d.get('bypass_actors', []) or []
+if not actors:
+    print('NO_ACTORS')
+    sys.exit(0)
+for a in actors:
+    if not isinstance(a, dict):
+        violations.append(f'non-dict actor: {a!r}')
+        continue
+    mode = a.get('bypass_mode', '')
+    if mode != 'pull_request':
+        violations.append(f'actor_id={a.get(\"actor_id\", \"?\")} type={a.get(\"actor_type\", \"?\")} bypass_mode={mode!r}')
+print(','.join(violations))
 ")"
-if [[ "$main_bypass" == "pull_request" ]]; then
+if [[ "$i7_violations" == "NO_ACTORS" ]]; then
+    _fail "I7_main_bypass_mode_pull_request" \
+        "main ruleset has no bypass actors — incompatible with current design"
+elif [[ -z "$i7_violations" ]]; then
     _pass "I7_main_bypass_mode_pull_request"
 else
-    _fail "I7_main_bypass_mode_pull_request" "expected pull_request, got $main_bypass"
+    _fail "I7_main_bypass_mode_pull_request" \
+        "actor(s) with bypass_mode != pull_request: $i7_violations"
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
