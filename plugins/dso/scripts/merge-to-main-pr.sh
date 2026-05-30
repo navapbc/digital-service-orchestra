@@ -724,6 +724,205 @@ _phase_source_branch_version_bump() {
     return 0
 }
 
+# ── PR-C: staged-* promotion intermediate ────────────────────────────────────
+#
+# Two-tier promotion model (PR-B):
+#
+#   feature-branch / worktree-<ts>  (unrestricted)
+#       ↓ PR1 — review-sub-pr workflow required (sub-PR ruleset)
+#   staged-<short-sha>-<unix-ts>
+#       ↓ PR2 — check-staged-head + main required checks (main ruleset)
+#   main
+#
+# The sub-PR ruleset (16961402) enforces `review-sub-pr.yml` via a
+# `required_workflows` rule. That rule evaluates at PR-MERGE time, not at
+# ref-update time — so creating staged-<sha>-<ts> from origin/main HEAD and
+# pushing the worktree's commits via PR1 is unrestricted.
+#
+# The main ruleset (15629023) requires `check-staged-head` to pass on every
+# PR to main, ensuring only staged-* heads can land.
+#
+# This phase runs BEFORE _phase_merge in the session→main path (no
+# STORY_PR_BASE). It creates the staged-* ref, opens PR1, waits for
+# review-sub-pr, merges PR1, then re-points BRANCH to the staged-* branch so
+# the subsequent _phase_merge opens PR2 (staged-* → main).
+#
+# Skip conditions:
+#   - STORY_PR_BASE set: story-PR mode, base is not main, nothing to do
+#   - BRANCH already matches staged-*: caller (or prior --resume) already
+#     ran this phase; skip
+#   - DSO_SKIP_STAGED_INTERMEDIATE=1: explicit opt-out for testing /
+#     rollback scenarios
+
+_create_staged_ref() {
+    # Print the new staged-* branch name on stdout. Return 0 on success.
+    # Hard-fails if the ref already exists (collision risk).
+    local _short_sha _unix_ts _staged_name _main_sha _gh_repo
+    _short_sha=$(git rev-parse --short=12 HEAD 2>/dev/null) || {
+        echo "ERROR: _create_staged_ref: cannot resolve HEAD" >&2
+        return 1
+    }
+    _unix_ts=$(date +%s)
+    _staged_name="staged-${_short_sha}-${_unix_ts}"
+
+    # Resolve the GitHub repo (owner/name) from the current working directory.
+    # `gh` infers the repo from origin's remote URL.
+    _gh_repo=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null) || {
+        echo "ERROR: _create_staged_ref: cannot resolve GitHub repo via gh repo view" >&2
+        return 1
+    }
+
+    # Resolve origin/main HEAD via the GitHub API (authoritative for ref
+    # creation). The script's local origin/main may be stale.
+    _main_sha=$(gh api "repos/${_gh_repo}/branches/${_DEFAULT_BRANCH:-main}" \
+        --jq '.commit.sha' 2>/dev/null) || {
+        echo "ERROR: _create_staged_ref: cannot resolve origin/main HEAD via gh api" >&2
+        return 1
+    }
+
+    # Create the ref. POST /git/refs returns 422 if the ref already exists —
+    # we hard-fail on that to avoid silent collisions across concurrent sessions.
+    local _create_out _create_rc=0
+    _create_out=$(gh api -X POST "repos/${_gh_repo}/git/refs" \
+        -f "ref=refs/heads/${_staged_name}" \
+        -f "sha=${_main_sha}" 2>&1) || _create_rc=$?
+    if [[ "$_create_rc" -ne 0 ]]; then
+        echo "ERROR: failed to create staged-* ref ${_staged_name}: $_create_out" >&2
+        return 1
+    fi
+
+    echo "$_staged_name"
+    return 0
+}
+
+_phase_staged_intermediate() {
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "staged_intermediate" 2>/dev/null || true
+    fi
+
+    # Skip conditions
+    if [[ -n "${STORY_PR_BASE:-}" ]]; then
+        echo "INFO: staged-intermediate phase skipped (STORY_PR_BASE set; story-PR mode)"
+        return 0
+    fi
+    if [[ "$BRANCH" == staged-* ]]; then
+        echo "INFO: staged-intermediate phase skipped (BRANCH is already staged-*: $BRANCH)"
+        return 0
+    fi
+    if [[ "${DSO_SKIP_STAGED_INTERMEDIATE:-0}" == "1" ]]; then
+        echo "INFO: staged-intermediate phase skipped (DSO_SKIP_STAGED_INTERMEDIATE=1)"
+        return 0
+    fi
+    # Auto-skip when there's no real GitHub origin (test fixtures use tmpdir
+    # remotes; the phase's gh api calls would hang or produce garbage).
+    # Test fixtures often shim `gh`, so we check the actual git remote URL
+    # rather than trusting `gh repo view`.
+    local _origin_url
+    _origin_url=$(git remote get-url origin 2>/dev/null || echo "")
+    if [[ "$_origin_url" != *"github.com"* ]]; then
+        echo "INFO: staged-intermediate phase skipped (origin '$_origin_url' is not a github.com remote)"
+        return 0
+    fi
+
+    # 1. Create the staged-* ref pointing at origin/main HEAD.
+    local _staged_branch
+    _staged_branch=$(_create_staged_ref) || return 1
+    echo "INFO: created staged ref refs/heads/${_staged_branch} from origin/main HEAD"
+
+    # 2. Push BRANCH (the source branch — typically worktree-*) to origin so
+    #    GitHub can see its commits when we open PR1 against the staged ref.
+    if ! git push origin "$BRANCH" 2>&1 | tail -5; then
+        echo "ERROR: failed to push $BRANCH to origin" >&2
+        return 1
+    fi
+
+    # 3. Open PR1: BRANCH → staged_branch. review-sub-pr workflow will fire.
+    local _pr1_title _pr1_body _pr1_url _pr1_number
+    _pr1_title="staged: ${BRANCH} -> ${_staged_branch}"
+    _pr1_body=$(cat <<EOF
+## Staged promotion (PR-C two-PR flow)
+
+This is the **first PR** of a two-PR session→main promotion. The worktree branch \`${BRANCH}\` is being merged into the staged ref \`${_staged_branch}\`, which was created from \`origin/main\` HEAD.
+
+The sub-PR ruleset's \`required_workflows\` rule requires \`review-sub-pr\` to run successfully on this PR before merge. Once this PR merges, the merge-to-main script will open PR2 from \`${_staged_branch}\` → \`main\`.
+
+🤖 Generated by merge-to-main-pr.sh
+EOF
+)
+
+    local _pr1_create_out _pr1_create_rc=0
+    _pr1_create_out=$(gh pr create --base "$_staged_branch" --head "$BRANCH" \
+        --title "$_pr1_title" --body "$_pr1_body" 2>&1) || _pr1_create_rc=$?
+    if [[ "$_pr1_create_rc" -ne 0 ]]; then
+        echo "ERROR: PR1 creation failed (${BRANCH} -> ${_staged_branch}): $_pr1_create_out" >&2
+        return 1
+    fi
+    _pr1_url=$(echo "$_pr1_create_out" | grep -Eo 'https://[^[:space:]]+/pull/[0-9]+' | tail -n1)
+    _pr1_number=$(echo "$_pr1_url" | grep -Eo '/pull/[0-9]+' | grep -Eo '[0-9]+$')
+    if [[ -z "$_pr1_number" ]]; then
+        echo "ERROR: PR1 created but PR number unparseable from: $_pr1_create_out" >&2
+        return 1
+    fi
+    echo "INFO: PR1 created #${_pr1_number}: $_pr1_url"
+
+    # 4. Wait for review-sub-pr to complete. Use the existing wait-for-pr helper
+    #    if available; otherwise poll inline.
+    local _wait_for_pr_helper="${_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/scripts/wait-for-pr.sh"
+    if [[ -x "$_wait_for_pr_helper" ]]; then
+        echo "INFO: waiting for PR1 #${_pr1_number} required checks to complete..."
+        if ! bash "$_wait_for_pr_helper" "$_pr1_number"; then
+            echo "ERROR: PR1 #${_pr1_number} reached terminal failure state — refusing to advance to PR2" >&2
+            return 1
+        fi
+    else
+        # Inline polling fallback (60s intervals, 30 min cap).
+        local _poll_n=0
+        while (( _poll_n < 30 )); do
+            local _state
+            _state=$(gh pr view "$_pr1_number" --json state --jq '.state' 2>/dev/null || echo "")
+            [[ "$_state" == "MERGED" ]] && break
+            [[ "$_state" == "CLOSED" ]] && { echo "ERROR: PR1 #${_pr1_number} closed without merging" >&2; return 1; }
+            sleep 60
+            (( _poll_n++ )) || true
+        done
+    fi
+
+    # 5. Merge PR1 (if not already merged by wait-for-pr's auto-merge path).
+    local _pr1_state
+    _pr1_state=$(gh pr view "$_pr1_number" --json state --jq '.state' 2>/dev/null || echo "")
+    if [[ "$_pr1_state" != "MERGED" ]]; then
+        local _merge_out _merge_rc=0
+        _merge_out=$(gh pr merge "$_pr1_number" --merge 2>&1) || _merge_rc=$?
+        if [[ "$_merge_rc" -ne 0 ]]; then
+            echo "ERROR: PR1 #${_pr1_number} merge failed: $_merge_out" >&2
+            return 1
+        fi
+    fi
+    echo "INFO: PR1 #${_pr1_number} merged into ${_staged_branch}"
+
+    # 6. Re-point BRANCH to the staged branch so the subsequent _phase_merge
+    #    opens PR2 (staged-* → main). Persist to state file for --resume.
+    BRANCH="$_staged_branch"
+    if type _state_write_branch >/dev/null 2>&1; then
+        _state_write_branch "$BRANCH" 2>/dev/null || true
+    fi
+
+    # 7. Switch the local working copy to the staged branch so _phase_merge's
+    #    git fetch/merge operations operate on the right ref.
+    if ! git fetch origin "$_staged_branch:refs/remotes/origin/${_staged_branch}" --quiet 2>/dev/null; then
+        echo "WARNING: could not fetch ${_staged_branch} from origin; subsequent phases may fail" >&2
+    fi
+    git checkout -B "$_staged_branch" "origin/${_staged_branch}" --quiet 2>/dev/null || {
+        echo "WARNING: could not check out ${_staged_branch}; subsequent phases may fail" >&2
+    }
+
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "staged_intermediate" 2>/dev/null || true
+    fi
+
+    return 0
+}
+
 _phase_merge() {
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "merge" 2>/dev/null || true
@@ -1669,6 +1868,34 @@ except Exception:
 " 2>/dev/null || echo "false")
 
             if [[ "$_has_failure" == "true" ]]; then
+                # PR-C hard gate: if check-staged-head failed, refuse to proceed
+                # with remediation OR admin merge. The check's failure means the
+                # PR head doesn't match staged-* — no automatic fix is possible.
+                # The caller (operator) must restructure the PR via the staged-*
+                # intermediate flow.
+                local _staged_head_failed
+                _staged_head_failed=$(echo "$_checks_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    if not isinstance(d, list):
+        print('false'); sys.exit(0)
+    for c in d:
+        name = (c.get('name') or '').lower()
+        bucket = (c.get('bucket') or '').lower()
+        if name == 'check-staged-head' and bucket in ('fail', 'cancel'):
+            print('true'); sys.exit(0)
+    print('false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo "false")
+                if [[ "$_staged_head_failed" == "true" ]]; then
+                    echo "ERROR: check-staged-head failed on PR ${_pr_url}" >&2
+                    echo "ERROR: PR head branch does not match required 'staged-*' pattern." >&2
+                    echo "ERROR: This is a hard gate (PR-C). No remediation or admin-bypass path is supported." >&2
+                    echo "ERROR: Re-run merge-to-main-pr.sh from the source worktree branch so the staged-* intermediate is created automatically." >&2
+                    exit 1
+                fi
                 echo "ERROR: required check failed for PR ${_pr_url}" >&2
                 # Record the failed run ID so _phase_remediate can download artifacts.
                 # Filter by branch AND status=failure: a concurrent in-progress run on
@@ -2581,7 +2808,11 @@ fi
 # branch/PR, hitting the duplicate-PR error.
 _PHASE_MERGE_RC=0
 if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
-    _phase_merge || _PHASE_MERGE_RC=$?
+    # PR-C: staged-* intermediate runs first; no-op for story-PR mode or
+    # already-staged-* BRANCH. Failure routes through the same CONFLICT_DATA
+    # emission path below as a _phase_merge failure (test_conflict_data_*).
+    _phase_staged_intermediate || _PHASE_MERGE_RC=$?
+    [[ "$_PHASE_MERGE_RC" -eq 0 ]] && _phase_merge || _PHASE_MERGE_RC=$?
 fi
 if [[ "$_PHASE_MERGE_RC" -ne 0 ]]; then
     if type _emit_conflict_data >/dev/null 2>&1; then
