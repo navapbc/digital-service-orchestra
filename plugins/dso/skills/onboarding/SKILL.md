@@ -769,12 +769,18 @@ Label semantics:
                                       Jira via inbound apply are NOT
                                       re-pushed (no echo loop). (bug a06c)
 
-"Outbound-mostly" expectation:
-  - A Jira issue without a dso-id:<uuid> label will be picked up by the
-    legacy inbound-create differ and materialize a NEW local ticket.
-    If you don't want any Jira issue to ever create a local ticket,
-    avoid creating issues directly in the Jira UI — let the reconciler
-    create them outbound from local instead.
+Bidirectional flow (both sides can originate):
+  - Local -> Jira: a local ticket created via `dso ticket create` is
+    pushed outbound on the next reconcile pass; the reconciler writes
+    `dso-id:<local_uuid>` on the new Jira issue to dedupe future passes.
+  - Jira -> local: a Jira issue created directly in the Jira UI (or
+    via Linear sync, automation, etc.) that lacks the dso-id marker is
+    picked up by the snapshot-diff differ and materialized locally as
+    `jira-dig-<NNNN>` with the `imported:reconciler-bootstrap` tag; the
+    reconciler then writes the dso-id marker back to Jira so subsequent
+    passes recognize the issue as bound.
+  - End-to-end latency is the cron cadence (~20 minutes) in either
+    direction.
 
 Verification: after setting the env vars, run
 `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-bridge-fsck.py` (read-only
