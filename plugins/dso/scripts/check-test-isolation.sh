@@ -28,10 +28,24 @@ set -uo pipefail
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-: "${REPO_ROOT:=$(cd "$SCRIPT_DIR/.." && pwd)}"
+# bug a530: host-portable REPO_ROOT resolution. This script is wired into host
+# pre-commit chains. Prior `$SCRIPT_DIR/..` resolved to the plugin cache root
+# when invoked on a host project, so the `git diff --cached` later in the
+# script ran inside the plugin cache directory — either erroring (no git repo)
+# or returning empty — giving operators a silent PASS on actual violations.
+# The PROJECT_ROOT env var override is preserved for callers who set it.
+REPO_ROOT="${PROJECT_ROOT:-${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}}"
+if [[ -z "$REPO_ROOT" ]]; then
+  echo "ERROR: cannot resolve REPO_ROOT (not in a git repo and PROJECT_ROOT unset)" >&2
+  exit 1
+fi
 
-# Default rules directory; can be overridden via RULES_DIR env var
-: "${RULES_DIR:=$REPO_ROOT/scripts/test-isolation-rules}"
+# Default rules directory: the rules are a plugin-shipped resource, NOT a host
+# file. Resolve against $CLAUDE_PLUGIN_ROOT (or _PLUGIN_ROOT) — the prior
+# `$REPO_ROOT/scripts/test-isolation-rules` masquerade-worked only because
+# REPO_ROOT used to resolve to the plugin tree (bug a530 sibling).
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${SCRIPT_DIR%/scripts}}"
+: "${RULES_DIR:=$_PLUGIN_ROOT/scripts/test-isolation-rules}"
 
 # ---- Help / missing args ----
 if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
