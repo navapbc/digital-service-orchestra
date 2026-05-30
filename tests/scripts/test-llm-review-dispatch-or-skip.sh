@@ -23,6 +23,16 @@
 
 set -uo pipefail
 
+# CI environment isolation: the dispatcher reads $GITHUB_BASE_REF to derive
+# its filter base (origin/$GITHUB_BASE_REF). On a pull_request CI event,
+# GitHub Actions sets this to the PR's base branch — which under the
+# two-tier promotion model can be a staged-<sha>-<ts> branch that doesn't
+# exist in the test fixture's tmp repo. Test fixtures construct their own
+# `origin/main` ref; clearing GITHUB_BASE_REF here forces the dispatcher
+# to fall back to that default. (This fix is also on PR-R2's branch but
+# PR 482 hasn't landed; mirrored here to unblock PR 484.)
+unset GITHUB_BASE_REF
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WRAPPER="$REPO_ROOT/plugins/dso/scripts/llm-review-dispatch-or-skip.sh"
