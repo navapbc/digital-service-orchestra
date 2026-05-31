@@ -139154,16 +139154,7 @@
         {
           "content": [
             {
-              "text": "## Origin",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "Placeholder epic converted from bug 0551-3244 (feature request, not defect).",
+              "text": "## Context",
               "type": "text"
             }
           ],
@@ -139175,16 +139166,7 @@
         {
           "content": [
             {
-              "text": "## Problem",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "Brainstorm and preplanning evaluate features at the capability level but do not surface operational coordination requirements \u2014 specifically, the pattern 'Script A creates/updates artifact X, but configuration file Y referencing X is not updated in the same atomic operation.' This gap produced a desync in epic 36a7-dbb5 (plugin release channels) where release.sh created tags + bumped plugin.json but did not update marketplace.json's source.ref in the same run.",
+              "text": "DSO planning skills (brainstorm, preplanning, implementation-plan) evaluate features at the capability level but never surface operational-coordination requirements: the pattern where one script writes an artifact X while a separate file Y that references X is left stale in the same change. This produced the release.sh + marketplace.json desync that broke a real plugin release. This epic teaches planning to detect artifact-reference couplings and require atomic co-update, surfaced as an acceptance criterion before implementation, seeded by a registry bootstrapped from the codebase.",
               "type": "text"
             }
           ],
@@ -139196,34 +139178,7 @@
         {
           "content": [
             {
-              "text": "## Analogous patterns",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Migration script adding a table without updating a schema registry",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Deployment script bumping a version without updating a manifest referencing it",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Installer adding a plugin entry without updating a required index file",
+              "text": "Terminology: \"AC\" = Acceptance Criterion (a human-readable task field). A \"writer\" is a file in a story's file-impact table with action create or modify whose output is consumed by a registered downstream reference. \"touches\" = a file appears in the story file-impact table with action create or modify.",
               "type": "text"
             }
           ],
@@ -139235,43 +139190,7 @@
         {
           "content": [
             {
-              "text": "## Proposed scope (not yet brainstormed)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Operational atomicity check pattern added to brainstorm scrutiny pipeline or preplanning AC generation",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Red-team reviewer (dso:red-team-reviewer) is a candidate insertion point",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- For any story touching a script that creates/modifies a versioned artifact, surface the question: 'Is there another file referencing this artifact that must be updated in the same operation?'",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- If yes, require explicit AC: '<file> is updated atomically in the same script run/commit as <artifact>.'",
+              "text": "## Success Criteria",
               "type": "text"
             }
           ],
@@ -139283,7 +139202,7 @@
         {
           "content": [
             {
-              "text": "## Status",
+              "text": "- SC1: A new Category 8 \"Operational Atomicity / Artifact-Reference Desync\" is added to the red-team-reviewer story_review taxonomy and the taxonomy_category output enum gains the value operational_atomicity. During story-map review, for a story that touches a registered writer, the reviewer emits a finding whose AC names the paired referencing file and requires atomic same-commit update. Registry-backed findings are authoritative; LLM-inferred findings carry confidence: advisory and are suppressible via SC8. The registry is injected into the reviewer via the orchestrator dispatch arguments at the path in registry.antipattern_path. A Category 8 finding suppresses a parallel Category 6 finding for the same pair; rename/remove cases defer to Category 7.",
               "type": "text"
             }
           ],
@@ -139292,7 +139211,571 @@
         {
           "content": [
             {
-              "text": "Placeholder \u2014 requires /dso:brainstorm session before implementation. Tagged scrutiny:pending.",
+              "text": "  Verify-intent: a preplanning run over a fixture story editing a registered writer emits a finding with taxonomy_category=operational_atomicity and an AC string naming the paired referencing file.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC2: ast-grep is reclassified from optional to required in the dependency phase of onboarding/SKILL.md and INSTALL.md; onboarding hard-exits non-zero with install remediation when ast-grep is absent, or when the only sg on PATH is the Linux shadow-utils setgid /usr/bin/sg. Detection uses an identity probe (parse sg --version; accept only if it identifies ast-grep at version >= 0.20), never a bare command -v sg. All DSO scripts invoke the long-form ast-grep binary.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify-intent: an onboarding run with ast-grep absent and a decoy setgid sg exits non-zero and the error output contains \"ast-grep\" plus a recommended install command.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC3: A new bootstrap migration script fans out sub-agents over chunked codebase slices, each running ast-grep to emit (file, normalized_path, role, line, snippet) tuples (map), joined by an equijoin on the realpath-normalized path (reduce). A pair is admitted only when all hold: exact realpath-normalized path, a recognized write idiom (shell > / >>, tee, sed -i, jq write-to-file, Python open(w)/Path.write_text, Node fs.writeFileSync, Ruby File.open(w)/File.write, Go os.WriteFile; vocabulary externally extensible via registry config), and writer and reference in different files. Ambiguous/inferred pairs are out of scope for the migration.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify-intent: bootstrap over a fixture repo emits output equal to a sorted newline-delimited \"writer_realpath<TAB>reference_realpath\" manifest exactly (no missing/extra); near-miss fixtures (same-file self-reference; cross-file read-only) are absent.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC4: implementation-plan/SKILL.md emits, for any task that adds, modifies, or removes a dso-config.conf key, a separate child sub-task (testing_mode GREEN) titled \"Document <key> in CONFIGURATION-REFERENCE.md\" carrying a depends_on link to the parent task. This child sub-task supersedes the generic doc-router path for config keys (no duplicate documentation task).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify-intent: an implementation-plan run on a key-adding task yields that child sub-task whose depends_on points to the parent task id.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC5: The Category 8 consumption point reads the antipattern registry at registry.antipattern_path. Registry schema (this epic codes against this shape; clear-fairy may ship it, else a local fixture supplies it): a YAML file whose records are {file_class: glob, pattern: regex or ast-grep query, audit_task_template: string} plus a top-level schema_version. When present, a matching file_class injects a pre-emptive audit task from audit_task_template. When absent, clean no-op logging \"registry absent\"; when present-but-unparseable, clean no-op logging \"registry unreadable\" (distinct). Adaptation to clear-fairy's final schema is limited to updating registry.antipattern_path + schema_version; no migration code is owned here.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify-intent: registry absent -> completes, logs \"registry absent\"; corrupt fixture -> completes, logs \"registry unreadable\"; valid fixture -> injects the audit task.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC6: When a registered referencing file is not co-updatable in the same commit, classified by the union (git check-ignore | generated-path heuristic reusing is_generated_file() patterns | cross-repo URL in the reference | branch-protected via gh api, where a 404 is treated as not-protected and the branch-protection result is cached per-branch), the gate emits a deferred-coordination note recorded as a story consideration that preplanning/sprint consume by creating a follow-up coordination task, instead of an unachievable atomic-update AC. The note format contract is named in the preplanning/sprint acceptance criteria so the receiving behavior is testable.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify-intent: a generated-file fixture yields a deferred-coordination consideration and a follow-up task, not a hard atomic-update AC.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC7: A re-runnable registry-refresh command (sharing a normalize-and-sort library with the bootstrap; idempotent sort-dedup on write) detects writer/reference pairs added since the last run.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify-intent: a re-run on a fixture repo with one newly-added pair surfaces exactly that pair as an update candidate; a no-change re-run surfaces nothing.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC8: A config key review.atomicity_inference_enabled (default false; documented in CONFIGURATION-REFERENCE.md) gates only the Category 8 LLM-inference pass; the deterministic registry pass always runs. The SC4 story is sequenced before the SC8 story so SC8's key documentation follows the G11-M2 pattern.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify-intent: with the key false, a planning run emits zero confidence: advisory findings but still emits registry-backed findings.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Closure Checks",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- The plugin-shipped seed registry contains the pairs release.sh<->marketplace.json, *.conf<->CONFIGURATION-REFERENCE.md, and plugin.json<->marketplace source ref.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- onboarding docs list ast-grep as required (minimum version >= 0.20) with install instructions (cargo/npm/brew) and document the /usr/bin/sg shadow-utils collision.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- red-team-reviewer.md taxonomy_category enum includes the value operational_atomicity.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- review.atomicity_inference_enabled and registry.antipattern_path are documented in CONFIGURATION-REFERENCE.md.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- The shared normalize-and-sort registry library file exists and is sourced by both the bootstrap and refresh scripts.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Dependencies",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- clear-fairy / 7575-5a90 (depends_on) for the antipattern registry artifact consumed by SC5 only. All other SCs have no external dependency. The 85cb idempotent-task-semantics relationship was reviewed and overridden (our state-check ACs hold regardless of how idempotency is later formalized).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Approach",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Hybrid detection: a plugin-shipped seed registry of artifact-reference pairs (YAML) plus a project-local overlay, read deterministically by a new Category 8 pass in the red-team-reviewer at preplanning time, supplemented by an LLM inference pass for novel couplings (advisory, suppressible). Bootstrap migration uses ast-grep as a one-engine polyglot extractor (per-file tuple emit) plus an external equijoin on the realpath-normalized path (ast-grep matches within a file only). ast-grep is upgraded to a required onboarding dependency with shadow-utils /usr/bin/sg disambiguation. This converged with prior art: deterministic registry/declaration over inference for anything that gates (changesets fixed/linked, release-please extra-files, syncpack), one tree-sitter engine over per-language plugins, and inference confined to advisory triage. clear-fairy delivers the antipattern registry (G6-M2); this epic owns its consumption (G6-M3), the config-key/doc pairing (G11-M2), and the core atomicity check.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Scenario Analysis",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- setgid /usr/bin/sg shadows ast-grep so a bare guard runs the wrong binary (critical) - mitigated by SC2 identity probe + invoking ast-grep.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Equijoin path normalization across sub-agents produces false/missed pairs (high) - mitigated by SC3 realpath normalization.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Category 8 LLM-inference fires non-deterministically across runs (high) - mitigated by deterministic registry authority + SC8 toggle + advisory confidence.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Bootstrap sub-agents truncate tuple lists at context limit with no error (high) - operational risk for preplanning.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- G6-M3 no-op when registry absent is indistinguishable from unreadable (medium) - mitigated by SC5 distinct diagnostics.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Seed + overlay have no merge protocol; stale overlay shadows updated seed (high) - registry-lifecycle risk for preplanning.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Onboarding block does not propagate to CI; CI silently skips the gate (high) - mitigated by a CI ast-grep precondition before planning jobs.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Bootstrap is one-time; registry goes stale (high) - mitigated by SC7 refresh.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Write-idiom set not configurable; project idioms produce no pairs (high) - mitigated by SC3 extensible vocabulary.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- No knob to disable Category 8 inference (medium) - mitigated by SC8.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Equijoin assumes path stability; symlinks/aliases produce phantom/missed pairs (high) - mitigated by SC3 realpath resolution.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Atomic-co-update AC is unachievable for generated/cross-repo/branch-protected files (high) - mitigated by SC6 deferred-coordination note.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Preplanning gate assumes stories name artifacts; high-abstraction stories miss the registry (high) - partially mitigated by Category 8 inference pass.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- G6-M3 depends_on clear-fairy assumes ordered execution; parallel dispatch can race / read a partial registry (medium) - mitigated by SC5 degradation.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Cross-Epic Interactions",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- CONFIGURATION-REFERENCE.md (with many config-adding epics, e.g. 88d2-6756, dso-0wi2, 230a-344a, 371f-cfc3, 7952-9785): SC4 edits implementation-plan/SKILL.md only; CONFIGURATION-REFERENCE.md itself is edited at story-run time, so merge risk is at story-run time, not epic-merge time. Coordinate key namespacing.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Onboarding ast-grep enforcement (with 70d5 Java stack, d97a /dso:doctor, ed62 cross-runner, c206 Strata SDK, w21-bsnz): single ast-grep required-dependency check with setgid disambiguation; /dso:doctor is a future consumer of the same check, not modified here; coordinate hard-exit semantics with Java onboarding sharing onboarding/SKILL.md.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- red-team-reviewer Category 8 / planning AC injection (with 857d-a35a security declarations, 853a-c719 observability, 94ed-f55c intent allocation, af26-dd5a impl-plan enforcement): Category 8 coexists as an independent taxonomy layer.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- red-team-reviewer agent extraction (dso-8l5h): sequence agent extraction before Category 8 edits to avoid dispatch-site churn.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Antipattern-registry schema (99f1-153c fix-bug recurrence scan, clear-fairy/7575-5a90): SC5 consumes a read-only registry; no schema ownership here.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Prompt Alignment Findings",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Matched signal: agent definitions / skill-file modifications (red-team-reviewer.md, onboarding, implementation-plan).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Behavioral review (bot-psychologist): define the registry path/schema and absent-behavior (addressed by SC5); add operational_atomicity to the taxonomy_category enum (Closure Check); gate the LLM-inference half behind a structural test and mark it confidence: advisory (SC1/SC8); add explicit dedup rules so Category 8 does not double-emit against Category 6 (Consumer Impact) or Category 7 (Residual References); define writer/touches (glossary); for onboarding use the version-line identity probe, not bare command -v sg (SC2). G11-M2 should cover add/modify/remove and emit a separate child sub-task, not an AC bullet (SC4).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Recommendations carried into implementation-plan: define the full Category 8 finding schema (taxonomy_category, AC string, confidence) once and reference it from SC1 and SC8.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Planning Intelligence Log",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Gap analysis (Step 1): all user-named artifacts covered; Parts executed: Part A artifact check, Part B technical self-review, Part C shared artifact impact (behavioral-prohibition mode; 3 descoped consumers flagged).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Web research (Step 2.6): triggered. Bright-line conditions that fired: Unfamiliar dependency (ast-grep required), Migration (bootstrap migration), Novel architectural pattern (map/reduce cross-file join). Prior-art convergence synthesis recorded.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Scenario analysis (Step 2.75): triggered. Scenarios surviving blue team filter: 14.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Practitioner-requested additional cycles: none via gate; fidelity ran 3 revision cycles (structural re-review after SC count 5->8).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Follow-on scrutiny (Step 0): not triggered.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Feasibility resolution (Step 2.5): triggered - feasibility reviewer ran (integration signals: ast-grep); no FEASIBILITY_GAP (no score < 3).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- LLM-instruction signal (Step 5): triggered - keyword: agent definitions; bot-psychologist dispatched.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Scale context (Step 0): not applicable (no volume decision; planning-time static check).",
               "type": "text"
             }
           ],
@@ -139314,9 +139797,9 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:d63f-2c74",
-      "dso-id:jira-dig-4634",
-      "scrutiny:pending"
+      "dso-id:jira-dig-4634"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
