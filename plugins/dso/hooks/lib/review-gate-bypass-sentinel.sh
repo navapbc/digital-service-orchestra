@@ -48,7 +48,31 @@ hook_review_bypass_sentinel() {
     local COMMAND
     COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
     if [[ -z "$COMMAND" ]]; then
-        return 0
+        # Do NOT fail open here. An unparsed command would skip every bypass
+        # check below — exactly how a bypass could slip through unverified.
+        # The pure-bash parser has known gaps (unbalanced braces in the command
+        # value throw off _deps_extract_object_field's brace counting; exotic
+        # escaping), so first recover with a robust json.load(stdin) pass. This
+        # only runs on the rare empty-extraction path, so the common hot path
+        # pays nothing extra (normally-parseable commands never reach here).
+        # Narrow except to JSON-decode errors only — an I/O error (e.g. stdin
+        # read failure) must propagate so the `|| COMMAND=""` below fails closed
+        # rather than being silently swallowed as "no command".
+        COMMAND=$(printf '%s' "$INPUT" | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin).get("tool_input",{}).get("command",""))
+except (json.JSONDecodeError, ValueError):
+    pass' 2>/dev/null) || COMMAND=""
+        if [[ -z "$COMMAND" ]]; then
+            # Genuinely unparsable: Claude Code always sends a non-empty command
+            # for a Bash call, so empty-after-json.loads means malformed or
+            # unverifiable input. Fail closed rather than wave a potential
+            # bypass through unchecked. (Sentinel already no-ops under
+            # dso.workflow=ci-pr via the gate check above, so this only affects
+            # local-enforcement mode.)
+            echo "BLOCKED [bypass-sentinel]: could not parse a Bash command from hook input; refusing an unverifiable command. Use /dso:commit for commits." >&2
+            trap - ERR; return 2
+        fi
     fi
 
     # WIP exemption: if command contains WIP as a standalone word (case-insensitive), allow.

@@ -73,6 +73,19 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/hooks/.*\.sh$
 
+      - id: hook-integrity-check
+        name: Enforcement Hook Integrity Check (10s timeout)
+        # Direct commit-time invocation of the integrity check (off the
+        # per-tool-call hot path). Asserts the load-bearing enforcement hooks
+        # are present + executable + bash -n clean whenever a hooks/ file
+        # changes, so a silent fail-open degradation can't be committed. Mirrors
+        # the CI coverage provided by tests/scripts/test-check-hook-integrity.sh.
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh hook-integrity-check 10 "plugins/dso/scripts/check-hook-integrity.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/hooks/.*\.sh$
+
       - id: rule-anchors-check
         name: Rule Anchors Check (5s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh rule-anchors-check 5 "plugins/dso/scripts/check-rule-anchors.sh"
