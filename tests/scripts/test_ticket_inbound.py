@@ -263,6 +263,41 @@ def test_deleted_source_excluded(inbound, tmp_path: Path) -> None:
 
 @pytest.mark.unit
 @pytest.mark.scripts
+def test_archived_source_excluded(inbound, tmp_path: Path) -> None:
+    """A blocks link from an archived ticket is not surfaced as a live inbound link.
+
+    This exercises the ``state.get("archived")`` exclusion branch specifically —
+    distinct from the ``status in {"deleted"}`` branch. An ARCHIVED event sets
+    status to ``"archived"`` (not ``"deleted"``), so exclusion here can only come
+    from the archived-flag check, not from ``_INACTIVE_SOURCE_STATUSES``.
+    """
+    tracker = tmp_path / "tracker"
+    tracker.mkdir()
+    _write_ticket(tracker, ID_A)
+    _write_ticket(tracker, ID_B)
+    _write_link(tracker, ID_A, ID_B, "blocks")
+    # ARCHIVED event on the source — process_archived sets archived=True and
+    # status="archived" (data is unread by the processor).
+    archived_event = {
+        "event_type": "ARCHIVED",
+        "uuid": "archived-A",
+        "timestamp": 1800,
+        "author": "Test User",
+        "env_id": "00000000-0000-4000-8000-000000000001",
+        "data": {},
+    }
+    with open(tracker / ID_A / "1800-archived-A-ARCHIVED.json", "w") as f:
+        json.dump(archived_event, f)
+
+    result = inbound(ID_B, str(tracker))
+
+    assert all(e["from_id"] != ID_A for e in result["inbound_links"]), (
+        f"Archived source {ID_A} must not appear as an inbound link, got {result!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
 def test_prose_mention_not_reported(inbound, tmp_path: Path) -> None:
     """A ticket that only mentions the ID in a comment (no structured link) is dropped."""
     tracker = tmp_path / "tracker"

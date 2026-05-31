@@ -123,6 +123,7 @@ test_isolated_no_inbound() {
     out=$(TICKETS_TRACKER_DIR="$tracker" bash "$SHOW_SCRIPT" "$ID_A" 2>/dev/null)
 
     assert_contains "isolated ticket still emits inbound_links key" '"inbound_links"' "$out"
+    assert_contains "isolated ticket still emits children key" '"children"' "$out"
     assert_not_contains "isolated A does not list B as inbound" "$ID_B" "$out"
 }
 
