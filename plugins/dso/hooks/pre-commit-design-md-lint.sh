@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # hook-boundary: enforcement
+# DSO-GATE-TIER: B
+# Tier B (developer-experience): this design-system lint blocks on actual
+# DESIGN.md violations but FAILS OPEN on infrastructure failure (timeout — see
+# LOGIC step 1 below), so per the gate-tier doctrine (keyed on infra-failure
+# behavior) it is Tier B, not A. The enforcement-boundary-annotation vs.
+# fail-open-on-timeout tension is left for the owner — bug 7757-1428-7fb0-4f5d.
 # hooks/pre-commit-design-md-lint.sh
 # git pre-commit hook: thin wrapper that delegates to design-md-lint.sh.
 #
