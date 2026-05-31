@@ -13,17 +13,19 @@ _jira_curl() {
     local http_status body tmpfile
     tmpfile=$(mktemp "${TMPDIR:-/tmp}/jira-api.XXXXXX")
     # Write body to tmpfile; print status on last line via -w
-    if ! body=$(curl -s --fail-with-body -w "\n%{http_code}" -u "${_jira_auth}" "$@" 2>/tmp/jira-api-err.XXXXXX); then
+    local errfile
+    errfile=$(mktemp "${TMPDIR:-/tmp}/jira-api-err.XXXXXX")
+    if ! body=$(curl -s --fail-with-body -w "\n%{http_code}" -u "${_jira_auth}" "$@" 2>"$errfile"); then
         # --fail-with-body causes non-zero exit on 4xx/5xx; body still captured
         http_status=$(tail -n1 <<< "$body" 2>/dev/null || echo "???")
         body=$(head -n-1 <<< "$body" 2>/dev/null || echo "")
         echo "JIRA API error (HTTP ${http_status}): ${body}" >&2
-        rm -f "$tmpfile"
+        rm -f "$tmpfile" "$errfile"
         return 1
     fi
     http_status=$(tail -n1 <<< "$body")
     body=$(head -n-1 <<< "$body")
-    rm -f "$tmpfile"
+    rm -f "$tmpfile" "$errfile"
     printf '%s' "$body"
 }
 
