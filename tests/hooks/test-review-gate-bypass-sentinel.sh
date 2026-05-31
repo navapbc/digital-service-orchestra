@@ -396,4 +396,42 @@ assert_eq "test_sentinel_blocks_noverify_under_local_strategy" "2" "$EXIT_CODE"
 rm -rf "$_LOCAL_TMPDIR"
 
 
+# ============================================================
+# Item 1: fail-closed on unparsable command (was allow-on-empty)
+# ============================================================
+# Under local enforcement a Bash call whose command cannot be parsed must NOT be
+# waved through unchecked — that would skip every bypass pattern. The sentinel
+# recovers via json.loads when the pure-bash parser returns empty, and blocks
+# only when the command is genuinely unparsable/absent.
+
+# test_sentinel_blocks_bash_call_with_no_command (fail-closed)
+INPUT='{"tool_name":"Bash","tool_input":{}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_bash_call_with_no_command" "2" "$EXIT_CODE"
+
+# test_sentinel_blocks_bash_call_with_empty_command (fail-closed)
+INPUT='{"tool_name":"Bash","tool_input":{"command":""}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_blocks_bash_call_with_empty_command" "2" "$EXIT_CODE"
+
+# test_sentinel_recovers_and_blocks_bypass_when_bash_parser_fails
+# The leading "x":"}" value breaks the pure-bash object parser's brace counting
+# so parse_json_field returns empty; json.loads must recover the real command
+# and the --no-verify bypass must still be BLOCKED (closes the unparsed-skip hole).
+INPUT='{"tool_name":"Bash","tool_input":{"x":"}","command":"git commit --no-verify -m x"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_recovers_and_blocks_bypass_when_bash_parser_fails" "2" "$EXIT_CODE"
+
+# test_sentinel_recovers_and_allows_benign_when_bash_parser_fails
+# Same parser-defeating shape, but a benign command — recovery must NOT cause a
+# false denial (no bypass pattern -> allow).
+INPUT='{"tool_name":"Bash","tool_input":{"x":"}","command":"echo hello"}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_recovers_and_allows_benign_when_bash_parser_fails" "0" "$EXIT_CODE"
+
+# test_sentinel_allows_non_bash_with_no_command (regression: only Bash fail-closes)
+INPUT='{"tool_name":"Read","tool_input":{}}'
+EXIT_CODE=$(call_sentinel "$INPUT")
+assert_eq "test_sentinel_allows_non_bash_with_no_command" "0" "$EXIT_CODE"
+
 print_summary
