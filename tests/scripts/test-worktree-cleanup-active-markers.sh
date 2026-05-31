@@ -59,10 +59,24 @@ setup_repo() {
 }
 
 # Add a MERGED worktree on a new branch (so only the active-marker can save it).
+#
+# Critically, the worktree is configured to IGNORE the .sprint-active/.debug-active
+# markers (they are gitignored in the real repo). Without this, the markers would
+# show as untracked files and the worktree would be kept as "uncommitted changes"
+# — passing the test for the WRONG reason and masking a missing active-session
+# guard. By excluding the markers, a marked worktree is effectively clean, so ONLY
+# the is_claude_active() guard can keep it from removal — which is what we test.
 add_merged_worktree() {
     local repo="$1" parent="$2" name="$3"
     git -C "$repo" branch "$name" main &>/dev/null
     git -C "$repo" worktree add "$parent/$name" "$name" &>/dev/null
+    # Ignore the session markers in THIS worktree (mirrors the real repo's
+    # .gitignore) so they don't register as untracked dirt.
+    local _excl
+    _excl=$(git -C "$parent/$name" rev-parse --git-path info/exclude 2>/dev/null)
+    if [ -n "$_excl" ]; then
+        printf '.sprint-active\n.debug-active\n' >> "$_excl"
+    fi
     git -C "$parent/$name" commit --allow-empty -m "work on $name" &>/dev/null
     git -C "$repo" merge --no-ff "$name" -m "Merge $name (merge $name)" &>/dev/null
     git -C "$repo" push origin main &>/dev/null 2>&1 || true

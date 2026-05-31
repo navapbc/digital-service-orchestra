@@ -449,6 +449,20 @@ has_unpushed_commits() {
 is_claude_active() {
     local wt_path="$1"
 
+    # Check 0: In-progress sprint/debug markers (bug e9cb Axis 5).
+    # `.sprint-active` (/dso:sprint) and `.debug-active` (/dso:debug-everything)
+    # are the authoritative "work in progress — do not reclaim" signals, written
+    # for the lifetime of the run and removed at clean session close. A worktree
+    # carrying either marker belongs to a concurrently-active session and must
+    # NEVER be removed — even if merged, clean, and old. These markers are
+    # gitignored, so they are invisible to the is_effectively_clean check; without
+    # this guard an active sprint/debug worktree that is merged+clean would be
+    # reclaimed out from under the running session. A leftover marker from an
+    # abandoned session is the SAFE failure mode (keep, not delete).
+    if [[ -f "$wt_path/.sprint-active" || -f "$wt_path/.debug-active" ]]; then
+        return 0
+    fi
+
     # Check 1: Look for .claude-session.lock with a live PID in the worktree
     local lock_file="$wt_path/.claude-session.lock"
     if [[ -f "$lock_file" ]]; then
@@ -628,6 +642,17 @@ if [[ -n "$TARGET_WORKTREE" ]]; then
     done < <(git -C "$MAIN_WORKTREE" worktree list --porcelain 2>/dev/null || true)
     if [[ "$_tw_registered" != "true" ]]; then
         echo "Error: $_tw is not a registered git worktree." >&2
+        exit 1
+    fi
+
+    # Active-session guard (bug e9cb Axis 5): never reclaim a worktree that
+    # belongs to a concurrently-active sprint/debug/claude session, even via the
+    # targeted path. is_claude_active() honors .sprint-active/.debug-active
+    # markers (gitignored, so invisible to the effectively-clean check below), a
+    # live .claude-session.lock PID, and claude processes cwd'd inside. Mirrors
+    # the --all sweep's WT_ACTIVE gate so both removal paths are equally safe.
+    if is_claude_active "$_tw"; then
+        echo "Refusing to remove '$_tw' — a session is active there (.sprint-active/.debug-active marker or live claude process)." >&2
         exit 1
     fi
 
