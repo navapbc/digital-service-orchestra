@@ -12,6 +12,14 @@ additional file context during a CI code review. The dispatcher parses these req
 blocks from assistant-role messages only and executes them before issuing a follow-up
 completion call.
 
+The agent-facing documentation of this protocol (the explanatory text and JSON examples
+the LLM reviewer reads as part of its prompt) lives in
+`docs/workflows/prompts/reviewer-base.md` inside the `<!-- DISPATCH:ci -->` block. That
+block is included in the CI-variant reviewer prompts at `agents/ci/` and
+stripped from the orchestrator variants at `agents/`. The orchestrator path
+does not use this protocol — it has access to the Read/Grep/Glob tools directly. See
+`docs/contracts/dispatch-split-architecture.md` for the dual-variant build (bug 4a30).
+
 ## Supported Actions
 
 ### `read_files`
