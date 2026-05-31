@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-FIXTURE_DIR="${FIXTURE_DIR:-$(mktemp -d /tmp/sprint-trailer-fixture.XXXXXX)}"
+FIXTURE_DIR="${FIXTURE_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/sprint-trailer-fixture.XXXXXX")}"
 
 git init "$FIXTURE_DIR" --initial-branch=main --quiet 2>/dev/null \
     || git init "$FIXTURE_DIR" --quiet 2>/dev/null
