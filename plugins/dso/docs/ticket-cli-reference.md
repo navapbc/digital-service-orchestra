@@ -62,11 +62,21 @@ A `jira-*` ticket is only out-of-scope when the bug's normal triage criteria (e.
   "created_at": 1711123200,
   "env_id": "550e8400-e29b-41d4-a716-446655440000",
   "comments": [],
-  "deps": []
+  "deps": [],
+  "inbound_links": [],
+  "children": []
 }
 ```
 
-**`.claude/scripts/dso ticket list` default output** — JSON array of the same objects.
+`inbound_links` and `children` are derived read-only at show time (no events are
+written): `inbound_links` lists other tickets whose net-active link targets this
+ticket — `[{"from_id": "<id>", "relation": "blocks|depends_on|relates_to|duplicates|supersedes"}]`
+— and `children` lists IDs whose `parent_id` is this ticket. The reciprocal half
+of a `relates_to` already on this ticket's own `deps` is de-duplicated, and
+`deleted`/archived source tickets are excluded. `ticket list` does not include
+these two fields (they are a `ticket show` augmentation only).
+
+**`.claude/scripts/dso ticket list` default output** — JSON array of the same objects (without the `inbound_links`/`children` fields).
 
 ### `--format=llm` output mode
 
@@ -96,9 +106,12 @@ Key differences from default output:
 | `comments` | `cm` |
 | `deps` | `dp` |
 | `conflicts` | `cf` |
+| `inbound_links` | `ibl` |
+| `children` | `ch` |
 
 **Comment sub-keys:** `body` → `b`, `author` → `au` (timestamp omitted)
 **Dep sub-keys:** `target_id` → `tid`, `relation` → `r` (link_uuid omitted)
+**Inbound-link sub-keys:** `from_id` → `f`, `relation` → `r`
 
 **Example — `.claude/scripts/dso ticket show --format=llm abc1-def2`:**
 
@@ -251,7 +264,7 @@ Show compiled state for a ticket.
 | `ticket_id` | Yes | The ticket ID to display |
 | `--format=llm` | No | Minified single-line JSON with shortened keys (see Output Formats section) |
 
-**Output:** Compiled ticket state as JSON to stdout. Unresolved bridge alerts produce a warning on stderr.
+**Output:** Compiled ticket state as JSON to stdout, augmented with the ticket's inbound relationships — `inbound_links` (other tickets whose net-active link targets this ticket) and `children` (tickets whose `parent_id` is this ticket). These are derived read-only at show time by scanning only the tickets that reference this ticket's resolved canonical ID; the supplied `ticket_id` may be any alias/short form and is resolved first. Unresolved bridge alerts produce a warning on stderr.
 
 **Exit codes:**
 

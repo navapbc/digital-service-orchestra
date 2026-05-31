@@ -22,6 +22,8 @@
 #                   comments    → cm
 #                   deps        → dp
 #                   conflicts   → cf
+#                   inbound_links → ibl (sub-keys: from_id→f, relation→r)
+#                   children    → ch
 #   --include-scratch  Merge per-ticket scratch store entries into the output
 #                      as a top-level "scratch" object:
 #                        { "<key>": { "ts": "<iso8601>", "value": "<string>" }, ... }
