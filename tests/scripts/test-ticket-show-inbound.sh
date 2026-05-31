@@ -126,9 +126,34 @@ test_isolated_no_inbound() {
     assert_not_contains "isolated A does not list B as inbound" "$ID_B" "$out"
 }
 
+# ── Test 5: inbound search keys off the canonical ID, not the alias supplied ──
+# The stated goal is to scan for tickets referencing the *authoritative* ID,
+# "not necessarily the ticket ID provided ... which may be an alias". Links are
+# stored as the resolved canonical ID, so when `ticket show` is invoked with a
+# non-canonical form (here an 8-hex short ID), the inbound scan must still
+# resolve to the canonical ID first and find the link keyed on it. Without
+# canonical resolution the substring needle would be the short form and miss
+# every stored link (false-negative the whole feature).
+test_inbound_resolved_via_short_id() {
+    local tracker; tracker=$(_make_tracker)
+    _write_create "$tracker" "$ID_A" ""
+    _write_create "$tracker" "$ID_B" ""
+    _write_link "$tracker" "$ID_A" "$ID_B" "blocks"
+
+    # Show B by its 8-hex short ID (first group pair) rather than the full ID.
+    local short_id="${ID_B:0:9}"  # "bbbb-bbbb"
+    local out
+    out=$(TICKETS_TRACKER_DIR="$tracker" bash "$SHOW_SCRIPT" "$short_id" 2>/dev/null)
+
+    assert_contains "short-id show resolves to canonical ticket_id" '"'"$ID_B"'"' "$out"
+    assert_contains "short-id show still surfaces inbound source A" "$ID_A" "$out"
+    assert_contains "short-id show carries relation blocks" '"blocks"' "$out"
+}
+
 test_inbound_blocks_default
 test_children_default
 test_inbound_llm_keys
 test_isolated_no_inbound
+test_inbound_resolved_via_short_id
 
 print_summary
