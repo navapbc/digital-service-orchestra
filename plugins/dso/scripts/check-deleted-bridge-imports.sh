@@ -74,7 +74,11 @@ scan_zone() {
     # between a Python statement and ordinary prose.
     local pat_py="($alt)\\.py"
     local pat_import="(^|[^A-Za-z0-9_.])import[[:space:]]+(\\.+)?($alt)([[:space:]]|\$|,|\\.)"
-    local pat_from="(^|[^A-Za-z0-9_.])from[[:space:]]+(\\.+)?($alt)[A-Za-z0-9_.]*[[:space:]]+import([[:space:]]|\$)"
+    # Trailing suffix must be `.<dotted_path>` (zero or more dotted segments),
+    # not arbitrary identifier characters. Without the leading dot, the previous
+    # pattern `[A-Za-z0-9_.]*` permitted suffixes like `bootstrapper` (matching
+    # `from bootstrapper import ...`), which is a different module entirely.
+    local pat_from="(^|[^A-Za-z0-9_.])from[[:space:]]+(\\.+)?($alt)(\\.[A-Za-z0-9_]+)*[[:space:]]+import([[:space:]]|\$)"
     local pattern="$pat_py|$pat_import|$pat_from"
     if command -v rg >/dev/null 2>&1; then
         if [[ -e "$zone_path" ]]; then
