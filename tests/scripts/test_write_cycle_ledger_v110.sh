@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Isolate artifacts dir
-TEST_DIR=$(mktemp -d /tmp/test-write-cycle-ledger.XXXXXX)
+TEST_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-write-cycle-ledger.XXXXXX")
 export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR"
 LEDGER_PATH="$TEST_DIR/cycle-ledger.json"
 
@@ -109,7 +109,7 @@ assert got_findings == [['src/foo.py','10-20','correctness']], f'findings mismat
 fi
 
 # Test 5: default --commit-sha to git HEAD when not specified
-TEST_DIR2=$(mktemp -d /tmp/test-write-cycle-ledger-default.XXXXXX)
+TEST_DIR2=$(mktemp -d "${TMPDIR:-/tmp}/test-write-cycle-ledger-default.XXXXXX")
 WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR2" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
     --epic-id test-epic-default \
     --cycle-num 1 \
@@ -128,7 +128,7 @@ fi
 rm -rf "$TEST_DIR2"
 
 # Test 6: --findings defaults to []
-TEST_DIR3=$(mktemp -d /tmp/test-write-cycle-ledger-empty.XXXXXX)
+TEST_DIR3=$(mktemp -d "${TMPDIR:-/tmp}/test-write-cycle-ledger-empty.XXXXXX")
 WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR3" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
     --epic-id test-empty \
     --cycle-num 1 \
@@ -148,7 +148,7 @@ rm -rf "$TEST_DIR3"
 
 # Test 7: --pr-number CLI flag writes pr_number=N into the v1.2.0 entry
 # (bug 9788 v3 — regression guard for the --pr-number end-to-end path).
-TEST_DIR4=$(mktemp -d /tmp/test-write-cycle-ledger-prnumflag.XXXXXX)
+TEST_DIR4=$(mktemp -d "${TMPDIR:-/tmp}/test-write-cycle-ledger-prnumflag.XXXXXX")
 unset DSO_CI_REVIEW_PR
 WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR4" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
     --epic-id test-pr-num \
@@ -170,7 +170,7 @@ fi
 rm -rf "$TEST_DIR4"
 
 # Test 8: --pr-number wins over DSO_CI_REVIEW_PR env var (precedence rule).
-TEST_DIR5=$(mktemp -d /tmp/test-write-cycle-ledger-prflag-wins.XXXXXX)
+TEST_DIR5=$(mktemp -d "${TMPDIR:-/tmp}/test-write-cycle-ledger-prflag-wins.XXXXXX")
 DSO_CI_REVIEW_PR=99 WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR5" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
     --epic-id test-pr-precedence \
     --cycle-num 1 \
@@ -192,7 +192,7 @@ rm -rf "$TEST_DIR5"
 
 # Test 9: pr_number field omitted when neither --pr-number nor env provided
 # (sentinel rule: writers MUST NOT emit pr_number=0).
-TEST_DIR6=$(mktemp -d /tmp/test-write-cycle-ledger-no-prnum.XXXXXX)
+TEST_DIR6=$(mktemp -d "${TMPDIR:-/tmp}/test-write-cycle-ledger-no-prnum.XXXXXX")
 unset DSO_CI_REVIEW_PR
 WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR6" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
     --epic-id test-no-pr \
