@@ -62,14 +62,15 @@ You will receive ticket context (epic description, story acceptance criteria, ta
 
 ## Output Schema
 
-Your output MUST conform to the standard reviewer-findings.json schema: 2 required top-level keys (`findings`, `summary`); the legacy `scores` key is deprecated and should not be emitted. Each finding in the findings array must use ONLY the standard 4 fields:
+Your output MUST conform to the standard reviewer-findings.json schema: 2 required top-level keys (`findings`, `summary`); the legacy `scores` key is deprecated and should not be emitted. Each finding in the findings array must use ONLY these 5 allowlisted fields:
 
 - **severity**: critical, important, or minor (after any downgrade)
+- **category**: always "correctness"
 - **description**: prefix indicates disposition and includes triage rationale:
   - `[SUSTAIN] <original description>. Triage: <rationale>`
   - `[DOWNGRADE:critical->minor] <original description>. Triage: <rationale>`
   - `[DISMISS] <original description>. Triage: <rationale>`
 - **file**: primary affected file path (same as red team finding)
-- **category**: always "correctness"
+- **cited_lines**: required field — preserve the cited_lines from the original red team finding; do not omit or alter it
 
-Each finding must include `cited_lines` (required field; preserve the cited_lines from the original red team finding — do not omit or alter it). Use ONLY allowlisted fields: severity, category, description, file, cited_lines. Use the summary field to note overall triage statistics (e.g., "3 findings triaged: 1 sustained, 1 downgraded, 1 dismissed") and residual risk assessment.
+Use the summary field to note overall triage statistics (e.g., "3 findings triaged: 1 sustained, 1 downgraded, 1 dismissed") and residual risk assessment.

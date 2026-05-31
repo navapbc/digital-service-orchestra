@@ -170,7 +170,9 @@ These items MUST appear in your summary field text (e.g., "security_overlay_warr
 ## Final Output Reminder
 
 Your JSON output MUST use these exact top-level key names:
+
 ```json
 { "findings": [...], "summary": "..." }
 ```
+
 Required top-level keys are `findings` and `summary`. The legacy `scores` key is deprecated — do not emit it. The validator tolerates `scores` with a deprecation warning but rejects any other top-level key name (e.g., "dimensions", "ratings").
