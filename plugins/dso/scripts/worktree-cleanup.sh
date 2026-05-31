@@ -56,6 +56,7 @@ FORCE_DIRTY=false
 INCLUDE_BRANCHES=true
 SELECT_ALL=false
 NON_INTERACTIVE=false
+TARGET_WORKTREE=""   # --worktree <path>: targeted single-worktree removal (bug e9cb Axis 4)
 BACKUP_DIR="$HOME/.worktree-backups"
 CLEANUP_LOG="${CLEANUP_LOG:-$HOME/.claude-safe-cleanup.log}"
 
@@ -157,6 +158,12 @@ Options:
                          (creates a patch backup first at ~/.worktree-backups/)
       --no-branches      Don't delete associated local and remote git branches
                          (by default, branches are deleted when worktrees are removed)
+      --worktree PATH    Targeted mode: remove ONLY this one worktree, and only
+                         when it is merged to main AND effectively clean (clean or
+                         only regenerable .claude/scratch dirt). Used by
+                         /dso:end-session to reclaim a finished session worktree,
+                         including in non-interactive/agent sessions. Honors
+                         --dry-run; requires --force to skip the confirm prompt.
   -h, --help             Show this help message
 
 Environment variables:
@@ -185,6 +192,8 @@ while [[ $# -gt 0 ]]; do
         --no-branches)      INCLUDE_BRANCHES=false; shift ;;
         --include-branches) INCLUDE_BRANCHES=true; shift ;; # backward compat (now default)
         --non-interactive)  NON_INTERACTIVE=true; shift ;;
+        --worktree)         TARGET_WORKTREE="${2:-}"; shift 2 ;;
+        --worktree=*)       TARGET_WORKTREE="${1#--worktree=}"; shift ;;
         -h|--help)          usage ;;
         *)
             echo "Error: Unknown option '$1'"
@@ -326,6 +335,90 @@ has_stashes() {
     [[ "$stash_count" -gt 0 ]]
 }
 
+# ── Regenerable-content allowlist (bug e9cb, Axis 3) ──────────────────────────
+# Merged worktrees almost always carry regenerable session debris (e.g.
+# .claude/scratch/), which the strict is_clean check (any untracked file → dirty)
+# flags as uncommitted — so merged human worktrees were never removed and
+# accumulated unbounded. is_effectively_clean treats a worktree as clean when its
+# ONLY uncommitted/untracked content lies within this allowlist. The allowlist is
+# intentionally minimal and clearly-named; it is used ONLY in the MERGED-removal
+# decision (never for unmerged worktrees, never for the unpushed/age gates).
+# Override via worktree.regenerable_paths (list) in dso-config.conf.
+WORKTREE_REGENERABLE_PATHS=()
+while IFS= read -r _rpath; do
+    [[ -z "$_rpath" ]] && continue
+    WORKTREE_REGENERABLE_PATHS+=("$_rpath")
+done < <(bash "$PLUGIN_SCRIPTS/read-config.sh" --list worktree.regenerable_paths 2>/dev/null || true)  # shim-exempt: internal plugin script
+if [[ ${#WORKTREE_REGENERABLE_PATHS[@]} -eq 0 ]]; then
+    WORKTREE_REGENERABLE_PATHS=(".claude/scratch/")
+fi
+
+# Return 0 (clean) if the worktree has no uncommitted/untracked content OTHER than
+# paths under the regenerable allowlist; return 1 if any real change exists.
+# `git status --porcelain` emits "XY <path>" lines; we strip the 2-char status +
+# space and test each path against the allowlist prefixes. Renames ("orig -> new")
+# are conservatively treated as real (not allowlisted).
+is_effectively_clean() {
+    local wt_path="$1"
+    local porcelain
+    # --untracked-files=all expands untracked DIRECTORIES into their individual
+    # files. Without it, `git status --porcelain` collapses an entirely-untracked
+    # tree to a single dir entry (e.g. "?? .claude/"), which would never match a
+    # file-level allowlist prefix like ".claude/scratch/" and would be mis-flagged
+    # as real dirt. The expansion lets us match each file against the allowlist.
+    porcelain=$(git -C "$wt_path" status --porcelain --untracked-files=all 2>/dev/null || true)
+    [[ -z "$porcelain" ]] && return 0  # truly clean
+
+    local line entry allowed
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        # Strip the porcelain status field: first 2 columns + a space.
+        entry="${line:3}"
+        # Rename entries contain " -> "; treat as real content (not regenerable).
+        if [[ "$entry" == *" -> "* ]]; then
+            return 1
+        fi
+        allowed=false
+        for _ap in "${WORKTREE_REGENERABLE_PATHS[@]}"; do
+            if [[ "$entry" == "$_ap"* ]]; then
+                allowed=true
+                break
+            fi
+        done
+        if [[ "$allowed" != "true" ]]; then
+            return 1  # a real change outside the allowlist → not effectively clean
+        fi
+    done <<< "$porcelain"
+
+    return 0  # all changes are within the regenerable allowlist
+}
+
+# Return 0 if a plain directory contains ONLY regenerable-allowlist content (or is
+# empty); return 1 if it holds any real file/dir outside the allowlist. Used by the
+# Class A orphan-dir sweep (bug e9cb Axis 1) to decide whether an unregistered dir
+# is safe to remove. Pure filesystem walk — the dir is NOT a git worktree.
+_dir_only_regenerable() {
+    local dir="$1"
+    local entry rel allowed
+    # `find` every file (not dir) under $dir; if there are none, the dir is empty.
+    while IFS= read -r entry; do
+        [[ -z "$entry" ]] && continue
+        rel="${entry#"$dir"/}"
+        allowed=false
+        for _ap in "${WORKTREE_REGENERABLE_PATHS[@]}"; do
+            # Allow files under an allowlisted prefix (e.g. .claude/scratch/...).
+            if [[ "$rel" == "$_ap"* ]]; then
+                allowed=true
+                break
+            fi
+        done
+        if [[ "$allowed" != "true" ]]; then
+            return 1  # a real file outside the allowlist → not safe to remove
+        fi
+    done < <(find "$dir" -type f 2>/dev/null)
+    return 0  # empty, or only regenerable-allowlist files
+}
+
 # Check if a worktree has unpushed commits (commits not on remote)
 has_unpushed_commits() {
     local wt_path="$1"
@@ -355,6 +448,20 @@ has_unpushed_commits() {
 # Check if a Claude process is active in a worktree path
 is_claude_active() {
     local wt_path="$1"
+
+    # Check 0: In-progress sprint/debug markers (bug e9cb Axis 5).
+    # `.sprint-active` (/dso:sprint) and `.debug-active` (/dso:debug-everything)
+    # are the authoritative "work in progress — do not reclaim" signals, written
+    # for the lifetime of the run and removed at clean session close. A worktree
+    # carrying either marker belongs to a concurrently-active session and must
+    # NEVER be removed — even if merged, clean, and old. These markers are
+    # gitignored, so they are invisible to the is_effectively_clean check; without
+    # this guard an active sprint/debug worktree that is merged+clean would be
+    # reclaimed out from under the running session. A leftover marker from an
+    # abandoned session is the SAFE failure mode (keep, not delete).
+    if [[ -f "$wt_path/.sprint-active" || -f "$wt_path/.debug-active" ]]; then
+        return 0
+    fi
 
     # Check 1: Look for .claude-session.lock with a live PID in the worktree
     local lock_file="$wt_path/.claude-session.lock"
@@ -490,6 +597,108 @@ fi
 # Current directory (to avoid removing the worktree we're in)
 CURRENT_DIR="$(pwd -P)"
 
+# ── Targeted single-worktree removal (bug e9cb Axis 4) ───────────────────────
+#
+# `--worktree <path>` removes ONLY that worktree, and only when it is merged to
+# main AND effectively clean (truly clean, or only regenerable-allowlist dirt per
+# Axis 3). This is what `/dso:end-session` invokes after it verifies merged+clean
+# so the finished session worktree is actually reclaimed — including in
+# non-interactive / agent sessions where claude-safe's TTY-gated hook never fires.
+# Honors --dry-run (preview) and requires --force (or a y/N confirm) to delete.
+# Never removes an unmerged worktree, the current worktree, the main repo, or
+# .tickets-tracker. Self-contained: exits after handling the target.
+if [[ -n "$TARGET_WORKTREE" ]]; then
+    # Normalize to an absolute, symlink-resolved path for comparison.
+    if [[ -d "$TARGET_WORKTREE" ]]; then
+        _tw="$(cd "$TARGET_WORKTREE" 2>/dev/null && pwd -P)"
+    else
+        _tw="$TARGET_WORKTREE"
+    fi
+
+    if [[ -z "$_tw" || ! -d "$_tw" ]]; then
+        echo "Error: --worktree path does not exist: $TARGET_WORKTREE" >&2
+        exit 1
+    fi
+    if [[ "$_tw" == "$MAIN_WORKTREE" ]]; then
+        echo "Error: refusing to remove the main repo worktree." >&2
+        exit 1
+    fi
+    if [[ "$CURRENT_DIR" == "$_tw" || "$CURRENT_DIR" == "$_tw/"* ]]; then
+        echo "Error: refusing to remove the worktree the current session is in." >&2
+        exit 1
+    fi
+    case "$_tw" in
+        */.tickets-tracker)
+            echo "Error: refusing to remove the .tickets-tracker worktree." >&2
+            exit 1 ;;
+    esac
+
+    # Confirm it is actually a registered worktree.
+    _tw_registered=false
+    while IFS= read -r _line; do
+        case "$_line" in
+            worktree\ *) [[ "${_line#worktree }" == "$_tw" ]] && _tw_registered=true ;;
+        esac
+    done < <(git -C "$MAIN_WORKTREE" worktree list --porcelain 2>/dev/null || true)
+    if [[ "$_tw_registered" != "true" ]]; then
+        echo "Error: $_tw is not a registered git worktree." >&2
+        exit 1
+    fi
+
+    # Active-session guard (bug e9cb Axis 5): never reclaim a worktree that
+    # belongs to a concurrently-active sprint/debug/claude session, even via the
+    # targeted path. is_claude_active() honors .sprint-active/.debug-active
+    # markers (gitignored, so invisible to the effectively-clean check below), a
+    # live .claude-session.lock PID, and claude processes cwd'd inside. Mirrors
+    # the --all sweep's WT_ACTIVE gate so both removal paths are equally safe.
+    if is_claude_active "$_tw"; then
+        echo "Refusing to remove '$_tw' — a session is active there (.sprint-active/.debug-active marker or live claude process)." >&2
+        exit 1
+    fi
+
+    _tw_branch=$(git -C "$_tw" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
+    # Merge gate: must be merged to main (never remove unmerged work).
+    if [[ -z "$_tw_branch" || "$_tw_branch" == "HEAD" ]] \
+       || ! is_branch_merged "$MAIN_WORKTREE" "$_tw_branch" "$MAIN_BRANCH"; then
+        echo "Refusing to remove '$_tw' — branch '${_tw_branch:-detached}' is not merged to ${MAIN_BRANCH}." >&2
+        exit 1
+    fi
+
+    # Clean gate: truly clean, or only regenerable-allowlist dirt (Axis 3).
+    if ! is_effectively_clean "$_tw"; then
+        echo "Refusing to remove '$_tw' — it has uncommitted changes outside the regenerable allowlist." >&2
+        exit 1
+    fi
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${CYAN}[DRY RUN]${RESET} Would remove worktree '$_tw' (branch=${_tw_branch}, merged + effectively clean)"
+        log_action "DRY RUN: would remove targeted worktree '$_tw' (branch=${_tw_branch})"
+        exit 0
+    fi
+
+    if [[ "$FORCE" != "true" ]]; then
+        read -rp "Remove merged + clean worktree '$_tw'? [y/N] " _ans
+        case "$_ans" in [yY]|[yY][eE][sS]) ;; *) echo "Aborted."; exit 0 ;; esac
+    fi
+
+    git worktree unlock "$_tw" 2>/dev/null || true
+    if git -C "$MAIN_WORKTREE" worktree remove "$_tw" --force 2>/dev/null; then
+        echo -e "Removed worktree '$_tw' (branch=${_tw_branch})."
+        log_action "REMOVED targeted worktree '$_tw' (branch=${_tw_branch})"
+        git -C "$MAIN_WORKTREE" worktree prune 2>/dev/null || true
+        if [[ "$INCLUDE_BRANCHES" == "true" && "$_tw_branch" != "$MAIN_BRANCH" && "$_tw_branch" != "master" ]]; then
+            _delete_local_branch "$MAIN_WORKTREE" "$_tw_branch" && \
+                echo -e "Deleted local branch '${_tw_branch}'."
+        fi
+        exit 0
+    else
+        echo -e "${RED}Failed to remove worktree '$_tw'.${RESET}" >&2
+        log_action "FAILED to remove targeted worktree '$_tw'"
+        exit 1
+    fi
+fi
+
 # ── Gather worktree info ─────────────────────────────────────────────────────
 
 # Arrays to hold worktree data
@@ -498,6 +707,11 @@ declare -a WT_PATHS=()
 declare -a WT_BRANCHES=()
 declare -a WT_MERGED=()      # "yes" or "no"
 declare -a WT_CLEAN=()       # "yes" or "no"
+declare -a WT_EFF_CLEAN=()   # "yes" or "no" (clean OR only regenerable-allowlist dirt; bug e9cb Axis 3)
+# Scan roots for the Class A orphan-dir sweep (bug e9cb Axis 1): parent dirs of
+# every registered worktree, captured during the gather pass BEFORE any removal.
+# MUST be an associative array — keys are filesystem paths.
+declare -A _WT_PARENT_DIRS=()
 declare -a WT_ACTIVE=()      # "yes" or "no"
 declare -a WT_OLD_ENOUGH=()  # "yes" or "no" (older than AGE_HOURS hours)
 declare -a WT_STASHED=()     # "yes" or "no" (has stashes)
@@ -550,6 +764,10 @@ while IFS= read -r line; do
         WT_PATHS+=("$current_path")
         WT_BRANCHES+=("${current_branch:-detached}")
 
+        # Record this worktree's parent dir as a scan root for the Class A orphan
+        # sweep (bug e9cb Axis 1), captured BEFORE any removal/prune runs.
+        _WT_PARENT_DIRS["$(dirname "$current_path")"]=1
+
         # Merge status: is the branch merged to main?
         if [[ -n "$current_branch" && "$current_branch" != "detached" ]]; then
             if is_branch_merged "$MAIN_WORKTREE" "$current_branch" "$MAIN_BRANCH"; then
@@ -566,6 +784,14 @@ while IFS= read -r line; do
             WT_CLEAN+=("yes")
         else
             WT_CLEAN+=("no")
+        fi
+
+        # Effectively-clean status: truly clean OR only regenerable-allowlist dirt.
+        # Used ONLY in the merged-removal decision (bug e9cb Axis 3).
+        if is_effectively_clean "$current_path"; then
+            WT_EFF_CLEAN+=("yes")
+        else
+            WT_EFF_CLEAN+=("no")
         fi
 
         # Active session
@@ -630,7 +856,12 @@ for i in "${!WT_NAMES[@]}"; do
     elif [[ "${WT_MERGED[$i]}" == "no" && "$_is_agent_worktree" == "false" ]]; then
         removable=false
         reason="not merged"
-    elif [[ "${WT_CLEAN[$i]}" == "no" && "$FORCE_DIRTY" != "true" && "$_is_agent_worktree" == "false" ]]; then
+    elif [[ "${WT_CLEAN[$i]}" == "no" && "${WT_EFF_CLEAN[$i]}" == "no" && "$FORCE_DIRTY" != "true" && "$_is_agent_worktree" == "false" ]]; then
+        # This branch is only reached for MERGED (or agent) worktrees — the
+        # "not merged" check above already kept unmerged ones. A merged worktree
+        # whose only dirt is regenerable-allowlist content (WT_EFF_CLEAN==yes)
+        # falls through to removal; real dirt outside the allowlist stays kept.
+        # (bug e9cb Axis 3 — never applied to unmerged worktrees.)
         removable=false
         reason="uncommitted changes"
     elif [[ "${WT_UNPUSHED[$i]}" == "yes" && "$_is_agent_worktree" == "false" ]]; then
@@ -955,6 +1186,92 @@ if [[ "$INCLUDE_BRANCHES" == "true" && ${#removed_branches[@]} -gt 0 ]]; then
 fi
 
 fi  # end: if [[ "$_SKIP_REMOVAL" != "true" ]] — Selection through Branch cleanup
+
+# ── Class A sweep: unregistered orphan directories (bug e9cb Axis 1) ──────────
+#
+# `git worktree list` only sees REGISTERED worktrees, and `git worktree prune`
+# cleans git metadata but never the leftover directory. So directories sitting in
+# the worktree-parent dir that are not registered worktrees (left by manual
+# `git worktree remove`, crashed sessions, etc.) were invisible to every code
+# path and accumulated unbounded. This sweep scans the parent dir(s) of the
+# registered worktrees and removes ONLY directories that meet ALL of:
+#   (a) absent from `git worktree list --porcelain`, AND
+#   (b) have NO `.git` file/dir (not a linked worktree), AND
+#   (c) empty OR only regenerable-allowlist content (no real files), AND
+#   (d) older than AGE_HOURS.
+# Never removes: the current worktree, the main repo, .tickets-tracker, or
+# anything outside the resolved worktree-parent dir(s). Honors dry-run (preview)
+# vs. actual removal exactly like the merged-worktree path above.
+{
+    # Refresh metadata so dirs whose worktree was already `git worktree remove`d
+    # are no longer considered registered.
+    if [[ "$DRY_RUN" != "true" ]]; then
+        git -C "$MAIN_WORKTREE" worktree prune 2>/dev/null || true
+    fi
+
+    # Build the set of STILL-registered worktree paths (to exclude). This is read
+    # fresh AFTER removal so worktrees we just removed are no longer "registered"
+    # and their leftover dirs (if any) become sweep-eligible. The scan-root parent
+    # dirs come from _WT_PARENT_DIRS, captured during the gather pass BEFORE
+    # removal — otherwise a parent whose only worktree was just removed would
+    # vanish from `git worktree list` and never be scanned.
+    declare -A _registered_paths=()
+    while IFS= read -r _line; do
+        case "$_line" in
+            worktree\ *)
+                _wp="${_line#worktree }"
+                _registered_paths["$_wp"]=1
+                ;;
+        esac
+    done < <(git -C "$MAIN_WORKTREE" worktree list --porcelain 2>/dev/null || true)
+
+    _orphan_dirs=()
+    for _parent in "${!_WT_PARENT_DIRS[@]}"; do
+        # Never scan the main repo dir itself as a parent.
+        [[ "$_parent" == "$MAIN_WORKTREE" ]] && continue
+        # Only scan real directories.
+        [[ -d "$_parent" ]] || continue
+        for _entry in "$_parent"/*; do
+            [[ -d "$_entry" ]] || continue
+            # (a) skip registered worktrees
+            [[ -n "${_registered_paths[$_entry]+x}" ]] && continue
+            # Never touch the current worktree, main repo, or ticket-tracker.
+            [[ "$_entry" == "$MAIN_WORKTREE" ]] && continue
+            [[ "$CURRENT_DIR" == "$_entry" || "$CURRENT_DIR" == "$_entry/"* ]] && continue
+            case "$_entry" in
+                */.tickets-tracker) continue ;;
+            esac
+            # (b) skip anything that carries a .git file/dir (a linked worktree or
+            # a real repo — the registered-worktree path/branch logic owns those).
+            [[ -e "$_entry/.git" ]] && continue
+            # (d) age gate
+            is_old_enough "$_entry" || continue
+            # (c) empty or only regenerable-allowlist content
+            _dir_only_regenerable "$_entry" || continue
+            _orphan_dirs+=("$_entry")
+        done
+    done
+
+    if [[ ${#_orphan_dirs[@]} -gt 0 ]]; then
+        echo ""
+        echo -e "${BOLD}Unregistered orphan directories (no git worktree, safe to reclaim):${RESET}"
+        for _od in "${_orphan_dirs[@]}"; do
+            _od_size=$(estimate_size_kb "$_od")
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo -e "${CYAN}[DRY RUN]${RESET} Would remove orphan dir '$_od' (~$(format_kb "$_od_size"))"
+                log_action "DRY RUN: would remove orphan dir '$_od' (~$(format_kb "$_od_size"))"
+            else
+                if rm -rf "$_od" 2>/dev/null; then
+                    echo -e "Removed orphan dir '$_od' (~$(format_kb "$_od_size"))"
+                    log_action "REMOVED orphan dir '$_od' (~$(format_kb "$_od_size"))"
+                else
+                    echo -e "${RED}Failed to remove orphan dir '$_od'${RESET}"
+                    log_action "FAILED to remove orphan dir '$_od'"
+                fi
+            fi
+        done
+    fi
+}
 
 # ── Clean up orphaned worktree-* branches ────────────────────────────────
 
