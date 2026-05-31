@@ -164664,15 +164664,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Add a workflow-config flag that creates PRs instead of merging to main"
