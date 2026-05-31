@@ -99197,7 +99197,7 @@
         {
           "content": [
             {
-              "text": "Pattern 3 (identical-root-cause regressions, ~10% of recent fixes) is the dominant repeat-bug class. The /dso:fix-bug skill mandates intent-search for the same ticket's history but does not require a tree-wide scan for the same antipattern after the fix. The prior-art protocol (prior-art-search.md:79-88) explicitly excludes single-file fixes \u2014 exactly the case where Pattern 3 manifests. Many Pattern 1 bugs were originally reproducible only in CI because the local repro was contaminated by inherited environment.",
+              "text": "Pattern 3 (identical-root-cause regressions, ~10% of recent fixes) is the dominant repeat-bug class: the same defect is fixed in one script and rediscovered in another months later. /dso:fix-bug mandates intent-search for the failing ticket's own history but does not require a tree-wide scan for the same antipattern after a fix lands, and the prior-art protocol (prior-art-search.md:79-88) explicitly excludes single-file fixes \u2014 exactly where Pattern 3 manifests. Separately, RED tests are not required to reproduce in a clean environment, so a fix verified against a shell contaminated by an inherited environment passes locally and re-breaks in CI (Pattern 1). DSO maintainers and the fix-bug agent itself pay for the same bug two, three, or four times.",
               "type": "text"
             }
           ],
@@ -99209,37 +99209,7 @@
         {
           "content": [
             {
-              "text": "This epic adds two complementary fix-bug discipline additions:",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "1. Tree-wide antipattern scan after every fix, with the antipattern promoted to the known-antipatterns registry delivered by New Epic A",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "2. Hermetic-repro requirement for the RED test in fix-bug Step 5",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "See docs/observed-failure-patterns-4-26.md Patterns 1, 3 and docs/process-gaps-4-26.md G6, G9.",
+              "text": "This epic adds two complementary fix-bug discipline additions: (1) a tree-wide antipattern scan after every fix, with the surfaced query promotable to the known-antipatterns registry delivered by epic 7575-5a90; and (2) a hermetic-repro requirement for the shell/bash RED test in fix-bug Phase E Step 1.",
               "type": "text"
             }
           ],
@@ -99272,7 +99242,7 @@
         {
           "content": [
             {
-              "text": "- 09d8-11f0 (commit e913a71d5a) \u2014 pre-commit-format-fix.sh CLAUDE_PLUGIN_ROOT under set -u",
+              "text": "- 09d8-11f0 (commit e913a71d5a) \u2014 pre-commit-format-fix.sh: CLAUDE_PLUGIN_ROOT under set -u",
               "type": "text"
             }
           ],
@@ -99281,7 +99251,7 @@
         {
           "content": [
             {
-              "text": "- fe45-0b58 (commit dcbe98f3ef) \u2014 skip-review-check.sh, same root cause, two months later. Ticket description explicitly cites 09d8-11f0.",
+              "text": "- fe45-0b58 (commit dcbe98f3ef) \u2014 skip-review-check.sh, same root cause two months later; ticket explicitly cites 09d8-11f0",
               "type": "text"
             }
           ],
@@ -99308,7 +99278,7 @@
         {
           "content": [
             {
-              "text": "- Each ticket was treated as a single-file fix and excluded from prior-art search by the prior-art-search.md:79-88 \"Routine exclusions\" rule",
+              "text": "- Each ticket was treated as a single-file fix and excluded from prior-art search by the prior-art-search.md:79-88 routine-exclusions rule.",
               "type": "text"
             }
           ],
@@ -99320,25 +99290,7 @@
         {
           "content": [
             {
-              "text": "SIGPIPE recurrence:",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- e241-41b2 \u2014 bulk replacement across 26 files in commits b9358f95eb + 0113ab66d9",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- 999e-cf69 \u2014 a 27th instance discovered later in ticket-push-rebase-conflict. Single-file scope, missed by the 26-file sweep because no tree-wide ratchet existed.",
+              "text": "Hermeticity (G9): Pattern 1 bugs (fe45-0b58, 09d8-11f0, 82ad-7bb3) were caught by CI in a partially hermetic environment, \"fixed\" against a contaminated local environment, then re-broken by subsequent changes. A hermetic-repro requirement at fix-bug time would have surfaced the contamination immediately.",
               "type": "text"
             }
           ],
@@ -99350,16 +99302,7 @@
         {
           "content": [
             {
-              "text": "declare -A recurrence:",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- 4191-9096 and 0a47-9631 \u2014 two separate scripts, same fix, different times",
+              "text": "## Approach",
               "type": "text"
             }
           ],
@@ -99371,25 +99314,7 @@
         {
           "content": [
             {
-              "text": "Hermeticity (G9) \u2014 fix-bug missing hermetic repro:",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- .github/workflows/ci.yml has no env: block clearing CLAUDE_PLUGIN_ROOT; validate.sh:87-88 fallback for unset variable is therefore never exercised in CI",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Pattern 1 bugs (fe45-0b58, 09d8-11f0, 82ad-7bb3) were originally caught by CI in a partially hermetic environment, then \"fixed\" against a contaminated local environment, then re-broken by subsequent changes. A hermetic-repro requirement at fix-bug time would have surfaced the contamination immediately.",
+              "text": "Additive gates inside /dso:fix-bug. Phase G's existing anti-pattern-scan.md sub-agent is extended to emit two required SCAN_RESULT fields \u2014 query_used (the exact grep/sg pattern executed) and trailer_line (\"Antipattern-Scan: <query> root=<repo-root> matches=<n>\"); the orchestrator copies trailer_line verbatim into the commit message rather than hand-constructing it (a missing field makes SCAN_RESULT malformed and fails the step). A new helper plugins/dso/hooks/check-antipattern-scan-trailer.sh performs the commit-gate check, invoked from a HARD-GATE in fix-bug's commit step (skill-internal \u2014 not a global COMMIT-WORKFLOW.md gate, since ~9 skills consume that workflow). The hermetic recipe is encapsulated in a new helper plugins/dso/scripts/run-hermetic.sh so the contaminant-clearing idiom is never transcribed inline. The bug-type-<slug> classification (epic 4911, shipped) is consumed only at retro time for recurrence aggregation \u2014 there is no coupling between the classifier and the antipattern scan.",
               "type": "text"
             }
           ],
@@ -99401,25 +99326,7 @@
         {
           "content": [
             {
-              "text": "Prior-art exclusion gap (G6):",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- prior-art-search.md:79-88 \u2014 quoted verbatim: \"Routine exclusions: single-file logic fixes, formatting/lint, test reversions, doc-only edits, config value updates.\"",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- plugins/dso/skills/fix-bug/SKILL.md and plugins/dso/skills/debug-everything/SKILL.md \u2014 neither mandates a tree-wide scan after a fix lands",
+              "text": "## Success Criteria",
               "type": "text"
             }
           ],
@@ -99431,7 +99338,7 @@
         {
           "content": [
             {
-              "text": "## Mitigations included",
+              "text": "1. A /dso:fix-bug run that fixes a shell-script bug emits an \"Antipattern-Scan: <query> root=<scan-root> matches=<n>\" commit trailer, produced as the trailer_line field of the anti-pattern-scan.md SCAN_RESULT and copied verbatim into the commit message. The root field records the scan root, evidencing tree-wide scope.",
               "type": "text"
             }
           ],
@@ -99443,16 +99350,7 @@
         {
           "content": [
             {
-              "text": "- G6-M1 \u2014 /dso:fix-bug mandatory post-fix step (after fix verification, before commit): extract the antipattern as a regex or sg AST query (e.g., \\$CLAUDE_PLUGIN_ROOT[^:-] for the unguarded-env-var pattern). Run query across the entire codebase. If matches exist outside the fixed file: open follow-up bug tickets for each match cluster, OR include matches in current fix scope, OR add # antipattern-ok: <reason> annotation to each. Commit message must include the antipattern query and match count.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- G9-M3 \u2014 /dso:fix-bug Step 5 (RED test) requires the failing test be reproducible in env -i bash -c 'unset CLAUDE_PLUGIN_ROOT; <test command>'. If it does not reproduce hermetically, the test is environmental noise and the bug needs reframing.",
+              "text": "2. plugins/dso/hooks/check-antipattern-scan-trailer.sh, invoked from a HARD-GATE in fix-bug's commit step, refuses to complete the commit when the Antipattern-Scan trailer is absent, or when it reports matches>0 without a machine-verifiable follow-up artifact per match. Valid artifacts are exhaustively: (a) a ticket ID returned by `dso ticket create` recorded in the trailer; (b) the match file also appearing in git diff (pulled into scope); (c) a \"# antipattern-ok: <reason>\" annotation at the match line where <reason> is one of {different-context, dead-code, already-tracked:<id>}, capped at 3 annotations per session without an explicit user-approval dialog. The gate applies to every commit authored within a fix-bug invocation, including Phase G's anti-pattern fix sub-agents; commits from independent skills (sprint, debug-everything) are never gated because they never invoke this step.",
               "type": "text"
             }
           ],
@@ -99464,7 +99362,7 @@
         {
           "content": [
             {
-              "text": "## Proposed success criteria",
+              "text": "3. A shell/bash RED test that does not reproduce under plugins/dso/scripts/run-hermetic.sh (which runs `env -u CLAUDE_PLUGIN_ROOT bash -c 'unset \"${!BASH_FUNC_@}\" 2>/dev/null; <test command>'`, preserving PATH and venv) triggers a HARD-GATE full stop: fix implementation does not proceed; the bug ticket records a \"Hermetic reproduction failed\" comment and investigation restarts at Phase C. A test is shell/bash if and only if (a) its file ends in .sh, or (b) the resolved $TEST_CMD runner starts with bash or sh; all other cases are non-shell runners, which emit a machine-checkable \"HERMETIC_SKIP: runner=<runner> reason=non-shell\" token and are never blocked.",
               "type": "text"
             }
           ],
@@ -99476,43 +99374,7 @@
         {
           "content": [
             {
-              "text": "1. /dso:fix-bug SKILL.md adds a post-fix Step 7.5 (after fix verification, before commit) documenting the antipattern scan procedure with exact sg and grep invocations",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "2. Commit messages from /dso:fix-bug include an Antipattern-Scan: <query> matches=<n> trailer; /dso:commit workflow reads the trailer and refuses to commit a fix-bug change without it (or with matches > 0 and no follow-up plan)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "3. /dso:fix-bug Step 5 enforces hermetic-repro check; non-hermetic RED tests block progression to Step 6",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "4. The known-antipatterns registry (delivered by New Epic A) is the receiving home for queries surfaced by Step 7.5; this epic adds a one-line \"promote to registry\" sub-step in fix-bug",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "5. Coverage: re-running the procedure against the cited Pattern 3 chain (09d8-11f0 \u2192 fe45-0b58 \u2192 82ad-7bb3 \u2192 97a7-4504) collapses the chain into a single fix; documented as a regression scenario",
+              "text": "4. Phase G includes a promote-query sub-step. The known-antipatterns.yaml file and its append schema are owned by epic 7575-5a90 (consumed, not defined here). When the file exists the sub-step appends the query per that schema; when it does not, the sub-step writes a durable ticket comment \"ANTIPATTERN_PROMOTE_DEFERRED: <query>\" (not stdout-only), forming a backfill list for when 7575-5a90 ships.",
               "type": "text"
             }
           ],
@@ -99524,7 +99386,7 @@
         {
           "content": [
             {
-              "text": "## Coordination notes",
+              "text": "5. A regression fixture under tests/ freezes a snapshot of the four Pattern 3 chain files (root-cause excerpts of 09d8-11f0, fe45-0b58, 82ad-7bb3, 97a7-4504) and runs the first fix's extracted query against them, asserting >=4 matches \u2014 demonstrating the tree-wide scan would have collapsed the chain into a single fix. The fixture runs deterministically in the closing session with no original environment required.",
               "type": "text"
             }
           ],
@@ -99536,7 +99398,43 @@
         {
           "content": [
             {
-              "text": "- Hard dependency on New Epic A for the antipattern registry (G6-M2). Sequence: A ships the registry; E populates it.",
+              "text": "## Closure Checks",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(none \u2014 all success criteria are verifiable within the closing session)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Dependencies",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- relates_to 7575-5a90 (Static-analysis defense layer) \u2014 provides known-antipatterns.yaml and check-known-antipatterns.sh. Partial-ship supported: SC1-SC3 and SC5 ship independently; SC4's promote-step degrades to a durable ANTIPATTERN_PROMOTE_DEFERRED ticket comment until the registry lands.",
               "type": "text"
             }
           ],
@@ -99545,7 +99443,31 @@
         {
           "content": [
             {
-              "text": "- Soft pairing with New Epic B's rubric items: reviewers under the new B rubric will flag antipatterns the fix-bug Step 7.5 missed",
+              "text": "- relates_to 4911-c7ba (Bug-classification coverage registry, closed) \u2014 bug-type-<slug> recurrence aggregation at /dso:retro is the measurement loop this ratchet feeds; consumed at retro, not by fix-bug.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Scenario Analysis",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Hermetic recipe must clear the contaminant, not the whole environment (critical, assumption): env -i strips PATH/venv and breaks compound test commands; the gate uses env -u plus BASH_FUNC_@ clearing while preserving the runner. Resolved in Approach + SC3.",
               "type": "text"
             }
           ],
@@ -99554,7 +99476,94 @@
         {
           "content": [
             {
-              "text": "- Coexists with c183-ed2a's adversarial review of inference-sourced decisions \u2014 different layer (fix-time vs. plan-time challenge)",
+              "text": "- Exported bash functions survive env -i (high, runtime): BASH_FUNC_* exports leak through on Linux bash 4.x; run-hermetic.sh explicitly unsets them. Resolved in SC3.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Gate keying must be skill-internal, not attribution-trailer-based (high, runtime): keying on a DSO-Skill trailer fails on local workflows (no trailer written) and on sprint-origin fix-bug sub-agents (DSO-Skill: sprint). The gate runs inside fix-bug's own commit invocation instead. Resolved in Approach + SC2.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Anti-pattern fix-batch inter-batch commits must also be gated (high, deployment): Phase G's own fix sub-agent commits would otherwise bypass the new gates and could propagate a defective fix. SC2 explicitly includes them.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- matches=0 forgeable by a narrow scan (high, configuration): the gate cannot cryptographically verify tree-wide coverage; mitigated by recording the scan root in the trailer (SC1) and mandating repo-root scope in the Phase G procedure. Residual risk accepted: this is a discipline aid, not a proof system.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Cross-Epic Interactions",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Resource: plugins/dso/skills/fix-bug/SKILL.md commit/closure phase. Interaction: 0cbc-4bbb adds an in_review status + closure loop at the same phase; this epic adds a commit-time trailer check. Gate: the two compose as independent steps; neither clobbers the other's phase edits.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Resource: fix-bug phase HARD-GATEs. Interaction: af26-dd5a makes forbidden-action HARD-GATEs load-bearing via tool-use-time enforcement. Gate: this epic's hermetic-repro and trailer gates are registered as af26-style load-bearing gates where af26 has landed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Resource: origin:antipattern-scan follow-up tasks. Interaction: 7271-e463 cleanup skill consumes follow-up tasks Phase G files. Gate: follow-up tickets carry a tag the cleanup skill recognizes.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Resource: plugins/dso/docs/workflows/COMMIT-WORKFLOW.md. Interaction: 6d90-93d5 adds Conventional-Commits format validation. Gate: trailer requirement and format validator compose without mutual rejection.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Resource: plugins/dso/config/known-antipatterns.yaml. Interaction: 7575-5a90 owns the registry; this epic appends. Gate: 7575-5a90 ships first or both coordinate on initial file creation; this epic no-ops until then.",
               "type": "text"
             }
           ],
@@ -99605,7 +99614,7 @@
         {
           "content": [
             {
-              "text": "- docs/new-epics-4-26.md \u00a7 New Epic E",
+              "text": "- docs/new-epics-4-26.md New Epic E",
               "type": "text"
             }
           ],
@@ -99627,8 +99636,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:99f1-153c",
-      "scrutiny:pending"
+      "brainstorm:complete",
+      "dso-id:99f1-153c"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -182887,15 +182896,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[worktree-cleanup]: session end and claude-safe do not remove merged/stale worktrees -> orphan worktree dirs accumulate"
