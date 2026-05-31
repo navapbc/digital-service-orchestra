@@ -59,7 +59,7 @@ Or with the PR number derived from the current branch:
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/FP-RECOVERY-WORKFLOW.md` now.
 2. Execute its steps in order — starting from Step 0 (OVER_BOUND pre-check), then Step 1 (Capture the PR diff).
-3. Follow the verdict criteria in Step 4 strictly: only clear the force-merge when ALL four criteria hold (zero critical, zero important, zero fragile, ≥10 tool calls and ≥60s runtime on the manual review dispatch).
+3. Follow the verdict criteria in Step 4 strictly: only clear the force-merge when ALL four criteria hold (zero critical, zero important, zero fragile, ≥5 tool calls and ≥30s runtime on the manual review dispatch). The work-proxy thresholds were lowered from the original 10/60s after observing false rejections on legitimately concise reviews — see FP-RECOVERY-WORKFLOW.md Step 2/Step 4 commentary for the calibration rationale.
 4. If the manual review produces critical or important findings, **abort** and surface those findings to the user. Do NOT force-merge.
 5. If clearance is reached, emit the force-merge command with the required annotation template per Step 5 of the workflow. The user runs the merge command — this skill does NOT execute the merge.
 
