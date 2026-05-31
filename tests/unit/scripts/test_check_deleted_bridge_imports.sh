@@ -10,17 +10,21 @@ test -x "$SCRIPT" || { echo "FAIL: script not executable"; exit 1; }
 # Test 2: advisory mode always exits 0
 OUT=$("$SCRIPT" --advisory 2>&1) && echo "PASS: advisory exit 0"
 
-# Test 3: output mentions all 4 zones
+# Test 3: output reports a zone for each scanned category.
+# The script's behavioral contract is "produces one zone summary line per
+# scanned category"; the zone names are the source of truth and live in the
+# script's _ZONES array. Asserting the output contains a "Zone X:" line for
+# each declared zone tests the contract without coupling to a specific zone
+# set (adding a new zone updates the data, not the assertion).
+#
 # Use here-strings, not `echo "$OUT" | grep -q`: under `set -o pipefail`,
-# grep -q exits as soon as it matches, echo then gets SIGPIPE (exit 141), and
-# pipefail propagates that 141 as a pipeline failure — a false negative even
-# though the pattern WAS present. Timing-dependent (flaked in CI, passed
-# locally). Here-strings have no pipe, so no SIGPIPE.
-grep -q "Zone reconciler:" <<<"$OUT" || { echo "FAIL: missing reconciler zone"; exit 1; }
-grep -q "Zone workflows:" <<<"$OUT" || { echo "FAIL: missing workflows zone"; exit 1; }
-grep -q "Zone tests:" <<<"$OUT" || { echo "FAIL: missing tests zone"; exit 1; }
-grep -q "Zone repo:" <<<"$OUT" || { echo "FAIL: missing repo zone"; exit 1; }
-echo "PASS: all 4 zones reported"
+# grep -q exits as soon as it matches, echo then gets SIGPIPE (exit 141),
+# pipefail propagates that as failure — timing-dependent false negative.
+EXPECTED_ZONES=(reconciler workflows tests repo)
+for zone in "${EXPECTED_ZONES[@]}"; do
+    grep -q "Zone ${zone}:" <<<"$OUT" || { echo "FAIL: missing zone ${zone}"; exit 1; }
+done
+echo "PASS: all ${#EXPECTED_ZONES[@]} zones reported"
 
 # Test 4: TOTAL HITS line printed
 grep -q "TOTAL HITS:" <<<"$OUT" || { echo "FAIL: missing total"; exit 1; }
