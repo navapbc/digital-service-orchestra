@@ -4,12 +4,25 @@ The full table of named sub-agents, their default model tier, and the workflow t
 
 ## Dispatch protocol
 
-Agent files live in `${CLAUDE_PLUGIN_ROOT}/agents/`. The `dso:*` labels below are agent file identifiers (strip `dso:` prefix to get the filename).
+Agent files live in `${CLAUDE_PLUGIN_ROOT}/agents/` (with a parallel CI-variant tree at `${CLAUDE_PLUGIN_ROOT}/agents/ci/` for the 10 code-reviewer agents — see the "Dual-variant code-reviewer agents" section below for the full mechanism). The `dso:*` labels below are agent file identifiers (strip `dso:` prefix to get the filename).
 
 - Use `subagent_type: "dso:<name>"` directly when the agent is registered in the Agent tool's available types list (check the session's available `subagent_type` list at startup).
 - Fall back to `subagent_type: "general-purpose"` with the agent file loaded verbatim only when the named type is not registered.
 - See `REVIEW-WORKFLOW.md` Step 4 for the canonical dispatch block.
 - `discover-agents.sh` resolves routing categories to agents via `agent-routing.conf`; all fall back to `general-purpose`.
+
+### Dual-variant code-reviewer agents (bug 4a30)
+
+The 10 `dso:code-reviewer-*` agents in the table below (light, standard, deep-{arch,correctness,verification,hygiene}, security-{red,blue}-team, performance, test-quality) are composed in **two variants** by `build-review-agents.sh`:
+
+- **Orchestrator variant** (`agents/code-reviewer-<tier>.md`) — used by Claude Code's Agent tool dispatch. Instructs the model to invoke Bash/Read/Grep/Glob and to run `write-reviewer-findings.sh`, returning a `REVIEWER_HASH` envelope.
+- **CI variant** (`agents/ci/code-reviewer-<tier>.md`) — used by `scripts/dso_ci_review/dispatch.py` (the `litellm.completion` toolless path). Instructs the model to return findings as a single JSON object directly in the message body — no tool-use markup, no script invocation, no `REVIEWER_HASH` envelope.
+
+Both variants are generated from a single canonical source: `docs/workflows/prompts/reviewer-base.md` (shared content) plus per-tier `reviewer-delta-<tier>.md` files. The base file uses `<!-- DISPATCH:orchestrator -->` / `<!-- DISPATCH:ci -->` HTML-comment markers; `reviewer-meta.sh::_meta_substitute_base` reads `DISPATCH_VARIANT={orchestrator|ci}` and strips the opposing block. `build-review-agents.sh` invokes the composer twice — once per variant — writing to `agents/` and `agents/ci/` respectively. See `docs/contracts/dispatch-split-architecture.md` for the full architectural overview.
+
+**`dispatch.py` resolution** (`_load_agent_prompt`): tries `agents/ci/<agent_id>.md` first, falls back to `agents/<agent_id>.md`. Code-reviewer agents resolve through `agents/ci/`; agents without a CI variant (`code-reviewer-arbiter`, `code-reviewer-verifier`, `schema-correction`, etc.) resolve through `agents/`.
+
+**Not in scope for the split**: `huge-diff-reviewer-{light,standard}` are orchestrator-only (CI uses Strategy E region-split via `region_split.py`, never dispatches huge-diff). Arbiter and verifier do not compose `reviewer-base.md` and have no tool-use instructions — confirmed safe by the bug 4a30 sweep.
 
 ## Agents
 
