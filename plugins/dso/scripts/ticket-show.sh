@@ -132,7 +132,7 @@ for _raw_id in "${ticket_ids[@]}"; do
     python3 -c "
 import sys, os, json
 sys.path.insert(0, os.environ['_SCRIPT_DIR'])
-from ticket_reducer import reduce_ticket
+from ticket_reducer import reduce_ticket, find_inbound_relationships
 
 ticket_dir = os.environ['_TICKET_DIR']
 ticket_id = os.environ['_TICKET_ID']
@@ -147,6 +147,14 @@ if state.get('status') in ('error', 'fsck_needed'):
     print(json.dumps(state, ensure_ascii=False))
     print(f'Error: ticket \"{ticket_id}\" has status \"{state[\"status\"]}\"', file=sys.stderr)
     sys.exit(1)
+
+# Augment with inbound relationships (incoming links + child tickets) so
+# 'ticket show' presents the complete relationship picture, not just the
+# outgoing links stored in this ticket's own directory. Derived read-only by
+# scanning only the tickets that mention this ID — no events are written.
+_inbound = find_inbound_relationships(ticket_id, os.path.dirname(ticket_dir))
+state['inbound_links'] = _inbound['inbound_links']
+state['children'] = _inbound['children']
 
 if include_scratch:
     # Resolve scratch base directory: prefer explicit env override, else

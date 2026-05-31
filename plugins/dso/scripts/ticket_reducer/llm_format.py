@@ -20,6 +20,8 @@ Key mapping:
   comments    → cm  (sub-keys: body→b, author→au; timestamp omitted)
   deps        → dp  (sub-keys: target_id→tid, relation→r; link_uuid omitted)
   conflicts   → cf
+  inbound_links → ibl (sub-keys: from_id→f, relation→r)
+  children    → ch
 """
 
 from __future__ import annotations
@@ -39,6 +41,8 @@ KEY_MAP = {
     "comments": "cm",
     "deps": "dp",
     "conflicts": "cf",
+    "inbound_links": "ibl",
+    "children": "ch",
 }
 
 # Fields omitted from LLM format (verbose timestamps / system metadata)
@@ -59,6 +63,11 @@ DEP_KEY_MAP = {
     "relation": "r",
 }
 DEP_OMIT = {"link_uuid"}
+
+INBOUND_KEY_MAP = {
+    "from_id": "f",
+    "relation": "r",
+}
 
 
 def shorten_comment(c: object) -> object:
@@ -85,6 +94,18 @@ def shorten_dep(d: object) -> object:
     return out
 
 
+def shorten_inbound(d: object) -> object:
+    """Shorten an inbound-link dict (from_id/relation) to abbreviated keys."""
+    if not isinstance(d, dict):
+        return d
+    out = {}
+    for k, v in d.items():
+        if v is None:
+            continue
+        out[INBOUND_KEY_MAP.get(k, k)] = v
+    return out
+
+
 def to_llm(state: dict) -> dict:
     """Convert a full ticket state dict to LLM-optimised format."""
     out = {}
@@ -100,5 +121,7 @@ def to_llm(state: dict) -> dict:
             v = [shorten_comment(c) for c in v]
         elif k == "deps":
             v = [shorten_dep(d) for d in v]
+        elif k == "inbound_links":
+            v = [shorten_inbound(e) for e in v]
         out[short_k] = v
     return out
