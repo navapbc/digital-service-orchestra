@@ -5,7 +5,7 @@ Verified against `origin/main` HEAD `7f16f682d8` (worktree identical, 0 diff). I
 ## STATUS (2026-05-30 cost/benefit decision)
 After review, the per-call fail-closed *dispatch rewrite* (Finding #3 Phases 0-3) was judged NOT worth its hot-path/brick risk vs. a conjunction-of-narrow-events threat that Layer 1 (already fail-closed) + CI shellcheck/hook-tests largely cover. **Executed instead (the cheap, off-hot-path, high-leverage subset):**
 - **Item 1 — DONE:** sentinel allow-on-unparsed → fail-closed with `json.loads` recovery (`review-gate-bypass-sentinel.sh`; closes the `--no-verify`-skips-Layer-1-when-sentinel-silently-disabled hole without adding common-case hot-path cost). Tests: `tests/hooks/test-review-gate-bypass-sentinel.sh` (54/54).
-- **Item 2 — DONE:** off-hot-path `check-hook-integrity.sh` (present + executable + `bash -n`) + `tests/scripts/test-check-hook-integrity.sh` (runs in CI Script Tests → committed hook breakage turns CI red).
+- **Item 2 — DONE:** off-hot-path `check-hook-integrity.sh` (present + executable + `bash -n`), enforced two ways: a direct `hook-integrity-check` pre-commit entry (commit-time, runs when any `hooks/` file changes) AND `tests/scripts/test-check-hook-integrity.sh` in the CI Script Tests suite — committed hook breakage is blocked at commit and turns CI red.
 - **Finding #3 dispatch rewrite — DEFERRED / evidence-gated:** revisit only if the existing `~/.claude/logs/dso-hook-errors.jsonl` telemetry shows real silent-degradation incidents. The full design below is retained for that contingency.
 
 ## Executive summary
