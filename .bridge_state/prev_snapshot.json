@@ -182149,6 +182149,414 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
+      "statusCategory": {
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
+      }
+    },
+    "summary": "[pre-commit-design-md-lint.sh]: enforcement-annotated hook missing DSO-GATE-TIER header -> blocks all hooks/ commits"
+  },
+  "DIG-5057": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** a16d345be601da64e5f60a8974f1b92ca475b296",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Platform:** macOS (darwin 25.5.0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Affected scripts (candidates \u2014 NOT a fix directive):** plugins/dso/scripts/worktree-cleanup.sh, plugins/dso/scripts/worktree-create.sh, claude-safe cleanup hooks/cron (install-claude-safe-hooks / setup-worktree-cleanup-cron, exact wiring TBD by investigation)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Worktree root:** /Users/joeoakhart/digital-service-orchestra-worktrees/",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** User-Flagged Behavior (explicit /dso:fix-bug invocation 2026-05-30).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Worktrees created for session/sprint/fix-bug/debug work should be reclaimed automatically \u2014 at session end and/or by the claude-safe cleanup pass \u2014 so the worktree root does not accumulate stale or orphaned worktree directories. A worktree whose git admin metadata has been removed should also have its on-disk working directory removed (and vice-versa).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Actual Behavior (observed on code_version a16d345be6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "`git worktree list` registers 20 worktrees (+ main, + .tickets-tracker, + 1 locked advisory-lock temp). On disk under the worktree root there are 21 directories. Three on-disk directories are ORPHANS \u2014 present on disk, absent from `git worktree list`, and containing NO `.git` file:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - `cleanup`                   (mtime May 20) \u2014 empty, no .git",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - `followup`                  (mtime May 20) \u2014 empty, no .git",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - `worktree-20260318-154530`  (mtime Mar 18) \u2014 contains a stale `.claude/` subdir, no .git",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "In addition there is one ADMIN-ORPHAN in `.git/worktrees/`:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - `wt` -> gitdir /private/var/folders/.../T/advisory-lock-wt-parent-ijzzu84y/wt/.git",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    The target working dir no longer exists, BUT the admin entry carries a `locked` file (advisory-lock temp worktree). `git worktree prune` SKIPS locked entries, so it is never reclaimed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Critical observation: `git worktree prune --dry-run -v` reports NOTHING to prune. This is the crux:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - The 3 on-disk orphan dirs have NO admin entry, so `git worktree prune` (which only removes admin entries whose working tree is gone) cannot reclaim them \u2014 it never deletes on-disk directories.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - The `wt` admin-orphan IS a stale admin entry whose working dir is gone, but it is `locked`, so prune skips it.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Neither the in-session cleanup path nor the claude-safe cleanup pass reclaims either class of orphan. Separately, many of the 20 registered worktrees date from May 20\u201328 and appear to be completed/merged work that was never pruned (stale-but-registered), suggesting cleanup is either not firing or not selecting completed worktrees.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "NOTE: several registered worktrees have a dir-name vs branch-name mismatch (e.g. on-disk `worktree-20260527-171753` holds branch `worktree-20260528-085216`; `worktree-20260525-204149` holds branch `feat/visual-eval-workflow-integration`). Cleanup keyed on one and not the other may mis-select.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## 3. Reproduction Steps",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. Run /dso:sprint, /dso:fix-bug, or /dso:debug-everything sessions over multiple days; each creates a worktree under the worktree root.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. `git worktree list` vs `ls` the worktree root.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. Observe (a) stale registered worktrees never pruned; (b) on-disk directories with no `git worktree list` entry and no `.git` file (orphans that `git worktree prune` cannot reclaim); (c) `git worktree prune --dry-run` reports nothing despite a locked admin-orphan and several stale entries.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## 4. Impact",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Disk/inode bloat in the worktree root; confusing state for name-based worktree logic; claude-safe auto-removal does not reclaim these; risk of name-collision / mis-selection in cleanup tooling.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## 5. Investigation Needed (informational \u2014 for investigation sub-agents, NOT a fix directive)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Which code path leaves an on-disk worktree dir with no admin entry and no `.git` (partial/aborted create? interrupted removal? `git worktree remove` failure leaving the dir?).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Whether worktree-cleanup.sh / claude-safe cleanup actually runs in this environment (cron installed? hook wired?), and if it runs, why it skips completed/stale and orphan worktrees.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- How `locked` advisory-lock temp worktrees (`wt`) should be handled \u2014 prune skips locked entries by design.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Whether dir-name vs branch-name mismatches cause cleanup to mis-key and skip eligible worktrees.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## 6. Note on this ticket's history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "An earlier draft of this description (pre-correction) cited a non-existent orphan `worktree-fix-25c7-f64c` and \"5 directories\" \u2014 that came from a stale/lagged terminal snapshot and was incorrect. The evidence above reflects the verified current state.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "dso-id:9a24-b7df-4075-475b"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
       "id": "21057",
       "name": "To Do",
       "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
@@ -182160,6 +182568,6 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "[pre-commit-design-md-lint.sh]: enforcement-annotated hook missing DSO-GATE-TIER header -> blocks all hooks/ commits"
+    "summary": "[worktree-cleanup.sh + claude-safe]: pruned/stale worktrees not removed in-session or by cleanup -> orphan worktree dirs accumulate"
   }
 }
