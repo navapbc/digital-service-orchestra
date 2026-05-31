@@ -95,7 +95,7 @@ else
 fi
 
 # ── Token accumulator (temp file) ────────────────────────────────────────────
-_TOKEN_FILE="$(mktemp /tmp/protocol-conformance-tokens.XXXXXX)"
+_TOKEN_FILE="$(mktemp "${TMPDIR:-/tmp}/protocol-conformance-tokens.XXXXXX")"
 trap 'rm -f "$_TOKEN_FILE"' EXIT
 
 # ── Synthetic loop runner ─────────────────────────────────────────────────────

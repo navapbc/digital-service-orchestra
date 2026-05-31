@@ -139,9 +139,34 @@ echo "" >&2
 # (worktree-YYYYMMDD-HHMMSS) AND agent-* worktrees (path component
 # `.claude/worktrees/agent-` plus branch `worktree-agent-*`). With many
 # agent-* worktrees in flight, the >=10 trigger fired on every session
-# start and then no-opped because of the has_stashes() bug above. Narrow
-# the match to the session-worktree naming convention only.
-WORKTREE_COUNT=$(git worktree list 2>/dev/null | grep -cE "worktree-[0-9]{8}-[0-9]{6}" || true)
+# start and then no-opped because of the has_stashes() bug above.
+#
+# Bug e9cb: narrowing the match to `worktree-[0-9]{8}-[0-9]{6}` over-corrected —
+# it counted ONLY timestamp-named worktrees, so human/session worktrees named
+# wt-*, fix-*, feat-* (Class B) never counted and accumulated unbounded.
+# Count ALL registered worktrees that are session/human worktrees: exclude the
+# transient agent-* worktrees (`.claude/worktrees/agent-*`, the original intent),
+# the main repo (first --porcelain entry), and the .tickets-tracker worktree.
+# This makes the >=10 trigger fire based on real accumulation regardless of name.
+WORKTREE_COUNT=0
+_wt_is_first=1
+while IFS= read -r _wt_line; do
+    case "$_wt_line" in
+        worktree\ *)
+            _wt_path="${_wt_line#worktree }"
+            # Skip the main repo (always the first worktree block in --porcelain).
+            if [ "$_wt_is_first" -eq 1 ]; then
+                _wt_is_first=0
+                continue
+            fi
+            case "$_wt_path" in
+                */.claude/worktrees/agent-*) ;;  # transient agent worktree — exclude
+                */.tickets-tracker)          ;;  # ticket-system orphan worktree — exclude
+                *) WORKTREE_COUNT=$(( WORKTREE_COUNT + 1 )) ;;
+            esac
+            ;;
+    esac
+done < <(git worktree list --porcelain 2>/dev/null || true)
 if [ "$WORKTREE_COUNT" -ge 10 ]; then
     echo "You have $WORKTREE_COUNT worktrees. Running automatic cleanup..." >&2
     echo "" >&2

@@ -735,6 +735,16 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Used by** | `scripts/worktree-cleanup.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
+### `worktree.regenerable_paths`
+
+| | |
+|---|---|
+| **Description** | List of path prefixes (relative to a worktree root) whose contents are regenerable session debris and therefore do NOT count as "uncommitted changes" when deciding whether a **merged** worktree may be auto-removed. A merged worktree is removal-eligible if it is clean OR its only uncommitted/untracked content lies under one of these prefixes. This applies ONLY to the merged-removal and targeted `--worktree` decisions — never to unmerged worktrees and never to the unpushed/age gates. The same allowlist gates the Class A unregistered-orphan-directory sweep (an orphan dir is removed only when empty or containing only allowlisted content). Conservative by design: any real file outside the allowlist keeps the worktree/dir. |
+| **Accepted values** | One or more path prefixes (e.g., `.claude/scratch/`); read as a list via `read-config.sh --list` |
+| **Default** | `.claude/scratch/` |
+| **Used by** | `scripts/worktree-cleanup.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
 ### `worktree.isolation_enabled`
 
 | | |

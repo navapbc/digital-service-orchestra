@@ -63,17 +63,35 @@ scan_zone() {
     local alt
     alt=$(IFS='|'; echo "${MODULES[*]}")
     # Match real module references only:
-    #   1. <module>.py — filename references (subprocess invocations, docstrings)
-    #   2. (from|import) ... <module> — Python import statements (incl. relative)
-    # This avoids matching the generic English word "bootstrap" used elsewhere.
-    local pattern="($alt)\\.py|(^|[^A-Za-z0-9_.])(from|import)[[:space:]]+(\\.+)?($alt)([[:space:]]|\$|,|\\.)"
+    #   1. <module>.py            — filename references (subprocess, docstrings)
+    #   2. import [.]<module>     — plain import statements (incl. relative)
+    #   3. from [.]<module>[.x] import
+    #                             — from-import statements (incl. relative/dotted)
+    # The from-branch REQUIRES a trailing `import` keyword. Without it, the bare
+    # `from <module>` form matched English prose such as "attestations from
+    # bootstrap phases" in docs (false positive — the case this comment
+    # previously claimed to avoid). The `import` keyword is the discriminator
+    # between a Python statement and ordinary prose.
+    local pat_py="($alt)\\.py"
+    local pat_import="(^|[^A-Za-z0-9_.])import[[:space:]]+(\\.+)?($alt)([[:space:]]|\$|,|\\.)"
+    # Trailing suffix must be `.<dotted_path>` (zero or more dotted segments),
+    # not arbitrary identifier characters. Without the leading dot, the previous
+    # pattern `[A-Za-z0-9_.]*` permitted suffixes like `bootstrapper` (matching
+    # `from bootstrapper import ...`), which is a different module entirely.
+    local pat_from="(^|[^A-Za-z0-9_.])from[[:space:]]+(\\.+)?($alt)(\\.[A-Za-z0-9_]+)*[[:space:]]+import([[:space:]]|\$)"
+    local pattern="$pat_py|$pat_import|$pat_from"
     if command -v rg >/dev/null 2>&1; then
         if [[ -e "$zone_path" ]]; then
             hits=$(rg --no-heading --line-number -e "$pattern" "$zone_path" 2>/dev/null || true)
         fi
     else
         if [[ -e "$zone_path" ]]; then
-            hits=$(grep -rnE "$pattern" "$zone_path" 2>/dev/null || true)
+            # --exclude-dir=.git: match rg's behavior (rg skips .git and
+            # .gitignored paths). Without this the grep fallback scans .git/
+            # internals (logs, COMMIT_EDITMSG, packed refs) where commit-message
+            # prose mentioning these module names produces spurious hits — only
+            # in environments without ripgrep (e.g. CI runners). bug 5ff0 sibling.
+            hits=$(grep -rnE --exclude-dir=.git "$pattern" "$zone_path" 2>/dev/null || true)
         fi
     fi
     if [[ -n "$hits" ]]; then
@@ -81,7 +99,13 @@ scan_zone() {
     fi
     echo "Zone $zone_name: $count hits"
     if [[ "$count" -gt 0 ]]; then
-        echo "$hits" | head -20
+        # Here-string, NOT `echo "$hits" | head -20`: under `set -o pipefail`,
+        # head closes the pipe after 20 lines; on a large hit set echo is still
+        # writing and takes SIGPIPE (exit 141), which pipefail+`set -e` turn
+        # into a whole-script abort — printing zone lines but never the
+        # "TOTAL HITS:" footer. Flaked in CI (no rg → grep scanned .git → big
+        # hit set), passed locally (rg → 0 hits). Here-strings have no pipe.
+        head -20 <<<"$hits"
     fi
     TOTAL_HITS=$((TOTAL_HITS + count))
 }

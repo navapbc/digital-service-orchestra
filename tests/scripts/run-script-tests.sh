@@ -47,14 +47,32 @@ source "$LIB_DIR/suite-engine.sh"
 echo "=== Script Tests ==="
 echo ""
 
-# Collect test files from scripts/, plugin/, and scratch/
+# Collect test files from scripts/, plugin/, scratch/, and unit/.
 # scratch/ tests cover the ticket-scratch CLI surface and the 5-site migration.
+# Glob is `test[-_]*.sh` (both hyphen and underscore): underscore-named files
+# (e.g. test_write_cycle_ledger_v110.sh) were previously matched by neither
+# this runner nor the mktemp-tmpdir lint, so they ran nowhere (external review
+# Finding 6 part 4).
 SCRATCH_DIR="$(cd "$SCRIPT_DIR/../scratch" 2>/dev/null && pwd || echo "")"
 test_files=()
-for f in "$SCRIPT_DIR"/test-*.sh "$PLUGIN_DIR"/test-*.sh ${SCRATCH_DIR:+"$SCRATCH_DIR"/test-*.sh}; do
+for f in "$SCRIPT_DIR"/test[-_]*.sh "$PLUGIN_DIR"/test[-_]*.sh ${SCRATCH_DIR:+"$SCRATCH_DIR"/test[-_]*.sh}; do
     [ -f "$f" ] || continue
     test_files+=("$f")
 done
+
+# tests/unit/**/*.sh — bash unit tests (scripts/, shared/). Previously these
+# lived under no runner at all (orphaned: not run-all.sh, CI, or this runner),
+# silently hiding failures (Finding 6; bug badf-298f-ade3-40f1). Collected via
+# `find` so bash tests added under any future tests/unit/ subdir are picked up
+# automatically and never re-orphaned. Python (test_*.py) tests there run under
+# pytest and are intentionally excluded by the test[-_]*.sh glob.
+UNIT_DIR="$(cd "$SCRIPT_DIR/../unit" 2>/dev/null && pwd || echo "")"
+if [[ -n "$UNIT_DIR" ]]; then
+    while IFS= read -r f; do
+        [ -f "$f" ] || continue
+        test_files+=("$f")
+    done < <(find "$UNIT_DIR" -type f -name 'test[-_]*.sh' 2>/dev/null)
+fi
 
 if [ ${#test_files[@]} -eq 0 ]; then
     echo "No script test files found."

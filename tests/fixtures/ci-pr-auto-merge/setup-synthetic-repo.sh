@@ -31,7 +31,7 @@ git -C "$REMOTE_DIR" init --bare -q
 git -C "$REMOTE_DIR" symbolic-ref HEAD "refs/heads/$BASE_REF"
 
 # Create a temp workspace to populate the remote
-WORKSPACE=$(mktemp -d /tmp/synth-repo-ws.XXXXXX)
+WORKSPACE=$(mktemp -d "${TMPDIR:-/tmp}/synth-repo-ws.XXXXXX")
 trap 'rm -rf "$WORKSPACE"' EXIT
 
 git -C "$WORKSPACE" init -q -b "$BASE_REF"
