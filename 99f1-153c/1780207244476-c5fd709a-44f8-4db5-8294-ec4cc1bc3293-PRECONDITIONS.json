@@ -1,0 +1,1 @@
+{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "brainstorm_complete", "session_id": "unknown", "worktree_id": "claude/open-p0-epics-list-cZP0Q", "tier": "minimal", "timestamp": 1780207244476, "gate_verdicts": [], "evidence_ref": {}, "affects_fields": [], "data": {}}
