@@ -96,7 +96,8 @@ def test_load_agent_prompt_returns_file_content(monkeypatch, tmp_path):
     current code already reads from disk when the file is present; it is
     included as a regression guard.
     """
-    agents_dir = tmp_path / "agents"
+    # dispatch.py reads CI variants from agents/ci/ after bug 4a30 dispatch-split.
+    agents_dir = tmp_path / "agents" / "ci"
     agents_dir.mkdir(parents=True)
     agent_file = agents_dir / "code-reviewer-light.md"
     agent_file.write_text("test prompt", encoding="utf-8")
@@ -119,8 +120,9 @@ def test_validate_agent_files_raises_on_missing_agents(monkeypatch, tmp_path):
     Pre-implementation behavior: function does not exist — test FAILS with AttributeError.
     Post-implementation behavior: raises RuntimeError with missing file names — test PASSES.
     """
-    # Create agents/ dir but omit all files so every required agent is missing.
-    agents_dir = tmp_path / "agents"
+    # Create agents/ci/ dir but omit all files so every required agent is missing.
+    # dispatch.py reads CI variants from agents/ci/ after bug 4a30 dispatch-split.
+    agents_dir = tmp_path / "agents" / "ci"
     agents_dir.mkdir(parents=True)
 
     monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path))
