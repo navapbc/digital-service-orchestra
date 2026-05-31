@@ -71322,6 +71322,18 @@
         {
           "content": [
             {
+              "text": "EPIC_CLASS: class:architectural",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
               "text": "## Context",
               "type": "text"
             }
@@ -71334,7 +71346,7 @@
         {
           "content": [
             {
-              "text": "Pre-commit hooks today are syntactic only (paths, schemas, ticket IDs, executable bits). Several recurring failure classes have no static-detection gate and recur across the codebase weeks/months apart in different files, indicating a missing systematic check rather than per-script oversights. The release gate (`scripts/release.sh` precondition #8 \u2192 `validate.sh --ci`) catches these post-merge; the pre-commit stack admits them.",
+              "text": "DSO's pre-commit stack is entirely syntactic (paths, schemas, ticket IDs, executable bits) and has no gate for four recurring failure classes that account for roughly 40% of recent fixes:",
               "type": "text"
             }
           ],
@@ -71346,7 +71358,34 @@
         {
           "content": [
             {
-              "text": "This epic adds four new pre-commit hooks that statically scan for known antipattern classes, each with a baseline-file mechanism so existing violations do not block rollout (descriptive-first ratchet, modeled after the 26-file SIGPIPE remediation series).",
+              "text": "1. $CLAUDE_PLUGIN_ROOT referenced unbound under `set -u` \u2014 an identical-root-cause chain across fe45-0b58, 09d8-11f0, 82ad-7bb3, and 97a7-4504 spanning months.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. `echo \u2026 | grep -q` under `set -o pipefail` causing SIGPIPE on Linux \u2014 about 63 files are in violation today, up from 42 when this epic was filed; the count grows while the antipattern is uncovered.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. `declare -A` in scripts that must run on bash 3.2, the macOS default \u2014 about 24 files.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "4. Config keys added to dso-config.conf without a paired entry in CONFIGURATION-REFERENCE.md (a190-d780).",
               "type": "text"
             }
           ],
@@ -71358,7 +71397,7 @@
         {
           "content": [
             {
-              "text": "See `docs/observed-failure-patterns-4-26.md`, `docs/process-gaps-4-26.md`, and `docs/new-epics-4-26.md` for the full review and mitigation provenance.",
+              "text": "These escape pre-commit and are only caught post-merge by the release gate (validate.sh --ci), so they recur in new files weeks apart. This epic adds the missing static-detection layer so each class is blocked at commit time, with a shrink-only baseline so the existing backlog does not block rollout.",
               "type": "text"
             }
           ],
@@ -71370,7 +71409,7 @@
         {
           "content": [
             {
-              "text": "## Cited evidence",
+              "text": "## Success Criteria",
               "type": "text"
             }
           ],
@@ -71382,7 +71421,7 @@
         {
           "content": [
             {
-              "text": "**Pattern 1 \u2014 Environment hermeticity violations (~25% of recent fixes):**",
+              "text": "1. Committing staged content that introduces any of the four antipattern classes is blocked locally by a dedicated hook (check-hermeticity.sh, check-known-antipatterns.sh, check-config-key-docs.sh, check-pipefail-grep.sh), all registered in .pre-commit-config.yaml between shellcheck and pre-commit-review-gate; check-pipefail-grep detects both bare-pipeline and command-substitution/subshell forms of `\u2026 | grep -q` under pipefail.",
               "type": "text"
             }
           ],
@@ -71391,7 +71430,7 @@
         {
           "content": [
             {
-              "text": "- `fe45-0b58` (commit `dcbe98f3ef`): `skip-review-check.sh` references `$CLAUDE_PLUGIN_ROOT` under `set -u` \u2192 unbound variable \u2192 27/56 tests fail in clean env",
+              "text": "2. Each hook reads a per-hook baseline capturing the violations present when the hook ships; baselined violations do not block commits. The baseline is shrink-only and count-based: a commit is rejected if the post-commit violation count for any hook exceeds that hook's recorded baseline, and removing a baseline entry without removing the corresponding source violation is itself a rejected grow operation.",
               "type": "text"
             }
           ],
@@ -71400,7 +71439,7 @@
         {
           "content": [
             {
-              "text": "- `09d8-11f0`, `a190-d780` (commit `e913a71d5a`): `pre-commit-format-fix.sh` same pattern \u2014 5/11 tests fail; identical root cause to `fe45-0b58` two months earlier",
+              "text": "3. Each hook emits per-file diagnostics naming the offending line, the exact remediation string, and a citation to the originating ticket (e.g., e241-41b2 for SIGPIPE, a190-d780 for config-doc drift).",
               "type": "text"
             }
           ],
@@ -71409,7 +71448,7 @@
         {
           "content": [
             {
-              "text": "- `82ad-7bb3` (commit `f5a055d1fa`): `bash-runner.sh` does not export `CLAUDE_PLUGIN_ROOT` before sourcing suite-engine",
+              "text": "4. plugins/dso/config/known-antipatterns.yaml ships as an append-only registry with a documented, versioned schema (id, pattern, target languages/dirs, remediation, citation), consumed by check-known-antipatterns.sh and documented in CONFIGURATION-REFERENCE.md. The append-only contract is mechanically guarded: a commit that removes or mutates an existing registry entry is rejected.",
               "type": "text"
             }
           ],
@@ -71418,7 +71457,7 @@
         {
           "content": [
             {
-              "text": "- `97a7-4504` (commit `495c8c4b4f`): `bash-runner.sh` fallback path needed annotation under plugin-self-ref check",
+              "text": "5. Suppression follows existing-hook precedent (# antipattern-ok: <reason>, # bash4-only:); each suppression requires a non-empty, non-whitespace justification token on the same line, and a suppression with an empty or whitespace-only reason is itself rejected.",
               "type": "text"
             }
           ],
@@ -71427,7 +71466,7 @@
         {
           "content": [
             {
-              "text": "- `4191-9096`, `0a47-9631` (commits `2261fcc83b`, `0968b46917`): `declare -A` (associative array) in scripts that must run on bash 3.2 (macOS default)",
+              "text": "6. Each hook ships a fixture-based test asserting (a) the antipattern is detected on staged content, (b) baselined violations do not fire, (c) new instances are blocked, and (d) baseline growth is rejected; plus (e) an end-to-end test that invokes the hook through the real pre-commit framework (covering the symlink-chain BASH_SOURCE class, ref a40e-ab52), confirming the hooks and static-defense-lib.sh resolve their own paths and baselines without CLAUDE_PLUGIN_ROOT and pass their own checks (dogfood).",
               "type": "text"
             }
           ],
@@ -71436,19 +71475,7 @@
         {
           "content": [
             {
-              "text": "- `a40e-ab52` (in flight): `check-tickets-boundary.sh` resolves `BASH_SOURCE` via pre-commit's symlinked temp path \u2192 silent docs/ exclusion failure",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "**Pattern 4 \u2014 `set -o pipefail` + SIGPIPE on `\u2026 | grep -q` (~8%, Linux-strict):**",
+              "text": "7. Staged-file enumeration in static-defense-lib.sh covers added, copied, modified, and renamed/mode-changed .sh files, so a violation introduced via a rename or mode-change is detected and not silently skipped by a restrictive --diff-filter.",
               "type": "text"
             }
           ],
@@ -71457,25 +71484,7 @@
         {
           "content": [
             {
-              "text": "- `e241-41b2`: 50+ instances replaced with here-strings (`grep -q \"$y\" <<< \"$x\"`) across 26 files in commits `b9358f95eb` + `0113ab66d9`",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- `999e-cf69`: a 27th instance later discovered in `ticket-push-rebase-conflict` after the 26-file sweep",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Current state: a fresh `grep -r \"echo .* | grep -q\" plugins/dso/ --include=\"*.sh\" -l | wc -l` returns **42 files** still containing the antipattern, including `pre-commit-review-gate.sh:259` (a hook script \u2014 production code path)",
+              "text": "8. static-defense-lib.sh and the four hooks execute correctly under bash 3.2 (the macOS default), verified by a bash-3.2-constrained test, so the shared library cannot itself ship the bash-4-only antipattern (declare -A, namerefs) that check-known-antipatterns.sh is meant to flag.",
               "type": "text"
             }
           ],
@@ -71487,16 +71496,7 @@
         {
           "content": [
             {
-              "text": "**Pattern 7 \u2014 Spec / documentation gaps:**",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- `a190-d780`: `commands.test_dirs` config key undocumented; CI's `test-config-keys-documented.sh` caught this post-merge",
+              "text": "## Closure Checks",
               "type": "text"
             }
           ],
@@ -71508,16 +71508,7 @@
         {
           "content": [
             {
-              "text": "**Pattern 3 \u2014 Identical-root-cause regressions (~10%, cross-cuts Pattern 1):**",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- The CLAUDE_PLUGIN_ROOT chain `09d8-11f0` \u2192 `fe45-0b58` \u2192 `82ad-7bb3` \u2192 `97a7-4504` is at least four separate tickets with identical mechanical fixes; each was treated as a single-file fix and excluded from prior-art search by `prior-art-search.md:79-88` (\"Routine exclusions: single-file logic fixes...\")",
+              "text": "None \u2014 all success criteria are verifiable within the implementing sprint session.",
               "type": "text"
             }
           ],
@@ -71529,43 +71520,7 @@
         {
           "content": [
             {
-              "text": "**Gap evidence:**",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- G1 (no hermeticity gate): all 18 hooks in `.pre-commit-config.yaml` are syntactic; `check-portability.sh` flags only `/Users/`, `/home/` hardcoded paths",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- G6 (prior-art search excludes single-file fixes): verified at `prior-art-search.md:79-88`",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- G11 (config keys decoupled from docs): no hook in `.pre-commit-config.yaml` cross-references config keys against `CONFIGURATION-REFERENCE.md`",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- G12 (SIGPIPE has no static-detection gate): shellcheck does not flag this pattern; 42 files currently in violation",
+              "text": "## Dependencies",
               "type": "text"
             }
           ],
@@ -71577,7 +71532,34 @@
         {
           "content": [
             {
-              "text": "## Mitigations included",
+              "text": "- Blocks 99f1-153c (fix-bug recurrence prevention): this epic creates the known-antipatterns registry that 99f1-153c populates (the A then E sequence).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Coexists with cf7b-86a9 (shellcheck/ruff parity) \u2014 a different antipattern layer. This epic owns the hermeticity, SIGPIPE-under-pipefail, declare -A, and config-key-docs antipattern classes; cross-file bloat detectors (P-D1/P-T2/P-C2) are owned by bc7f-1a0d. The .pre-commit-config.yaml ordering comment doubles as the scope boundary.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Reviewer-rubric counterparts (New Epic B) and registry population over time (New Epic E / 99f1-153c) are out of scope.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Release note: if CI runs `pre-commit run --all-files`, the four hooks become active CI gates \u2014 verify CI wiring before relying on them in CI. No scripts/release.sh code change is required.",
               "type": "text"
             }
           ],
@@ -71589,34 +71571,7 @@
         {
           "content": [
             {
-              "text": "- **G1-M1** \u2014 `check-hermeticity.sh` pre-commit hook scanning staged `.sh` files for: (a) unguarded `$CLAUDE_PLUGIN_ROOT` references when `set -u` is active; (b) `declare -A` in scripts under directories the platform matrix targets (`plugins/dso/scripts/`, `plugins/dso/hooks/`, `.claude/scripts/`); (c) `BASH_SOURCE` resolution that does not flow through `readlink -f` or equivalent",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- **G6-M2** \u2014 `check-known-antipatterns.sh` reading regex/AST queries from `plugins/dso/config/known-antipatterns.yaml`; append-only registry populated over time as new antipatterns are discovered (E receives them from fix-bug)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- **G11-M1** \u2014 `check-config-key-docs.sh` cross-referencing `dso-config.conf` keys against `CONFIGURATION-REFERENCE.md` (parses both, fails on missing entries)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- **G12-M1** \u2014 `check-pipefail-grep.sh` flagging `echo \u2026 | grep -q` and `printf \u2026 | grep -q` under scripts with `set -o pipefail` or `set -euo pipefail`; ships with baseline of existing 42 instances",
+              "text": "## Approach",
               "type": "text"
             }
           ],
@@ -71628,7 +71583,7 @@
         {
           "content": [
             {
-              "text": "## Proposed success criteria",
+              "text": "Four pre-commit hooks share one library, plugins/dso/hooks/lib/static-defense-lib.sh, which owns rename-inclusive staged-.sh enumeration, count-based shrink-only baseline load/diff, suppression-annotation parsing, and diagnostic formatting (remediation string plus originating-ticket citation). Each hook is a thin wrapper supplying only its detection logic and message strings. check-known-antipatterns.sh reads regex/AST queries from the append-only known-antipatterns.yaml, parsed by a single pinned parser (no new dependency \u2014 yq and python3 are already available; the parser choice must not depend on yq v3-vs-v4 syntax differences). The hooks register as discrete, independently-named entries between shellcheck and pre-commit-review-gate so concurrent hook-adding epics merge without conflict. Design constraint (the highest-risk failure mode): the hooks and the shared library must themselves pass all four checks (dogfood) and must resolve their own paths and baseline locations via the BASH_SOURCE -> readlink -f idiom (the pattern already used by check-tickets-boundary.sh), never via CLAUDE_PLUGIN_ROOT, so they work correctly under the pre-commit framework's symlinked temp-path chain and in CI where CLAUDE_PLUGIN_ROOT is unset.",
               "type": "text"
             }
           ],
@@ -71640,52 +71595,7 @@
         {
           "content": [
             {
-              "text": "1. Four new pre-commit hooks ship in `.pre-commit-config.yaml`, ordered between `shellcheck` and `pre-commit-review-gate`",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "2. Each hook supports a baseline file mechanism so existing violations do not block rollout; new violations are blocked",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "3. Hooks emit per-file diagnostics with the exact remediation string and a citation back to the originating ticket (`e241-41b2`, `a190-d780`, etc.)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "4. `plugins/dso/config/known-antipatterns.yaml` is created, append-only, and documented in `CONFIGURATION-REFERENCE.md`",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "5. Suppression annotations follow the precedent of existing hooks (`# bash4-only:`, `# antipattern-ok: <reason>`); each annotation requires a justification token",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "6. Test coverage: each hook has a fixture-based test asserting (a) the antipattern is detected on staged content, (b) baselined existing violations do not fire, (c) new instances of the antipattern are blocked",
+              "text": "## Cross-Epic Interactions",
               "type": "text"
             }
           ],
@@ -71697,7 +71607,16 @@
         {
           "content": [
             {
-              "text": "## Coordination notes",
+              "text": "- Resource: plugins/dso/config/known-antipatterns.yaml. Downstream consumers are 99f1-153c (fix-bug recurrence prevention; populates the registry), d63f-2c74 (reads registry.antipattern_path), and a47f-b451 (reviewer-rubric / bug-classification-registry alignment). Gate: this epic publishes the registry with a stable, documented, versioned schema and ships it before those consumers run; consumers must tolerate the not-yet-populated (empty registry) case.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Resource: .pre-commit-config.yaml hook registration and ordering. Concurrent hook-adding epics are 230a-344a, bc7f-1a0d, af26-dd5a, c337-ed61, and 857d-a35a. Gate: the four hooks register as discrete, independently-named entries in the shellcheck-to-pre-commit-review-gate band so concurrent epics merge without conflict; the ordering invariant (after shellcheck, before pre-commit-review-gate) is documented in a .pre-commit-config.yaml comment.",
               "type": "text"
             }
           ],
@@ -71709,7 +71628,19 @@
         {
           "content": [
             {
-              "text": "- Coexists with `cf7b-86a9` (which adds shellcheck/ruff parity) \u2014 different layer, different antipattern class",
+              "text": "## State Lifecycle",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| Variable | CREATE | UPDATE | CONSUME | RETIRE |",
               "type": "text"
             }
           ],
@@ -71718,7 +71649,7 @@
         {
           "content": [
             {
-              "text": "- Sets up the registry that **New Epic E** (fix-bug recurrence) populates over time",
+              "text": "|----------|--------|--------|---------|--------|",
               "type": "text"
             }
           ],
@@ -71727,7 +71658,121 @@
         {
           "content": [
             {
-              "text": "- Reviewer rubric items in **New Epic B** (G1-M2, G11-M3, G12-M2) are the human-loop counterpart to these mechanical hooks",
+              "text": "| plugins/dso/config/known-antipatterns.yaml | this epic | fix-bug workflow (99f1-153c / New Epic E) plus maintainers, append-only | check-known-antipatterns.sh; downstream consumers d63f-2c74 (registry.antipattern_path) and 99f1-153c | never retired \u2014 persists for project lifetime |",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| per-hook baseline files (e.g., check-pipefail-grep.baseline) | this epic (initial violation capture) | developers during remediation (shrink-only; the hook rejects growth) | the owning hook (each reads only its own baseline) | never retired \u2014 remains, possibly empty, as the ratchet floor |",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| .pre-commit-config.yaml (4 new hook entries) | this epic | maintainers | pre-commit framework (local) plus CI if it runs `pre-commit run --all-files` | never retired |",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Scenario Analysis",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- check-pipefail-grep subshell/command-substitution false-negative (high) \u2014 addressed by SC1.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Shrink-only baseline merge race across worktrees (high) \u2014 addressed by SC2 count-based recompute and a documented merge strategy.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Diff-vs-full-file scan false negative/positive (high) \u2014 addressed in the Approach (scan staged content, compare against the baseline rather than re-firing on baselined lines).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- YAML parser version divergence, yq v3 vs v4 (high) \u2014 addressed in the Approach (single pinned parser).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Whitespace-only suppression token bypass (medium) \u2014 addressed by SC5.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Append-only invariant not machine-enforced (medium) \u2014 addressed by SC4 mechanical guard.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Baseline format ambiguity, integer vs file-keyed map (medium) \u2014 addressed in the Approach (one consistent format owned by the shared library).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Rename/mode-change enumeration gap (assumption, medium) \u2014 addressed by SC7.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- static-defense-lib.sh bash-3.2 self-compatibility (assumption, high) \u2014 addressed by SC8.",
               "type": "text"
             }
           ],
@@ -71751,7 +71796,7 @@
         {
           "content": [
             {
-              "text": "- `docs/observed-failure-patterns-4-26.md` Patterns 1, 3, 4, 7",
+              "text": "- docs/observed-failure-patterns-4-26.md Patterns 1, 3, 4, 7",
               "type": "text"
             }
           ],
@@ -71760,7 +71805,7 @@
         {
           "content": [
             {
-              "text": "- `docs/process-gaps-4-26.md` G1, G6, G11, G12",
+              "text": "- docs/process-gaps-4-26.md G1, G6, G11, G12",
               "type": "text"
             }
           ],
@@ -71769,7 +71814,7 @@
         {
           "content": [
             {
-              "text": "- `docs/proposed-mitigations-4-26.md` G1-M1, G6-M2, G11-M1, G12-M1",
+              "text": "- docs/proposed-mitigations-4-26.md G1-M1, G6-M2, G11-M1, G12-M1",
               "type": "text"
             }
           ],
@@ -71778,7 +71823,7 @@
         {
           "content": [
             {
-              "text": "- `docs/new-epics-4-26.md` \u00a7 New Epic A",
+              "text": "- docs/new-epics-4-26.md, New Epic A",
               "type": "text"
             }
           ],
@@ -71800,8 +71845,8 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:7575-5a90",
-      "scrutiny:pending"
+      "brainstorm:complete",
+      "dso-id:7575-5a90"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
