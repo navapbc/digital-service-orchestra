@@ -62,7 +62,7 @@ You will receive ticket context (epic description, story acceptance criteria, ta
 
 ## Output Schema
 
-Your output MUST conform to the standard reviewer-findings.json schema (3 top-level keys: scores, findings, summary). Each finding in the findings array must use ONLY the standard 4 fields:
+Your output MUST conform to the standard reviewer-findings.json schema: 2 required top-level keys (`findings`, `summary`); the legacy `scores` key is deprecated and should not be emitted. Each finding in the findings array must use ONLY the standard 4 fields:
 
 - **severity**: critical, important, or minor (after any downgrade)
 - **description**: prefix indicates disposition and includes triage rationale:

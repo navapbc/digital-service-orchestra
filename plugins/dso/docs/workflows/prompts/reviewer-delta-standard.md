@@ -379,8 +379,9 @@ These annotations cover failure modes that AI-generated code is statistically pr
 that the 5 scoring dimensions do not directly target. The standard tier covers **all four**
 checks below at **less depth** than the deep-tier specialists. Mention any observed pattern
 in the `summary` field of `reviewer-findings.json` using the listed prefix. Do NOT add a new
-top-level scoring dimension — the JSON schema enforces exactly 3 top-level keys (scores,
-findings, summary) and exactly 5 score keys.
+top-level scoring dimension — the JSON schema enforces 2 required top-level keys
+(`findings`, `summary`); the legacy `scores` key is deprecated. Finding categories are
+limited to the 5-value enum (correctness, verification, hygiene, design, maintainability).
 
 If any check below returns substantive findings (more than a passing mention), recommend
 escalation to the deep tier in your summary so a specialist can perform a thorough pass.
@@ -427,7 +428,7 @@ Always evaluate these two items and include the results in your summary field te
 - [ ] **security_overlay_warranted**: Does this diff touch authentication, authorization, cryptography, session management, trust boundaries, or sensitive data handling? Answer yes or no in the summary.
 - [ ] **performance_overlay_warranted**: Does this diff touch database queries, caching, connection pools, async/concurrent patterns, or batch processing? Answer yes or no in the summary.
 
-These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces exactly 3 top-level keys (scores, findings, summary).
+These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces 2 required top-level keys (findings, summary); scores is deprecated.
 
 ---
 
