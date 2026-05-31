@@ -135,11 +135,12 @@ Read, Grep, and Glob extensively.
 ## AI Blindspot Annotations
 
 These annotations cover failure modes that AI-generated code is statistically prone to but
-that the 5 scoring dimensions do not directly target. They are **summary-field annotations
+that the 5 categories do not directly target. They are **summary-field annotations
 only** — when you observe one of these patterns, mention it in the `summary` field of
 `reviewer-findings.json`. Do NOT add them as a new top-level scoring dimension; the JSON
-schema enforces exactly 3 top-level keys (scores, findings, summary) and exactly 5 score
-keys (correctness, verification, hygiene, design, maintainability).
+schema enforces 2 required top-level keys (`findings`, `summary`); the legacy `scores` key
+is deprecated. Finding categories are limited to the 5-value enum: correctness,
+verification, hygiene, design, maintainability.
 
 If the underlying issue also maps to one of your owned dimensions (hygiene, design,
 maintainability), you MAY additionally raise a scored finding under that dimension. The
@@ -194,7 +195,7 @@ Always evaluate these two items and include the results in your summary field te
 - [ ] **security_overlay_warranted**: Does this diff touch authentication, authorization, cryptography, session management, trust boundaries, or sensitive data handling? Answer yes or no in the summary.
 - [ ] **performance_overlay_warranted**: Does this diff touch database queries, caching, connection pools, async/concurrent patterns, or batch processing? Answer yes or no in the summary.
 
-These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces exactly 3 top-level keys (scores, findings, summary).
+These items MUST appear in your summary field text (e.g., "security_overlay_warranted: no, performance_overlay_warranted: yes"). They do NOT add new top-level keys to the JSON output — validate-review-output.sh enforces 2 required top-level keys (findings, summary); scores is deprecated.
 
 ---
 
