@@ -257,7 +257,20 @@ git status --porcelain
 
 **If both pass** (merge-base exits 0 AND `status --porcelain` is empty):
 
-Report: "Worktree verified clean and merged — claude-safe can auto-remove."
+Actually remove the finished worktree — do NOT merely report that it *could* be removed. `claude-safe`'s own auto-removal hook is TTY-gated, so it never fires in non-interactive / agent sessions; relying on it left merged+clean worktrees to accumulate (bug e9cb). Invoke the targeted removal, which independently re-verifies merged + effectively-clean before deleting and works in non-interactive/agent sessions:
+
+```bash
+WORKTREE_PATH="$(pwd -P)"
+# Targeted removal: removes ONLY this worktree, and only if it re-verifies as
+# merged + effectively clean (clean, or only regenerable .claude/scratch dirt).
+# Runs the removal from the main repo so it can detach this worktree. Run from
+# the main repo or pass --worktree with an absolute path; the script refuses to
+# remove the worktree the current shell is inside, so this command should be
+# issued from a directory OUTSIDE the worktree (e.g. the main repo root).
+"${CLAUDE_PLUGIN_ROOT}/scripts/worktree-cleanup.sh" --worktree "$WORKTREE_PATH" --force
+```
+
+If the current shell is inside the worktree (the script will refuse), `cd` to the main repo first, then run the command above. Report the outcome: "Worktree merged + clean — removed via worktree-cleanup.sh --worktree" (or the specific refusal reason if removal was declined).
 
 **If either fails**, report the specific failure:
 
