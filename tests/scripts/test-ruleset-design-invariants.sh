@@ -283,41 +283,18 @@ else
     _fail "I3_sub_pr_do_not_enforce_on_create" "rsc_info=$rsc_info"
 fi
 
-# I4: ALL sub-PR bypass actors must have bypass_mode=pull_request.
-# Iterates every actor in the list (a permissive 'always' on a second
-# actor would otherwise pass the test while breaking the security
-# invariant; cycle-2 review finding).
-i4_violations="$(echo "$SUB_PR_FULL" | python3 -c "
-import json,sys
-d = json.load(sys.stdin)
-violations = []
-actors = d.get('bypass_actors', []) or []
-if not actors:
-    print('NO_ACTORS')
-    sys.exit(0)
-for a in actors:
-    if not isinstance(a, dict):
-        violations.append(f'non-dict actor: {a!r}')
-        continue
-    mode = a.get('bypass_mode', '')
-    if mode != 'pull_request':
-        violations.append(f'actor_id={a.get(\"actor_id\", \"?\")} type={a.get(\"actor_type\", \"?\")} bypass_mode={mode!r}')
-print(','.join(violations))
-")"
-if [[ "$i4_violations" == "NO_ACTORS" ]]; then
-    # Vacuously true: the invariant is "every bypass actor uses
-    # pull_request mode". No actors means no bypass possible — which
-    # satisfies the security goal even if it removes the admin-merge
-    # escape valve. The design doc (review-defenses.md § Two-Tier
-    # Promotion Gate) requires `bypass_mode: pull_request` for admin
-    # bypass to remain a possibility but does not mandate the bypass
-    # actors list be non-empty (cycle-4 review).
-    _pass "I4_sub_pr_bypass_mode_pull_request (no actors — vacuously true)"
-elif [[ -z "$i4_violations" ]]; then
-    _pass "I4_sub_pr_bypass_mode_pull_request"
+# I4 (outcome-based): verify the CONTAINMENT OUTCOME, not the bypass-actor
+# config. `current_user_can_bypass` reports what the *running token* may do, and
+# any token can read its own value (bypass_actors itself is admin-read-only, so
+# introspecting it would be blind under a least-privilege CI token). Asserting
+# "never" proves THIS identity cannot force-merge past the sub-PR gate. Run as
+# the non-admin CI/agent identity (DSO_RULESETS_READ_TOKEN); see note in I7.
+sub_cub="$(echo "$SUB_PR_FULL" | python3 -c "import json,sys; print(json.load(sys.stdin).get('current_user_can_bypass'))")"
+if [[ "$sub_cub" == "never" ]]; then
+    _pass "I4_sub_pr_not_force_mergeable_by_this_identity"
 else
-    _fail "I4_sub_pr_bypass_mode_pull_request" \
-        "actor(s) with bypass_mode != pull_request: $i4_violations"
+    _fail "I4_sub_pr_not_force_mergeable_by_this_identity" \
+        "current_user_can_bypass=$sub_cub (expected 'never' — this token can force-merge into staged-*)"
 fi
 
 # I5: sub-PR enforcement
@@ -344,34 +321,28 @@ else
         "check-staged-head not in main ruleset required_status_checks"
 fi
 
-# I7: ALL main ruleset bypass actors must have bypass_mode=pull_request.
-# Same all-actors iteration as I4.
-i7_violations="$(echo "$MAIN_FULL" | python3 -c "
-import json,sys
-d = json.load(sys.stdin)
-violations = []
-actors = d.get('bypass_actors', []) or []
-if not actors:
-    print('NO_ACTORS')
-    sys.exit(0)
-for a in actors:
-    if not isinstance(a, dict):
-        violations.append(f'non-dict actor: {a!r}')
-        continue
-    mode = a.get('bypass_mode', '')
-    if mode != 'pull_request':
-        violations.append(f'actor_id={a.get(\"actor_id\", \"?\")} type={a.get(\"actor_type\", \"?\")} bypass_mode={mode!r}')
-print(','.join(violations))
-")"
-if [[ "$i7_violations" == "NO_ACTORS" ]]; then
-    # Vacuously true — see I4 rationale above.
-    _pass "I7_main_bypass_mode_pull_request (no actors — vacuously true)"
-elif [[ -z "$i7_violations" ]]; then
-    _pass "I7_main_bypass_mode_pull_request"
+# I7 (outcome-based): main-ruleset containment — this identity cannot
+# force-merge to main. NOTE: this asserts the *running token's* bypass
+# capability, so the check must run as the non-admin CI/agent identity
+# (DSO_RULESETS_READ_TOKEN, a least-privilege token). A human bypass actor
+# running it locally will correctly see they CAN bypass and the check will
+# fail — that is expected; the invariant is about the enforcement identity.
+# We deliberately do NOT introspect bypass_actors (admin-read-only); verifying
+# the no-force-merge OUTCOME is the design goal.
+main_cub="$(echo "$MAIN_FULL" | python3 -c "import json,sys; print(json.load(sys.stdin).get('current_user_can_bypass'))")"
+if [[ "$main_cub" == "never" ]]; then
+    _pass "I7_main_not_force_mergeable_by_this_identity"
 else
-    _fail "I7_main_bypass_mode_pull_request" \
-        "actor(s) with bypass_mode != pull_request: $i7_violations"
+    _fail "I7_main_not_force_mergeable_by_this_identity" \
+        "current_user_can_bypass=$main_cub (expected 'never' — this token can force-merge to main)"
 fi
+
+# (Bypass-actor *identity* introspection intentionally omitted: bypass_actors is
+# admin-read-only, so a least-privilege CI token cannot see it. Per design we
+# verify the no-force-merge OUTCOME via current_user_can_bypass (I4/I7) rather
+# than the specific actor config. The named-human bypass actor is set by the
+# provisioner from ruleset.bypass_user_id; its correctness is an admin-run /
+# provisioning-time concern, not a per-PR CI check.)
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""

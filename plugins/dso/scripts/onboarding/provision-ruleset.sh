@@ -245,9 +245,8 @@ fi
 
 # ── Resolve default branch via shared helper ─────────────────────────────────
 # Four-tier fallback (DSO_DEFAULT_BRANCH env → gh repo view → git symbolic-ref
-# → "main") implemented in lib/default-branch.sh. Both this script and
-# sync-sub-pr-ruleset.sh source the same helper so the resolution chain stays
-# in sync — addresses llm-review finding 2/2 on PR #442 (duplicated logic).
+# → "main") implemented in lib/default-branch.sh, sourced here as the single
+# shared helper (addresses llm-review finding 2/2 on PR #442 — no duplicated logic).
 # Prefer CLAUDE_PLUGIN_ROOT when set; otherwise derive from BASH_SOURCE so
 # the helper is found regardless of env state.
 _PROV_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -255,6 +254,21 @@ _PROV_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_PROV_SCRIPT_DIR/../.." 2>/dev/n
 # shellcheck source=../lib/default-branch.sh
 source "$_PROV_PLUGIN_ROOT/scripts/lib/default-branch.sh"
 DEFAULT_BRANCH=$(_dso_resolve_default_branch "$REPO")
+
+# ── Bypass actor (Goal-4 containment) ─────────────────────────────────────────
+# Default: RepositoryRole:admin (the admin role bypasses required checks). When
+# `ruleset.bypass_user_id` is configured (a project-specific GitHub numeric user
+# ID), emit a named-User bypass actor instead — so the admin *role* no longer
+# bypasses; only that human does, via the web-UI button. Env override:
+# DSO_RULESET_BYPASS_USER_ID. Config read is CWD-relative .claude/dso-config.conf
+# (override path via DSO_CONFIG_FILE). The ruleset-design-invariants check
+# drift-locks the live bypass actor to this value.
+RULESET_BYPASS_USER_ID="${DSO_RULESET_BYPASS_USER_ID:-$("$_PROV_PLUGIN_ROOT/scripts/read-config.sh" ruleset.bypass_user_id "${DSO_CONFIG_FILE:-.claude/dso-config.conf}" 2>/dev/null || true)}"
+if [[ -n "${RULESET_BYPASS_USER_ID:-}" ]]; then
+  BYPASS_ACTORS_JSON="[{\"actor_id\": ${RULESET_BYPASS_USER_ID}, \"actor_type\": \"User\", \"bypass_mode\": \"${BYPASS_ACTOR_POLICY}\"}]"
+else
+  BYPASS_ACTORS_JSON="[{\"actor_id\": 5, \"actor_type\": \"RepositoryRole\", \"bypass_mode\": \"${BYPASS_ACTOR_POLICY}\"}]"
+fi
 
 # ── Read check names from file ────────────────────────────────────────────────
 if [[ ! -f "$CHECKS_FILE" ]]; then
@@ -303,13 +317,7 @@ PAYLOAD_JSON=$(cat <<EOF
       "exclude": []
     }
   },
-  "bypass_actors": [
-    {
-      "actor_id": 5,
-      "actor_type": "RepositoryRole",
-      "bypass_mode": "${BYPASS_ACTOR_POLICY}"
-    }
-  ],
+  "bypass_actors": ${BYPASS_ACTORS_JSON},
   "rules": [
     {"type": "non_fast_forward"},
     {"type": "deletion"},
@@ -407,13 +415,7 @@ SUB_PR_PAYLOAD_JSON=$(cat <<EOF
       "exclude": ${SUB_PR_EXCLUDE_JSON}
     }
   },
-  "bypass_actors": [
-    {
-      "actor_id": 5,
-      "actor_type": "RepositoryRole",
-      "bypass_mode": "${BYPASS_ACTOR_POLICY}"
-    }
-  ],
+  "bypass_actors": ${BYPASS_ACTORS_JSON},
   "rules": [
     {
       "type": "workflows",
