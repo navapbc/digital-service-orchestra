@@ -49,6 +49,16 @@ check-staged-head
 # main, bypass_mode flipped to always), this check fails and blocks merge.
 ruleset-design-invariants
 
+# ── workflow-stability v4 fail-closed gates (go-live: enforce + required) ────
+# review-coverage-invariant.yml — Goal-1 coverage invariant (TS-1): every
+# origin/main..HEAD SHA must be PROVEN reviewed (passing review check-run on a
+# covering merged PR), never inferred from reachability. Fail-closed.
+# dangling-references.yml — W6 symbol-level cross-sub-PR conflict check.
+# Both flipped to MODE=enforce and promoted to required at go-live (2026-06-01).
+# The round-trip drift test keeps this list == the live MAIN ruleset.
+review-coverage-invariant
+dangling-references
+
 # NOTE: review-sub-pr is intentionally NOT listed here. Enforcement for
 # review-sub-pr lives on the sub-PR ruleset 16961402 as a
 # required_status_checks{review-sub-pr} rule with do_not_enforce_on_create=true
