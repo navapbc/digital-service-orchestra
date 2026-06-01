@@ -517,17 +517,23 @@ for pr in pr_list:
         continue
     if not pr.get('merged_at'):
         continue
-    # A3a: PR cannot cover its own HEAD
-    head_sha = (pr.get('head') or {}).get('sha', '')
-    if head_sha == sha_under_review:
+    number = pr.get('number')
+    # A1, SCOPED TO THE SELF CANDIDATE (W4 / Gap-2): the PR currently under
+    # review cannot provide its own provenance — identified by number.
+    if pr_under_review > 0 and number == pr_under_review:
         continue
-    # A3b: self-merge guard
+    # The prior blanket A3a (head==sha) exclusion was REMOVED: it dropped a
+    # DIFFERENT merged PR whose head IS sha_under_review, even though that is
+    # VALID provenance (the SHA was that PR's reviewed head), forcing a false
+    # unprovenanced re-review. The self PR is already excluded by A1 (PR context)
+    # and by A2 merged-only (an open self PR in push context). Safety: removal
+    # CANNOT launder, because G3 below independently verifies that each kept
+    # covering PR review check actually PASSED. Do NOT re-add the blanket A3a.
+    # A3b: self-merge guard (a SHA cannot be provenanced by the merge commit it
+    # itself produced).
     if pr.get('merge_commit_sha') == sha_under_review:
         continue
-    # A1: exclude the PR being reviewed (self-exclusion via env var)
-    if pr_under_review > 0 and pr.get('number') == pr_under_review:
-        continue
-    print(pr.get('number', ''))
+    print(number if number is not None else '')
 " 2>/dev/null)" || covering_prs=""
 
     # G3 fix: verify that each covering PR's review-sub-pr check actually
