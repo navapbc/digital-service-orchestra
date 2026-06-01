@@ -368,11 +368,49 @@ if [[ -n "$_UPSTREAM_REF" ]]; then
     fi
 fi
 
+# Clean-merge exemption predicate (bug 77ab). The same carve-out is applied in
+# review-coverage-invariant.sh's SHA loop (the clean-merge exemption added on the
+# fix/coverage-invariant-clean-merge branch, landing together via the staged branch);
+# the two are INDEPENDENT copies, one per SHA-walk caller — there is no shared helper.
+# IMPORTANT: the shared predicate lib review-coverage-lib.sh::rc_sha_is_reviewed
+# intentionally has NO merge carve-out and MUST NOT be given one — it is the fail-closed
+# backstop that requires every SHA (merges included) to be proven-reviewed.
+# A merge commit (>=2 parents) that introduces NO content of its own (empty
+# `git diff-tree --cc`) carries no standalone reviewable code: its parents are enumerated
+# in THIS SAME BASE..HEAD walk and provenanced independently. Such a commit is EXEMPT. An
+# EVIL merge (manual conflict-resolution edits -> non-empty combined diff) is NOT exempt
+# and still requires covering-PR provenance. Fails closed: if parentage or the combined
+# diff cannot be computed, return non-zero (do NOT exempt).
+_vsp_is_clean_merge() {
+    local _s="$1" _parents _cc
+    _parents="$(git -C "$GIT_REPO_PATH" rev-list --parents -n1 "$_s" 2>/dev/null)" || return 1
+    # tokens = self + N parents; a merge has >=2 parents => >=3 tokens.
+    [[ "$(printf '%s' "$_parents" | wc -w)" -ge 3 ]] || return 1
+    _cc="$(git -C "$GIT_REPO_PATH" diff-tree --cc --no-commit-id "$_s" 2>/dev/null)" || return 1
+    [[ -z "$_cc" ]]
+}
+
 # ── Walk commits ──────────────────────────────────────────────────────────────
 # Get all commits in range BASE_SHA..SESSION_HEAD, EXCLUDING commits already
 # reachable from the upstream ref (already-shipped via prior PRs).
 while IFS=' ' read -r sha subject; do
     [[ -z "$sha" ]] && continue
+
+    # Clean-merge exemption (bug 77ab). A clean staged merge commit carries no standalone
+    # reviewable content — its parents are enumerated and provenanced in this same walk.
+    # Classify it as covered/exempt BEFORE the covering-PR lookup, where the A3b self-merge
+    # guard would drop the only covering sub-PR and falsely flag the merge unprovenanced,
+    # stranding the two-tier staged->main PR at the dispatcher's empty-diff fail-closed.
+    # Placed before the cache check so a stale 'unprovenanced' cache entry from a pre-fix
+    # run cannot override it. (covered-shas.txt is log-only downstream — this SHA is NOT
+    # subtracted from review scope; the dispatcher scopes from unprovenanced-shas.txt, so a
+    # genuinely-unreviewed sibling commit still drives a DISPATCH, never masked by this.)
+    if _vsp_is_clean_merge "$sha"; then
+        echo "commit $sha status=CLEAN_MERGE; exempt (parents provenanced independently in this walk)"
+        _covered_shas+=("$sha")
+        _cache_set "$sha" "provenanced" || true
+        continue
+    fi
 
     # Step 1 (was: DSO-Story trailer shortcut) — REMOVED in v4 (PR-R1).
     # The trailer-presence shortcut was a self-attested claim, not evidence:
