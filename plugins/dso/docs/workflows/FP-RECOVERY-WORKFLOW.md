@@ -38,7 +38,7 @@ gh run list --workflow=ci.yml --branch "$(gh pr view "$PR_NUMBER" --json headRef
     | xargs -I{} gh run view {} --log 2>/dev/null | grep -A5 "Run LLM review" > "$CI_LOG_FILE" || true
 
 # Run the eligibility check
-DSO_CI_LOG="$CI_LOG_FILE" bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-fp-recovery-eligibility.sh"
+DSO_CI_LOG="$CI_LOG_FILE" bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-fp-recovery-eligibility.sh"  # shim-exempt: doc example, explicit plugin-root invocation
 ```
 
 If the eligibility check exits non-zero (OVER_BOUND detected), **stop immediately** and emit:
@@ -191,9 +191,23 @@ The annotation is **mandatory** — it makes the bypass auditable. A retro-analy
 - Tie each one to a specific REVIEWER_HASH for the manual review's findings JSON
 - See the engineer's stated FP rationale, and that all other required checks were green
 
-> **Deferred (W3d remainder)**: a post-hoc audit sweep over already-merged `main` PRs that
-> lack a passing `llm-review`, recording an HMAC-signed marker, is specified in
-> `workflow-stability-plan-v4-handoff.md` (W3d) and not yet implemented.
+### Step 7 (post-hoc audit): sweep already-merged bypassed PRs
+
+When a bypass merge has already happened (web-UI override, or any merge whose
+`llm-review` was skipped/failed), record a tamper-evident audit marker so the
+bypass cannot silently vanish from the trail. Run:
+
+```bash
+GH_REPO=<owner/repo> DSO_AUDIT_HMAC_KEY=<secret> \
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/ci/fp-recovery-audit-sweep.sh"  # shim-exempt: doc example, explicit plugin-root invocation
+```
+
+It scans recent merged `main` PRs, and for any lacking a PASSING review check
+emits an HMAC-SHA256-signed JSON marker (`pr`, `merge_sha`, `merged_at`,
+`review_status`, `hmac_sha256`). Set `DSO_AUDIT_OUTPUT=<file>` to append markers
+to an audit log. The HMAC key should be a repo/org secret; the signature lets a
+retro-analyst detect a tampered or fabricated marker. This is reporting-only (it
+does not block).
 
 ### Step 6: Label the PR
 
