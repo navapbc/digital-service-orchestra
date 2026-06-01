@@ -30,6 +30,16 @@ unset _p1 _p2 _q1 _q2
 # Resolve script paths (allow test overrides)
 _RUNNER="${DSO_RUNNER_PATH:-${PLUGIN_ROOT}/scripts/ci-llm-review-runner.sh}"
 
+# Net-end-state integration diff helper (W2a — replaces the CS-10 per-commit
+# `git show` concatenation that re-flagged introduce-then-fix intermediate state).
+# Resolve relative to THIS script's own location (BASH_SOURCE), not PLUGIN_ROOT:
+# PLUGIN_ROOT derives from the CWD git-toplevel, which under test (CWD = a temp
+# fixture repo) points at a tree without the lib. The dispatcher and its lib ship
+# together, so script-relative resolution is correct in every context.
+_DISPATCH_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/build-integration-diff.sh
+source "${DSO_INTEGRATION_DIFF_LIB:-${_DISPATCH_SCRIPT_DIR}/lib/build-integration-diff.sh}"
+
 # ── Consume provenance artifacts (bug 8a77 v2 Change B) ──────────────────────
 # The "Verify session provenance" ci.yml step has already run verify-session-
 # provenance.sh and written its decision to artifacts. Consuming these directly
@@ -412,29 +422,62 @@ case "$provenance_exit" in
         fi
 
         _COMMIT_SCOPED=true
-        : > "$_DIFF_PATH"
-        while IFS= read -r _sha; do
-            [[ -z "$_sha" ]] && continue
-            git show --format= --diff-merges=first-parent "$_sha" >> "$_DIFF_PATH" 2>/dev/null || true
-        done < "$_DISPATCH_SCOPE_FILE"
         _scope_count=$(wc -l < "$_DISPATCH_SCOPE_FILE" | tr -d ' ')
+
+        # W2a: build the NET END-STATE diff of the files touched by the
+        # unprovenanced SHAs — `git diff <merge-base(MAIN,HEAD)>..HEAD -- <files>`
+        # — instead of concatenating per-commit `git show` output. An
+        # introduce-then-fix within the unprovenanced range collapses to its
+        # final state, so the reviewer can no longer flag the already-fixed
+        # intermediate (the CS-10 / PR #509 chronic re-flag). The diff stays
+        # file-bounded to the unprovenanced set; it is NOT the full PR diff.
+        #
+        # Resolve the combined staged head whose net state is under review.
+        # Priority: explicit override → PR head SHA (gh api) → GITHUB_SHA → HEAD.
+        # GITHUB_SHA is preferred AFTER the true PR head (on a pull_request event
+        # it is the synthetic merge ref, not the head). Each candidate is checked
+        # for resolvability IN THE CURRENT REPO before use, so a GITHUB_SHA that
+        # belongs to a different repo (e.g. CI env leaking into a fixture repo)
+        # is skipped rather than triggering a spurious fail-closed.
+        _pr_head_api=""
+        if [[ -n "${GITHUB_REPOSITORY:-}" && -n "${PR_NUMBER:-}" ]]; then
+            _pr_head_api=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha' 2>/dev/null || echo "")
+        fi
+        _NET_HEAD=""
+        for _cand in "${DSO_HEAD_SHA:-}" "$_pr_head_api" "${GITHUB_SHA:-}" "HEAD"; do
+            [[ -z "$_cand" ]] && continue
+            if git rev-parse --verify --quiet "$_cand" >/dev/null 2>&1; then
+                _NET_HEAD="$_cand"
+                break
+            fi
+        done
+        if [[ -z "$_NET_HEAD" ]]; then
+            echo "ERROR: no resolvable net-diff head (tried DSO_HEAD_SHA / PR head / GITHUB_SHA / HEAD)" >&2
+            echo "ERROR: ensure the PR head SHA is fetched (actions/checkout fetch-depth: 0)" >&2
+            exit 1
+        fi
+
+        if ! _touched_count=$(build_net_integration_diff "$_MAIN_REF" "$_NET_HEAD" "$_DISPATCH_SCOPE_FILE" "$_DIFF_PATH"); then
+            echo "ERROR: net-end-state diff construction failed (git error) for ${_scope_count} SHA(s)" >&2
+            echo "ERROR: refusing to fall back to a full/own diff — fail-closed (8a77-class)" >&2
+            exit 1
+        fi
         if [[ ! -s "$_DIFF_PATH" ]]; then
-            # R3a v4: fail-closed on empty commit-scoped diff. Previously this
-            # fell back to the full PR diff, which silently re-entered the
-            # giant-diff regime AND re-reviewed previously-approved code.
-            # Failure modes the fail-closed catches:
-            #   1) shallow clone — increase fetch-depth on actions/checkout
-            #   2) all SHAs are merge-only with empty first-parent diff
-            #   3) SHAs missing from local history — verify --depth=0 fetch
-            echo "ERROR: commit-scoped diff is empty for ${_scope_count} SHA(s)" >&2
-            echo "ERROR: refusing to fall back to full PR diff — would re-review previously-approved code at giant-diff scale" >&2
+            # Empty net diff: the touched files' end-state equals ${_MAIN_REF}
+            # (e.g. an introduce-then-revert pair) OR a resolution failure
+            # (shallow clone / SHAs missing / empty-first-parent merges → 0
+            # touched files). We cannot distinguish "legitimately net-zero" from
+            # "broken history" here, so fail-closed and route to admin review —
+            # never silently SKIP an unprovenanced range (8a77-class hole).
+            echo "ERROR: net-end-state diff is empty for ${_scope_count} SHA(s) (${_touched_count} touched file(s))" >&2
+            echo "ERROR: refusing to SKIP an unprovenanced range on an empty diff — fail-closed" >&2
             echo "ERROR: investigation paths:" >&2
             echo "  (1) shallow clone — increase fetch-depth on actions/checkout" >&2
-            echo "  (2) all SHAs are merge-only with empty first-parent diff" >&2
+            echo "  (2) net-zero change (introduce-then-revert) — confirm via git diff ${_MAIN_REF}...${_NET_HEAD}" >&2
             echo "  (3) SHAs missing from local history — verify --depth=0 fetch" >&2
             exit 1
         fi
-        echo "INFO: commit-scoped diff generated from ${_scope_count} SHA(s)"
+        echo "INFO: net-end-state diff generated from ${_scope_count} unprovenanced SHA(s) over ${_touched_count} touched file(s) (head ${_NET_HEAD})"
     fi
 
     # Fallback: full PR diff (only when no _DISPATCH_SCOPE_FILE was set).
