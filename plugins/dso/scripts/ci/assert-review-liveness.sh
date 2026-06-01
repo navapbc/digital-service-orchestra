@@ -73,6 +73,30 @@ print(len(d['findings']))
         exit 1
     fi
     rm -f /tmp/liveness-parse-err.$$
+
+    # TS-1: reject the laundering skip stub. `all_scope_already_merged` means the
+    # dispatcher SKIPPED review because every in-scope SHA was filtered out as
+    # reachable-from-origin/main (the `comm -23` scope filter) — and reachability
+    # is NOT review evidence (P9). Liveness cannot itself confirm coverage, so it
+    # FAILS CLOSED here; the independent `review-coverage-invariant` check is the
+    # positive coverage confirmation. NOTE: `all_commits_provenanced` is NOT
+    # rejected — it comes from the verifier's G3 covering-PR review-check
+    # verification, which is genuine review evidence.
+    _SKIP_REASON=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    print(''); sys.exit(0)
+print(d.get('skip_reason', '') if isinstance(d, dict) else '')
+" "$F" 2>/dev/null || echo "")
+    if [[ "$_SKIP_REASON" == "all_scope_already_merged" ]]; then
+        echo "ERROR [liveness]: findings.json is a laundering skip stub (skip_reason=all_scope_already_merged)." >&2
+        echo "ERROR [liveness]: review was SKIPPED because in-scope SHAs were filtered as reachable-from-main — reachability is NOT review (P9). Failing closed." >&2
+        echo "ERROR [liveness]: the review-coverage-invariant check provides the independent coverage confirmation." >&2
+        exit 1
+    fi
+
     _COUNT=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))['findings']))" "$F" 2>/dev/null || echo "?")
     echo "review liveness: ok (${_COUNT} findings)"
     exit 0

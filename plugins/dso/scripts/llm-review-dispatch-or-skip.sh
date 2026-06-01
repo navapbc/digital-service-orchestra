@@ -392,6 +392,12 @@ case "$provenance_exit" in
             echo "ERROR: refusing to dispatch potentially-explosive unfiltered scope" >&2
             exit 1
         fi
+        # LAUNDERING NOTE (TS-1 / P9): this `comm -23` subtracts SHAs reachable
+        # from ${_MAIN_REF} from the review scope — a scope/perf optimization, NOT
+        # a coverage guarantee. A SHA that reached main UNREVIEWED is filtered out
+        # here and never reviewed. The independent, fail-closed backstop is
+        # the review-coverage-invariant check (scripts/ci/ under the plugin root):
+        # full base..head set, no reachability prefilter, each SHA PROVEN reviewed.
         if ! comm -23 "$_SCOPE_SORTED" "$_MAIN_SORTED" > "$_FILTERED_SCOPE_FILE" 2>"$_COMM_STDERR"; then
             echo "ERROR: comm failed to compute scope-minus-main: $(cat "$_COMM_STDERR")" >&2
             exit 1

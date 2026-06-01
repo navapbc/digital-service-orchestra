@@ -345,6 +345,15 @@ if [[ -z "${DSO_UPSTREAM_REF+x}" ]]; then
 else
     _UPSTREAM_REF="$DSO_UPSTREAM_REF"  # may be empty → explicit disable below
 fi
+# LAUNDERING NOTE (TS-1 / P9): the `^${_UPSTREAM_REF}` exclusion below equates
+# "reachable from origin/main" with "already reviewed" — which is FALSE for any
+# SHA that reached main unreviewed (admin bypass / hotfix / prior slip). It is
+# kept here as a scope/perf optimization for THIS verifier's dispatch decision,
+# but it is NOT the safety guarantee. The independent, fail-closed Goal-1
+# guarantee is the review-coverage-invariant check (scripts/ci/ under the plugin
+# root), which resolves the full origin/main..HEAD set with NO reachability
+# prefilter and requires each SHA to be PROVEN reviewed. Do not treat this
+# exclusion as coverage enforcement.
 _UPSTREAM_EXCLUDE_ARGS=()
 if [[ -n "$_UPSTREAM_REF" ]]; then
     if git -C "$GIT_REPO_PATH" rev-parse --verify --quiet "$_UPSTREAM_REF" >/dev/null 2>&1; then
