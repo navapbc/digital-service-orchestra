@@ -50,8 +50,11 @@ check-staged-head
 ruleset-design-invariants
 
 # NOTE: review-sub-pr is intentionally NOT listed here. Enforcement for
-# review-sub-pr lives on the sub-PR ruleset 16961402 as a required_workflows
-# rule that evaluates at PR-merge time on PRs into staged-* branches.
-# Including it as a required_status_check on the main ruleset would deadlock
-# staged-*→main PRs (the workflow doesn't fire on those — its trigger is
-# `pull_request.branches != main`).
+# review-sub-pr lives on the sub-PR ruleset 16961402 as a
+# required_status_checks{review-sub-pr} rule with do_not_enforce_on_create=true
+# (verified against live config; the round-trip drift test
+# tests/scripts/test-ruleset-provisioner-roundtrip.sh keeps it in sync). That
+# rule fires on PRs into staged-* branches. Including review-sub-pr as a
+# required_status_check on the MAIN ruleset would deadlock staged-*→main PRs:
+# the review-sub-pr job's trigger is `pull_request` with base != main, so it
+# never runs on a staged-*→main PR and the check would sit permanently pending.

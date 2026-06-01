@@ -345,6 +345,15 @@ if [[ -z "${DSO_UPSTREAM_REF+x}" ]]; then
 else
     _UPSTREAM_REF="$DSO_UPSTREAM_REF"  # may be empty → explicit disable below
 fi
+# LAUNDERING NOTE (TS-1 / P9): the `^${_UPSTREAM_REF}` exclusion below equates
+# "reachable from origin/main" with "already reviewed" — which is FALSE for any
+# SHA that reached main unreviewed (admin bypass / hotfix / prior slip). It is
+# kept here as a scope/perf optimization for THIS verifier's dispatch decision,
+# but it is NOT the safety guarantee. The independent, fail-closed Goal-1
+# guarantee is the review-coverage-invariant check (scripts/ci/ under the plugin
+# root), which resolves the full origin/main..HEAD set with NO reachability
+# prefilter and requires each SHA to be PROVEN reviewed. Do not treat this
+# exclusion as coverage enforcement.
 _UPSTREAM_EXCLUDE_ARGS=()
 if [[ -n "$_UPSTREAM_REF" ]]; then
     if git -C "$GIT_REPO_PATH" rev-parse --verify --quiet "$_UPSTREAM_REF" >/dev/null 2>&1; then
@@ -508,17 +517,23 @@ for pr in pr_list:
         continue
     if not pr.get('merged_at'):
         continue
-    # A3a: PR cannot cover its own HEAD
-    head_sha = (pr.get('head') or {}).get('sha', '')
-    if head_sha == sha_under_review:
+    number = pr.get('number')
+    # A1, SCOPED TO THE SELF CANDIDATE (W4 / Gap-2): the PR currently under
+    # review cannot provide its own provenance — identified by number.
+    if pr_under_review > 0 and number == pr_under_review:
         continue
-    # A3b: self-merge guard
+    # The prior blanket A3a (head==sha) exclusion was REMOVED: it dropped a
+    # DIFFERENT merged PR whose head IS sha_under_review, even though that is
+    # VALID provenance (the SHA was that PR's reviewed head), forcing a false
+    # unprovenanced re-review. The self PR is already excluded by A1 (PR context)
+    # and by A2 merged-only (an open self PR in push context). Safety: removal
+    # CANNOT launder, because G3 below independently verifies that each kept
+    # covering PR review check actually PASSED. Do NOT re-add the blanket A3a.
+    # A3b: self-merge guard (a SHA cannot be provenanced by the merge commit it
+    # itself produced).
     if pr.get('merge_commit_sha') == sha_under_review:
         continue
-    # A1: exclude the PR being reviewed (self-exclusion via env var)
-    if pr_under_review > 0 and pr.get('number') == pr_under_review:
-        continue
-    print(pr.get('number', ''))
+    print(number if number is not None else '')
 " 2>/dev/null)" || covering_prs=""
 
     # G3 fix: verify that each covering PR's review-sub-pr check actually
@@ -584,6 +599,15 @@ else:
                 echo "WARNING: check-runs API failed for covering PR #${_cov_pr} (${_cov_head_sha:0:8}); treating as unverified. gh output: ${_check_err_snippet}" >&2
                 continue
             }
+            # KEEP IN SYNC: this poison-on-failure verdict is the same predicate as
+            # rc_review_check_verdict in scripts/lib/review-coverage-lib.sh (now the
+            # shared source of truth, used by review-coverage-invariant.sh and
+            # fp-recovery-audit-sweep.sh). This embedded copy is NOT yet consolidated
+            # onto the shared lib (the G3 loop is tightly coupled to this script's
+            # budget/cache state); tracked for a dedicated, carefully-tested refactor.
+            # If you change the failure-class set or the review-check name match here,
+            # change it in rc_review_check_verdict too — they MUST stay identical.
+            #
             # R2 (v4): poison-on-failure semantics. The GitHub check-runs API
             # returns ALL historical runs for a SHA, not just the latest. The
             # prior implementation short-circuited on first conclusion=success,

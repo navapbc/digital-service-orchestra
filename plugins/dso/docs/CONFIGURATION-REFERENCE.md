@@ -1385,6 +1385,21 @@ When adding `preplanning.interactive` to a new host project's `dso-config.conf`,
 
 ## Ruleset Provisioning Knobs
 
+### `ruleset.bypass_user_id`
+
+This IS a `dso-config.conf` key (read via `read-config.sh`), unlike the CLI flags below.
+
+| | |
+|---|---|
+| **Description** | Numeric GitHub **User** ID of the single named human who may bypass the rulesets (Goal-4 containment). When set, `provision-ruleset.sh` emits a `{actor_type: "User"}` bypass actor instead of the default `RepositoryRole:admin` — so the admin *role* no longer bypasses required checks; only that named human does, via the GitHub web UI. The non-admin dev agent then reports `current_user_can_bypass: never`. Verify a project user's numeric ID with `gh api users/<login> --jq .id`. The `ruleset-design-invariants` check enforces the no-force-merge outcome per PR. |
+| **Accepted values** | A GitHub numeric user ID (integer), e.g. `207596960` |
+| **Default** | unset → provisioner falls back to `RepositoryRole:admin` (admin role bypasses) |
+| **Env override** | `DSO_RULESET_BYPASS_USER_ID` |
+| **Used by** | `provision-ruleset.sh` (under the plugin `scripts/onboarding/`) |
+**Example**: `ruleset.bypass_user_id=207596960` in `.claude/dso-config.conf`. See `INSTALL.md` → *Goal-4 containment* for the full setup (credential hygiene + verification).
+
+---
+
 The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`. They are NOT `dso-config.conf` keys — they are passed as command-line arguments when provisioning the GitHub Ruleset. Each flag has a default that matches the prior hardcoded behavior so existing invocations remain backward compatible. # shim-exempt: internal implementation references in config documentation
 
 ### `--bypass-actor-policy`

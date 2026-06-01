@@ -2,9 +2,9 @@
 # scripts/lib/default-branch.sh (under the DSO plugin root)
 #
 # Shared helper: resolve the host's default branch using a four-tier
-# fallback chain. Sourced by provision-ruleset.sh and sync-sub-pr-ruleset.sh
-# (and any future script that needs to scope rulesets or workflow triggers
-# against the host's default-branch name).
+# fallback chain. Sourced by provision-ruleset.sh (and any future script that
+# needs to scope rulesets or workflow triggers against the host's
+# default-branch name).
 #
 # Function: _dso_resolve_default_branch [<repo>]
 #
