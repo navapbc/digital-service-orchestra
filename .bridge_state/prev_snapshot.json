@@ -183725,5 +183725,563 @@
       }
     },
     "summary": "read-config.sh: documents and implements YAML config parsing -> YAML config support was removed in flat-config migration (stale docs + dead code)"
+  },
+  "DIG-5061": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** f8112095ad474c41d08e03d9aa958d126ac1443a",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Context Scope:** tests/skills/test-sprint-agent-dispatch-pattern.sh vs plugins/dso/skills/sprint/SKILL.md, plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** User-Flagged Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Per plugins/dso/docs/AGENTS.md, registered dso:* agents are dispatched by their named subagent_type with general-purpose as the fallback (\"Use dso:<name> directly when registered ... fall back to general-purpose only when not registered\"). plugin.json registers dso:gov-copy-writer, dso:completion-verifier, dso:verification-remediation-planner, dso:feasibility-reviewer. A conformance test should therefore accept the named-primary-with-fallback pattern for registered agents.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "tests/skills/test-sprint-agent-dispatch-pattern.sh asserts \"no invalid 'subagent_type: dso:*' dispatch pattern\" and FAILS (Results: 6 passed, 2 failed) on:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- plugins/dso/skills/sprint/SKILL.md \u2014 the legitimate named-primary dispatches subagent_type: \"dso:gov-copy-writer\" (1566, 1603), \"dso:completion-verifier\" (2311), \"dso:verification-remediation-planner\" (2389, 2962).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:308 \u2014 subagent_type: \"dso:feasibility-reviewer\".",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The test treats ANY subagent_type: dso:* as invalid, which contradicts the current AGENTS.md named-agent policy and plugin.json registration. Verified PRE-EXISTING: stashing an unrelated edit and re-running yields the identical \"6 passed, 2 failed\" on the current HEAD.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 7. Additional Details",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Surfaced while validating the sprint-skill audit remediation (Change Sets A/C/D) on branch claude/sprint-skill-audit-gYSHM; not introduced by those edits. This is the concrete manifestation of audit finding F7 (inconsistent dso:* subagent_type guidance). Fix is either updating the test to allow named-primary-with-fallback for registered agents, or aligning the skill files to a single dispatch convention \u2014 see related epic 986e-91c5-103e-4118 (command-resolution) is unrelated; F7 should be tracked on its own.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "detected_by:tests",
+      "dso-id:0344-51a0-1a54-4cc9"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "test-sprint-agent-dispatch-pattern.sh: flags valid dso:* subagent_type -> 2 failing assertions (test stale vs AGENTS.md named-agent policy)"
+  },
+  "DIG-5062": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Summary",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Make the DSO validation command-resolution layer platform-independent and polyglot by removing hardcoded `make` defaults from the shared validation scripts and the sprint skill's gates. Split from the sprint-skill audit remediation (branch `claude/sprint-skill-audit-gYSHM`), which shipped the sprint-internal fixes (Phase F ordering, ruleset preflight, cascade counter) separately. This epic is the deferred \"Change Set B\" \u2014 the cross-cutting make-abstraction work with the broadest blast radius (touches validate.sh, validate-phase.sh, CI, debug-everything, and several skills).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This is a placeholder epic capturing fully-reviewed scope and decisions; it still needs /dso:brainstorm \u2192 /dso:preplanning \u2192 /dso:sprint decomposition before execution.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Policy (user-confirmed)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **Lack of config \u2192 fail loud.** A required command that is unset fails loud (dedicated exit code + `UNCONFIGURED_COMMAND: commands.<key>` on stdout). No silent skip, no soft degrade.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **Intentional no-op \u2192 clean pass via the `none` sentinel.** `commands.<key>=none` (canonical; `skip`/`disabled` as readable aliases) means \"this project deliberately has no such command\" and passes cleanly. `none` is already wired for e2e (validate.sh:425) and avoids the false `e2e_ran=true` that `=true` would set.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **Reject boolean-looking literals** (`true`/`false`/`yes`/`no`) for required commands with an instructive error steering to `none` or a real command (prevents the \"=true reads like enabled\" confusion).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Scripts are **caller-agnostic** (no sprint awareness); escalation UX lives only in the sprint orchestrator on top of the scripts' exit code/sentinel. Other callers (CI, debug-everything, validate-work) get the loud failure with no escalation \u2014 intended uniform behavior.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Decisions",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **D1: `commands.test_e2e` is REQUIRED** (unset \u2192 fail loud; escape via `none`). New hard requirement for every consumer repo (today's contract is \"absent \u2192 skipped\").",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **D2: Remove bug 62d3-7064's `make -n` target-existence skip** \u2014 a configured-but-missing make target fails loud like any other broken command.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Reverses bug **5a2d-9489** (validate-phase.sh make-test-unit-only fallback) and **62d3-7064** (e2e missing-target SKIP). Rewrite their tests to assert the new fail-loud/none behavior, citing the supersession.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Classification",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Required-when-applicable: `test_unit`, `test_e2e`, `test_visual` (visual only when UI files present, via detect-ui-files.sh).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Optional (empty \u2192 warn-and-skip): `format`, `format_check`, `lint`, `lint_ruff`, `lint_mypy`, `syntax_check`, `test_dirs`. (`syntax_check=true`/`lint_mypy=true` optional-check builtin idiom left untouched.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Work items (B0-B8)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- B0: new `resolve-required-command.sh <key>` (sources only read-config.sh; caller-agnostic). run = stdout-command/exit 0; clean-SKIP (`none`/aliases) = empty-stdout/exit 0; fail (unset) = `UNCONFIGURED_COMMAND: commands.<key>` stdout + exit 3; reject boolean literals.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- B1: validate-phase.sh:92 \u2014 drop `make test-unit-only` default; resolve test_unit via B0.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- B2: validate.sh:123-136 \u2014 remove all make defaults; test_unit/test_e2e required via B0; E2E block 424-440 reuse `none` short-circuit, remove the make -n skip (D2); keep syntax/format/lint optional; preserve VALIDATE_CMD_TEST.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- B3: dedicated exit 3 + `UNCONFIGURED_COMMAND:` stdout sentinel; document in both script headers. (Confirm exit 3 is free; it is.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- B4: sprint escalation only \u2014 relay+parse the stdout sentinel in debug-everything post-batch-validation.md/full-validation.md relay sites + sprint Step 10/Phase G/Step 12; detect-stack recommendation / supply / none / abort, memoized once-per-key interactive, non-interactive HALT; disambiguate the sentinel from the tests-pending `RUN:` stdout block.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- B5: sprint gates \u2014 Step 12 visual (SKILL.md:2043, UI-applicability-gated) and Phase G e2e (epic-ci-and-e2e-gates.md:75 AND :85) consume the resolver; drop hardcoded `cd app && make ...`; each command encodes its own dir.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- B6: Config Resolution cleanup \u2014 remove dead TEST_CMD/LINT_CMD at SKILL.md:25-26, 34-37, and the :2724 post-compaction re-resolve list+log; keep VISUAL_CMD/E2E_CMD.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- B7: set `commands.test_e2e=none` in this repo's .claude/dso-config.conf (else the repo's own `validate.sh --ci`/release.sh gate fails loud once defaults are removed).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- B8: docs+tests \u2014 fix CONFIGURATION-REFERENCE.md test_unit/test_e2e/test_visual entries (currently document the opposite \"absent \u2192 skipped\"); update dso-config.example.conf + MIGRATION-TO-PLUGIN.md (add commands.test_e2e=none guidance); rewrite test-validate-phase-missing-test-unit.sh, test-validate-e2e-missing-target.sh, replace test-validate-config-driven.sh:74-87; add a resolve-required-command.sh unit test; check validate-config.sh known-keys validator for any test_e2e optionality classification.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation-care notes (from review)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- The stdout sentinel is the PRIMARY/only orchestrator-visible signal (Step 10 haiku relays stdout, not exit codes).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- `none` short-circuit avoids false `e2e_ran=true` (validate.sh:909 sets it only when E2E_RAN=1).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Edit config example/migration by key name, not line number (cites drift).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Related",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Stale-YAML-config-docs bug (filed during the same audit): 1ce9-34c1-0d3a-41a3.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Reviewed to convergence across plan v1-v9; the `none` sentinel correction superseded the earlier `=true` proposal.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10307,
+      "description": "Workstreams track a set of related work and activities that work towards a larger deliverable.",
+      "entityId": "ac43421d-383b-4d08-ba0e-cc35239fdb4d",
+      "hierarchyLevel": 1,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10307?size=medium",
+      "id": "17009",
+      "name": "Epic",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17009",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "dso-id:986e-91c5-103e-4118"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Platform-independent command resolution: remove make defaults, fail-loud on unset, none-sentinel no-op"
   }
 }
