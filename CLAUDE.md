@@ -24,7 +24,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Clean session close | `/dso:end-session` |
 | Full validation suite | `.claude/scripts/dso validate.sh [--ci]` |
 | Merge worktree to main | `.claude/scripts/dso merge-to-main.sh [--resume]` |
-| List tickets (JSON; filter with `--type=`, `--status=`, `--parent=`) | `.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--parent=<id>] [--format=llm]` |
+| List tickets (canonical filtered retrieval; AND across filters, comma=OR within one) | `.claude/scripts/dso ticket list [--type=] [--status=] [--priority=] [--parent=] [--has-tag=] [--without-tag=] [--format=llm]` |
 | Check if ticket exists | `.claude/scripts/dso ticket exists <id>` |
 | List open epics | `.claude/scripts/dso ticket list-epics [--all] [--has-tag=TAG]` |
 | List ticket descendants (BFS) | `.claude/scripts/dso ticket list-descendants <id>` |

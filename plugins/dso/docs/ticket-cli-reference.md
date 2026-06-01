@@ -301,19 +301,25 @@ $ .claude/scripts/dso ticket show --format=llm w21-a3f7
 List all tickets.
 
 ```
-.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--parent=<id>] [--has-tag=<tag>] [--format=llm] [--include-archived]
+.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--priority=<n>] [--parent=<id>] [--has-tag=<tag>] [--without-tag=<tag>] [--format=llm] [--include-archived]
 ```
+
+`ticket list` is the canonical filtered-retrieval command: combine the filters below to express a criteria-based request in ONE invocation instead of pulling a broad list and filtering by hand.
 
 **Arguments:**
 
 | Argument | Required | Description |
 |---|---|---|
 | `--type=<type>` | No | Filter by ticket type: `epic`, `story`, `task`, `bug` |
-| `--status=<status>` | No | Filter by status: `open`, `in_progress`, `closed`, `blocked` (comma-separated for multi) |
+| `--status=<status>` | No | Filter by status: `open`, `in_progress`, `closed`, `blocked` (comma-separated = OR) |
+| `--priority=<n>` | No | Filter by priority `0`–`4`, exact match (comma-separated = OR, e.g. `0,1`). Tickets with **no explicit priority** are not matched. |
 | `--parent=<id>` | No | Filter to direct children of `<id>` (matches the `parent_id` field) |
-| `--has-tag=<tag>` | No | Filter to tickets carrying the exact tag value (e.g. `detected_by:tests`). Tags in the `detected_by:*` namespace also auto-intersect with `--type=bug`. |
+| `--has-tag=<tag>` | No | Keep tickets carrying the exact tag value (comma-separated = OR). Tags in the `detected_by:*` namespace also auto-intersect with `--type=bug`. |
+| `--without-tag=<tag>` | No | Exclude tickets carrying **any** of the listed tags (comma-separated) |
 | `--format=llm` | No | JSONL output — one minified ticket per line (see Output Formats section) |
 | `--include-archived` | No | Include archived tickets in output (default: archived tickets are excluded) |
+
+**Filter semantics:** filters AND across dimensions (a ticket must satisfy every supplied filter); within a single dimension, comma-separated values are OR. `--has-tag` and `--without-tag` compose as *intersect the kept set, then exclude* — e.g. `--has-tag=review --without-tag=brainstorm:complete` keeps review-tagged tickets that are not also `brainstorm:complete`. Invalid `--priority` values (non-integer) are rejected with an error; unknown flags print the valid filter list.
 
 **Output:** Default: a JSON array of compiled ticket state objects. `--format=llm`: JSONL, one object per line.
 
@@ -343,6 +349,10 @@ $ .claude/scripts/dso ticket list --type=bug --status=open
 
 $ .claude/scripts/dso ticket list --has-tag=detected_by:tests
 [{"ticket_id":"w21-c4d8","ticket_type":"bug","title":"Login fails on Safari","status":"open","tags":["detected_by:tests"],...}]
+
+# Combine filters — "open P0 epics that have not been brainstormed yet", in one command:
+$ .claude/scripts/dso ticket list --type=epic --status=open --priority=0 --without-tag=brainstorm:complete --format=llm
+{"id":"...","t":"epic","ttl":"...","st":"open","pr":0}
 
 $ .claude/scripts/dso ticket list --format=llm
 {"id":"w21-a3f7","t":"task","ttl":"Add rate limiting to API","st":"open","au":"Alice"}
