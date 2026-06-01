@@ -55,7 +55,7 @@ jobs:
           DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           DSO_REVIEWED_LEDGER: .review-coverage-ledger
           # ROLLOUT KNOB — flip to `enforce` at go-live (see header).
-          DSO_COVERAGE_INVARIANT_MODE: warn
+          DSO_COVERAGE_INVARIANT_MODE: enforce
         run: |
           set +e
           bash plugins/dso/scripts/ci/review-coverage-invariant.sh

@@ -33,7 +33,7 @@ jobs:
           GITHUB_BASE_REF: ${{ github.base_ref }}
           DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # ROLLOUT KNOB — flip to `enforce` at go-live (see header).
-          DSO_DANGLING_MODE: warn
+          DSO_DANGLING_MODE: enforce
         run: |
           set +e
           bash plugins/dso/scripts/ci/check-dangling-references.sh
