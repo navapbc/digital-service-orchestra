@@ -30,8 +30,16 @@ set -uo pipefail
 
 _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_DIR/../.." 2>/dev/null && pwd)}"
+# Fail closed (precondition) if the finding-identity lib is missing — `source` does
+# not validate its path at runtime, so a missing file would leave compute_finding_ids
+# undefined and the script would die with a confusing command-not-found later.
+_FINDING_IDENTITY_LIB="${DSO_FINDING_IDENTITY_LIB:-${_PLUGIN_ROOT}/scripts/lib/review-finding-identity.sh}"
+if [[ ! -f "$_FINDING_IDENTITY_LIB" ]]; then
+    echo "PRECONDITION_NOT_MET: review-finding-identity lib not found: $_FINDING_IDENTITY_LIB" >&2
+    exit 78
+fi
 # shellcheck source=../lib/review-finding-identity.sh
-source "${DSO_FINDING_IDENTITY_LIB:-${_PLUGIN_ROOT}/scripts/lib/review-finding-identity.sh}"
+source "$_FINDING_IDENTITY_LIB"
 
 command -v python3 >/dev/null 2>&1 || { echo "PRECONDITION_NOT_MET: python3" >&2; exit 78; }
 

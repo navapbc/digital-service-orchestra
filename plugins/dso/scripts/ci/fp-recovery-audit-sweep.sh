@@ -40,10 +40,12 @@ LOOKBACK="${DSO_AUDIT_LOOKBACK:-30}"
 OUTPUT="${DSO_AUDIT_OUTPUT:-}"
 
 # Canonical HMAC-SHA256 over "pr|merge_sha|merged_at|review_status".
+# The key is passed via STDIN, not the process environment, so it is not visible
+# in /proc/<pid>/environ and cannot leak through a subprocess error message.
 _hmac() {
-    DSO_AUDIT_HMAC_KEY="$DSO_AUDIT_HMAC_KEY" python3 -c "
-import hmac, hashlib, os, sys
-key = os.environ['DSO_AUDIT_HMAC_KEY'].encode()
+    printf '%s' "$DSO_AUDIT_HMAC_KEY" | python3 -c "
+import hmac, hashlib, sys
+key = sys.stdin.buffer.read()
 msg = sys.argv[1].encode()
 print(hmac.new(key, msg, hashlib.sha256).hexdigest())
 " "$1"
@@ -78,7 +80,17 @@ while IFS=$'\t' read -r _num _merge _head _at; do
     [[ -z "$_num" ]] && continue
     _scanned=$(( _scanned + 1 ))
     # Review verdict on the PR head: poison-on-failure (failure-class blocks).
-    _checks="$(_GH api "repos/${REPO}/commits/${_head}/check-runs" 2>/dev/null)" || _checks=""
+    # Distinguish an API failure (status unknowable) from a genuinely-absent review
+    # check: an API error must NOT be silently classified as 'missing' (which would
+    # be indistinguishable from a real bypass). On API error, record review_status
+    # =unknown so the PR enters the audit trail for manual follow-up rather than
+    # being mis-credited.
+    _checks_rc=0
+    _checks="$(_GH api "repos/${REPO}/commits/${_head}/check-runs" 2>/dev/null)" || _checks_rc=$?
+    if [[ "$_checks_rc" -ne 0 ]]; then
+        echo "WARNING [audit]: check-runs API failed for PR #${_num} (head ${_head:0:8}); recording review_status=unknown" >&2
+        _verdict="unknown"
+    else
     _verdict="$(printf '%s' "$_checks" | python3 -c "
 import sys, json
 try:
@@ -91,6 +103,7 @@ fail = [r for r in m if r.get('conclusion') in ('failure','cancelled','timed_out
 ok = [r for r in m if r.get('conclusion') == 'success']
 print('failed' if fail else ('passed' if ok else 'missing'))
 " 2>/dev/null)"
+    fi
     [[ "$_verdict" == "passed" ]] && continue   # genuinely reviewed — not a bypass
     _bypassed=$(( _bypassed + 1 ))
     _sig="$(_hmac "${_num}|${_merge}|${_at}|${_verdict}")"

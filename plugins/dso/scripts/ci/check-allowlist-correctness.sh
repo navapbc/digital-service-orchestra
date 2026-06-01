@@ -31,6 +31,13 @@ if [[ ! -f "$_ALLOWLIST" ]]; then
     echo "ERROR [allowlist]: allowlist conf not found: $_ALLOWLIST" >&2
     exit 1
 fi
+# Fail closed if the conf is not a readable regular file — a directory or an
+# unreadable file would make the read-loop below silently produce a partial (or
+# empty) pattern set, weakening the safety check it is meant to enforce.
+if [[ ! -r "$_ALLOWLIST" ]]; then
+    echo "ERROR [allowlist]: allowlist conf not readable: $_ALLOWLIST" >&2
+    exit 1
+fi
 
 # Load patterns exactly as the consumer does: skip comments + blanks.
 _PATTERNS=()

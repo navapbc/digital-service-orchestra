@@ -43,8 +43,16 @@ set -uo pipefail
 
 _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_DIR/../.." 2>/dev/null && pwd)}"
+# Fail closed (precondition) if the coverage-predicate lib is missing — `source`
+# does not validate its path, so a missing file would leave rc_sha_is_reviewed
+# undefined and the invariant would mis-evaluate.
+_REVIEW_COVERAGE_LIB="${DSO_REVIEW_COVERAGE_LIB:-${_PLUGIN_ROOT}/scripts/lib/review-coverage-lib.sh}"
+if [[ ! -f "$_REVIEW_COVERAGE_LIB" ]]; then
+    echo "PRECONDITION_NOT_MET: review-coverage lib not found: $_REVIEW_COVERAGE_LIB" >&2
+    exit 78
+fi
 # shellcheck source=../lib/review-coverage-lib.sh
-source "${DSO_REVIEW_COVERAGE_LIB:-${_PLUGIN_ROOT}/scripts/lib/review-coverage-lib.sh}"
+source "$_REVIEW_COVERAGE_LIB"
 
 MODE="${DSO_COVERAGE_INVARIANT_MODE:-enforce}"
 LEDGER="${DSO_REVIEWED_LEDGER:-}"
