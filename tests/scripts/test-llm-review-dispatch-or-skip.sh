@@ -31,7 +31,13 @@ set -uo pipefail
 # `origin/main` ref; clearing GITHUB_BASE_REF here forces the dispatcher
 # to fall back to that default. Without this, every fixture would need to
 # create a staged-<sha>-<ts> ref matching the live PR's base — brittle.
-unset GITHUB_BASE_REF
+# Hermeticity: the unit fixtures are synthetic repos, NOT a real PR checkout, so
+# they must not inherit GitHub Actions env. GITHUB_BASE_REF drives the dispatcher's
+# `origin/<base>` filter; GITHUB_SHA is a net-diff head-resolution candidate (W2a)
+# and the real run's SHA can RESOLVE inside a fixture (shared object visibility
+# under the suite's per-test TMPDIR), making the dispatcher pick an unrelated head.
+# GITHUB_REPOSITORY drives the PR-head API lookup. Clear all three.
+unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -148,6 +154,45 @@ _seed_artifacts() {
     esac
 }
 
+# ── Helper (W2a): self-contained repo with a REACHABLE unprovenanced commit ──
+# The net-end-state integration diff (build-integration-diff.sh) reviews
+# `git diff origin/main...HEAD -- <touched files>`, so the unprovenanced commit
+# must be REACHABLE from the net-diff head — the older `_seed_artifacts`
+# ephemeral `commit-tree -p HEAD` SHA (unreachable from any ref) yields an empty
+# net diff and is incompatible with net-end-state review. This helper builds a
+# throwaway repo with origin/main + one reachable, not-yet-on-main commit and
+# seeds the artifact dir with that SHA.
+#
+# Echoes "<repo_path> <unprov_sha>". Callers run the dispatcher with CWD inside
+# <repo_path> and DSO_HEAD_SHA=<unprov_sha>.
+_seed_repo_unprov() {
+    local artifact_dir="$1" outcome="${2:-unprovenanced}"
+    local repo; repo="$(mktemp -d)"
+    git -C "$repo" init -q -b main
+    git -C "$repo" config user.name "Test"
+    git -C "$repo" config user.email "test@test.com"
+    git -C "$repo" config commit.gpgsign false
+    printf 'base\n' > "$repo/reviewed.py"
+    git -C "$repo" add reviewed.py >/dev/null 2>&1
+    git -C "$repo" commit -qm "reviewed base" >/dev/null 2>&1
+    # origin/main captured BEFORE the unprovenanced commit, so the SHA is NOT on
+    # origin/main (R3a filter keeps it) but IS reachable from HEAD (net diff).
+    git -C "$repo" init -q --bare "$repo/origin.git"
+    git -C "$repo" remote add origin "$repo/origin.git"
+    git -C "$repo" push -q origin main >/dev/null 2>&1
+    printf 'unreviewed change\n' > "$repo/unreviewed.py"
+    git -C "$repo" add unreviewed.py >/dev/null 2>&1
+    git -C "$repo" commit -qm "unreviewed" >/dev/null 2>&1
+    local sha; sha="$(git -C "$repo" rev-parse HEAD)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    if [[ "$outcome" == "overbound" ]]; then
+        printf '%s\n' "$sha" > "$artifact_dir/over-bound-shas.txt"
+    else
+        printf '%s\n' "$sha" > "$artifact_dir/unprovenanced-shas.txt"
+    fi
+    echo "$repo $sha"
+}
+
 # ── Helper: create a mock runner that records invocation ─────────────────────
 _make_mock_runner() {
     local call_log="$1"
@@ -256,6 +301,11 @@ test_exit0_emits_skipped_conclusion() {
     assert_contains "test_exit0_emits_skipped_conclusion: output contains 'skipped' conclusion" \
         "skipped" "$output"
 
+    # W7 observability: the all-provenanced branch must emit a structured,
+    # greppable decision record.
+    assert_contains "test_exit0_emits_skipped_conclusion: emits AUDIT decision_record" \
+        "AUDIT: decision_record=skip reason=all_commits_provenanced" "$output"
+
     rm -rf "$artifact_dir"
     assert_pass_if_clean "test_exit0_emits_skipped_conclusion"
 }
@@ -321,14 +371,21 @@ test_exit1_invokes_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced"
+    # W2a: reachable unprovenanced commit (net-diff requires reachability).
+    local _seed repo sha
+    _seed="$(_seed_repo_unprov "$artifact_dir")"
+    repo="${_seed%% *}"; sha="${_seed##* }"
 
-    PATH="$MOCK_BIN:$PATH" \
-    PR_NUMBER=99 \
-    DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
-    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
-    DSO_ARTIFACT_DIR="$artifact_dir" \
-        bash "$WRAPPER" 2>/dev/null || true
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_HEAD_SHA="$sha" \
+        DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>/dev/null || true
+    )
 
     local runner_called="no"
     if [[ -f "$call_log" ]] && grep -q "runner-called" "$call_log" 2>/dev/null; then
@@ -337,7 +394,7 @@ test_exit1_invokes_runner() {
     assert_eq "test_exit1_invokes_runner: runner IS called when verifier exits 1 (unprovenanced)" \
         "yes" "$runner_called"
 
-    rm -rf "$artifact_dir"
+    rm -rf "$artifact_dir" "$repo"
     assert_pass_if_clean "test_exit1_invokes_runner"
 }
 
@@ -368,14 +425,21 @@ test_exit2_invokes_runner() {
     # Budget-exhausted: verifier still writes unprovenanced-shas.txt for the
     # incompletely-checked commits (verifier source lines 297-298, 317, 335).
     # The dispatcher's artifact route consumes that as exit 1 → invoke runner.
-    _seed_artifacts "$artifact_dir" "unprovenanced"
+    # W2a: reachable unprovenanced commit (net-diff requires reachability).
+    local _seed repo sha
+    _seed="$(_seed_repo_unprov "$artifact_dir")"
+    repo="${_seed%% *}"; sha="${_seed##* }"
 
-    PATH="$MOCK_BIN:$PATH" \
-    PR_NUMBER=99 \
-    DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
-    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
-    DSO_ARTIFACT_DIR="$artifact_dir" \
-        bash "$WRAPPER" 2>/dev/null || true
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_HEAD_SHA="$sha" \
+        DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>/dev/null || true
+    )
 
     local runner_called="no"
     if [[ -f "$call_log" ]] && grep -q "runner-called" "$call_log" 2>/dev/null; then
@@ -384,7 +448,7 @@ test_exit2_invokes_runner() {
     assert_eq "test_exit2_invokes_runner: runner IS called when verifier exits 2 (budget-exhausted)" \
         "yes" "$runner_called"
 
-    rm -rf "$artifact_dir"
+    rm -rf "$artifact_dir" "$repo"
     assert_pass_if_clean "test_exit2_invokes_runner"
 }
 
@@ -607,7 +671,10 @@ test_dispatcher_unprovenanced_dispatches_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced"
+    # W2a: reachable unprovenanced commit (net-diff requires reachability).
+    local _seed repo sha
+    _seed="$(_seed_repo_unprov "$artifact_dir")"
+    repo="${_seed%% *}"; sha="${_seed##* }"
 
     local call_log
     call_log="$(mktemp "$TMPDIR_TEST/runner-calls-unprov.XXXXXX")"
@@ -620,11 +687,15 @@ MOCKEOF
     # Bug 9788: dispatcher now requires PR_NUMBER + `gh pr diff` for case 1|2.
     _make_mock_gh
 
-    PATH="$MOCK_BIN:$PATH" \
-    PR_NUMBER=99 \
-    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
-    DSO_ARTIFACT_DIR="$artifact_dir" \
-        bash "$WRAPPER" > /dev/null 2>/dev/null || true
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_HEAD_SHA="$sha" \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" > /dev/null 2>/dev/null || true
+    )
 
     local mock_invoked="no"
     if [[ -f "$call_log" ]] && grep -q "MOCK_INVOKED" "$call_log" 2>/dev/null; then
@@ -633,7 +704,7 @@ MOCKEOF
     assert_eq "test_dispatcher_unprovenanced_dispatches_runner: mock runner invoked" \
         "yes" "$mock_invoked"
 
-    rm -rf "$artifact_dir"
+    rm -rf "$artifact_dir" "$repo"
     assert_pass_if_clean "test_dispatcher_unprovenanced_dispatches_runner"
 }
 
@@ -699,7 +770,10 @@ test_dispatcher_supplies_diff_to_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced"
+    # W2a: reachable unprovenanced commit (net-diff requires reachability).
+    local _seed repo sha
+    _seed="$(_seed_repo_unprov "$artifact_dir")"
+    repo="${_seed%% *}"; sha="${_seed##* }"
 
     # Mock runner: capture DSO_CI_REVIEW_DIFF_PATH env var + (if set) its
     # content into a log file the test can inspect after dispatch.
@@ -735,11 +809,15 @@ exit 1
 MOCKGHEOF
     chmod +x "$MOCK_BIN/gh"
 
-    PATH="$MOCK_BIN:$PATH" \
-    PR_NUMBER=99 \
-    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
-    DSO_ARTIFACT_DIR="$artifact_dir" \
-        bash "$WRAPPER" > /dev/null 2>/dev/null || true
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_HEAD_SHA="$sha" \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" > /dev/null 2>/dev/null || true
+    )
 
     # Assertion A: DSO_CI_REVIEW_DIFF_PATH was set (not UNSET) when runner ran.
     local env_log_content
@@ -761,7 +839,7 @@ MOCKGHEOF
     assert_eq "test_dispatcher_supplies_diff_to_runner: diff file is non-empty" \
         "yes" "$diff_nonempty"
 
-    rm -rf "$artifact_dir" "$env_log"
+    rm -rf "$artifact_dir" "$env_log" "$repo"
     assert_pass_if_clean "test_dispatcher_supplies_diff_to_runner"
 }
 
@@ -772,10 +850,11 @@ MOCKGHEOF
 # not by file filter on the full PR diff. Coverage now provided by
 # test_dispatcher_commit_scoped_diff and test_dispatcher_commit_scoped_diff_empty_fails_closed.
 
-# ── Test 17 (F3): commit-scoped diff for unprovenanced SHAs ──────────────────
-# When unprovenanced-shas.txt contains real SHAs, the dispatcher must generate
-# a commit-scoped diff (via git show) instead of fetching the full PR diff.
-# Only the unprovenanced commit's changes should appear in the diff.
+# ── Test 17 (F3): scoped net-diff for unprovenanced SHAs ─────────────────────
+# When unprovenanced-shas.txt contains real SHAs, the dispatcher must generate a
+# diff scoped to the files those commits touched (W2a: the net-end-state diff
+# `git diff origin/main...HEAD -- <touched files>`) instead of fetching the full
+# PR diff. Only the unprovenanced commit's file(s) should appear in the diff.
 test_dispatcher_commit_scoped_diff() {
     _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then

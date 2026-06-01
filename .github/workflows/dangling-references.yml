@@ -1,0 +1,45 @@
+name: dangling-references
+
+# W6 — symbol-level cross-sub-PR conflict check. Catches the P2 gap: a symbol
+# removed/renamed in one change but still referenced at the combined staged head
+# (in an untouched caller or another change's file) — invisible to diff-scoped
+# review because the caller's file may have zero diff.
+#
+# ROLLOUT: MODE=warn (logs ::warning::, does not block) and NOT yet a required
+# check. To enforce: flip DSO_DANGLING_MODE to `enforce`, add `dangling-references`
+# to .github/required-checks.txt, and provision it into the live MAIN ruleset
+# (admin). Until then it is advisory.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dangling-references:
+    name: dangling-references
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fd084cde189b7b76ec305d52e27be545a0172823  # v4
+        with:
+          fetch-depth: 0          # full history — the check fails closed on a shallow clone
+          persist-credentials: false
+
+      - name: Run dangling-reference check
+        env:
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # ROLLOUT KNOB — flip to `enforce` at go-live (see header).
+          DSO_DANGLING_MODE: warn
+        run: |
+          set +e
+          bash plugins/dso/scripts/ci/check-dangling-references.sh
+          rc=$?
+          if [ "$rc" -eq 78 ]; then
+            echo "::warning::dangling-references precondition not met — not enforced this run"
+            exit 0
+          fi
+          exit $rc

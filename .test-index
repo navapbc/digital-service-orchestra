@@ -261,7 +261,7 @@ plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test-issue-quality-chec
 plugins/dso/scripts/lib/ci-findings-normalize.sh:tests/scripts/test-ci-findings-normalize.sh
 plugins/dso/scripts/merge-story-branch.sh:tests/scripts/test-merge-story-branch.sh
 plugins/dso/scripts/merge-to-main-direct.sh:tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/scripts/test-merge-to-main-pr-bump-before-push.sh
-plugins/dso/scripts/merge-to-main-pr.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh,tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-pr.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/scripts/test-merge-to-main-pr-resume-and-stale.sh,tests/scripts/test-merge-to-main-pr-bump-before-push.sh,tests/scripts/test-merge-to-main-pr-trailer-injection.sh,tests/scripts/test-merge-to-main-pr-title-derivation.sh
+plugins/dso/scripts/merge-to-main-pr.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh,tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-pr.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/scripts/test-merge-to-main-pr-resume-and-stale.sh,tests/scripts/test-merge-to-main-pr-bump-before-push.sh,tests/scripts/test-merge-to-main-pr-trailer-injection.sh,tests/scripts/test-merge-to-main-pr-title-derivation.sh,tests/scripts/test-merge-to-main-resume-staged-advance.sh
 plugins/dso/scripts/merge-to-main.sh:tests/scripts/test-merge-to-main.sh,tests/scripts/test-merge-to-main-resume-cwd.sh,tests/scripts/test-merge-to-main-resume-push-idempotent.sh,tests/scripts/test-merge-to-main-cleanliness.sh,tests/scripts/test-merge-to-main-locking.sh,tests/scripts/test-merge-to-main-version-bump.sh,tests/scripts/test-merge-to-main-version-bump-integration.sh,tests/scripts/test-merge-to-main-auto-resolve.sh,tests/scripts/test-merge-to-main-config-driven.sh,tests/scripts/test-merge-to-main-ci-workflow-name.sh,tests/scripts/test-merge-to-main-ucq2.sh,tests/scripts/test-merge-to-main-stale-version-bump-reset.sh,tests/hooks/test-merge-to-main-portability.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/scripts/test-merge-to-main-session-push.sh
 plugins/dso/scripts/onboarding/adr-upsert.sh:tests/unit/scripts/test-adr-upsert.sh
 plugins/dso/scripts/onboarding/ci-generator.sh:tests/scripts/test-ci-generator.sh
@@ -270,7 +270,7 @@ plugins/dso/scripts/onboarding/dso-setup.sh:tests/scripts/test-dso-setup-stack-a
 plugins/dso/scripts/onboarding/github-bootstrap.sh:tests/scripts/test-github-bootstrap.sh
 plugins/dso/scripts/onboarding/plugin-inventory.sh:tests/unit/scripts/test-plugin-inventory.sh
 plugins/dso/scripts/onboarding/prefill-config.sh:tests/unit/scripts/test-prefill-config.sh
-plugins/dso/scripts/onboarding/provision-ruleset.sh:tests/scripts/test-provision-ruleset.sh
+plugins/dso/scripts/onboarding/provision-ruleset.sh:tests/scripts/test-provision-ruleset.sh,tests/scripts/test-ruleset-provisioner-roundtrip.sh
 plugins/dso/scripts/onboarding/validate-required-checks.sh:tests/scripts/test-validate-required-checks.sh
 plugins/dso/scripts/update-required-checks-manifest.sh:tests/scripts/test-validate-required-checks.sh
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh,tests/scripts/test-residual-callers-polyglot.sh
@@ -529,7 +529,7 @@ plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cle
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
 plugins/dso/scripts/migrate-ledger-v11-to-v12.sh:tests/scripts/test-migrate-ledger-v11-to-v12.sh
 plugins/dso/scripts/verify-duckdb.sh:tests/scripts/test-verify-duckdb.sh
-plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh,tests/scripts/test-verify-session-provenance-contract.sh,tests/scripts/test-verify-session-provenance-cases.sh,tests/scripts/test-verify-session-provenance-no-trailer-shortcut.sh
+plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh,tests/scripts/test-verify-session-provenance-contract.sh,tests/scripts/test-verify-session-provenance-cases.sh,tests/scripts/test-verify-session-provenance-no-trailer-shortcut.sh,tests/scripts/test-verify-session-provenance-w4-candidate-type.sh
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh
@@ -628,3 +628,12 @@ plugins/dso/skills/ui-designer/docs/reviewers/visual-spatial-evaluator.md:tests/
 plugins/dso/skills/ui-designer/docs/reviewers/design-systems-lead.md:tests/skills/test-ui-designer-5-reviewer.sh
 plugins/dso/skills/ui-designer/docs/arbitration.md:tests/skills/test-ui-designer-5-reviewer.sh
 plugins/dso/scripts/write-design-md-additions.sh:tests/unit/scripts/test-write-design-md-additions.sh
+plugins/dso/scripts/lib/build-integration-diff.sh:tests/scripts/test-build-integration-diff.sh
+plugins/dso/scripts/ci/review-coverage-invariant.sh:tests/scripts/test-review-coverage-invariant.sh
+plugins/dso/scripts/lib/review-coverage-lib.sh:tests/scripts/test-review-coverage-invariant.sh
+plugins/dso/scripts/ci/check-dangling-references.sh:tests/scripts/test-check-dangling-references.sh
+plugins/dso/scripts/ci/check-allowlist-correctness.sh:tests/scripts/test-check-allowlist-correctness.sh
+plugins/dso/scripts/ci/fp-recovery-audit-sweep.sh:tests/scripts/test-fp-recovery-audit-sweep.sh
+plugins/dso/scripts/ci/review-convergence-check.sh:tests/scripts/test-review-convergence-check.sh
+plugins/dso/scripts/lib/review-finding-identity.sh:tests/scripts/test-review-convergence-check.sh
+plugins/dso/scripts/ci/assert-review-liveness.sh:tests/scripts/test-assert-review-liveness.sh

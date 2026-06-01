@@ -101,12 +101,13 @@ assert_eq "test_provisioner_emits_staged_include: sub-PR ruleset include is [\"r
     "yes" "$has_staged_include"
 assert_pass_if_clean "test_provisioner_emits_staged_include"
 
-# ── Test 4: provisioner emits required_workflows rule (not required_status_checks) ──
-# Under the new model, the sub-PR ruleset uses `required_workflows` instead
-# of `required_status_checks` so the rule evaluates at PR-merge time (not at
-# ref-update time). This is what unblocks raw pushes to staged-* branches.
+# ── Test 4: provisioner emits required_status_checks{review-sub-pr} rule (W1/CS-2) ──
+# CANONICAL = live: the sub-PR ruleset uses a `required_status_checks` rule with
+# context `review-sub-pr` and `do_not_enforce_on_create: true` (NOT a `workflows`
+# rule — the prior design bound a nonexistent review-sub-pr.yml). do_not_enforce_on_create
+# is what keeps raw staged-* ref creation unrestricted while still gating PR merges.
 _snapshot_fail
-has_workflows_rule="no"
+has_rsc_rule="no"
 if echo "$dryrun_output" | python3 -c '
 import sys, json
 text = sys.stdin.read()
@@ -122,20 +123,23 @@ for start in [i for i, l in enumerate(lines) if l.strip() == "{"]:
                     try:
                         obj = json.loads("\n".join(lines[start:j+1]))
                         if isinstance(obj, dict) and obj.get("name") == "DSO Sub-PR Review Enforcement":
-                            rules = obj.get("rules", [])
-                            rule_types = [r.get("type") for r in rules]
-                            sys.exit(0 if "workflows" in rule_types else 1)
+                            for r in obj.get("rules", []):
+                                if r.get("type") == "required_status_checks":
+                                    p = r.get("parameters", {})
+                                    ctx = [c.get("context") for c in p.get("required_status_checks", [])]
+                                    sys.exit(0 if "review-sub-pr" in ctx and p.get("do_not_enforce_on_create") is True else 1)
+                            sys.exit(1)
                     except json.JSONDecodeError:
                         pass
                     break
         if depth == 0 and j > start: break
 sys.exit(1)
 ' 2>/dev/null; then
-    has_workflows_rule="yes"
+    has_rsc_rule="yes"
 fi
-assert_eq "test_provisioner_emits_workflows_rule: sub-PR ruleset uses required_workflows rule type" \
-    "yes" "$has_workflows_rule"
-assert_pass_if_clean "test_provisioner_emits_workflows_rule"
+assert_eq "test_provisioner_emits_required_status_checks_rule: sub-PR ruleset uses required_status_checks{review-sub-pr,do_not_enforce_on_create}" \
+    "yes" "$has_rsc_rule"
+assert_pass_if_clean "test_provisioner_emits_required_status_checks_rule"
 
 # ── Test 5: llm-review-sub-pr job has `if: base_ref != 'main'` ───────────────
 # Post-migration (workflow moved into ci.yml as a job): the review-sub-pr

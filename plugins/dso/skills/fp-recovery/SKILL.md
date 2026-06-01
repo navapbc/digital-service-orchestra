@@ -37,8 +37,8 @@ The CI reviewer never ran on an OVER_BOUND PR; there is no LLM finding to adjudi
 ## What this skill does NOT do
 
 - Does NOT skip review — it dispatches a real `dso:code-reviewer-standard` at opus tier on the PR diff.
-- Does NOT auto-merge — it emits a clearance verdict; the engineer runs the force-merge command.
-- Does NOT lower the merge bar — every force-merge through this path has a real reviewer review behind it.
+- Does NOT merge — the autonomous agent runs as a non-bypass identity (`current_user_can_bypass: never`) and cannot bypass branch protection. It emits a clearance verdict + a **web-UI merge link**; a human (the named bypass actor) performs the override via the GitHub web UI.
+- Does NOT lower the merge bar — every bypass through this path has a real reviewer review behind it AND requires all other required checks green.
 - Does NOT apply to test failures (fix those normally) or intermittent CI failures (re-push / wait).
 
 ## Usage
@@ -60,7 +60,7 @@ Or with the PR number derived from the current branch:
 1. Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/FP-RECOVERY-WORKFLOW.md` now.
 2. Execute its steps in order — starting from Step 0 (OVER_BOUND pre-check), then Step 1 (Capture the PR diff).
 3. Follow the verdict criteria in Step 4 strictly: only clear the force-merge when ALL four criteria hold (zero critical, zero important, zero fragile, ≥5 tool calls and ≥30s runtime on the manual review dispatch). The work-proxy thresholds were lowered from the original 10/60s after observing false rejections on legitimately concise reviews — see FP-RECOVERY-WORKFLOW.md Step 2/Step 4 commentary for the calibration rationale.
-4. If the manual review produces critical or important findings, **abort** and surface those findings to the user. Do NOT force-merge.
-5. If clearance is reached, emit the force-merge command with the required annotation template per Step 5 of the workflow. The user runs the merge command — this skill does NOT execute the merge.
+4. If the manual review produces critical or important findings, **abort** and surface those findings to the user. Do NOT clear the bypass.
+5. If clearance is reached, follow Step 5: first confirm every OTHER required check is green (`gh pr checks <PR>` — only `llm-review` may be non-green), then emit the **web-UI merge link** + the required annotation template for the human to paste. The named bypass actor performs the merge via the web UI — this skill does NOT execute the merge, and the agent cannot (it is a non-bypass identity by design).
 
-The workflow file is the complete specification. Every step is mandatory — including the auditable annotation in the merge commit message and the PR label per Step 6.
+The workflow file is the complete specification. Every step is mandatory — including the "all other required checks green" gate (Step 5a), the auditable annotation, and the PR label per Step 6.

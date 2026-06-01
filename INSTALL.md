@@ -203,6 +203,18 @@ The required status check name must match exactly:
 
 The check is produced by `ci.yml`'s `llm-review` job. If you override `dso.review.check_name`, update the Ruleset's required check to match.
 
+### Goal-4 containment: non-admin agent identity + credential hygiene (CS-7a)
+
+The override path for a blocked PR (LLM false positive, hotfix) must be a **human via the GitHub web UI**, never the autonomous dev agent. Achieving that requires an **identity-based** control — `bypass_mode: pull_request` does NOT restrict the *tool* (an admin/bypass-actor can still merge a failing PR via the REST API), so the agent must run under an identity that is *not* a bypass actor.
+
+One-time admin setup (do once; runtime CI needs no admin):
+
+1. **Bypass actor = a named human `User`, not `RepositoryRole:admin`.** Set `ruleset.bypass_user_id` in `.claude/dso-config.conf` to that human's numeric GitHub user ID (env override `DSO_RULESET_BYPASS_USER_ID`); `provision-ruleset.sh` emits a `User` bypass actor from it. The admin *role* then no longer bypasses — only the named human, via the web UI.
+2. **Run the agent under a non-admin identity.** Verify the OUTCOME, not the actor list: `gh api repos/<owner>/<repo>/rulesets/<id> --jq .current_user_can_bypass` must be `never` for the agent's token (the `ruleset-design-invariants` check enforces this per-PR).
+3. **Credential-helper hygiene.** `gh` and `git` can resolve to *different* credentials. Probe BOTH — `gh api user --jq .login` and `printf 'protocol=https\nhost=github.com\n\n' | git credential fill` — and confirm neither resolves to an admin token. Wire git to the gh helper so they agree: `git config credential.https://github.com.helper '!gh auth git-credential'`, and erase any admin token from the OS keychain.
+
+The post-hoc audit sweep (`scripts/ci/fp-recovery-audit-sweep.sh`) and the fail-closed `review-coverage-invariant` (see `CI-INTEGRATION.md` → *Workflow-stability hardening*) backstop any bypass that still reaches `main`.
+
 ## Integration Setup
 
 Some DSO skills integrate with external tools. Each integration is optional and configured via environment variables or the DSO config file. Skip any integration you don't use.
@@ -252,7 +264,7 @@ Expect ~20-minute end-to-end latency in either direction (the cron cadence).
 
 ```bash
 # Read-only audit (safe to run before first bootstrap):
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-bridge-fsck.py
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-bridge-fsck.py  # shim-exempt: doc example, explicit plugin-root invocation
 
 # Live end-to-end check (writes to Jira):
 gh workflow run reconcile-bridge.yml -F mode=validate

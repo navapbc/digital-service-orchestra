@@ -1,0 +1,68 @@
+name: review-coverage-invariant
+
+# TS-1 — the fail-closed Goal-1 coverage invariant. Independently verifies that
+# every commit in origin/main..HEAD is PROVEN reviewed (a passing review check-run
+# on a covering merged PR), never inferred from reachability to origin/main. This
+# is the backstop for the laundering hole P9: a SHA that reaches main unreviewed
+# (admin bypass / hotfix / prior slip) is caught here regardless of the
+# dispatcher's reachability scope filter.
+#
+# ROLLOUT (current): runs in MODE=warn — it LOGS violations (::warning::) but does
+# NOT block, and is NOT yet wired as a required status check. GO-LIVE (admin step,
+# documented in workflow-stability-plan-v4-handoff.md TS-1):
+#   1. flip DSO_COVERAGE_INVARIANT_MODE to `enforce` below;
+#   2. add `review-coverage-invariant` to .github/required-checks.txt;
+#   3. provision it into the live MAIN ruleset (needs an admin token) — the W1
+#      round-trip drift test then keeps required-checks.txt == live in sync.
+# Until step 2/3, the check is advisory (visible, non-blocking).
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+jobs:
+  review-coverage-invariant:
+    name: review-coverage-invariant
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fd084cde189b7b76ec305d52e27be545a0172823  # v4
+        with:
+          fetch-depth: 0          # full history — the invariant fails closed on a shallow clone
+          persist-credentials: false
+
+      # Durable reviewed-SHA ledger across runs (perf prefilter + preserves the
+      # review proof if a covering PR is later deleted). Cache miss is harmless —
+      # the check just re-verifies every SHA. Key is branch-scoped + rolling.
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4
+        with:
+          path: .review-coverage-ledger
+          key: review-coverage-ledger-${{ github.base_ref }}-${{ github.run_id }}
+          restore-keys: |
+            review-coverage-ledger-${{ github.base_ref }}-
+
+      - name: Run coverage invariant
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DSO_REVIEWED_LEDGER: .review-coverage-ledger
+          # ROLLOUT KNOB — flip to `enforce` at go-live (see header).
+          DSO_COVERAGE_INVARIANT_MODE: warn
+        run: |
+          set +e
+          bash plugins/dso/scripts/ci/review-coverage-invariant.sh
+          rc=$?
+          # 78 = precondition not met (no gh/token) — pass during rollout.
+          if [ "$rc" -eq 78 ]; then
+            echo "::warning::review-coverage-invariant precondition not met — not enforced this run"
+            exit 0
+          fi
+          exit $rc

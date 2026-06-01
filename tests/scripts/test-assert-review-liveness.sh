@@ -96,6 +96,35 @@ assert_eq "test_pathA_valid_findings_exits_0" "0" "$v_rc"
 assert_contains "test_pathA_valid_findings_message" "review liveness: ok" "$v_out"
 assert_pass_if_clean "test_pathA_valid_findings"
 
+# TS-1: laundering skip stub (skip_reason=all_scope_already_merged) → exit 1.
+# The dispatcher SKIPPED review because in-scope SHAs were filtered as
+# reachable-from-main — reachability is NOT review evidence (P9). Liveness must
+# fail closed even though the findings array is a valid (empty) shape.
+_snapshot_fail
+launder_tmp="$(mktemp -d "${TMPDIR:-/tmp}/review-liveness-launder.XXXXXX")"
+_CLEANUP_DIRS+=("$launder_tmp")
+echo '{"findings": [], "skip_reason": "all_scope_already_merged", "scope_size": 3}' > "$launder_tmp/findings.json"
+ls_rc=0
+ls_out="$(DSO_CI_REVIEW_FINDINGS_PATH="$launder_tmp/findings.json" CODE_CHANGED=true \
+    bash "$SCRIPT" 2>&1)" || ls_rc=$?
+assert_eq "test_pathA_laundering_skip_stub_exits_1" "1" "$ls_rc"
+assert_contains "test_pathA_laundering_skip_stub_message" "laundering skip stub" "$ls_out"
+assert_pass_if_clean "test_pathA_laundering_skip_stub"
+
+# TS-1: a provenanced skip stub (skip_reason=all_commits_provenanced) is NOT
+# rejected — it comes from the verifier's G3 covering-PR review check, which is
+# genuine review evidence. Must still exit 0.
+_snapshot_fail
+prov_tmp="$(mktemp -d "${TMPDIR:-/tmp}/review-liveness-prov.XXXXXX")"
+_CLEANUP_DIRS+=("$prov_tmp")
+echo '{"findings": [], "skip_reason": "all_commits_provenanced"}' > "$prov_tmp/findings.json"
+pv_rc=0
+pv_out="$(DSO_CI_REVIEW_FINDINGS_PATH="$prov_tmp/findings.json" CODE_CHANGED=true \
+    bash "$SCRIPT" 2>&1)" || pv_rc=$?
+assert_eq "test_pathA_provenanced_skip_stub_exits_0" "0" "$pv_rc"
+assert_contains "test_pathA_provenanced_skip_stub_message" "review liveness: ok" "$pv_out"
+assert_pass_if_clean "test_pathA_provenanced_skip_stub"
+
 # ── Path B: code_changed=false ────────────────────────────────────────────────
 # These tests build a small git repo with two commits and varying diffs,
 # then invoke the script in that working directory with PR-event-style env
