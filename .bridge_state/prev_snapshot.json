@@ -183436,5 +183436,59 @@
       }
     },
     "summary": "[worktree-cleanup]: session end and claude-safe do not remove merged/stale worktrees -> orphan worktree dirs accumulate"
+  },
+  "DIG-5059": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "tests/workflows/test-integration-review-skip-on-provenance.sh fails 6/7 locally: test_verifier_exits_0_for_large_all_provenanced_diff, test_e2e_large_provenanced_pr_runner_never_invoked, test_e2e_large_provenanced_pr_emits_skipped_conclusion, test_e2e_output_contains_covered_by_sub_pr_reviews_with_list, test_e2e_mixed_diff_invokes_runner. Confirmed PRE-EXISTING (identical failures with the pre-W2 dispatcher at HEAD 2fe97cdf47) \u2014 NOT a regression from the W2a net-end-state diff change. Root area is verify-session-provenance.sh behavior on the large all-provenanced fixture (exits non-0 / emits unprovenanced-shas.txt when it should exit 0). Discovered during workflow-stability W2a implementation. Needs investigation: is this a local-env artifact (git/origin setup) or a genuine verifier bug?",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:ed1e-b88d-0b82-4413",
+      "workflow-stability"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "test-integration-review-skip-on-provenance.sh: 6 pre-existing failures in all-provenanced verifier fixture"
   }
 }
