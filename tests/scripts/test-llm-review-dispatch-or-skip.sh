@@ -31,7 +31,13 @@ set -uo pipefail
 # `origin/main` ref; clearing GITHUB_BASE_REF here forces the dispatcher
 # to fall back to that default. Without this, every fixture would need to
 # create a staged-<sha>-<ts> ref matching the live PR's base — brittle.
-unset GITHUB_BASE_REF
+# Hermeticity: the unit fixtures are synthetic repos, NOT a real PR checkout, so
+# they must not inherit GitHub Actions env. GITHUB_BASE_REF drives the dispatcher's
+# `origin/<base>` filter; GITHUB_SHA is a net-diff head-resolution candidate (W2a)
+# and the real run's SHA can RESOLVE inside a fixture (shared object visibility
+# under the suite's per-test TMPDIR), making the dispatcher pick an unrelated head.
+# GITHUB_REPOSITORY drives the PR-head API lookup. Clear all three.
+unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

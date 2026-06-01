@@ -283,19 +283,16 @@ sub_pr_output=""
 sub_pr_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" 2>/dev/null) || true
 
 sub_pr_has_name="missing"
-sub_pr_has_workflow_path="missing"
+sub_pr_has_review_check="missing"
 sub_pr_has_include_staged="missing"
-sub_pr_has_workflows_rule="missing"
+sub_pr_has_rsc_rule="missing"
 if echo "$sub_pr_output" | grep -q 'DSO Sub-PR Review Enforcement'; then
     sub_pr_has_name="present"
 fi
-if echo "$sub_pr_output" | grep -q '\.github/workflows/review-sub-pr\.yml'; then
-    sub_pr_has_workflow_path="present"
-fi
 # Structural extraction of the sub-PR ruleset object from dry-run output.
-# Asserts the new two-tier-model shape: include=staged-*, exclude empty,
-# rule type = workflows (the required_workflows rule that evaluates at
-# PR-merge time, not at ref-update time).
+# CANONICAL = live (W1/CS-2): include=staged-*, rule type required_status_checks
+# with context review-sub-pr + do_not_enforce_on_create:true (NOT a `workflows`
+# rule binding a nonexistent review-sub-pr.yml).
 sub_pr_extraction=$(echo "$sub_pr_output" | python3 -c "
 import sys, json
 text = sys.stdin.read()
@@ -312,34 +309,47 @@ for start in [i for i, l in enumerate(lines) if l.strip() == '{']:
                         obj = json.loads('\n'.join(lines[start:j+1]))
                         if isinstance(obj, dict) and obj.get('name') == 'DSO Sub-PR Review Enforcement':
                             inc = obj.get('conditions', {}).get('ref_name', {}).get('include', [])
-                            rules = obj.get('rules', [])
-                            rule_types = [r.get('type') for r in rules]
+                            has_rsc = '0'; has_check = '0'
+                            for r in obj.get('rules', []):
+                                if r.get('type') == 'required_status_checks':
+                                    p = r.get('parameters', {})
+                                    ctx = [c.get('context') for c in p.get('required_status_checks', [])]
+                                    if 'review-sub-pr' in ctx and p.get('do_not_enforce_on_create') is True:
+                                        has_rsc = '1'
+                                    if 'review-sub-pr' in ctx:
+                                        has_check = '1'
                             print('INCLUDE_HAS_STAGED=' + ('1' if 'refs/heads/staged-*' in inc else '0'))
-                            print('HAS_WORKFLOWS_RULE=' + ('1' if 'workflows' in rule_types else '0'))
+                            print('HAS_RSC_RULE=' + has_rsc)
+                            print('HAS_REVIEW_CHECK=' + has_check)
                             sys.exit(0)
                     except json.JSONDecodeError:
                         pass
                     break
         if depth == 0 and j > start: break
 print('INCLUDE_HAS_STAGED=0')
-print('HAS_WORKFLOWS_RULE=0')
+print('HAS_RSC_RULE=0')
+print('HAS_REVIEW_CHECK=0')
 sys.exit(0)
 " 2>/dev/null || echo "INCLUDE_HAS_STAGED=0
-HAS_WORKFLOWS_RULE=0")
+HAS_RSC_RULE=0
+HAS_REVIEW_CHECK=0")
 if echo "$sub_pr_extraction" | grep -q '^INCLUDE_HAS_STAGED=1$'; then
     sub_pr_has_include_staged="present"
 fi
-if echo "$sub_pr_extraction" | grep -q '^HAS_WORKFLOWS_RULE=1$'; then
-    sub_pr_has_workflows_rule="present"
+if echo "$sub_pr_extraction" | grep -q '^HAS_RSC_RULE=1$'; then
+    sub_pr_has_rsc_rule="present"
+fi
+if echo "$sub_pr_extraction" | grep -q '^HAS_REVIEW_CHECK=1$'; then
+    sub_pr_has_review_check="present"
 fi
 
 assert_eq "test_dry_run_includes_session_branch_ruleset: ruleset name present" "present" "$sub_pr_has_name"
-assert_eq "test_dry_run_includes_session_branch_ruleset: review-sub-pr workflow path present" "present" "$sub_pr_has_workflow_path"
+assert_eq "test_dry_run_includes_session_branch_ruleset: review-sub-pr required-status-check context present" "present" "$sub_pr_has_review_check"
 # Two-tier promotion model: include=["refs/heads/staged-*"], rule type
-# `workflows` (the required_workflows rule that fires at PR-merge time,
-# not at ref-update time — this is what unblocks pushes to staged-*).
+# required_status_checks{review-sub-pr} with do_not_enforce_on_create:true (the
+# create-exemption is what unblocks staged-* ref creation while gating PR merges).
 assert_eq "test_dry_run_includes_session_branch_ruleset: include staged-* present" "present" "$sub_pr_has_include_staged"
-assert_eq "test_dry_run_includes_session_branch_ruleset: rule type is workflows" "present" "$sub_pr_has_workflows_rule"
+assert_eq "test_dry_run_includes_session_branch_ruleset: rule type is required_status_checks{do_not_enforce_on_create}" "present" "$sub_pr_has_rsc_rule"
 assert_pass_if_clean "test_dry_run_includes_session_branch_ruleset"
 
 # test_session_branch_patterns_match_workflow_triggers removed (PR-2):

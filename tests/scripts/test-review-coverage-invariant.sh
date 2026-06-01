@@ -8,6 +8,12 @@
 
 set -uo pipefail
 
+# Hermeticity: synthetic fixtures, not a real PR checkout. The check resolves
+# origin/$GITHUB_BASE_REF and uses GITHUB_SHA for head resolution; in CI the
+# Script Tests job inherits the PR's GITHUB_BASE_REF (e.g. a staged-* base) and
+# GITHUB_SHA, neither of which exists in the fixture's origin/main. Clear them.
+unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY
+
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHECK="$REPO_ROOT/plugins/dso/scripts/ci/review-coverage-invariant.sh"
 
