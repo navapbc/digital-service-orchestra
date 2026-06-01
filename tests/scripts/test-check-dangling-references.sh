@@ -82,7 +82,10 @@ _origin "$r"
 printf '# gone\n' > "$r/lib.sh"
 git -C "$r" add lib.sh; git -C "$r" commit -qm "drop greet"
 out="$(_run "$r" DSO_DANGLING_MODE=warn)"; rc=$?
-if [[ $rc -eq 0 ]] && grep -q "MODE=warn" <<<"$out"; then _pass "T4_warn_mode"; else _fail "T4_warn_mode" "rc=$rc out=$out"; fi
+# warn mode must still DETECT and report the dangling ref (exit 0 + banner is not
+# enough — a regression that short-circuits the scan before detecting would pass
+# a banner-only assertion). Require the SYMBOL report too.
+if [[ $rc -eq 0 ]] && grep -q "MODE=warn" <<<"$out" && grep -q "SYMBOL 'greet'" <<<"$out"; then _pass "T4_warn_mode_detects_but_does_not_block"; else _fail "T4_warn_mode_detects_but_does_not_block" "rc=$rc out=$out"; fi
 
 # ── T5: python def removed but still called → dangling ──────────────────────
 r="$_W/t5"; mkdir -p "$r"; _newrepo "$r"

@@ -599,6 +599,15 @@ else:
                 echo "WARNING: check-runs API failed for covering PR #${_cov_pr} (${_cov_head_sha:0:8}); treating as unverified. gh output: ${_check_err_snippet}" >&2
                 continue
             }
+            # KEEP IN SYNC: this poison-on-failure verdict is the same predicate as
+            # rc_review_check_verdict in scripts/lib/review-coverage-lib.sh (now the
+            # shared source of truth, used by review-coverage-invariant.sh and
+            # fp-recovery-audit-sweep.sh). This embedded copy is NOT yet consolidated
+            # onto the shared lib (the G3 loop is tightly coupled to this script's
+            # budget/cache state); tracked for a dedicated, carefully-tested refactor.
+            # If you change the failure-class set or the review-check name match here,
+            # change it in rc_review_check_verdict too — they MUST stay identical.
+            #
             # R2 (v4): poison-on-failure semantics. The GitHub check-runs API
             # returns ALL historical runs for a SHA, not just the latest. The
             # prior implementation short-circuited on first conclusion=success,

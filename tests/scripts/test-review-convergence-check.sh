@@ -67,6 +67,13 @@ H="$_W/hist5"; on="$_W/on5.json"; _findings "$(_f_on)" > "$on"
 out="$(env DSO_CI_REVIEW_FINDINGS_PATH="$on" DSO_CONVERGENCE_HISTORY="$H" DSO_REVIEW_CYCLE=5 DSO_REVIEW_MAX_CYCLES=4 bash "$CHECK")"; rc=$?
 if [[ $rc -eq 1 ]] && grep -q "reason=cycle_cap_exceeded" <<<"$out"; then _pass "T5_cycle_cap_escalates"; else _fail "T5_cycle_cap_escalates" "rc=$rc out=$out"; fi
 
+# ── T5b: cycle-cap BOUNDARY — cycle==cap must still CONVERGE (not escalate). The
+#     gate is `CYCLE > CAP` (strict); an off-by-one to >= would escalate a cycle
+#     early. Pin the boundary so that regression is caught. ──
+H="$_W/hist5b"; on="$_W/on5b.json"; _findings "$(_f_on)" > "$on"
+out="$(env DSO_CI_REVIEW_FINDINGS_PATH="$on" DSO_CONVERGENCE_HISTORY="$H" DSO_REVIEW_CYCLE=4 DSO_REVIEW_MAX_CYCLES=4 bash "$CHECK")"; rc=$?
+if [[ $rc -eq 0 ]] && grep -q "decision_record=converging" <<<"$out"; then _pass "T5b_cycle_eq_cap_converges"; else _fail "T5b_cycle_eq_cap_converges" "rc=$rc out=$out"; fi
+
 # ── T6: W2b covered-credit — an id seen-and-cleared in a prior cycle that
 #     reappears once is flagged as oscillation (history is the credit ledger). A
 #     brand-new id (never in history) on a fresh cycle converges. ──

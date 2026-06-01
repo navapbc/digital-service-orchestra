@@ -69,6 +69,9 @@ build_net_integration_diff() {
     # the touched files. This is what collapses introduce-then-fix to the final
     # state.
     if ! git -c core.quotepath=false diff "${main_ref}...${head_ref}" -- "${_files[@]}" > "$out_path" 2>/dev/null; then
+        # Truncate any partial bytes git wrote so a caller that ignores rc=1 cannot
+        # read a truncated diff (the contract is fail-closed-on-rc-1, never partial).
+        : > "$out_path"
         rm -f "$touched"
         return 1
     fi

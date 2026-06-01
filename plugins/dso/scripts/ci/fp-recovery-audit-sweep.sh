@@ -30,6 +30,18 @@ set -uo pipefail
 _GH() { "${DSO_GH_BIN:-gh}" "$@"; }
 _precondition_not_met() { echo "PRECONDITION_NOT_MET: $1" >&2; exit 78; }
 
+# Shared poison-on-failure review verdict (single source of truth; also used by
+# review-coverage-lib.sh). Sourced rather than re-inlined to avoid drift in this
+# security-load-bearing predicate.
+_FPA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_FPA_LIB="${DSO_REVIEW_COVERAGE_LIB:-${_FPA_DIR}/../lib/review-coverage-lib.sh}"
+if [[ ! -f "$_FPA_LIB" ]]; then
+    echo "PRECONDITION_NOT_MET: review-coverage lib (for rc_review_check_verdict) not found: $_FPA_LIB" >&2
+    exit 78
+fi
+# shellcheck source=../lib/review-coverage-lib.sh
+source "$_FPA_LIB"
+
 command -v "${DSO_GH_BIN:-gh}" >/dev/null 2>&1 || _precondition_not_met "gh not in PATH"
 command -v python3 >/dev/null 2>&1 || _precondition_not_met "python3 not in PATH"
 [[ -n "${DSO_AUDIT_HMAC_KEY:-}" ]] || _precondition_not_met "DSO_AUDIT_HMAC_KEY not set (cannot sign markers)"
@@ -91,18 +103,12 @@ while IFS=$'\t' read -r _num _merge _head _at; do
         echo "WARNING [audit]: check-runs API failed for PR #${_num} (head ${_head:0:8}); recording review_status=unknown" >&2
         _verdict="unknown"
     else
-    _verdict="$(printf '%s' "$_checks" | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-except Exception:
-    print('missing'); sys.exit(0)
-runs = data.get('check_runs', []) if isinstance(data, dict) else []
-m = [r for r in runs if 'review-sub-pr' in r.get('name','') or 'llm-review' in r.get('name','')]
-fail = [r for r in m if r.get('conclusion') in ('failure','cancelled','timed_out','action_required')]
-ok = [r for r in m if r.get('conclusion') == 'success']
-print('failed' if fail else ('passed' if ok else 'missing'))
-" 2>/dev/null)"
+        # Shared verdict (passed|failed|not_found|error). Map the audit-marker enum:
+        # not_found/error -> 'missing' (no review evidence found in a valid response).
+        _verdict="$(printf '%s' "$_checks" | rc_review_check_verdict)"
+        case "$_verdict" in
+            not_found|error|'') _verdict="missing" ;;
+        esac
     fi
     [[ "$_verdict" == "passed" ]] && continue   # genuinely reviewed — not a bypass
     _bypassed=$(( _bypassed + 1 ))

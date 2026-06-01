@@ -264,10 +264,21 @@ DEFAULT_BRANCH=$(_dso_resolve_default_branch "$REPO")
 # (override path via DSO_CONFIG_FILE). The ruleset-design-invariants check
 # drift-locks the live bypass actor to this value.
 RULESET_BYPASS_USER_ID="${DSO_RULESET_BYPASS_USER_ID:-$("$_PROV_PLUGIN_ROOT/scripts/read-config.sh" ruleset.bypass_user_id "${DSO_CONFIG_FILE:-.claude/dso-config.conf}" 2>/dev/null || true)}"
+# Validate the configured user id is a pure integer BEFORE interpolating it into a
+# JSON literal — a non-numeric value (mis-edited config / bad env override) would
+# emit malformed JSON and surface as an opaque gh-api 422 instead of a clear error.
+if [[ -n "${RULESET_BYPASS_USER_ID:-}" ]] && ! [[ "$RULESET_BYPASS_USER_ID" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: ruleset.bypass_user_id must be a numeric GitHub user ID (got: '${RULESET_BYPASS_USER_ID}'). Resolve with: gh api users/<login> --jq .id" >&2
+  exit 1
+fi
+# GitHub's standard RepositoryRole id for "Admin" on github.com (the default
+# bypass actor when no named User is configured). Single source of truth for the
+# magic 5 used below and in the payload comment.
+_ADMIN_REPO_ROLE_ID=5
 if [[ -n "${RULESET_BYPASS_USER_ID:-}" ]]; then
   BYPASS_ACTORS_JSON="[{\"actor_id\": ${RULESET_BYPASS_USER_ID}, \"actor_type\": \"User\", \"bypass_mode\": \"${BYPASS_ACTOR_POLICY}\"}]"
 else
-  BYPASS_ACTORS_JSON="[{\"actor_id\": 5, \"actor_type\": \"RepositoryRole\", \"bypass_mode\": \"${BYPASS_ACTOR_POLICY}\"}]"
+  BYPASS_ACTORS_JSON="[{\"actor_id\": ${_ADMIN_REPO_ROLE_ID}, \"actor_type\": \"RepositoryRole\", \"bypass_mode\": \"${BYPASS_ACTOR_POLICY}\"}]"
 fi
 
 # ── Read check names from file ────────────────────────────────────────────────

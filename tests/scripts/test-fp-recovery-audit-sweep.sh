@@ -25,11 +25,15 @@ cat > "$_MOCK/gh" <<'MOCK'
 p="$2"
 case "$p" in
   *pulls\?state=closed*|*pulls?state=closed*)
-    echo '[{"number":1,"merged_at":"2026-01-01T00:00:00Z","merge_commit_sha":"m1","head":{"sha":"h1"}},{"number":2,"merged_at":"2026-01-02T00:00:00Z","merge_commit_sha":"m2","head":{"sha":"h2"}}]' ;;
+    echo '[{"number":1,"merged_at":"2026-01-01T00:00:00Z","merge_commit_sha":"m1","head":{"sha":"h1"}},{"number":2,"merged_at":"2026-01-02T00:00:00Z","merge_commit_sha":"m2","head":{"sha":"h2"}},{"number":3,"merged_at":"2026-01-03T00:00:00Z","merge_commit_sha":"m3","head":{"sha":"h3"}},{"number":4,"merged_at":"2026-01-04T00:00:00Z","merge_commit_sha":"m4","head":{"sha":"h4"}}]' ;;
   */commits/h1/check-runs*)
     echo '{"check_runs":[{"name":"llm-review","conclusion":"success"}]}' ;;
   */commits/h2/check-runs*)
-    echo '{"check_runs":[{"name":"Hook Tests","conclusion":"success"}]}' ;;  # no review check → bypassed
+    echo '{"check_runs":[{"name":"Hook Tests","conclusion":"success"}]}' ;;  # no review check → missing
+  */commits/h3/check-runs*)
+    exit 1 ;;  # API error → review_status=unknown
+  */commits/h4/check-runs*)
+    echo '{"check_runs":[{"name":"review-sub-pr","conclusion":"failure"}]}' ;;  # failed review → failed
   *) echo "{}" ;;
 esac
 MOCK
@@ -75,6 +79,27 @@ if [[ $rc -eq 78 ]]; then _pass "T6_no_key_precondition"; else _fail "T6_no_key_
 of="$_W/markers.jsonl"
 env "PATH=$_MOCK:$PATH" GH_REPO="test/repo" DSO_AUDIT_HMAC_KEY="$KEY" DSO_AUDIT_OUTPUT="$of" bash "$SWEEP" >/dev/null 2>&1
 if [[ -f "$of" ]] && grep -q '"pr":2' "$of"; then _pass "T7_output_file_appended"; else _fail "T7_output_file_appended" "$(cat "$of" 2>/dev/null)"; fi
+
+# T8: a check-runs API ERROR for PR #3 records review_status=unknown (NOT silently
+# classified as a bypass or reviewed) — the load-bearing distinction so a transient
+# API failure cannot be mis-credited. Its HMAC must verify over the '...|unknown' msg.
+m3="$(grep '"pr":3' <<<"$out" | head -1)"
+if [[ -n "$m3" ]] && grep -q '"review_status":"unknown"' <<<"$m3"; then
+    h3="$(printf '%s' "$m3" | python3 -c "import json,sys;print(json.load(sys.stdin)['hmac_sha256'])")"
+    mc3="$(printf '%s' "$m3" | python3 -c "import json,sys;print(json.load(sys.stdin)['merge_sha'])")"
+    at3="$(printf '%s' "$m3" | python3 -c "import json,sys;print(json.load(sys.stdin)['merged_at'])")"
+    exp3="$(DSO_AUDIT_HMAC_KEY="$KEY" python3 -c "import hmac,hashlib,os,sys;print(hmac.new(os.environ['DSO_AUDIT_HMAC_KEY'].encode(), sys.argv[1].encode(), hashlib.sha256).hexdigest())" "3|${mc3}|${at3}|unknown")"
+    if [[ "$h3" == "$exp3" && -n "$h3" ]]; then _pass "T8_api_error_records_unknown_with_valid_hmac"; else _fail "T8_api_error_records_unknown_with_valid_hmac" "hmac mismatch"; fi
+else
+    _fail "T8_api_error_records_unknown_with_valid_hmac" "no unknown marker for pr 3: out=$out"
+fi
+
+# T9: a FAILED review check (PR #4) records review_status=failed (distinct verdict).
+if grep -q '"pr":4' <<<"$out" && grep '"pr":4' <<<"$out" | grep -q '"review_status":"failed"'; then
+    _pass "T9_failed_review_records_failed"
+else
+    _fail "T9_failed_review_records_failed" "out=$out"
+fi
 
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"

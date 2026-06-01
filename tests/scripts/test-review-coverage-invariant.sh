@@ -143,6 +143,19 @@ printf '[]' > "$md/pulls_$sha_bad"
 out="$(_run "$r" "$head" "$md")"; rc=$?
 if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${sha_bad}" <<<"$out" && grep -q "verified=1" <<<"$out"; then _pass "T9_mixed_blocks_on_unreviewed"; else _fail "T9_mixed_blocks_on_unreviewed" "rc=$rc out=$out"; fi
 
+# ── T10: covering PR whose head IS the SHA (a sub-PR's own head commit) is the
+#     COMMON case and must count as REVIEWED. Regression for the A3a-in-coverage-
+#     lib bug (deep review): the blanket head==sha exclusion would otherwise return
+#     false-UNREVIEWED for every sub-PR head SHA and, in enforce mode, block every
+#     legitimate staged->main merge. ──
+r="$_WORK/t10"; mkdir -p "$r"; sf="$_WORK/t10.shas"; md="$_WORK/t10.mock"; mkdir -p "$md"
+_mk_repo "$r" "$sf" "feat-head-eq-sha"
+sha="$(sed -n 1p "$sf")"
+# covering merged PR #30 whose head IS this SHA; review-sub-pr passed on it.
+_reviewed_pulls 30 "$sha" > "$md/pulls_$sha"; _checks success > "$md/checks_$sha"
+out="$(_run "$r" "$sha" "$md")"; rc=$?
+if [[ $rc -eq 0 ]] && grep -q "every SHA proven reviewed" <<<"$out"; then _pass "T10_covering_pr_head_eq_sha_is_reviewed"; else _fail "T10_covering_pr_head_eq_sha_is_reviewed" "rc=$rc out=$out"; fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1

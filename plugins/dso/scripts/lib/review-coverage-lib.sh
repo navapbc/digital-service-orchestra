@@ -25,6 +25,30 @@ _rc_gh() { "${DSO_GH_BIN:-gh}" "$@"; }
 #     0 = REVIEWED        (a covering merged PR has a passing review check-run)
 #     1 = NOT REVIEWED    (resolved cleanly; no covering PR with a passing review)
 #     2 = ERROR/AMBIGUOUS (API/parse failure — caller MUST fail closed)
+
+# rc_review_check_verdict  (check-runs JSON on STDIN)
+#   SINGLE SOURCE OF TRUTH for the poison-on-failure "did the review pass" verdict
+#   over a SHA's check-runs. Any failure-class conclusion (failure/cancelled/
+#   timed_out/action_required) on a review-sub-pr|llm-review check BLOCKS; else a
+#   success passes; else not_found; parse error -> 'error'. (Was duplicated across
+#   review-coverage-lib.sh, fp-recovery-audit-sweep.sh, and verify-session-
+#   provenance.sh G3 — the new callers now share this; the verifier's embedded G3
+#   copy is tracked for consolidation in a follow-up, see its KEEP-IN-SYNC note.)
+rc_review_check_verdict() {
+    python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print('error'); sys.exit(0)
+runs = data.get('check_runs', []) if isinstance(data, dict) else []
+m = [r for r in runs if 'review-sub-pr' in r.get('name','') or 'llm-review' in r.get('name','')]
+fail = [r for r in m if r.get('conclusion') in ('failure','cancelled','timed_out','action_required')]
+ok = [r for r in m if r.get('conclusion') == 'success']
+print('failed' if fail else ('passed' if ok else 'not_found'))
+" 2>/dev/null
+}
+
 rc_sha_is_reviewed() {
     local repo="$1" sha="$2" pr_under_review="${3:-0}"
     local pulls_json covering check_json verdict cov_pr cov_head
@@ -54,9 +78,17 @@ for pr in prs:
     if pr.get('state') != 'closed' or not pr.get('merged_at'):
         continue
     head = (pr.get('head') or {}).get('sha', '')
-    if head == sha_u or pr.get('merge_commit_sha') == sha_u:
-        continue
+    # A1 self-exclusion: the PR under review cannot provide its own provenance.
     if pur > 0 and pr.get('number') == pur:
+        continue
+    # A3b self-merge guard only. The blanket A3a (head == sha_u) is intentionally
+    # NOT applied: a DIFFERENT merged sub-PR whose head IS sha_under_review is the
+    # VALID covering evidence (the common case — a sub-PR's own head commit).
+    # Excluding it would return false-UNREVIEWED for every sub-PR head SHA and,
+    # in enforce mode, block every legitimate staged->main merge. G3 below
+    # independently re-verifies the covering PR's review check actually PASSED, so
+    # keeping it cannot launder. (Mirrors the W4 fix in verify-session-provenance.sh.)
+    if pr.get('merge_commit_sha') == sha_u:
         continue
     if head:
         print(f\"{pr.get('number','')}\t{head}\")
@@ -68,20 +100,7 @@ for pr in prs:
     while IFS=$'\t' read -r cov_pr cov_head; do
         [[ -z "$cov_head" ]] && continue
         check_json="$(_rc_gh api "repos/${repo}/commits/${cov_head}/check-runs" 2>/dev/null)" || return 2
-        # Poison-on-failure (same as G3): any failure-class conclusion in the
-        # review check-run history blocks; else a success passes.
-        verdict="$(printf '%s' "$check_json" | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-except Exception:
-    print('error'); sys.exit(0)
-runs = data.get('check_runs', []) if isinstance(data, dict) else []
-matching = [r for r in runs if 'review-sub-pr' in r.get('name','') or 'llm-review' in r.get('name','')]
-fail = [r for r in matching if r.get('conclusion') in ('failure','cancelled','timed_out','action_required')]
-ok = [r for r in matching if r.get('conclusion') == 'success']
-print('failed' if fail else ('passed' if ok else 'not_found'))
-" 2>/dev/null)"
+        verdict="$(printf '%s' "$check_json" | rc_review_check_verdict)"
         case "$verdict" in
             passed)    printf '%s:%s' "$cov_pr" "$cov_head"; return 0 ;;
             failed|not_found) continue ;;
