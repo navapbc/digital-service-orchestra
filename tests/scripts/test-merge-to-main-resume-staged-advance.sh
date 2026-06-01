@@ -67,6 +67,22 @@ else
     _fail "state_helpers_loaded" "state field helpers not available"
 fi
 
+# ── (3) version bump skips on a staged-* source branch (two-tier flow) ───────
+# The PR2 phase must NOT push a fresh bump commit to the protected staged-* branch
+# (the sub-PR ruleset rejects it for the non-admin agent). The bump is applied on
+# the feature branch during PR1 instead.
+if type _phase_source_branch_version_bump >/dev/null 2>&1; then
+    BRANCH="staged-deadbeef-1780000000"
+    out="$(_phase_source_branch_version_bump "story-x" 2>&1)"; rc=$?
+    if [[ $rc -eq 0 ]] && grep -q "staged-\* (PR2 phase)" <<<"$out"; then
+        _pass "T7_version_bump_skips_on_staged_source"
+    else
+        _fail "T7_version_bump_skips_on_staged_source" "rc=$rc out=$out"
+    fi
+else
+    _fail "version_bump_fn_defined" "_phase_source_branch_version_bump not loaded"
+fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1

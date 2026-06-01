@@ -601,6 +601,22 @@ _phase_source_branch_version_bump() {
         _state_write_phase "source_branch_version_bump" 2>/dev/null || true
     fi
 
+    # --- Two-tier flow: do NOT bump on a staged-* source branch. ---
+    # When BRANCH is staged-*, we are in the PR2 (staged-*→main) phase. The bump
+    # was already applied on the FEATURE branch during PR1 (_phase_staged_intermediate)
+    # and flowed into staged via PR1's merge, so it rides through PR2 into main.
+    # Pushing a fresh bump commit directly to the protected staged-* branch here
+    # would be REJECTED by the sub-PR ruleset (required_status_checks{review-sub-pr};
+    # do_not_enforce_on_create exempts create, NOT update) because the bump commit
+    # has no passing review-sub-pr and the non-admin agent cannot bypass. Skip.
+    if [[ "$BRANCH" == staged-* ]]; then
+        echo "INFO: BRANCH is staged-* (PR2 phase) — version bump already applied on the feature branch during PR1; skipping source-branch bump (two-tier flow)."
+        if type _state_mark_complete >/dev/null 2>&1; then
+            _state_mark_complete "source_branch_version_bump" 2>/dev/null || true
+        fi
+        return 0
+    fi
+
     # --- Resume idempotency: skip when HEAD is already a bump commit. ---
     # Pattern matches the commit subject emitted below: `chore: bump version to v...`.
     # Without this guard, a --resume after a successful bump would cascade the
@@ -883,6 +899,24 @@ _phase_staged_intermediate() {
     if type _state_set_field >/dev/null 2>&1; then
         _state_set_field "staged_branch" "$_staged_branch" 2>/dev/null || true
     fi
+
+    # 1b. Two-tier version bump: apply the version bump on the FEATURE branch NOW
+    # (before PR1), so it flows feat→staged→main through the two reviewed PRs. The
+    # bump must NOT be deferred to _phase_merge (PR2 phase), where BRANCH is staged-*
+    # and pushing a bump commit directly to the protected staged-* branch is rejected
+    # by the sub-PR ruleset for the non-admin agent. Derive a best-effort story id
+    # for the bump commit's DSO-Story trailer (mirrors _phase_merge); fall back to
+    # the branch name. The bump runs here while BRANCH is the feature branch, so the
+    # staged-* skip guard in _phase_source_branch_version_bump does NOT fire.
+    local _staged_bump_story
+    _staged_bump_story=$(git log --pretty=format:%B "origin/${_DEFAULT_BRANCH:-main}..HEAD" 2>/dev/null \
+        | grep -Eiom1 '^[[:space:]]*DSO-Story:[[:space:]]*[A-Za-z0-9._/-]+' \
+        | sed -E 's/^[[:space:]]*DSO-Story:[[:space:]]*//I' || true)
+    [[ -z "$_staged_bump_story" ]] && _staged_bump_story="${BRANCH:-unknown}"
+    _phase_source_branch_version_bump "$_staged_bump_story" || {
+        echo "ERROR: source-branch version bump failed on feature branch ${BRANCH}" >&2
+        return 1
+    }
 
     # 2. Push BRANCH (the source branch — typically worktree-*) to origin so
     #    GitHub can see its commits when we open PR1 against the staged ref.
