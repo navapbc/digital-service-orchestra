@@ -61,3 +61,22 @@ jobs:
             exit 0
           fi
           exit $rc
+
+      - name: Run provisioner round-trip drift test
+        # Single-source-of-truth drift lock: provisioner dry-run vs live ruleset
+        # (R7/R8) + provisioner dry-run vs required-checks.txt (R5). The offline
+        # assertions (R1-R6) run everywhere; R7/R8 need the rulesets-read token,
+        # so this runs here where the token is available. Same exit-78 rollout
+        # semantics as the invariant test above.
+        env:
+          GH_TOKEN: ${{ secrets.DSO_RULESETS_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set +e
+          bash tests/scripts/test-ruleset-provisioner-roundtrip.sh
+          rc=$?
+          if [ "$rc" -eq 78 ]; then
+            echo "::warning::provisioner round-trip precondition not met — drift detection not enforced this run"
+            exit 0
+          fi
+          exit $rc

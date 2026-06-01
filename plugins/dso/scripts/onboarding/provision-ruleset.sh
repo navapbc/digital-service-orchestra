@@ -344,58 +344,37 @@ EOF
 )
 
 # ── Build session-branch ruleset JSON payload (F1 mitigation) ────────────────
-# Second ruleset requiring review-sub-pr to pass on session/worktree branches.
+# Second ruleset (live ID 16961402) requiring the `review-sub-pr` check to pass
+# before a PR can merge into a `staged-*` branch.
 #
-# SUB-PR RULESET SCOPING (negative-list, all-except-main):
-# The sub-PR ruleset's branch scope is hardcoded below as include="~ALL" plus
-# ── Sub-PR ruleset (16961402) ────────────────────────────────────────────────
-# Two-tier promotion model:
+# ── Sub-PR ruleset — two-tier promotion model ────────────────────────────────
 #
 #   feature-branch (unrestricted)
-#       ↓ PR — review-sub-pr workflow required (sub-PR ruleset, this block)
+#       ↓ PR — review-sub-pr required check (sub-PR ruleset, this block)
 #   staged-*
 #       ↓ PR — check-staged-head + main required checks (main ruleset)
 #   main
 #
-# Rule type: required_workflows (NOT required_status_checks).
+# Rule type: required_status_checks{review-sub-pr} with do_not_enforce_on_create=true
+# (CANONICAL — matches live ruleset 16961402; verified by the round-trip drift
+# test tests/scripts/test-ruleset-provisioner-roundtrip.sh).
 #
-# required_workflows evaluates at PR-MERGE time, not at ref-update time.
-# This is the critical property: pushes to staged-* branches are
-# UNRESTRICTED (fixup commits to a staged-* PR don't get blocked), but the
-# PR can't merge until the named workflow has run successfully on it.
+# `do_not_enforce_on_create=true` is what avoids the chicken-and-egg an earlier
+# design hit: creating a fresh `staged-*` ref from main HEAD is exempt from the
+# check (the check only fires on PR events, not ref-update events), while a PR
+# *merging* into staged-* still requires `review-sub-pr` to have passed. This is
+# why a `workflows` rule (which bound a nonexistent `.github/workflows/review-sub-pr.yml`)
+# is NOT used: the `review-sub-pr` job lives in ci.yml and is enforced as a
+# status-check context, exactly as live config shows.
 #
-# The prior required_status_checks{review-sub-pr} configuration had a
-# chicken-and-egg: pushing a new staged-* ref required the commit to
-# already have review-sub-pr passing, but review-sub-pr only fires on PR
-# events. Switching to required_workflows breaks the cycle.
-#
-# WORKFLOW REFERENCE PORTABILITY: the rule references the workflow by
-# repository_id + path. repository_id is numeric and not fork-portable; if
-# this script ever needs to provision rulesets in forks or renamed repos,
-# the ID must be resolved at runtime via `gh api repos/$REPO --jq .id`.
-# For single-repo use this is fine.
-_REVIEW_SUB_PR_WORKFLOW_PATH=".github/workflows/review-sub-pr.yml"
-# REPO_ID resolution: prefer gh api at runtime; fall back to the known
-# constant for navapbc/digital-service-orchestra if gh fails (e.g., in
-# air-gapped CI). Override via DSO_REPO_ID env var for testing.
-if [[ -n "${DSO_REPO_ID:-}" ]]; then
-  REPO_ID="$DSO_REPO_ID"
-else
-  REPO_ID=$(gh api "repos/${REPO}" --jq .id 2>/dev/null || echo "1183266892")
-fi
+# A `copilot_code_review` rule is included to match live (advisory; not the
+# load-bearing LLM gate — that is `review-sub-pr`).
+SUB_PR_REQUIRED_CHECK="review-sub-pr"
 
 # ── OPERATOR WARNING — DO NOT BROADEN THIS INCLUDE ───────────────────────────
 # The sub-PR ruleset MUST target only `refs/heads/staged-*`. Earlier designs
-# used `~ALL` (with `refs/heads/main` excluded), which re-introduced the
-# chicken-and-egg between push-time required_status_checks enforcement and
-# PR-time review-sub-pr workflow execution: every new feature branch's first
-# push would fail because review-sub-pr can only run inside a PR event, not
-# at ref-update time.
-#
-# The current shape — `["refs/heads/staged-*"]` with `do_not_enforce_on_create: true`
-# — resolves that: feature branches are unrestricted, staged-* ref creation
-# from main HEAD works because creation is exempted, and PR-merge into a
-# staged-* branch fires the required check. See:
+# used `~ALL` (with `refs/heads/main` excluded), which re-introduced a
+# chicken-and-egg at push time and could brick `main`. Keep it `staged-*`-only.
 #   - ${CLAUDE_PLUGIN_ROOT}/docs/contracts/review-defenses.md § "Two-Tier Promotion Gate"
 #   - tests/scripts/test-ruleset-design-invariants.sh (asserts this scoping)
 #
@@ -403,6 +382,7 @@ fi
 # which fails if the include is broadened back to ~ALL.
 SUB_PR_INCLUDE_JSON='["refs/heads/staged-*"]'
 SUB_PR_EXCLUDE_JSON='[]'
+SUB_PR_CHECK_JSON=$(jq -nc --arg ctx "$SUB_PR_REQUIRED_CHECK" '[{context: $ctx}]')
 
 SUB_PR_PAYLOAD_JSON=$(cat <<EOF
 {
@@ -418,15 +398,18 @@ SUB_PR_PAYLOAD_JSON=$(cat <<EOF
   "bypass_actors": ${BYPASS_ACTORS_JSON},
   "rules": [
     {
-      "type": "workflows",
+      "type": "required_status_checks",
       "parameters": {
-        "workflows": [
-          {
-            "repository_id": ${REPO_ID},
-            "path": "${_REVIEW_SUB_PR_WORKFLOW_PATH}",
-            "ref": "refs/heads/main"
-          }
-        ]
+        "strict_required_status_checks_policy": false,
+        "do_not_enforce_on_create": true,
+        "required_status_checks": ${SUB_PR_CHECK_JSON}
+      }
+    },
+    {
+      "type": "copilot_code_review",
+      "parameters": {
+        "review_draft_pull_requests": false,
+        "review_on_push": false
       }
     }
   ]
