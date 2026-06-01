@@ -22,6 +22,7 @@ from ticket_reducer._api import reduce_ticket, reduce_all_tickets
 from ticket_reducer._state import make_error_dict, make_initial_state
 from ticket_reducer._sort import event_sort_key
 from ticket_reducer._inbound import find_inbound_relationships
+from ticket_reducer._filters import apply_ticket_filters
 from ticket_reducer._cache import (
     compute_dir_hash,
     prepare_event_files,
@@ -49,6 +50,7 @@ __all__ = [
     "reduce_ticket",
     "reduce_all_tickets",
     "find_inbound_relationships",
+    "apply_ticket_filters",
     "make_initial_state",
     "make_error_dict",
     "event_sort_key",

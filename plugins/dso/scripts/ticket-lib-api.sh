@@ -661,6 +661,8 @@ ticket_list() {
         local filter_status=""
         local filter_parent=""
         local filter_tag=""
+        local filter_priority=""
+        local filter_without_tag=""
         local arg
         for arg in "$@"; do
             case "$arg" in
@@ -689,12 +691,26 @@ ticket_list() {
                 --has-tag=*)
                     filter_tag="${arg#--has-tag=}"
                     ;;
+                --priority=*)
+                    filter_priority="${arg#--priority=}"
+                    ;;
+                --without-tag=*)
+                    filter_without_tag="${arg#--without-tag=}"
+                    ;;
                 --help|-h)
-                    echo "Usage: ticket list [--format=llm] [--include-archived] [--exclude-deleted] [--type=<type>] [--status=<status>] [--parent=<id>] [--has-tag=<tag>]" >&2
+                    echo "Usage: ticket list [--format=llm] [--include-archived] [--exclude-deleted] [--type=<type>] [--status=<status>] [--priority=<n>] [--parent=<id>] [--has-tag=<tag>] [--without-tag=<tag>]" >&2
+                    echo "  --type=<type>      Filter by ticket type (bug, epic, story, task)" >&2
+                    echo "  --status=<status>  Filter by status (comma-separated for OR)" >&2
+                    echo "  --priority=<n>     Filter by priority 0-4 (comma-separated for OR; exact match; unset priority not matched)" >&2
+                    echo "  --parent=<id>      Filter to direct children of <id>" >&2
+                    echo "  --has-tag=<tag>    Filter to tickets having <tag> (comma-separated for OR);" >&2
+                    echo "                     tags matching ^detected_by: auto-intersect with --type=bug" >&2
+                    echo "  --without-tag=<tag>  Exclude tickets having ANY of <tag> (comma-separated)" >&2
                     return 0
                     ;;
                 -*)
                     echo "Error: unknown option '$arg'" >&2
+                    echo "Valid filters: --type --status --priority --parent --has-tag --without-tag --include-archived --exclude-deleted --format=llm" >&2
                     return 1
                     ;;
             esac
@@ -711,6 +727,26 @@ ticket_list() {
             esac
         fi
 
+        # --priority accepts only integers 0-4 (comma-separated for OR); reject non-digits
+        # AND out-of-range values so an obvious mistake yields a clear error, not an empty list.
+        if [ -n "$filter_priority" ]; then
+            case "$filter_priority" in
+                *[!0-9,]*)
+                    echo "Error: --priority expects integer values 0-4 (comma-separated for OR), got '$filter_priority'" >&2
+                    return 1
+                    ;;
+            esac
+            local _pri_ifs=$IFS _pri
+            IFS=','
+            for _pri in $filter_priority; do
+                case "$_pri" in
+                    ''|0|1|2|3|4) ;;
+                    *) echo "Error: --priority value '$_pri' out of range (expected 0-4)" >&2; IFS=$_pri_ifs; return 1 ;;
+                esac
+            done
+            IFS=$_pri_ifs
+        fi
+
         if [ ! -d "$TRACKER_DIR" ]; then
             echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
             return 1
@@ -721,10 +757,11 @@ ticket_list() {
             _EXCLUDE_DELETED="$exclude_deleted_flag" \
             _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
             _PARENT_FILTER="$filter_parent" _TAG_FILTER="$filter_tag" \
+            _PRIORITY_FILTER="$filter_priority" _WITHOUT_TAG_FILTER="$filter_without_tag" \
             _SCRIPT_DIR="$_TICKETLIB_DIR" python3 -c "
 import sys, os, json
 sys.path.insert(0, os.environ['_SCRIPT_DIR'])
-from ticket_reducer import reduce_all_tickets
+from ticket_reducer import reduce_all_tickets, apply_ticket_filters
 from ticket_reducer.llm_format import to_llm
 
 tracker_dir = os.environ['_TRACKER_DIR']
@@ -734,19 +771,15 @@ type_filter = os.environ.get('_TYPE_FILTER', '')
 status_filter = os.environ.get('_STATUS_FILTER', '')
 parent_filter = os.environ.get('_PARENT_FILTER', '')
 tag_filter = os.environ.get('_TAG_FILTER', '')
+priority_filter = os.environ.get('_PRIORITY_FILTER', '')
+without_tag_filter = os.environ.get('_WITHOUT_TAG_FILTER', '')
 
 results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived, exclude_deleted=exclude_deleted)
-if status_filter not in ('error', 'fsck_needed'):
-    results = [t for t in results if t.get('status') not in ('error', 'fsck_needed')]
-if type_filter:
-    results = [t for t in results if t.get('ticket_type') == type_filter]
-if status_filter:
-    status_values = {s.strip() for s in status_filter.split(',')}
-    results = [t for t in results if t.get('status') in status_values]
-if parent_filter:
-    results = [t for t in results if t.get('parent_id') == parent_filter]
-if tag_filter:
-    results = [t for t in results if tag_filter in (t.get('tags') or [])]
+results = apply_ticket_filters(
+    results,
+    type_filter=type_filter, status_filter=status_filter, parent_filter=parent_filter,
+    tag_filter=tag_filter, priority_filter=priority_filter, without_tag_filter=without_tag_filter,
+)
 for t in results:
     print(json.dumps(to_llm(t), ensure_ascii=False, separators=(',', ':')))
 "
@@ -755,10 +788,11 @@ for t in results:
             _EXCLUDE_DELETED="$exclude_deleted_flag" \
             _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
             _PARENT_FILTER="$filter_parent" _TAG_FILTER="$filter_tag" \
+            _PRIORITY_FILTER="$filter_priority" _WITHOUT_TAG_FILTER="$filter_without_tag" \
             _SCRIPT_DIR="$_TICKETLIB_DIR" python3 -c "
 import sys, os, json
 sys.path.insert(0, os.environ['_SCRIPT_DIR'])
-from ticket_reducer import reduce_all_tickets
+from ticket_reducer import reduce_all_tickets, apply_ticket_filters
 
 tracker_dir = os.environ['_TRACKER_DIR']
 include_archived = os.environ.get('_INCLUDE_ARCHIVED', '') == 'true'
@@ -767,19 +801,15 @@ type_filter = os.environ.get('_TYPE_FILTER', '')
 status_filter = os.environ.get('_STATUS_FILTER', '')
 parent_filter = os.environ.get('_PARENT_FILTER', '')
 tag_filter = os.environ.get('_TAG_FILTER', '')
+priority_filter = os.environ.get('_PRIORITY_FILTER', '')
+without_tag_filter = os.environ.get('_WITHOUT_TAG_FILTER', '')
 
 results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived, exclude_deleted=exclude_deleted)
-if status_filter not in ('error', 'fsck_needed'):
-    results = [t for t in results if t.get('status') not in ('error', 'fsck_needed')]
-if type_filter:
-    results = [t for t in results if t.get('ticket_type') == type_filter]
-if status_filter:
-    status_values = {s.strip() for s in status_filter.split(',')}
-    results = [t for t in results if t.get('status') in status_values]
-if parent_filter:
-    results = [t for t in results if t.get('parent_id') == parent_filter]
-if tag_filter:
-    results = [t for t in results if tag_filter in (t.get('tags') or [])]
+results = apply_ticket_filters(
+    results,
+    type_filter=type_filter, status_filter=status_filter, parent_filter=parent_filter,
+    tag_filter=tag_filter, priority_filter=priority_filter, without_tag_filter=without_tag_filter,
+)
 print(json.dumps(results, ensure_ascii=False))
 
 alerted_count = sum(
