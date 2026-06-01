@@ -278,6 +278,12 @@ _run_single_test() {
 
     local exit_code=0
 
+    # Wall-clock duration per test (integer seconds; `date +%s` is portable across
+    # bash 3.2 / BSD date). Surfaced on each suite report line so slow tests are
+    # identifiable directly from the suite log (incl. CI) without external tooling.
+    local _t_start _t_end
+    _t_start=$(date +%s 2>/dev/null || echo 0)
+
     # Write output directly to file — NOT via $() command substitution.
     # $() waits for ALL processes holding the pipe fd to close, so if a test
     # spawns orphan children (background git ops, credential helpers, etc.),
@@ -292,6 +298,9 @@ _run_single_test() {
         TMPDIR="$test_tmpdir" \
             bash "$test_path" > "$results_dir/$test_name.out" 2>&1 || exit_code=$?
     fi
+
+    _t_end=$(date +%s 2>/dev/null || echo 0)
+    echo "$(( _t_end - _t_start ))" > "$results_dir/$test_name.duration"
 
     echo "$exit_code" > "$results_dir/$test_name.exit"
 
@@ -419,10 +428,14 @@ run_test_suite() {
         file_pass=$(echo "$counts_line" | awk '{print $1}')
         file_fail=$(echo "$counts_line" | awk '{print $2}')
 
+        # Per-test wall-clock duration (seconds), surfaced on the report line.
+        local _dur=0
+        [ -f "$results_dir/$tname.duration" ] && _dur=$(cat "$results_dir/$tname.duration" 2>/dev/null || echo 0)
+
         local display_idx=$(( tidx + 1 ))
         local is_tolerated=false
         if [ "$is_timeout" = true ]; then
-            printf "[%d/%d] %s ... TIMEOUT (exceeded %ss)\n" "$display_idx" "$total" "$tname" "$TEST_TIMEOUT"
+            printf "[%d/%d] %s ... TIMEOUT (exceeded %ss) (%ss)\n" "$display_idx" "$total" "$tname" "$TEST_TIMEOUT" "$_dur"
             (( file_fail++ ))
         elif [ "$exit_code" -ne 0 ]; then
             if [ "$file_pass" -eq 0 ] && [ "$file_fail" -eq 0 ]; then
@@ -493,15 +506,15 @@ run_test_suite() {
             fi
 
             if [[ "$is_tolerated" = true ]]; then
-                printf "[%d/%d] %s ... TOLERATED (%d pass, %d red-zone)\n" \
-                    "$display_idx" "$total" "$tname" "$file_pass" "$file_fail"
+                printf "[%d/%d] %s ... TOLERATED (%d pass, %d red-zone) (%ss)\n" \
+                    "$display_idx" "$total" "$tname" "$file_pass" "$file_fail" "$_dur"
                 SUITE_TOTAL_TOLERATED=$(( SUITE_TOTAL_TOLERATED + file_fail ))
                 file_fail=0
             else
-                printf "[%d/%d] %s ... FAIL (%d pass, %d fail)\n" "$display_idx" "$total" "$tname" "$file_pass" "$file_fail"
+                printf "[%d/%d] %s ... FAIL (%d pass, %d fail) (%ss)\n" "$display_idx" "$total" "$tname" "$file_pass" "$file_fail" "$_dur"
             fi
         else
-            printf "[%d/%d] %s ... PASS (%d pass, %d fail)\n" "$display_idx" "$total" "$tname" "$file_pass" "$file_fail"
+            printf "[%d/%d] %s ... PASS (%d pass, %d fail) (%ss)\n" "$display_idx" "$total" "$tname" "$file_pass" "$file_fail" "$_dur"
         fi
 
         SUITE_TOTAL_PASS=$(( SUITE_TOTAL_PASS + file_pass ))

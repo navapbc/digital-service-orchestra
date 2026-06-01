@@ -69,6 +69,13 @@ _has_dump=0
 _tmp="$suite_output_pass"; [[ "$_tmp" =~ ===\ Failed\ test\ output\ === ]] && _has_dump=1
 assert_eq "no_dump_when_all_pass" "0" "$_has_dump"
 
+# --- test_suite_engine_reports_per_test_duration ---
+# Each per-test report line must carry a wall-clock duration suffix "(Ns)" so slow
+# tests are identifiable directly from the suite log (incl. CI) without external tooling.
+_has_duration=0
+[[ "$suite_output_pass" =~ \.\.\.\ PASS\ \([0-9]+\ pass,\ [0-9]+\ fail\)\ \([0-9]+s\) ]] && _has_duration=1
+assert_eq "per_test_line_has_duration_suffix" "1" "$_has_duration"
+
 # --- test_suite_engine_dumps_only_failing_tests ---
 # When one test fails and another passes, only the failing test's output
 # should appear in the dump section.
