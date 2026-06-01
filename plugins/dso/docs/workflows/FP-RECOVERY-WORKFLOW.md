@@ -146,24 +146,54 @@ If any criterion fails, do NOT force-merge. Either:
 
 If all four hold, you are **cleared to force-merge**.
 
-### Step 5: Force-merge with explicit annotation
+### Step 5: Confirm other required checks are green, then hand off a web-UI merge link
 
-Use `gh pr merge --admin` (or whatever admin-override your project supports). The merge commit message MUST include the FP-recovery annotation:
+**The autonomous agent does NOT merge.** Under the Goal-4 containment model the dev
+agent runs as a non-bypass identity (`current_user_can_bypass: never` on both rulesets),
+so `gh pr merge --admin` from the agent simply fails — and SHOULD. The override is a
+**human action via the GitHub web UI**, performed by the named bypass actor
+(`ruleset.bypass_user_id`). The agent's job here is to (a) prove every OTHER required
+check is green so the bypass covers ONLY the FP'd `llm-review`, then (b) emit a merge link
+plus the mandatory annotation for the human to paste.
+
+**5a — confirm all other required checks are green.** The bypass must not be used to skip
+a genuinely-failing test. Verify that every required check context (from
+`.github/required-checks.txt`) EXCEPT `llm-review` has concluded `success` on the PR head:
+
+```bash
+gh pr checks "<PR_NUMBER>"   # inspect: only llm-review (the FP) may be non-green
+```
+
+If ANY non-`llm-review` required check is failing or pending, **STOP** — this is not an
+FP-recovery situation (fix the failing check first; see "What this workflow does NOT do").
+
+**5b — emit the web-UI merge link + annotation for the human.** Print:
 
 ```
-Force-merged: manual dso:code-reviewer-standard at opus tier confirmed
-  0 critical / 0 important / 0 fragile findings (N minor — informational).
+FP-RECOVERY CLEARED — human merge required (agent cannot bypass; this is by design).
+Merge via the web UI: https://github.com/<owner>/<repo>/pull/<PR_NUMBER>
+   (the named bypass actor clicks "Merge" → the ruleset's pull_request bypass applies)
 
-CI llm-review finding classified as FP because: <one-sentence reason>.
+Paste this annotation into the merge commit message / a PR comment before merging:
 
-Manual review artifact: <DIFF_FILE from Step 1>
-Manual review hash: <REVIEWER_HASH from Step 2>
+  Force-merged (web UI, FP-recovery): manual dso:code-reviewer-standard at opus tier
+    confirmed 0 critical / 0 important / 0 fragile findings (N minor — informational).
+    All other required checks green; only llm-review bypassed.
+
+  CI llm-review finding classified as FP because: <one-sentence reason>.
+
+  Manual review artifact: <DIFF_FILE from Step 1>
+  Manual review hash: <REVIEWER_HASH from Step 2>
 ```
 
-The annotation is **mandatory** — it makes the force-merge auditable. A retro-analyst should be able to:
-- Find every FP-recovery force-merge via `git log --grep "Force-merged: manual dso:code-reviewer-standard"`
+The annotation is **mandatory** — it makes the bypass auditable. A retro-analyst should be able to:
+- Find every FP-recovery bypass via `git log --grep "Force-merged (web UI, FP-recovery)"`
 - Tie each one to a specific REVIEWER_HASH for the manual review's findings JSON
-- See the engineer's stated FP rationale
+- See the engineer's stated FP rationale, and that all other required checks were green
+
+> **Deferred (W3d remainder)**: a post-hoc audit sweep over already-merged `main` PRs that
+> lack a passing `llm-review`, recording an HMAC-signed marker, is specified in
+> `workflow-stability-plan-v4-handoff.md` (W3d) and not yet implemented.
 
 ### Step 6: Label the PR
 
