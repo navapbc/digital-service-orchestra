@@ -34,7 +34,8 @@ _precondition_not_met() { echo "PRECONDITION_NOT_MET: $1" >&2; exit 78; }
 # review-coverage-lib.sh). Sourced rather than re-inlined to avoid drift in this
 # security-load-bearing predicate.
 _FPA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_FPA_LIB="${DSO_REVIEW_COVERAGE_LIB:-${_FPA_DIR}/../lib/review-coverage-lib.sh}"
+_FPA_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_FPA_DIR/../.." 2>/dev/null && pwd)}"
+_FPA_LIB="${DSO_REVIEW_COVERAGE_LIB:-${_FPA_PLUGIN_ROOT}/scripts/lib/review-coverage-lib.sh}"
 if [[ ! -f "$_FPA_LIB" ]]; then
     echo "PRECONDITION_NOT_MET: review-coverage lib (for rc_review_check_verdict) not found: $_FPA_LIB" >&2
     exit 78
