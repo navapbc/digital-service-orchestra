@@ -183436,5 +183436,294 @@
       }
     },
     "summary": "[worktree-cleanup]: session end and claude-safe do not remove merged/stale worktrees -> orphan worktree dirs accumulate"
+  },
+  "DIG-5059": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "tests/workflows/test-integration-review-skip-on-provenance.sh fails 6/7 locally: test_verifier_exits_0_for_large_all_provenanced_diff, test_e2e_large_provenanced_pr_runner_never_invoked, test_e2e_large_provenanced_pr_emits_skipped_conclusion, test_e2e_output_contains_covered_by_sub_pr_reviews_with_list, test_e2e_mixed_diff_invokes_runner. Confirmed PRE-EXISTING (identical failures with the pre-W2 dispatcher at HEAD 2fe97cdf47) \u2014 NOT a regression from the W2a net-end-state diff change. Root area is verify-session-provenance.sh behavior on the large all-provenanced fixture (exits non-0 / emits unprovenanced-shas.txt when it should exit 0). Discovered during workflow-stability W2a implementation. Needs investigation: is this a local-env artifact (git/origin setup) or a genuine verifier bug?",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:ed1e-b88d-0b82-4413",
+      "workflow-stability"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "test-integration-review-skip-on-provenance.sh: 6 pre-existing failures in all-provenanced verifier fixture"
+  },
+  "DIG-5060": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** f8112095ad474c41d08e03d9aa958d126ac1443a",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Context Scope:** plugins/dso/scripts/read-config.sh, plugins/dso/docs/CONFIG-RESOLUTION.md, and several skills referencing workflow-config.yaml",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** User-Flagged Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Per the maintainer, YAML configuration support was removed when the project switched to flat KEY=VALUE config (see plugins/dso/docs/FLAT-CONFIG-MIGRATION.md). After that migration, configuration is flat-file only. Documentation and code should therefore neither claim nor implement YAML config parsing, and skills should reference the flat config file (.claude/dso-config.conf) rather than workflow-config.yaml.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Multiple documentation and code artifacts still describe and implement YAML config support that no longer exists:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* plugins/dso/docs/CONFIG-RESOLUTION.md:16 \u2014 states: \"YAML format (.yaml/.yml) is also supported and parsed with a pure-Python reader.\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* plugins/dso/scripts/read-config.sh \u2014 docstring lines 4, 7, 14 advertise YAML support (\"Config reader for .claude/dso-config.conf and YAML config files\"; \"reads raw config values from flat .conf or YAML files\"; \"YAML format with nested keys\"). Lines 140-283 still contain the live YAML implementation: _is_yaml(), _yaml_read_key(), _yaml_batch(), and the _is_yaml dispatch block (~140 lines of code that is dead if YAML is unsupported).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* plugins/dso/skills/sprint/SKILL.md:18 \u2014 section header reads \"## Config Resolution (reads project workflow-config.yaml)\".",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* plugins/dso/skills/validate-work/SKILL.md:46,54,369 and plugins/dso/skills/init/SKILL.md:11,58,61,68 \u2014 reference workflow-config.yaml as the project config file (init/SKILL.md states it CREATES workflow-config.yaml); staging prompts (validate-work/prompts/staging-environment-test.md:40, staging-deployment-check.md:15) inject values \"from workflow-config.yaml\".",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Impact",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The stale documentation produced a false analysis path during an audit of the sprint skill: a finding (F8) reasoned that direct grep of .claude/dso-config.conf could diverge from read-config.sh because \"YAML config is supported,\" concluding a real divergence existed. With YAML unsupported, read-config.sh and a flat-file grep are equivalent for flat keys, and that finding collapses. The dead YAML parser in read-config.sh is also a maintenance and review-surface liability.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 7. Additional Details",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This bug is documentation/dead-code only; no runtime feature is broken (the canonical flat-config path works). Remediation is left to triage: at minimum correct the docs (CONFIG-RESOLUTION.md, sprint/SKILL.md:18, the workflow-config.yaml references) to reflect flat-only config; optionally remove the dead YAML parser from read-config.sh. Filed at the request of the user during an interactive audit session.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:review-llm",
+      "dso-id:1ce9-34c1-0d3a-41a3"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "read-config.sh: documents and implements YAML config parsing -> YAML config support was removed in flat-config migration (stale docs + dead code)"
   }
 }
