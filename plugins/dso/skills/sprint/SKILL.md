@@ -161,8 +161,7 @@ touch "$(git rev-parse --show-toplevel)/.sprint-active"
 When `SPRINT_MODE=ci-pr`, run the Ruleset preflight check before continuing:
 ```bash
 if [[ "${SPRINT_MODE:-}" == "ci-pr" ]]; then
-    _PREFLIGHT_SCRIPT="$(git rev-parse --show-toplevel)/.claude/scripts/dso check-ruleset-preflight.sh"
-    if bash "$_PREFLIGHT_SCRIPT" 2>/dev/null; then
+    if .claude/scripts/dso sprint/check-ruleset-preflight.sh 2>/dev/null; then
         echo "Ruleset preflight: OK"
     else
         echo "WARNING: Ruleset preflight failed — session-* branch protection may not be configured. See INSTALL.md#github-rulesets-for-session-branches" >&2
@@ -194,6 +193,15 @@ if [[ "${SPRINT_MODE:-}" == "ci-pr" ]]; then
 fi
 ```
 Phase E dispatch must not begin until this block completes.
+
+**Cascade-counter entry init (before the epic/non-epic branch):** initialize the replan cascade counter once here so every routing path — epic (Drift Detection / Phase B) **and** non-epic `story`/`task` (which routes `REPLAN_ESCALATE:` into d-replan-collect but skips both the Drift and Phase B inits) — has an initialized counter for the `replan_cycle_count >= max_replan_cycles` cap comparison:
+
+```
+replan_cycle_count = replan_cycle_count ?? 0
+max_replan_cycles = read_config("sprint.max_replan_cycles", default=2)
+```
+
+Downstream inits (Drift Detection, Phase B Step 2) are idempotent (`?? 0`) and must not reset this value.
 
 **Non-epic routing**: After validation, check the ticket type and route accordingly:
 
@@ -836,14 +844,14 @@ This step fires **per layer**, after implementation-plan returns for the whole l
 
 Process stories in layer order — Layer 0 first, then Layer 1, etc. Within each layer, invoke `/dso:implementation-plan` sequentially via Skill tool for each story that needs decomposition. Wait for all stories in the layer to complete before processing the next layer.
 
-**Epic-level cascade counter (initialize once before the layer loop):**
+**Epic-level cascade counter (idempotent init — do NOT clobber a value set earlier in Phase A):**
 
 ```
-replan_cycle_count = 0
+replan_cycle_count = replan_cycle_count ?? 0
 max_replan_cycles = read_config("sprint.max_replan_cycles", default=2)
 ```
 
-This counter is shared across all stories in the epic. Each full brainstorm → preplanning → implementation-plan cascade iteration (regardless of which story triggered it) increments the counter by 1. This prevents unbounded loops when multiple stories each emit REPLAN_ESCALATE across cascade iterations.
+Use `?? 0` (not `= 0`): the counter may already be initialized — and incremented — by the Phase A entry init (before the epic/non-epic branch) and the Drift Detection cascade. Unconditionally resetting to `0` here would discard drift-consumed cycles and weaken the cascade cap. This counter is shared across all stories in the epic. Each full brainstorm → preplanning → implementation-plan cascade iteration (regardless of which story triggered it) increments the counter by 1. This prevents unbounded loops when multiple stories each emit REPLAN_ESCALATE across cascade iterations.
 
 **Per-story UNCERTAIN counter (initialize once before the layer loop):**
 
@@ -859,7 +867,7 @@ This dictionary tracks the number of `STATUS:pass` + `UNCERTAIN` signals receive
 batch_out_of_scope_findings = []
 ```
 
-This list collects out-of-scope files detected by `sprint-review-scope-check.sh` during Phase F Step 14. Each entry is a dict `{"task_id": "<id>", "story_id": "<parent>", "files": ["file1", ...]}`. The list is consumed between batches in Step 13 and cleared after processing. Do NOT process these findings mid-batch — they are only routed between batches to avoid task injection conflicts.
+This list collects out-of-scope files detected by `sprint-review-scope-check.sh`. In worktree-isolation mode (the default) the check runs per-worktree inside `per-worktree-review-commit.md` (post-review) and appends here; in shared-directory mode it is populated by Phase F Step 14. Each entry is a dict `{"task_id": "<id>", "story_id": "<parent>", "files": ["file1", ...]}`. The list is consumed between batches in Step 20 and cleared after processing. Do NOT process these findings mid-batch — they are only routed between batches to avoid task injection conflicts.
 
 **For each layer (in order Layer 0, Layer 1, ...):**
 
@@ -1747,15 +1755,23 @@ After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Pro
 
 **When sub-agents returned with `isolation:worktree`** (isolation is always enabled), do NOT proceed to the shared-directory batch review flow (Step 13). Instead, process each worktree **serially** using the per-worktree protocol:
 
-Read and execute `skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch, then remove the worktree and its branch (Step 13) — before moving to the next worktree.
+Read and execute `skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch, then remove the worktree and its branch (per-worktree-review-commit.md Step 7) — before moving to the next worktree.
 
 **Git log note**: In worktree isolation mode, `git log` on the session branch shows one commit per worktree (no combined batch commits). Each worktree's changes are merged independently into the session branch.
 
 **merge-to-main.sh note**: `merge-to-main.sh` runs **once** at session end (Phase I), not per worktree. Each per-worktree merge is worktree-branch → session-branch only.
 
-After all worktrees have been processed via `per-worktree-review-commit.md`, skip Steps 7 and 10 (which apply only in shared-directory mode) and proceed directly to Steps 8, 9, 10a, 11, and 13.
+**Worktree-isolation execution order (the default).** After all sub-agents in the batch return, execute Phase F in this order:
 
-In shared-directory mode (isolation disabled), proceed through Steps 0–13 as written below, including Step 13 (formal code review) and Step 17 (commit and push).
+1. **Steps 1–6** — sub-agent result processing (dispatch-failure recovery, verify results, migration behavioral verification, confidence-signal parsing, integrate discovered tasks, collect discoveries). These operate on the Task return values and are mode-independent.
+2. **Per-worktree serial loop** — process each worktree via `per-worktree-review-commit.md`. This loop IS the worktree-mode realization of Step 13 (formal code review) and Step 17 (commit & push); both standalone steps are therefore **skipped**. The loop also runs cleanup-recipes (Step 3.7) and the out-of-scope scope-check per worktree (see that prompt).
+3. **Batch/integration gates on the harvested session branch, in order**: Step 7 (acceptance-criteria validation), Step 8 (file-overlap safety net), Step 9 (semantic-conflict check), Step 10 (validate-phase post-batch), Step 11 (persistence coverage), Step 11a (design-md lint), Step 12 (visual verification), Step 12a (visual evaluator post-batch).
+4. **Step 14** (out-of-scope review feedback — reads the `batch_out_of_scope_findings` accumulator the per-worktree loop populated), **Step 15** (update ticket notes), **Step 16** (handle failures).
+5. **Step 18** (Close Completed Tasks — contains the `dso:completion-verifier` dispatch and the planner-dispatch HARD-GATE; **MANDATORY — never skipped in worktree mode**), then **Step 19** (context-compaction check), **Step 20** (continuation decision).
+
+Skip ONLY the two standalone steps realized inside the per-worktree loop: **Step 13** (review) and **Step 17** (commit & push). Every other Phase F step runs.
+
+**Shared-directory mode (legacy — isolation disabled, unreachable while worktree isolation is always enabled per "Worktree Isolation Configuration"):** Steps 13 and 17 would run inline below and the per-worktree loop would be skipped. Retained for reference; not exercised in current operation.
 
 ### Cross-Layer File Visibility Invariant (bug 38b4-e9f6) (/dso:sprint)
 
@@ -1847,6 +1863,8 @@ DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh 2>/dev/null) || DISCOVE
   with warnings to stderr.
 
 ### Cleanup Recipe Phase (Post-Agent, Pre-Review)
+
+**Worktree-isolation mode (default):** cleanup recipes run **per-worktree** inside `per-worktree-review-commit.md` (Step 3.7), where the sub-agent's `git add -A` has populated the worktree's `git diff --staged`. This orchestrator-body copy operates on the **session** worktree's staged set, which is empty in worktree-isolation mode (changes arrive via harvest commits, not staging) — so in the default mode it is a no-op and is **skipped**. The block below is the shared-directory-mode (legacy) location.
 
 After collecting agent discoveries (Step 6) and before acceptance criteria validation (Step 7), detect and apply applicable cleanup recipes to the staged output.
 
@@ -2083,6 +2101,8 @@ Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in thi
 > **CONTEXT ANCHOR**: When the review sub-agent returns no critical/important/fragile findings (FINDING_COUNT with all minor or 0), this is NOT a session completion signal. Proceed immediately to Step 14 → Step 15 → Step 16 → Step 17. Do NOT stop, wait for user input, or treat review completion as a stopping point.
 
 ### Step 14: Out-of-Scope Review Feedback Detection (/dso:sprint)
+
+**Worktree-isolation mode (default):** this scope-check runs **per-worktree** inside `per-worktree-review-commit.md` (post-review), where `$WORKTREE_ARTIFACTS/reviewer-findings.json` exists and `deps.sh`/`get_artifacts_dir` is sourced. It appends to `batch_out_of_scope_findings` there (append-only; no implementation-plan routing mid-batch). In that mode the `batch_out_of_scope_findings` accumulator is already populated by the time this step is reached — skip this orchestrator-body check. The steps below are the shared-directory-mode (legacy) path; note `$(get_artifacts_dir)` requires `deps.sh` to be sourced, which the orchestrator does NOT do — so the legacy body is reachable only in shared-directory mode.
 
 After review resolution completes (Step 13) and before proceeding to Step 15, check whether accepted review findings reference files outside the task's scope.
 

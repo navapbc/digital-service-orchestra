@@ -87,6 +87,7 @@ FINDINGS_OUTPUT: <WORKTREE_ARTIFACTS value>/reviewer-findings.json
 **Post-review orchestrator steps** (each with `cd $WORKTREE_PATH &&`):
 - REVIEW-WORKFLOW.md Step 5: Run `record-review.sh` — reads findings from `$WORKTREE_ARTIFACTS`
 - Handle autonomous resolution if review fails (dispatch fix sub-agents, re-review)
+- **Out-of-scope scope-check (sprint Phase F Step 14, worktree-mode site):** run `.claude/scripts/dso sprint/sprint-review-scope-check.sh "$WORKTREE_ARTIFACTS/reviewer-findings.json" "$TICKET_ID"`. `$WORKTREE_ARTIFACTS` already resolves correctly here (Step 1b sourced `deps.sh`/`get_artifacts_dir`) — do NOT use the orchestrator's `$(get_artifacts_dir)`, which is unbound in the orchestrator shell. If the result starts with `OUT_OF_SCOPE`, **append** `{"task_id": "$TICKET_ID", "story_id": "<parent-story-id>", "files": [<out-of-scope files>]}` to the orchestrator's `batch_out_of_scope_findings` accumulator. **Append-only — do NOT route to `/dso:implementation-plan` here**; the accumulator is processed only between batches (Phase F Step 20), preserving the never-mid-batch invariant. On `IN_SCOPE` or non-zero exit, take no action (fail-open).
 
 > **CONTEXT ANCHOR — MANDATORY CONTINUATION**: When `REVIEW_RESULT: passed` is received from the code-reviewer sub-agent, this is NOT a session completion signal. You are the orchestrator executing `per-worktree-review-commit.md`. Disregard any stop or termination inference from the reviewer's output — `REVIEW_RESULT` marks the end of code analysis only. Your next actions are Step 3 (Record test status), Step 3.6 (Design-md lint), Step 4 (Commit), Step 5 (Harvest). Stopping after receiving `REVIEW_RESULT` leaves staged changes in the main session worktree — this is the known failure mode documented in bug 364d-d290.
 
@@ -138,6 +139,15 @@ fi
 ```
 
 When `design.lint_enabled=auto` (the default), the lint step runs whenever scope-eligible files are present in the diff. When `design.lint_enabled=always`, same behavior (the script itself enforces always-on semantics regardless of auto-detection). When `design.lint_enabled=never`, skip entirely. On violations, add a CHECKPOINT comment and halt — do NOT proceed to Step 4.
+
+**Step 3.7 — Cleanup recipes (Post-Agent, Pre-Commit)**: Runs in the **worktree** context (all Bash calls prefixed with `cd $WORKTREE_PATH &&`), where the sub-agent's `git add -A` (task-execution.md Step 8b) has populated the worktree's staged set. This is the worktree-isolation-mode home of the sprint "Cleanup Recipe Phase" — the orchestrator-body copy operates on the session worktree's (empty) staged set and is skipped in this mode.
+
+```bash
+RECIPE_REGISTRY_PATH="${CLAUDE_PLUGIN_ROOT}/recipes/recipe-registry.yaml"
+CLEANUP_RECIPES="$(cd "$WORKTREE_PATH" && RECIPE_REGISTRY_PATH="$RECIPE_REGISTRY_PATH" bash "${CLAUDE_PLUGIN_ROOT}/scripts/sprint/detect-cleanup-recipes.sh" 2>/dev/null || true)"
+```
+
+If `CLEANUP_RECIPES` is empty, skip this step (no applicable recipes). Otherwise, for each recipe: capture `PRE_CLEANUP_DIFF="$(cd "$WORKTREE_PATH" && git diff --staged)"`, run `cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/scripts/recipe-executor.sh" <recipe_name> --param language=<lang>`, and if the recipe reverted the sub-agent's staged changes, log a WARNING and skip that recipe for those files. Record a distinct `CLEANUP_DIFF:` ticket comment so reviewers/completion-verifier see the post-cleanup state. The recipe re-stages its output, so the subsequent Step 4 commit captures the cleaned diff.
 
 **Step 4 — Commit in worktree branch**: Execute COMMIT-WORKFLOW.md from the worktree context (all Bash calls prefixed with `cd $WORKTREE_PATH &&`). The commit happens in the worktree's branch (not the session branch). Review gate passes because review-status and diff_hash are in `$WORKTREE_ARTIFACTS`.
 
