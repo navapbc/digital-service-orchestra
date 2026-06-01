@@ -295,6 +295,11 @@ test_exit0_emits_skipped_conclusion() {
     assert_contains "test_exit0_emits_skipped_conclusion: output contains 'skipped' conclusion" \
         "skipped" "$output"
 
+    # W7 observability: the all-provenanced branch must emit a structured,
+    # greppable decision record.
+    assert_contains "test_exit0_emits_skipped_conclusion: emits AUDIT decision_record" \
+        "AUDIT: decision_record=skip reason=all_commits_provenanced" "$output"
+
     rm -rf "$artifact_dir"
     assert_pass_if_clean "test_exit0_emits_skipped_conclusion"
 }

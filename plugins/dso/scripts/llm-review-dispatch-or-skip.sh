@@ -211,17 +211,23 @@ if [[ "$_FORCE_REVIEW" == "true" ]]; then
         provenance_exit=1
         _scope_count=$(wc -l < "$_FORCE_SCOPE_FILE" | tr -d ' ')
         echo "  DECISION:         DISPATCH (forced) — ${_scope_count} unreviewed commit(s) on sub-agent branch"
+        # W7 observability: structured, greppable decision record per branch.
+        echo "AUDIT: decision_record=dispatch reason=forced_unreviewed_subagent scope_size=${_scope_count} pr=${PR_NUMBER:-0}"
     fi
 elif [[ -s "$UNPROVENANCED_FILE" ]]; then
     _DISPATCH_SCOPE_FILE="$UNPROVENANCED_FILE"
     provenance_exit=1
-    echo "  DECISION:         DISPATCH — $(wc -l < "$UNPROVENANCED_FILE" | tr -d ' ') unprovenanced SHAs require LLM review"
+    _unprov_n=$(wc -l < "$UNPROVENANCED_FILE" | tr -d ' ')
+    echo "  DECISION:         DISPATCH — ${_unprov_n} unprovenanced SHAs require LLM review"
+    echo "AUDIT: decision_record=dispatch reason=unprovenanced scope_size=${_unprov_n} pr=${PR_NUMBER:-0}"
 elif [[ -s "$OVERBOUND_FILE" ]]; then
     provenance_exit=3
     echo "  DECISION:         SKIP (OVER_BOUND) — non-provenanced commits acknowledged"
+    echo "AUDIT: decision_record=skip reason=over_bound pr=${PR_NUMBER:-0}"
 else
     provenance_exit=0
     echo "  DECISION:         SKIP (all provenanced) — all commits covered by sub-PR reviews that passed llm-review"
+    echo "AUDIT: decision_record=skip reason=all_commits_provenanced pr=${PR_NUMBER:-0}"
 fi
 echo "================================================================="
 
@@ -552,6 +558,7 @@ for line in sys.stdin:
     _DSO_DISPATCH_FILES_CAP="${DSO_DISPATCH_FILES_CAP:-100}"
     if (( _diff_bytes > _DSO_DISPATCH_BYTES_CAP )) || (( _diff_files > _DSO_DISPATCH_FILES_CAP )); then
         echo "  DECISION:         ABORT (OVER_BOUND) — dispatch diff ${_diff_files} files / ${_diff_bytes} bytes exceeds cap ${_DSO_DISPATCH_FILES_CAP} / ${_DSO_DISPATCH_BYTES_CAP}"
+        echo "AUDIT: decision_record=abort reason=over_bound_dispatch_diff diff_files=${_diff_files} diff_bytes=${_diff_bytes} pr=${PR_NUMBER:-0}"
         echo "OVER_BOUND: dispatch diff exceeds cap (${_diff_files} files, ${_diff_bytes} bytes; caps ${_DSO_DISPATCH_FILES_CAP}/${_DSO_DISPATCH_BYTES_CAP})" >&2
         echo "OVER_BOUND: routing to admin review (set DSO_DISPATCH_BYTES_CAP / DSO_DISPATCH_FILES_CAP env vars to override)" >&2
         # Write stub findings so ci.yml liveness assertion can distinguish
