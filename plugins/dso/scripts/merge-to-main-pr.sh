@@ -124,8 +124,8 @@ fi
 : "${_DEFAULT_BRANCH:=main}"
 
 # --- Load CI findings normalization library ---
-# shellcheck source=${CLAUDE_PLUGIN_ROOT}/scripts/lib/ci-findings-normalize.sh
-_FINDINGS_NORMALIZE_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/lib/ci-findings-normalize.sh"
+# shellcheck source=lib/ci-findings-normalize.sh
+_FINDINGS_NORMALIZE_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/lib/ci-findings-normalize.sh"  # shim-exempt: plugin-internal lib source
 if [[ -f "$_FINDINGS_NORMALIZE_LIB" ]]; then
     # shellcheck disable=SC1090
     CI_FINDINGS_LIB_MODE=1 source "$_FINDINGS_NORMALIZE_LIB"  # shim-exempt: internal plugin script
@@ -619,8 +619,8 @@ _phase_source_branch_version_bump() {
     local _vfp_from_config=""
     if [[ -n "${VERSION_FILE_PATH:-}" ]]; then
         _vfp_from_config="$VERSION_FILE_PATH"
-    elif [[ -f "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" ]]; then
-        _vfp_from_config=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" version.file_path 2>/dev/null || true)
+    elif [[ -f "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" ]]; then  # shim-exempt: plugin-internal script via CLAUDE_PLUGIN_ROOT
+        _vfp_from_config=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" version.file_path 2>/dev/null || true)  # shim-exempt: plugin-internal script via CLAUDE_PLUGIN_ROOT
     fi
 
     if [[ -z "$_vfp_from_config" ]]; then
@@ -803,6 +803,20 @@ _create_staged_ref() {
     return 0
 }
 
+# _resume_should_advance_to_staged <pr1_open_count> <staged_exists_count>
+# Resume hardening: decide whether --resume should SKIP the PR1 phase and advance
+# straight to PR2 (staged-*→main). True iff PR1 (source→staged) is no longer open
+# (i.e. it merged) AND the staged branch still exists on the remote. Any "unknown"
+# (gh/git failure → callers pass the fail-safe defaults pr1_open=1, staged=0) makes
+# this FALSE, so resume falls back to the normal flow rather than risking a wrong
+# advance. This closes the gap where a crash after PR1 merged but before the local
+# checkout to staged-* left a later --resume re-creating a duplicate staged ref+PR1
+# (the worktree-checkout-derived BRANCH was stale; staged_branch is instead read
+# from the source-branch-keyed state file, which is checkout-independent).
+_resume_should_advance_to_staged() {
+    [[ "${1:-1}" == "0" && "${2:-0}" != "0" ]]
+}
+
 _phase_staged_intermediate() {
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "staged_intermediate" 2>/dev/null || true
@@ -859,6 +873,16 @@ _phase_staged_intermediate() {
     local _staged_branch
     _staged_branch=$(_create_staged_ref) || return 1
     echo "INFO: created staged ref refs/heads/${_staged_branch} from origin/main HEAD"
+
+    # Resume hardening: persist the staged branch name NOW, while BRANCH is still
+    # the source branch (so the write lands in the SOURCE-branch-keyed state file —
+    # _state_file_path is derived from BRANCH, which we re-point to staged-* below).
+    # On --resume this lets the top-level flow advance to PR2 even if the worktree's
+    # checkout to staged-* was lost in a crash window. (_state_set_field is a no-op
+    # if the state file is absent.)
+    if type _state_set_field >/dev/null 2>&1; then
+        _state_set_field "staged_branch" "$_staged_branch" 2>/dev/null || true
+    fi
 
     # 2. Push BRANCH (the source branch — typically worktree-*) to origin so
     #    GitHub can see its commits when we open PR1 against the staged ref.
@@ -2802,6 +2826,31 @@ fi
 # Initialize state BEFORE the duplicate-PR guard so --resume can read it.
 if type _state_init >/dev/null 2>&1; then
     _state_init 2>/dev/null || true
+fi
+
+# --- Resume hardening: advance to PR2 when PR1 has already merged ---
+# The staged-* branch name is persisted in the SOURCE-branch-keyed state file by
+# _phase_staged_intermediate (independent of the worktree checkout). On --resume,
+# if PR1 (source→staged) is no longer open AND the staged branch still exists,
+# restore BRANCH to the staged branch so _phase_staged_intermediate skips (its
+# `BRANCH == staged-*` guard) and _phase_merge opens PR2 — instead of re-creating
+# a duplicate staged ref + PR1 when the worktree's checkout to staged-* was lost.
+# Fail-safe: any gh/git uncertainty defaults to "do NOT advance" (finish PR1).
+if [[ "${_RESUME:-0}" -eq 1 ]] && type _state_get_field >/dev/null 2>&1; then
+    _saved_staged=$(_state_get_field "staged_branch" "" 2>/dev/null || true)
+    if [[ -n "$_saved_staged" && "$BRANCH" != "$_saved_staged" ]]; then
+        _pr1_open=$(gh pr list --head "$BRANCH" --base "$_saved_staged" --state open --json number --jq 'length' 2>/dev/null || echo "1")
+        _staged_exists=$(git ls-remote --heads origin "$_saved_staged" 2>/dev/null | wc -l | tr -d ' ')
+        if _resume_should_advance_to_staged "$_pr1_open" "$_staged_exists"; then
+            echo "INFO: --resume: PR1 merged + staged branch ${_saved_staged} exists — advancing to PR2 (restoring BRANCH=${_saved_staged})" >&2
+            BRANCH="$_saved_staged"
+            git fetch origin "${_saved_staged}:refs/remotes/origin/${_saved_staged}" --quiet 2>/dev/null || true
+            git checkout -B "$_saved_staged" "origin/${_saved_staged}" --quiet 2>/dev/null || true
+            # Re-init state for the restored (staged-) BRANCH so downstream phase/
+            # pr_url writes land in the correct state file.
+            type _state_init >/dev/null 2>&1 && _state_init 2>/dev/null || true
+        fi
+    fi
 fi
 
 # --- Resume detection: when --resume is set and the state file already
