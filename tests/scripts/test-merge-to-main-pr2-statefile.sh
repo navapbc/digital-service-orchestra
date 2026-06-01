@@ -9,20 +9,17 @@
 # _state_write_pr_meta no-ops on its `[[ -f ]]` guard -> PR2 number never persisted
 # -> "could not resolve PR number for polling phase", stranding PR2 OPEN.
 #
-# Two levels:
-#  (A) BEHAVIORAL mechanism — executes the REAL merge-helpers.sh state functions
-#      to prove the root cause: a staged-keyed state file must be initialized for a
-#      field write to persist; without _state_init the write no-ops and the read is
-#      empty (exactly how PR2's number was lost).
-#  (B) WIRING contract — _phase_* functions need gh/git/push shimming to run
-#      end-to-end (see test-merge-to-main-pr-resume-and-stale.sh, which uses the
-#      same structural pattern for this reason): assert the re-point block calls
-#      _state_init, mirroring the --resume path.
+# BEHAVIORAL mechanism (A1/A2) — executes the REAL merge-helpers.sh state functions to
+# prove the root cause and the fix's contract: a staged-keyed state file must be
+# initialized for a field write to persist; without _state_init the write no-ops and the
+# read is empty (exactly how PR2's number was lost), and after _state_init it persists.
+# (A prior source-grep "wiring" check that awk-extracted the function body and grepped for
+# _state_init was removed per CI review — it was a Pattern-4 change-detector that breaks on
+# safe refactors; the script's wiring is exercised end-to-end by the merge-to-main CI path.)
 
 set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 HELP="$REPO_ROOT/plugins/dso/hooks/lib/merge-helpers.sh"
-PR_SCRIPT="$REPO_ROOT/plugins/dso/scripts/merge-to-main-pr.sh"
 
 PASS=0; FAIL=0
 _pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
@@ -54,17 +51,6 @@ _state_init 2>/dev/null || true
 _state_set_field "pr_number" "531" 2>/dev/null || true
 got="$(_read_pr_number)"
 if [[ "$got" == "531" ]]; then _pass "A2_write_after_init_persists"; else _fail "A2_write_after_init_persists" "got=$got sf=$_SF"; fi
-
-# ── (B) wiring: the BRANCH re-point block in _phase_staged_intermediate must
-#        (re)initialize the staged-keyed state file via _state_init ─────────────
-block="$(awk '/^_phase_staged_intermediate\(\)[[:space:]]*\{/{f=1} f{print} f&&/^\}/{exit}' "$PR_SCRIPT")"
-if [[ -z "$block" ]]; then
-    _fail "B1_repoint_block_calls_state_init" "could not extract _phase_staged_intermediate body"
-elif grep -qE 'BRANCH=.*_staged_branch' <<<"$block" && grep -qE '(^|[^_])_state_init' <<<"$block"; then
-    _pass "B1_repoint_block_calls_state_init"
-else
-    _fail "B1_repoint_block_calls_state_init" "re-point block does not call _state_init (staged state file never created)"
-fi
 
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"

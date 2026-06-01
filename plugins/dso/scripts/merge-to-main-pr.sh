@@ -3022,9 +3022,13 @@ fi
 if [[ -z "$_PR_NUMBER" ]]; then
     _PR_NUMBER=$(gh pr list --head "$BRANCH" --base "${_DEFAULT_BRANCH:-main}" --state open \
         --json number --jq '.[0].number // empty' 2>/dev/null || true)
-    if [[ -n "$_PR_NUMBER" ]]; then
+    # Validate numeric-only before reuse as a positional arg to gh (defensive: gh's
+    # .number is already an integer, but never feed an unvalidated value to a sink).
+    if [[ "$_PR_NUMBER" =~ ^[0-9]+$ ]]; then
         _PR_URL=$(gh pr view "$_PR_NUMBER" --json url --jq '.url' 2>/dev/null || true)
         echo "INFO: resolved PR #${_PR_NUMBER} via GitHub fallback (state file did not carry the PR number)" >&2
+    else
+        _PR_NUMBER=""   # non-numeric (or empty) -> treat as unresolved
     fi
 fi
 
