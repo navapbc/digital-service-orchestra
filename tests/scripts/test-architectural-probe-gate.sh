@@ -52,7 +52,15 @@ test_architectural_class_with_nonempty_output_exits_0() {
 
     local exit_code=0
     if [[ -x "$GATE_SCRIPT" ]]; then
-        DSO_PROBE_TEST_OUTPUT="end-to-end test scaffold for architectural epic" \
+        DSO_PROBE_TEST_OUTPUT="# Architectural Probe: End-to-End Test Scaffold
+
+## Epic Integration Harness
+
+Integration harness content for the architectural epic.
+
+## Self-Use Compatibility
+
+Sprint execution requires only existing infrastructure; no bootstrap gap." \
             bash "$GATE_SCRIPT" \
                 --epic-class="class:architectural" \
                 --output-file="$tmpfile" \
@@ -202,11 +210,84 @@ test_default_stub_written_when_env_unset() {
     assert_pass_if_clean "test_default_stub_written_when_env_unset"
 }
 
+# ── test_probe_output_missing_self_use_section_exits_1 ───────────────────────
+# Contract: When epic-class is class:architectural and DSO_PROBE_TEST_OUTPUT is
+# non-empty but does NOT contain "## Self-Use Compatibility", the gate must exit 1.
+# This ensures the brainstorm content-level validation is enforced — a probe that
+# never asks "can this epic's own sprint run on the architecture it delivers?"
+# must be rejected before scrutiny.
+test_probe_output_missing_self_use_section_exits_1() {
+    _snapshot_fail
+    local tmpfile
+    tmpfile=$(_make_tmpfile)
+    rm -f "$tmpfile"
+
+    local exit_code=0
+    if [[ -x "$GATE_SCRIPT" ]]; then
+        DSO_PROBE_TEST_OUTPUT="# Architectural Probe: Test Scaffold
+
+## Epic Integration Harness
+
+This is a non-empty probe output that lacks the self-use compatibility section.
+
+### End-to-End Test Strategy
+
+- [ ] Identify system boundaries" \
+            bash "$GATE_SCRIPT" \
+                --epic-class="class:architectural" \
+                --output-file="$tmpfile" \
+            && exit_code=0 || exit_code=$?
+    else
+        exit_code=127
+    fi
+
+    assert_eq "test_probe_output_missing_self_use_section_exits_1: exit code is 1 when self-use section absent" "1" "$exit_code"
+
+    rm -f "$tmpfile"
+    assert_pass_if_clean "test_probe_output_missing_self_use_section_exits_1"
+}
+
+# ── test_probe_output_with_self_use_section_exits_0 ──────────────────────────
+# Contract: When epic-class is class:architectural and DSO_PROBE_TEST_OUTPUT
+# contains "## Self-Use Compatibility", the gate must exit 0.
+test_probe_output_with_self_use_section_exits_0() {
+    _snapshot_fail
+    local tmpfile
+    tmpfile=$(_make_tmpfile)
+    rm -f "$tmpfile"
+
+    local exit_code=0
+    if [[ -x "$GATE_SCRIPT" ]]; then
+        DSO_PROBE_TEST_OUTPUT="# Architectural Probe: Test Scaffold
+
+## Epic Integration Harness
+
+Integration harness content here.
+
+## Self-Use Compatibility
+
+Sprint execution requires only existing infrastructure; no bootstrap gap." \
+            bash "$GATE_SCRIPT" \
+                --epic-class="class:architectural" \
+                --output-file="$tmpfile" \
+            && exit_code=0 || exit_code=$?
+    else
+        exit_code=127
+    fi
+
+    assert_eq "test_probe_output_with_self_use_section_exits_0: exit code is 0 when self-use section present" "0" "$exit_code"
+
+    rm -f "$tmpfile"
+    assert_pass_if_clean "test_probe_output_with_self_use_section_exits_0"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_architectural_class_with_nonempty_output_exits_0
 test_behavioral_class_is_noop_exits_0
 test_architectural_class_with_empty_output_exits_1
 test_non_architectural_class_is_noop_exits_0
 test_default_stub_written_when_env_unset
+test_probe_output_missing_self_use_section_exits_1
+test_probe_output_with_self_use_section_exits_0
 
 print_summary

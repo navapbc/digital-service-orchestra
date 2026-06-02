@@ -110,12 +110,30 @@ epic-specific end-to-end test strategy and integration harness details.
 - [ ] Define contract interfaces between components
 - [ ] Specify observability hooks (logs, metrics, traces)
 - [ ] Document rollback and recovery procedures
+
+## Self-Use Compatibility
+
+Answer the following for this epic before proceeding to scrutiny:
+
+- **Can the sprint building this epic run on the architecture it delivers?**
+  - [ ] Yes — sprint execution requires only existing infrastructure; no bootstrap gap.
+  - [ ] No — describe the bootstrap gap below.
+
+- **Bootstrap gap description** (complete if a gap exists):
+  - Gap: _TODO: describe which infrastructure/tooling delivered by this epic cannot be used during the sprint that builds it_
+  - Mitigation: _TODO: describe how the sprint will proceed without the not-yet-delivered capability_
 SCAFFOLD
 fi
 
 # ── Validate output file is non-empty ────────────────────────────────────────
 if [[ ! -f "$_OUTPUT_FILE" ]] || [[ ! -s "$_OUTPUT_FILE" ]]; then
     printf "PROBE_GATE_BLOCKED: architectural probe produced empty or absent output at %s\n" "$_OUTPUT_FILE" >&2
+    exit 1
+fi
+
+# ── Validate output contains required Self-Use Compatibility section ──────────
+if ! grep -q "## Self-Use Compatibility" "$_OUTPUT_FILE"; then
+    printf "PROBE_GATE_BLOCKED: probe output missing required '## Self-Use Compatibility' section at %s\n" "$_OUTPUT_FILE" >&2
     exit 1
 fi
 
