@@ -3386,3 +3386,78 @@ def test_file_impact_field_in_error_dict() -> None:
     assert err["file_impact"] == [], (
         f"make_error_dict() must set file_impact=[], got {err.get('file_impact')!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: LINK event alias target normalizes to canonical UUID (bug 8fc3-d3b1)
+# ---------------------------------------------------------------------------
+
+_ALIAS_TARGET_UUID = "abcd-1234-5678-abcd"
+_ALIAS_LINK_UUID = "bbbb-cccc-dddd-eeee-ffff-0000-1111-2222"
+_ALIAS_SOURCE_UUID = "1111-2222-3333-4444-5555-6666-7777-8888"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_reducer_link_event_alias_target_normalizes_to_canonical_uuid(
+    tmp_path: Path, reducer: ModuleType
+) -> None:
+    """LINK event with a short-hex (alias-form) target_id is resolved to the full
+    canonical UUID during reduce_ticket when tracker_dir context is available.
+
+    Without the fix: process_link stores the verbatim short-hex value ("abcd-1234")
+    so deps[0]["target_id"] == "abcd-1234" (not the canonical UUID).
+
+    With the fix: reduce_ticket derives tracker_dir and passes it through
+    replay_events -> process_link -> resolve_ticket_id, so the stored
+    target_id equals the canonical UUID "abcd-1234-5678-abcd".
+
+    RED before fix: assertion `dep['target_id'] == 'abcd-1234-5678-abcd'` fails
+    because target_id is still "abcd-1234".
+    """
+    # Build a 2-ticket tracker
+    tracker_dir = tmp_path / "tracker-alias-resolve"
+    tracker_dir.mkdir()
+
+    # Target ticket: full canonical-UUID directory
+    target_ticket_dir = tracker_dir / _ALIAS_TARGET_UUID
+    target_ticket_dir.mkdir()
+    _write_event(
+        target_ticket_dir,
+        timestamp=1742600000,
+        uuid="ffff-eeee-dddd-cccc",
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Target ticket", "parent_id": None},
+    )
+
+    # Source ticket: LINK event with short-hex target (alias form "abcd-1234")
+    source_ticket_dir = tracker_dir / "1111-2222-3333-4444"
+    source_ticket_dir.mkdir()
+    _write_event(
+        source_ticket_dir,
+        timestamp=1742601000,
+        uuid="aaaa-bbbb-cccc-dddd",
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Source ticket", "parent_id": None},
+    )
+    _write_event(
+        source_ticket_dir,
+        timestamp=1742601100,
+        uuid="1234-5678-9abc-def0",
+        event_type="LINK",
+        data={"relation": "blocks", "target_id": "abcd-1234"},
+    )
+
+    state = reducer.reduce_ticket(source_ticket_dir)
+
+    assert state is not None, "reduce_ticket must return state"
+    assert "deps" in state, "state must have 'deps' key"
+    assert len(state["deps"]) == 1, (
+        f"Expected 1 dep entry, got {len(state['deps'])}: {state['deps']}"
+    )
+    dep = state["deps"][0]
+    assert dep["target_id"] == _ALIAS_TARGET_UUID, (
+        f"Expected target_id to be resolved to canonical UUID {_ALIAS_TARGET_UUID!r}, "
+        f"got {dep.get('target_id')!r}. "
+        f"Fix: process_link must resolve short-hex alias to canonical UUID via tracker_dir."
+    )
