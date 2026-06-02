@@ -80,8 +80,10 @@ assert_pass_if_clean "llm_review_jobs_stay_pull_request_only"
 # here pins the declaration against accidental removal; the spike covers behavior.
 for f in ci.yml ticket-platform-matrix.yml; do
     _snapshot_fail
-    _cip=$(grep -cE "cancel-in-progress:[[:space:]]*\\\$\{\{[[:space:]]*github\.event_name != 'merge_group'" "$WF/$f" 2>/dev/null || true)
-    assert_ne "$f does not cancel in-flight merge_group runs" "0" "$_cip"
+    # Anchor at line start (optional indent, no leading '#') so a commented-out or
+    # documentation-block occurrence of the pattern is NOT counted as the guard.
+    _cip=$(grep -cE "^[[:space:]]*cancel-in-progress:[[:space:]]*\\\$\{\{[[:space:]]*github\.event_name != 'merge_group'" "$WF/$f" 2>/dev/null || true)
+    assert_ne "$f declares the cancel-in-progress merge_group guard (uncommented)" "0" "$_cip"
     assert_pass_if_clean "cancel_in_progress_guards_merge_group_${f%.yml}"
 done
 

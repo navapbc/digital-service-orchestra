@@ -30,14 +30,25 @@ source "$REPO_ROOT/plugins/dso/hooks/lib/pre-bash-functions.sh"
 for _fn in _is_admin_merge_invocation _admin_merge_fallback hook_no_force_merge assert_eq; do
     command -v "$_fn" >/dev/null 2>&1 || { echo "FATAL: expected function '$_fn' not defined after sourcing dependencies" >&2; exit 1; }
 done
-# python3 backs the structural detector and the _expect_py cases below. The suite
-# genuinely requires it — fail loudly rather than emit a confusing error mid-run.
-command -v python3 >/dev/null 2>&1 || { echo "FATAL: python3 required for this suite (structural detector + _expect_py cases)" >&2; exit 1; }
+# python3 backs the STRUCTURAL detector and the _expect_py cases. The fallback
+# path (_admin_merge_fallback) is the no-python3 degradation and is tested
+# unconditionally below, so a host without python3 still validates that path
+# rather than aborting the whole suite. Detector/_expect_py/_expect_hook cases —
+# which genuinely need python3 — are gated on this flag.
+if command -v python3 >/dev/null 2>&1; then
+    _HAVE_PY3=1
+else
+    _HAVE_PY3=0
+    echo "NOTE: python3 unavailable — running only the python-free fallback-path tests" >&2
+    echo "      (the structural detector requires python3)." >&2
+fi
 
 echo "=== test-no-force-merge-guard.sh ==="
 
 # _expect <block|allow> <command> <label>
+# Skips when python3 is unavailable — the structural detector it exercises needs it.
 _expect() {
+    [ "${_HAVE_PY3:-1}" = "1" ] || return 0
     local expected="$1" cmd="$2" label="$3"
     _snapshot_fail
     local got="allow"
@@ -134,6 +145,19 @@ _expect_fallback allow "gh pr merge 5 --merge"           "fallback_allows_plain_
 # practice. Pinning it documents the known scope limit rather than masking it.
 _expect_fallback block 'echo "note: --admin is blocked" && gh pr merge 5 --auto' "fallback_overblocks_admin_mention_by_design"
 
+# Explicit python3-absent DISPATCH coverage: force the no-python3 branch of
+# _is_admin_merge_invocation by hiding python3 from PATH, and confirm it degrades
+# to the substring fallback (blocks --admin, allows non-admin). This validates the
+# degraded dispatch regardless of whether python3 is actually installed.
+_snapshot_fail
+if PATH="" _is_admin_merge_invocation "gh pr merge 5 --admin --merge"; then _DG=block; else _DG=allow; fi
+assert_eq "dispatch_fallback_blocks_admin_when_python3_absent" "block" "$_DG"
+assert_pass_if_clean "dispatch_fallback_blocks_admin"
+_snapshot_fail
+if PATH="" _is_admin_merge_invocation "gh pr merge 5 --disable-auto"; then _DG=block; else _DG=allow; fi
+assert_eq "dispatch_fallback_allows_nonadmin_when_python3_absent" "allow" "$_DG"
+assert_pass_if_clean "dispatch_fallback_allows_nonadmin"
+
 # --- Standalone detector unit coverage (drive detect-admin-merge.py directly) ---
 # The cases above exercise the detector through the bash wrapper. These assert the
 # python module's own error-recovery and recursion paths and its fail-closed
@@ -141,8 +165,9 @@ _expect_fallback block 'echo "note: --admin is blocked" && gh pr merge 5 --auto'
 # in the ValueError handler, eval/bash -c recursion, depth cap, or bare-exception
 # fallback is caught even when the wrapper path masks it.
 DETECT_PY="$REPO_ROOT/plugins/dso/hooks/lib/detect-admin-merge.py"
-# _expect_py <expected_exit:0|1> <command> <label>
+# _expect_py <expected_exit:0|1> <command> <label>  (skipped without python3)
 _expect_py() {
+    [ "${_HAVE_PY3:-1}" = "1" ] || return 0
     local expected="$1" cmd="$2" label="$3"
     _snapshot_fail
     printf '%s' "$cmd" | python3 "$DETECT_PY"
@@ -161,12 +186,25 @@ _expect_py 0 'bash -c "gh pr merge 5 --admin --merge"'     "py_block_bashc_recur
 _DEEP_NEST="gh pr merge 5 --admin"
 for _i in 1 2 3 4 5 6 7; do _DEEP_NEST="eval $(printf '%q' "$_DEEP_NEST")"; done
 _expect_py 0 "$_DEEP_NEST"                                  "py_failclosed_depth_cap"
-# Exit code is ALWAYS bounded to {0,1} — the bare-exception fallback must never
-# leak a non-zero traceback exit for a pathological input.
-_snapshot_fail
-printf '%s' 'gh pr merge 5 --admin `unbalanced backtick' | python3 "$DETECT_PY"; _BOUND_RC=$?
-assert_eq "py_exit_code_bounded" "true" "$([ "$_BOUND_RC" = "0" ] || [ "$_BOUND_RC" = "1" ] && echo true || echo false)"
-assert_pass_if_clean "py_exit_code_bounded"
+# A mid-line mention of the delimiter inside the heredoc body (`...EOF here...`)
+# must NOT close the heredoc early — the line-position anchor strips through to
+# the real closing `EOF`, so the admin literal in the body stays a mention (exit
+# 1). Pins that the non-greedy `.*?` + line anchor handles the multi-occurrence
+# delimiter case correctly.
+if [ "${_HAVE_PY3:-1}" = "1" ]; then
+    _MIDLINE_DELIM=$'cat <<EOF\ngh pr merge 5 --admin and EOF appears mid-line\nstill body\nEOF'
+    _snapshot_fail
+    printf '%s' "$_MIDLINE_DELIM" | python3 "$DETECT_PY"
+    assert_eq "py_heredoc_midline_delimiter_mention_stripped" "1" "$?"
+    assert_pass_if_clean "py_heredoc_midline_delimiter_mention_stripped"
+
+    # Exit code is ALWAYS bounded to {0,1} — the bare-exception fallback must never
+    # leak a non-zero traceback exit for a pathological input.
+    _snapshot_fail
+    printf '%s' 'gh pr merge 5 --admin `unbalanced backtick' | python3 "$DETECT_PY"; _BOUND_RC=$?
+    assert_eq "py_exit_code_bounded" "true" "$([ "$_BOUND_RC" = "0" ] || [ "$_BOUND_RC" = "1" ] && echo true || echo false)"
+    assert_pass_if_clean "py_exit_code_bounded"
+fi
 
 # --- End-to-end hook coverage: hook_no_force_merge() with real JSON tool-input ---
 # The cases above test the detector helpers in isolation. These exercise the
@@ -174,7 +212,9 @@ assert_pass_if_clean "py_exit_code_bounded"
 # the DSO_FP_RECOVERY_ACTIVE bypass, and the block return code (2) — so a
 # regression in the hook's wiring (not just its helpers) is caught.
 # _expect_hook <expected_rc> <command> <fp_active:0|1> <label>
+# Uses python3 to JSON-encode the command payload; skipped without python3.
 _expect_hook() {
+    [ "${_HAVE_PY3:-1}" = "1" ] || return 0
     local expected="$1" cmd="$2" fp="$3" label="$4"
     _snapshot_fail
     local input rc
