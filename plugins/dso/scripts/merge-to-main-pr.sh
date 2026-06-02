@@ -819,18 +819,27 @@ _create_staged_ref() {
     return 0
 }
 
-# _resume_should_advance_to_staged <pr1_open_count> <staged_exists_count>
-# Resume hardening: decide whether --resume should SKIP the PR1 phase and advance
-# straight to PR2 (staged-*→main). True iff PR1 (source→staged) is no longer open
-# (i.e. it merged) AND the staged branch still exists on the remote. Any "unknown"
-# (gh/git failure → callers pass the fail-safe defaults pr1_open=1, staged=0) makes
-# this FALSE, so resume falls back to the normal flow rather than risking a wrong
-# advance. This closes the gap where a crash after PR1 merged but before the local
-# checkout to staged-* left a later --resume re-creating a duplicate staged ref+PR1
-# (the worktree-checkout-derived BRANCH was stale; staged_branch is instead read
-# from the source-branch-keyed state file, which is checkout-independent).
+# _resume_should_advance_to_staged <pr1_open_count> <staged_exists_count> <staged_work_count>
+# Resume hardening: decide whether to SKIP the PR1 phase and advance straight to
+# PR2 (staged-*→main). True iff PR1 (source→staged) is no longer open (i.e. it
+# merged) AND the staged branch still exists on the remote AND the staged branch
+# actually CARRIES the session work (commits ahead of main > 0). Any "unknown"
+# (gh/git failure → callers pass the fail-safe defaults pr1_open=1, staged=0,
+# work=0) makes this FALSE, so resume falls back to the normal flow rather than
+# risking a wrong advance.
+#
+# The third arg (staged_work_count) closes bug b7bf-c3b9: an EMPTY staged-* ref
+# sitting at main HEAD (work=0) previously satisfied pr1_open=0 + staged_exists=1
+# and advanced, causing the resume to claim "PR1 merged" when no work had reached
+# main and to lose the version bump. A missing or non-numeric third arg defaults
+# to FALSE (fail-closed), so an un-migrated caller can never wrongly advance.
+#
+# Closes the gap where a crash after PR1 merged but before the local checkout to
+# staged-* left a later resume re-creating a duplicate staged ref+PR1 (the
+# worktree-checkout-derived BRANCH was stale; staged_branch is instead read from
+# the source-branch-keyed state file, which is checkout-independent).
 _resume_should_advance_to_staged() {
-    [[ "${1:-1}" == "0" && "${2:-0}" != "0" ]]
+    [[ "${1:-1}" == "0" && "${2:-0}" != "0" && "${3:-0}" != "0" && "${3:-0}" =~ ^[0-9]+$ ]]
 }
 
 _phase_staged_intermediate() {
@@ -2882,20 +2891,36 @@ if type _state_init >/dev/null 2>&1; then
     _state_init 2>/dev/null || true
 fi
 
-# --- Resume hardening: advance to PR2 when PR1 has already merged ---
+# --- Advance to PR2 when PR1 has already merged (runs UNCONDITIONALLY) ---
 # The staged-* branch name is persisted in the SOURCE-branch-keyed state file by
-# _phase_staged_intermediate (independent of the worktree checkout). On --resume,
-# if PR1 (source→staged) is no longer open AND the staged branch still exists,
-# restore BRANCH to the staged branch so _phase_staged_intermediate skips (its
-# `BRANCH == staged-*` guard) and _phase_merge opens PR2 — instead of re-creating
-# a duplicate staged ref + PR1 when the worktree's checkout to staged-* was lost.
-# Fail-safe: any gh/git uncertainty defaults to "do NOT advance" (finish PR1).
-if [[ "${_RESUME:-0}" -eq 1 ]] && type _state_get_field >/dev/null 2>&1; then
+# _phase_staged_intermediate (independent of the worktree checkout). If PR1
+# (source→staged) is no longer open AND the staged branch still exists AND it
+# carries the session work, restore BRANCH to the staged branch so
+# _phase_staged_intermediate skips (its `BRANCH == staged-*` guard) and
+# _phase_merge opens PR2 — instead of re-creating a duplicate staged ref + PR1.
+#
+# This detection runs on EVERY invocation, not just --resume (bug 73b5; prior art
+# #490/#492): a bare re-invocation after PR1 merged must also advance, not mint a
+# duplicate staged ref + PR1. It is a strict no-op before _phase_staged_intermediate
+# has written `staged_branch` (field absent → _saved_staged empty → inner block
+# skipped), so the normal first-run happy path is unaffected.
+#
+# Fail-safe: any gh/git uncertainty defaults to "do NOT advance" (finish PR1). The
+# staged-work check (bug b7bf-c3b9) prevents advancing onto an EMPTY staged ref
+# sitting at main HEAD — the empty-staged advance that lost a live session's work.
+if type _state_get_field >/dev/null 2>&1; then
     _saved_staged=$(_state_get_field "staged_branch" "" 2>/dev/null || true)
     if [[ -n "$_saved_staged" && "$BRANCH" != "$_saved_staged" ]]; then
         _pr1_open=$(gh pr list --head "$BRANCH" --base "$_saved_staged" --state open --json number --jq 'length' 2>/dev/null || echo "1")
         _staged_exists=$(git ls-remote --heads origin "$_saved_staged" 2>/dev/null | wc -l | tr -d ' ')
-        if _resume_should_advance_to_staged "$_pr1_open" "$_staged_exists"; then
+        # Count session commits on the staged branch not reachable from main.
+        # 0 ⇒ empty staged ref at main HEAD ⇒ do NOT advance (b7bf-c3b9). Any
+        # git/network failure fails closed to "0" (non-numeric → coerced to 0).
+        _staged_work=$( { git ls-remote --heads origin "$_saved_staged" >/dev/null 2>&1 \
+            && git fetch origin "${_DEFAULT_BRANCH:-main}" "$_saved_staged" --quiet 2>/dev/null \
+            && git rev-list --count "origin/${_DEFAULT_BRANCH:-main}..origin/${_saved_staged}" 2>/dev/null; } || echo "0")
+        [[ "$_staged_work" =~ ^[0-9]+$ ]] || _staged_work="0"
+        if _resume_should_advance_to_staged "$_pr1_open" "$_staged_exists" "$_staged_work"; then
             echo "INFO: --resume: PR1 merged + staged branch ${_saved_staged} exists — advancing to PR2 (restoring BRANCH=${_saved_staged})" >&2
             BRANCH="$_saved_staged"
             git fetch origin "${_saved_staged}:refs/remotes/origin/${_saved_staged}" --quiet 2>/dev/null || true
@@ -2933,13 +2958,21 @@ except Exception:
     # creates a duplicate staged-* ref + duplicate PR1 (observed: PRs
     # #490/#492 same source branch, different staged bases).
     if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
+        # Resolve only the STAGED PR1 (base=staged-*), never the base=main umbrella
+        # draft PR (bug 1f5f / b7bf-c3b9): `--head "$BRANCH"` alone also matches the
+        # long-lived session→main umbrella PR (the GitHubPRDefenseStore substrate,
+        # e.g. #534/#556), which is NOT a staged promotion PR. Resolving it here made
+        # --resume drive the wrong PR and lose the staged promotion. Filter to
+        # non-draft PRs whose base is a staged-* branch.
         _RESUME_STATE_PR_URL=$(gh pr list --head "$BRANCH" --state open \
-            --json url,isDraft 2>/dev/null \
+            --json url,isDraft,baseRefName 2>/dev/null \
             | python3 -c "
 import json, sys
 try:
     prs = json.load(sys.stdin)
-    print(next((p['url'] for p in prs if not p.get('isDraft', False)), ''))
+    print(next((p['url'] for p in prs
+                if not p.get('isDraft', False)
+                and str(p.get('baseRefName', '')).startswith('staged-')), ''))
 except Exception:
     print('')
 " 2>/dev/null || true)

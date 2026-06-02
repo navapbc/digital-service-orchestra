@@ -36,14 +36,26 @@ if ! type _resume_should_advance_to_staged >/dev/null 2>&1; then
     _fail "function_defined" "_resume_should_advance_to_staged not loaded from $MERGE_PR"
 else
     _pass "function_defined"
-    # PR1 merged (open=0) + staged exists (>0) → ADVANCE
-    if _resume_should_advance_to_staged "0" "1"; then _pass "T1_advance_when_pr1_merged_and_staged_exists"; else _fail "T1_advance_when_pr1_merged_and_staged_exists" "expected advance"; fi
+    # PR1 merged (open=0) + staged exists (>0) + staged carries work (>0) → ADVANCE
+    if _resume_should_advance_to_staged "0" "1" "1"; then _pass "T1_advance_when_pr1_merged_and_staged_exists"; else _fail "T1_advance_when_pr1_merged_and_staged_exists" "expected advance"; fi
     # PR1 still open → do NOT advance (finish PR1 first)
-    if ! _resume_should_advance_to_staged "1" "1"; then _pass "T2_no_advance_when_pr1_open"; else _fail "T2_no_advance_when_pr1_open" "advanced while PR1 open"; fi
+    if ! _resume_should_advance_to_staged "1" "1" "1"; then _pass "T2_no_advance_when_pr1_open"; else _fail "T2_no_advance_when_pr1_open" "advanced while PR1 open"; fi
     # staged branch gone → do NOT advance
-    if ! _resume_should_advance_to_staged "0" "0"; then _pass "T3_no_advance_when_staged_missing"; else _fail "T3_no_advance_when_staged_missing" "advanced with no staged branch"; fi
+    if ! _resume_should_advance_to_staged "0" "0" "1"; then _pass "T3_no_advance_when_staged_missing"; else _fail "T3_no_advance_when_staged_missing" "advanced with no staged branch"; fi
     # fail-safe defaults (gh/git failure → "1"/"0") → do NOT advance
-    if ! _resume_should_advance_to_staged "1" "0"; then _pass "T4_failsafe_no_advance"; else _fail "T4_failsafe_no_advance" "advanced under uncertainty"; fi
+    if ! _resume_should_advance_to_staged "1" "0" "0"; then _pass "T4_failsafe_no_advance"; else _fail "T4_failsafe_no_advance" "advanced under uncertainty"; fi
+    # ── Hardening (bug b7bf-c3b9): the staged branch must actually CONTAIN the
+    #    session work, not merely exist. An empty staged-* sitting at main HEAD
+    #    (staged_work=0) must NOT advance — that empty-staged advance is what
+    #    lost a live session's work and version bump.
+    # PR1 merged + staged exists but staged is EMPTY (work=0) → do NOT advance
+    if ! _resume_should_advance_to_staged "0" "1" "0"; then _pass "T8_no_advance_empty_staged"; else _fail "T8_no_advance_empty_staged" "advanced on empty staged (b7bf-c3b9)"; fi
+    # PR1 merged + staged exists + staged carries work (work=3) → ADVANCE
+    if _resume_should_advance_to_staged "0" "1" "3"; then _pass "T9_advance_when_staged_has_work"; else _fail "T9_advance_when_staged_has_work" "expected advance with work present"; fi
+    # Missing 3rd arg → fail-closed (backward-compat: any un-migrated caller can't advance)
+    if ! _resume_should_advance_to_staged "0" "1"; then _pass "T10_missing_work_arg_failsafe"; else _fail "T10_missing_work_arg_failsafe" "advanced with no work arg"; fi
+    # Non-numeric work (a git error leaked into the arg) → fail-closed
+    if ! _resume_should_advance_to_staged "0" "1" "err"; then _pass "T11_nonnumeric_work_failsafe"; else _fail "T11_nonnumeric_work_failsafe" "advanced on non-numeric work"; fi
 fi
 
 # ── (2) staged_branch state round-trip (source-branch-keyed file) ────────────
