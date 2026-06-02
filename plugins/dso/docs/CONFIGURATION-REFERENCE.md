@@ -1060,23 +1060,33 @@ copy.artifact_dir=copy/
 | **Used by** | `scripts/review-complexity-classifier.sh`, `scripts/ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
+### `review.region_split.gate_loc`
+
+| | |
+|---|---|
+| **Description** | LOC threshold for the region-split **GATE** — the decision of *whether to chunk a diff at all* (component #3' of the chunked-review FP-reduction proposal). When a multi-file diff's added/removed LOC exceeds this value, the diff is routed to the chunked Strategy-E/F review path; otherwise it is reviewed single-pass. **Budget rationale:** Sonnet 4.6's real diff-content ceiling is ~30,000-38,000 LOC before context pressure (200K input − output reserve − ~15-25K system-prompt/schema/metadata overhead ≈ 155K tokens ≈ 30-38K LOC at ~4-5 tok/line). The default `20000` is a conservative ~55-65% of that ceiling: well clear of context pressure but leaving headroom for prior-defense growth across review cycles. The old shared `loc_threshold` default (3000) sat at only ~7-10% of budget and chunked routine medium PRs for no context reason — which is the dominant source of cross-chunk hallucinated-reference false positives (a reviewer flags a symbol/test as undefined because it lives in a different chunk it cannot see; M-1 measurement: 55% of chunked-review FPs). Raising the gate keeps medium-large PRs single-pass (zero cross-chunk blindness). **Invariant:** this value MUST be greater than `review.size_upgrade_lines` (the force-upgrade-to-deep floor); a smaller configured value is clamped up to `effective_floor + 1` (with a stderr warning) so a region-split-eligible diff is always already deep-tier, preserving single-pass deep synthesis. The effective floor is computed dynamically as `max(300, review.size_upgrade_lines)` — a RAISED `size_upgrade_lines` raises the floor so the invariant still holds, while a LOWERED `size_upgrade_lines` cannot drag the floor below the safe synchronized default of 300 (which matches the `size_upgrade_lines` default). Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). |
+| **Accepted values** | Positive integer greater than `review.size_upgrade_lines` (else clamped up). Values `<= 0` fall back to default; non-numeric values fall back to default. |
+| **Default** | `20000` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
+### `review.region_split.gate_file_count`
+
+| | |
+|---|---|
+| **Description** | File-count threshold for the region-split **GATE** (component #3'). A diff trips the gate when it touches more than this many *reviewable* files (generated/binary files filtered by `file_filter` do not count — the gate is computed on the filtered set so a lock-file-heavy diff is not chunked for non-reviewable bulk). There is no file-count-based per-cluster fan-out counterpart — once a diff is chunked, fan-out granularity keys off LOC (`loc_threshold`) only. The default `120` (raised from the old 40) captures genuine repo-wide changes while keeping ordinary multi-module PRs single-pass. Single-file diffs are NEVER region-split regardless of this value. |
+| **Accepted values** | Positive integer. Values `<= 0` fall back to default; non-numeric values fall back to default. |
+| **Default** | `120` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
 ### `review.region_split.loc_threshold`
 
 | | |
 |---|---|
-| **Description** | LOC threshold above which a multi-file diff is partitioned into per-directory clusters by the region-split fallback (Strategy E) in `dso_ci_review.region_split`. Below this threshold the diff is reviewed monolithically. The default targets ~7-10% of Sonnet 4.6's diff-content budget after system prompt + finding schema + PR metadata overhead, leaving ample headroom for prompt growth. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
-| **Accepted values** | Positive integer. Non-numeric values fall back to default. |
+| **Description** | **(Component #3' — role narrowed.)** Per-cluster **fan-out** LOC threshold for the region-split Strategy-F path: once a diff has already been chunked (per the GATE keys `gate_loc` / `gate_file_count`), any single directory cluster whose LOC exceeds this value is fanned out to one dispatch per file. This key NO LONGER governs the primary gate decision (whether to chunk at all) — that is `review.region_split.gate_loc`. It now serves two narrow roles: (1) the per-cluster fan-out granularity, and (2) the single-oversized-file pass-through detection in `split_cluster_by_file`. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
+| **Accepted values** | Positive integer. Non-numeric / `<= 0` values fall back to default. |
 | **Default** | `3000` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
----
-
-### `review.region_split.file_count_threshold`
-
-| | |
-|---|---|
-| **Description** | File-count threshold above which a diff is region-split. Triggers when the diff touches more than this many files. Distinct from `loc_threshold` — captures the case of many small files (e.g., a repo-wide rename) where per-cluster parallelism beats one monolithic review. Single-file diffs are NEVER region-split regardless of this value. |
-| **Accepted values** | Positive integer. Non-numeric values fall back to default. |
-| **Default** | `40` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
@@ -1114,7 +1124,7 @@ copy.artifact_dir=copy/
 
 | | |
 |---|---|
-| **Description** | Maximum number of files sent to LLM review across all cluster dispatches. Works as part of the hard upper bound: when the product `max_files × max_calls` is exceeded by the PR, the runner emits `OVER_BOUND` (exit 3) and bypasses LLM dispatch entirely. Setting this value to `0` emits a `UserWarning` — no files will be reviewed, which is likely a misconfiguration. When unset, no per-file cap is applied (the region-split cluster count acts as the effective bound). |
+| **Description** | Cluster-count cap: the maximum number of reviewable cluster dispatches sent to LLM review. When the number of reviewable clusters exceeds `max_files`, the runner emits `OVER_BOUND` (exit 3) and bypasses LLM dispatch entirely. This is one of two INDEPENDENT caps (the other is `max_calls`, the total-call budget). Setting this value to `0` emits a `UserWarning` — no files will be reviewed, which is likely a misconfiguration. When unset, no per-file cap is applied (the call budget and region-split cluster count act as the effective bound). |
 | **Accepted values** | Non-negative integer. `0` is accepted but emits a warning. Non-numeric values are ignored and the key is treated as unset. |
 | **Default** | Unset (no cap) |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) | <!-- # shim-exempt: internal implementation reference in config documentation -->
@@ -1125,7 +1135,7 @@ copy.artifact_dir=copy/
 
 | | |
 |---|---|
-| **Description** | Maximum number of LLM dispatch calls across all cluster dispatches. Works together with `review.file_filter.max_files` to define the hard upper bound (`max_files × max_calls`). The aggregation synthesis call counts as ONE call against this budget regardless of cluster count (DD4 single-ledger-entry invariant). Setting this value to `0` emits a `UserWarning` — no LLM calls will be dispatched. When unset, no per-call cap is applied. |
+| **Description** | Total LLM call budget: the maximum number of LLM calls across a chunked review, counting one call per cluster dispatch PLUS one aggregation/synthesis call (`dispatches + 1`). When `dispatches + 1` exceeds `max_calls`, the runner emits `OVER_BOUND` (exit 3). The aggregation synthesis call counts as exactly ONE call regardless of cluster count (DD4 single-ledger-entry invariant). This is enforced INDEPENDENTLY of the `max_files` cluster-count cap; the `max_calls >= max_files + 1` validation constraint ensures the budget can always cover a full `max_files` fan-out plus aggregation. Setting this value to `0` emits a `UserWarning` — no LLM calls will be dispatched. When unset, no per-call cap is applied. |
 | **Accepted values** | Non-negative integer. `0` is accepted but emits a warning. Non-numeric values are ignored and the key is treated as unset. |
 | **Default** | Unset (no cap) |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) | <!-- # shim-exempt: internal implementation reference in config documentation -->
