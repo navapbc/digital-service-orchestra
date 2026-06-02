@@ -99693,15 +99693,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "fix-bug recurrence prevention: tree-wide antipattern scan and hermetic repro"
@@ -184979,15 +184979,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "#3': raise + decouple region-split thresholds (R-1 filter-before-split, R-2 fallback re-chunk, R-3 decouple gate/fan-out, R-4 config)"
@@ -185080,15 +185080,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "#2: deterministic cross-chunk symbol injection (G-1 uniqueness/confidence, G-2 bounded appendix, G-3 no shell-out coupling)"
@@ -185145,5 +185145,769 @@
       }
     },
     "summary": "Chunked-review FP reduction (#3' threshold raise/decouple + #2 cross-chunk symbol injection)"
+  },
+  "DIG-5071": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Model ID:** claude-opus-4-8",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Plugin/Tool Versions:** dso-dev 1.17.102 (plugin cache)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Active Configs:** SPRINT_MODE=ci-pr (dso.workflow=ci-pr)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Context Scope:** worktree session branch worktree-20260601-183103; repo navapbc/digital-service-orchestra",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 392d89c8bf366a8e59b702d59debbd46fad1f7ad",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** User-Flagged Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "In `/dso:sprint` Phase A, the \"Draft PR Creation (ci-pr mode only)\" block is meant to invoke the host-project shim `dso` with `create-sprint-draft-pr.sh` as its subcommand argument, producing a draft PR URL on stdout. The shim contract throughout the rest of the skill is `.claude/scripts/dso <script-name>` \u2014 i.e., `dso` is the executable and the script name is a separate positional argument. The block's guard then checks `rc == 0` AND `DRAFT_PR_URL == https://*` and halts the sprint (`exit 1`) on failure, so a correct invocation is load-bearing for every ci-pr-mode sprint.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The skill renders the command as:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```bash",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DRAFT_PR_URL=$(SESSION_BRANCH=\"${_BRANCH}\" PRIMARY_TICKET_ID=\"${primary_ticket_id}\" EPIC_TITLE=\"${_EPIC_TITLE:-}\" \\",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    bash \"$(git rev-parse --show-toplevel)/.claude/scripts/dso create-sprint-draft-pr.sh\")",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The shim path AND the script-name argument are enclosed in a single double-quoted string passed to `bash`. Bash therefore receives ONE argument \u2014 a filesystem path literally containing a space: `<repo-root>/.claude/scripts/dso create-sprint-draft-pr.sh`. No such file exists, so bash exits 127:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "bash: /Users/joeoakhart/digital-service-orchestra-worktrees/worktree-20260601-183103/.claude/scripts/dso create-sprint-draft-pr.sh: No such file or directory",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "rc=127",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Because the block's guard is `if [[ $_draft_rc -ne 0 || \"$DRAFT_PR_URL\" != https://* ]]; then ... exit 1`, literal execution halts the sprint at Phase A before any Phase E dispatch, for every ci-pr-mode run.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 3. Action History and Workarounds",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Steps Taken:**",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * Ran the skill's literal Draft PR Creation command: `bash \"$(git rev-parse --show-toplevel)/.claude/scripts/dso create-sprint-draft-pr.sh\"`",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * Observed rc=127, \"No such file or directory\".",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * Re-ran in the correct shim form: `.claude/scripts/dso create-sprint-draft-pr.sh` (with the same SESSION_BRANCH / PRIMARY_TICKET_ID / EPIC_TITLE env).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Raw Results:**",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * First form: rc=127, `bash: .../.claude/scripts/dso create-sprint-draft-pr.sh: No such file or directory`",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * Second (correct) form: rc=0, emitted `https://github.com/navapbc/digital-service-orchestra/pull/534`",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Known Workarounds:** Invoke via the shim correctly: `.claude/scripts/dso create-sprint-draft-pr.sh` (no `bash` wrapper folding the script name into the path). Equivalent fix: `bash \"$(git rev-parse --show-toplevel)/.claude/scripts/dso\" create-sprint-draft-pr.sh` \u2014 note the closing quote AFTER `dso`, with `create-sprint-draft-pr.sh` as a separate argument.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Active Workflow:** /dso:sprint Phase A \u2014 Draft PR Creation (ci-pr mode only)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Skills Invoked:** /dso:sprint",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 7. Additional Details",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Contrast: every other shim call in the same SKILL.md uses either `.claude/scripts/dso <script>` or `$PLUGIN_SCRIPTS/<script>` directly; only this one block wraps the shim path and the subcommand together inside a single quoted path passed to `bash`.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Fix location: repo source `plugins/dso/skills/sprint/SKILL.md` (NOT the plugin cache), per rule:no-edit-plugin-cache.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
+      "dso-id:2504-140c-6480-4a6d"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "plugins/dso/skills/sprint/SKILL.md: run create-sprint-draft-pr.sh in ci-pr Phase A -> exit 127 No such file or directory"
+  },
+  "DIG-5072": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Context (placeholder \u2014 to be brainstormed)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DSO is, in the framing of B\u00f6ckeler/Fowler's 'Harness Engineering for Coding Agents' (martinfowler.com/articles/harness-engineering.html), a mature agent HARNESS: an outer layer of guides (feedforward \u2014 CLAUDE.md rules, SKILL.md files, contracts) and SENSORS (feedback \u2014 ~40 hooks, pre-commit gates, CI llm-review, completion-verifier, the workflow-stability checks). The project has invested heavily in adding sensors but has no systematic way to evaluate the harness AS A WHOLE.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The article names two unsolved challenges this epic targets directly:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. INTERPRETING SILENT SENSORS \u2014 'do silent sensors indicate quality or inadequate detection?' A gate that has not fired in weeks is ambiguous: either the codebase is clean (good) or the gate is blind/misconfigured/dead (bad). DSO ships new checks in warn -> enforce mode, and the warn->enforce promotion decision is currently made on intuition rather than evidence of the gate actually catching things.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. EVALUATING HARNESS COVERAGE SYSTEMATICALLY \u2014 the article calls out the absence of frameworks for treating scattered controls as one integrated system. DSO's sensor telemetry today exists only in per-sensor fragments (see Related), never across the whole gate+hook suite.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Goal",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Give the DSO maintainer a single, evidence-based view of SENSOR HEALTH across the entire harness, so that:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Dead/silent gates are detected (fired 0 times over a window) and surfaced for retirement-or-fix triage, resolving the article's silent-sensor ambiguity with data instead of intuition.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Per-gate signal quality is measured (fire count, true-positive vs false-positive/dismissed/overridden rate, time-since-last-fire) so high-noise gates can be tuned and the warn->enforce promotion decision is driven by observed catch evidence.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Harness COVERAGE is assessable: what classes of agent failure does the current sensor set actually catch, and where are the blind spots \u2014 the article's 'evaluate harness coverage systematically' challenge.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This is the harness-level rollup that the existing per-sensor telemetry epics do not provide; it consumes their signals rather than replacing them.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Scope (to be brainstormed via /dso:brainstorm)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Likely components (NOT yet committed):",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- A gate/hook firing-event emission convention (each hook/gate emits a structured fired/passed/false-positive record) \u2014 or a passive scan over existing hook logs (tool-logging.sh, commit-failure-tracker, review defenses).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- A periodic sensor-health report: per-gate fire count, FP/override rate, days-since-last-fire, with a 'silent sensor' flag and a warn->enforce readiness signal.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Integration touchpoint with /dso:retro (which already does shift-left 'was this catchable earlier' classification) as the natural consumption surface.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Related (consumes / coordinates, does not duplicate)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- c13f-6196 (Test gate observability) \u2014 per-gate FP/phantom detection scoped to the ONE pre-commit test gate; this epic generalizes the pattern across all gates.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- 5df7-63ac (Integrated observability: context/cost/agent telemetry) \u2014 supplies a telemetry store + rotation that this epic's report could read; that epic is session/cost-framed, not harness-sensor-health-framed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- spiky-stand-chick (Code review telemetry dashboard) \u2014 review-sensor ROI; one sensor only.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- tough-mouse-stand / pop-hatch-hoop (calibration program health rollups) \u2014 test-quality/mutation sensors only.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- tap-folly-phase (411b mutation-testing) \u2014 its kill-rate telemetry is one sensor's health signal that this rollup would surface; see the harness-engineering framing comment on 411b.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Dependencies",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "SOFT (coordination): 5df7-63ac telemetry store likely provides the substrate; sequence brainstorm after its shape is known. No hard blockers.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Out of scope (pre-brainstorm intent)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Building new GATES (this epic measures existing sensors, it does not add detection logic).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Replacing per-sensor calibration programs (review, test-quality, mutation) \u2014 this rolls them up, it does not absorb them.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10307,
+      "description": "Workstreams track a set of related work and activities that work towards a larger deliverable.",
+      "entityId": "ac43421d-383b-4d08-ba0e-cc35239fdb4d",
+      "hierarchyLevel": 1,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10307?size=medium",
+      "id": "17009",
+      "name": "Epic",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17009",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:9f98-9566-a0f7-405b",
+      "harness-engineering",
+      "scrutiny:pending"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
+      "id": "5",
+      "name": "Lowest",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/5"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Harness sensor-health observability: detect silent/dead gates and per-gate signal quality across the full gate+hook suite"
   }
 }
