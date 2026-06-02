@@ -68,6 +68,28 @@ assert_contains "Tier2b stdout token" "RECOVERED_FROM_SESSION" "$OUT"
 STAGED2B=$(git -C "$T2B" diff --cached --name-only)
 assert_contains "Tier2b metachar file staged" "src/mod.v2[beta].py" "$STAGED2B"
 
+# ── Tier 2c: leaked path containing spaces (PR #548 regression) ──────────────
+# A path like 'src/my work.py' contains a space. The prior staging used an
+# unquoted, space-joined `git add -- $RECOVERED`, which word-split such a path
+# into 'src/my' and 'work.py' — leaving the real file unstaged. The array-based
+# staging must recover and stage it intact.
+echo "--- Tier 2c: spaced path staged intact ---"
+T2C=$(mktemp -d "${TMPDIR:-/tmp}/recover.XXXXXX")
+mk_repo "$T2C"
+mkdir -p "$T2C/src"
+echo "leaked work" > "$T2C/src/my work.py"   # untracked, non-empty, contains a space
+OUT=$(cd "$T2C" && bash "$SCRIPT" "wt/no-such-branch" "$T2C" "src/my work.py"); RC=$?
+assert_eq "Tier2c exit code 0" "0" "$RC"
+assert_contains "Tier2c stdout token" "RECOVERED_FROM_SESSION" "$OUT"
+STAGED2C=$(git -C "$T2C" diff --cached --name-only)
+assert_contains "Tier2c spaced file staged intact" "src/my work.py" "$STAGED2C"
+
+# ── Tier err: invalid session_root -> exit 2 (PR #548 finding 6) ─────────────
+echo "--- Tier err: invalid session_root -> exit 2 ---"
+OUT=$(bash "$SCRIPT" "wt/x" "/nonexistent/session/root/$$/xyz" "f.py" 2>&1); RC=$?
+assert_eq "Tier-err exit code 2 on invalid session_root" "2" "$RC"
+assert_contains "Tier-err diagnostic" "session_root does not exist" "$OUT"
+
 # ── Tier 3: unrecoverable (no branch, no recoverable files) ──────────────────
 echo "--- Tier 3: unrecoverable ---"
 T3=$(mktemp -d "${TMPDIR:-/tmp}/recover.XXXXXX")
@@ -77,6 +99,6 @@ assert_eq "Tier3 exit code 3" "3" "$RC"
 assert_contains "Tier3 stdout token" "UNRECOVERABLE_REDISPATCH" "$OUT"
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
-rm -rf "$T1" "$T2" "$T2B" "$T3"
+rm -rf "$T1" "$T2" "$T2B" "$T2C" "$T3"
 
 print_summary

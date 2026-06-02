@@ -69,7 +69,7 @@ if git -C "$SESSION_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # individual files (default porcelain collapses 'src/foo.py' to 'src/').
     STATUS="$(git -C "$SESSION_ROOT" status --porcelain --untracked-files=all 2>/dev/null || true)"
 
-    RECOVERED=""
+    RECOVERED_ARR=()
     for f in "$@"; do
         [ -n "$f" ] || continue
         # File must exist and be non-empty under session_root.
@@ -93,19 +93,18 @@ if git -C "$SESSION_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 $STATUS
 INNER_EOF
         if [ -n "$_match" ]; then
-            if [ -z "$RECOVERED" ]; then
-                RECOVERED="$f"
-            else
-                RECOVERED="$RECOVERED $f"
-            fi
+            RECOVERED_ARR+=("$f")
         fi
     done
 
-    if [ -n "$RECOVERED" ]; then
-        # Stage the recovered files (word-split intentional: paths are space-joined).
-        # shellcheck disable=SC2086
-        git -C "$SESSION_ROOT" add -- $RECOVERED
-        echo "RECOVERED_FROM_SESSION: $RECOVERED"
+    if [ ${#RECOVERED_ARR[@]} -gt 0 ]; then
+        # Stage each recovered file via the array (each element quoted, preserved
+        # exactly) — paths may contain spaces or glob/metacharacters; the prior
+        # space-joined `$RECOVERED` word-split broke such paths (e.g. a recovered
+        # 'src/my file.py' would be split into 'src/my' and 'file.py', leaving the
+        # real file unstaged). Reported on PR #548 review (recover-reaped-worktree.sh:109).
+        git -C "$SESSION_ROOT" add -- "${RECOVERED_ARR[@]}"
+        echo "RECOVERED_FROM_SESSION: ${RECOVERED_ARR[*]}"
         exit 0
     fi
 fi
