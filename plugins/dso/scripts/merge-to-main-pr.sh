@@ -3027,11 +3027,18 @@ fi
 
 # Defense-in-depth (bug 7a0e): the state file may be absent or path-diverged across
 # a BRANCH re-point. Before failing, resolve the open PR directly from GitHub for the
-# current BRANCH -> default branch, so a created PR is never stranded and an already-
-# open PR from a prior interrupted run self-heals on the next invocation.
+# current BRANCH, so a created PR is never stranded and an already-open PR from a prior
+# interrupted run self-heals on the next invocation.
+#
+# Base-agnostic (bug 8bae-cd51): do NOT pin --base to the default branch. In the
+# two-channel flow PR1 (head -> staged-*) and PR2 (staged-* -> main) target
+# different bases; pinning --base main returned empty for a staged-base PR1 and
+# stranded a mergeable PR. Match the open PR for the head regardless of base,
+# selecting the non-draft PR deterministically — mirrors the resume-discovery
+# query above (~line 2936).
 if [[ -z "$_PR_NUMBER" ]]; then
-    _PR_NUMBER=$(gh pr list --head "$BRANCH" --base "${_DEFAULT_BRANCH:-main}" --state open \
-        --json number --jq '.[0].number // empty' 2>/dev/null || true)
+    _PR_NUMBER=$(gh pr list --head "$BRANCH" --state open \
+        --json number,isDraft --jq 'map(select(.isDraft==false)) | .[0].number // empty' 2>/dev/null || true)
     # Validate numeric-only before reuse as a positional arg to gh (defensive: gh's
     # .number is already an integer, but never feed an unvalidated value to a sink).
     if [[ "$_PR_NUMBER" =~ ^[0-9]+$ ]]; then
