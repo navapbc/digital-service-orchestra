@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Remediation re-dispatch (Phase E): dso:story-decomposer (model: opus) invoked with remediation_context referencing red-team + blue-team artifacts; target_story_ids: draft-1,draft-2,draft-4,NEW"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780440164416837000,"uuid":"c7786037-7154-4bb9-83d5-964011d96205"}
