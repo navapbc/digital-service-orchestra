@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # check-ruleset-preflight.sh
-# Validates GitHub Rulesets are correctly configured for session-* branches.
+# Validates the two-tier-promotion GitHub Rulesets the sprint ci-pr flow relies on:
+# a sub-PR tier (staged-*) and a main tier. (Updated from the obsolete single-tier
+# session-* / 'Sprint Story Review' model — those branches/checks no longer exist.)
 #
 # Usage:
 #   check-ruleset-preflight.sh [--repo <owner/repo>] [--config <path-to-dso-config.conf>]
@@ -10,15 +12,17 @@ set -euo pipefail
 #   DSO_CONFIG_FILE — path to dso-config.conf (overrides default discovery)
 #
 # Exit codes:
-#   0 = all 3 Ruleset conditions satisfied
+#   0 = all Ruleset conditions satisfied
 #   1 = validation failure or dependency missing
 #
-# Validation conditions (all 3 must pass):
-#   1. A Ruleset exists with conditions.ref_name.include containing session-* pattern
-#   2. required_status_checks rule exists with check_name in required_status_checks array
-#   3. linear_history rule does NOT appear in the matching ruleset
+# Validation conditions (all must pass):
+#   1. A Ruleset matching staged-* requires the sub-PR review check (default review-sub-pr)
+#      and has no required_linear_history (PR1 session→staged gate).
+#   2. A Ruleset matching main requires check-staged-head + llm-review, does NOT require the
+#      sub-PR check (it never runs on staged-*→main; would deadlock PR2), and has no
+#      required_linear_history (PR2 staged→main gate).
 #
-# Reads dso.review.check_name from dso-config.conf; falls back to 'Sprint Story Review'.
+# Reads dso.review.check_name from dso-config.conf for the sub-PR check; falls back to 'review-sub-pr'.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -82,7 +86,7 @@ _resolve_config_file() {
 # ── Read check_name from config ───────────────────────────────────────────────
 _read_check_name() {
     local config_file="$1"
-    local default_name="Sprint Story Review"
+    local default_name="review-sub-pr"
 
     if [[ -z "$config_file" ]] || [[ ! -f "$config_file" ]]; then
         echo "$default_name"
@@ -103,16 +107,47 @@ CHECK_NAME="$(_read_check_name "$CONFIG_FILE")"
 
 # ── Fetch rulesets ────────────────────────────────────────────────────────────
 _fetch_rulesets() {
-    local api_path
+    local repo_slug base_path
     if [[ -n "$REPO_ARG" ]]; then
-        api_path="/repos/$REPO_ARG/rulesets"
+        repo_slug="$REPO_ARG"
     else
-        api_path="$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null | xargs -I{} echo "/repos/{}/rulesets")" || true
-        if [[ -z "$api_path" ]]; then
-            api_path="/repos/rulesets"
-        fi
+        repo_slug="$(gh repo view --json nameWithOwner -q '.nameWithOwner' 2>/dev/null)" || true
     fi
-    gh api "$api_path" 2>&1
+    if [[ -z "$repo_slug" ]]; then
+        echo "ERROR: could not resolve owner/repo for ruleset lookup" >&2
+        return 1
+    fi
+    base_path="/repos/$repo_slug/rulesets"
+
+    local list_raw
+    list_raw="$(gh api "$base_path" 2>&1)" || { printf '%s\n' "$list_raw"; return 1; }
+
+    # The GitHub `/rulesets` LIST endpoint returns ruleset SUMMARIES WITHOUT
+    # conditions/rules — those require a per-id GET /rulesets/{id}. (The original
+    # script validated conditions/rules straight off the list, so it always failed
+    # against live.) If the response already embeds conditions (test stubs, or a
+    # future API), use it verbatim; otherwise fetch each ruleset's full object by id.
+    if printf '%s' "$list_raw" | grep -q '"conditions"'; then
+        printf '%s\n' "$list_raw"
+        return 0
+    fi
+
+    local ids id obj sep="" out="["
+    ids="$(printf '%s' "$list_raw" | python3 -c 'import json,sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    d = []
+items = d.get("rulesets", d) if isinstance(d, dict) else d
+items = items if isinstance(items, list) else []
+print("\n".join(str(r["id"]) for r in items if isinstance(r, dict) and r.get("id") is not None))' 2>/dev/null)" || ids=""
+    for id in $ids; do
+        obj="$(gh api "$base_path/$id" 2>/dev/null)" || continue
+        [[ -z "$obj" ]] && continue
+        out+="${sep}${obj}"; sep=","
+    done
+    out+="]"
+    printf '{"rulesets":%s}\n' "$out"
 }
 
 TMPFILE="$(mktemp /tmp/check-ruleset-preflight.XXXXXX)"
@@ -126,64 +161,93 @@ fi
 
 RULESETS_JSON="$(cat "$TMPFILE")"
 
-# ── Validation ────────────────────────────────────────────────────────────────
-# All three conditions are evaluated by a single python3 invocation
-# (jq-free; PR #140 retro-review). The script emits one of:
-#   OK                — all conditions pass
-#   NO_SESSION_PATTERN — condition 1 failed
-#   MISSING_CHECK      — condition 2 failed
-#   HAS_LINEAR         — condition 3 failed
-_PRELIGHT_RESULT="$(DSO_CHECK_NAME="$CHECK_NAME" python3 - "$TMPFILE" <<'PYEOF'
+# ── Validation (two-tier promotion model) ─────────────────────────────────────
+# Validates the two GitHub Rulesets the sprint two-tier flow relies on, in a
+# single jq-free python3 invocation. Emits one result token (see case below):
+#   Sub-PR ruleset (ref include matches `staged-*`): requires the sub-PR review
+#     check (default `review-sub-pr`, gating PR1 session→staged); no linear_history.
+#   Main ruleset (ref include matches `main`): requires `check-staged-head` +
+#     `llm-review`; must NOT require the sub-PR check (it never runs on a
+#     staged-*→main PR and would deadlock PR2); no linear_history.
+_PRELIGHT_RESULT="$(DSO_SUBPR_CHECK="$CHECK_NAME" python3 - "$TMPFILE" <<'PYEOF'
 import json, os, sys
 
 with open(sys.argv[1]) as f:
     try:
         data = json.load(f)
     except Exception:
-        print("NO_SESSION_PATTERN"); sys.exit(0)
+        print("FETCH_PARSE_ERROR"); sys.exit(0)
 
 # data may be {"rulesets": [...]} or a bare array
 rulesets = data.get("rulesets") if isinstance(data, dict) and "rulesets" in data else data
 if not isinstance(rulesets, list):
-    print("NO_SESSION_PATTERN"); sys.exit(0)
+    print("FETCH_PARSE_ERROR"); sys.exit(0)
 
-def _matches_session(pattern: str) -> bool:
-    if not isinstance(pattern, str):
-        return False
-    fixed = {"refs/heads/session-*", "session-*", "refs/heads/session/*", "session/*"}
-    if pattern in fixed:
-        return True
-    return pattern.startswith("refs/heads/session") or pattern.startswith("session")
+subpr_check = os.environ.get("DSO_SUBPR_CHECK") or "review-sub-pr"
 
-# Condition 1: find the first ruleset whose ref_name.include contains a session pattern
-matching = None
-for rs in rulesets:
-    if not isinstance(rs, dict):
-        continue
-    includes = (rs.get("conditions") or {}).get("ref_name", {}).get("include") or []
-    if any(_matches_session(p) for p in includes):
-        matching = rs
-        break
 
-if matching is None:
-    print("NO_SESSION_PATTERN"); sys.exit(0)
+def _includes(rs):
+    return ((rs.get("conditions") or {}).get("ref_name") or {}).get("include") or []
 
-rules = matching.get("rules") or []
-check_name = os.environ.get("DSO_CHECK_NAME", "")
 
-# Condition 2: required_status_checks rule with the configured check_name context
-required_checks = []
-for r in rules:
-    if isinstance(r, dict) and r.get("type") == "required_status_checks":
-        params = r.get("parameters") or {}
-        required_checks.extend(params.get("required_status_checks") or [])
-contexts = [c.get("context") for c in required_checks if isinstance(c, dict)]
-if check_name not in contexts:
-    print("MISSING_CHECK"); sys.exit(0)
+def _required_contexts(rs):
+    out = []
+    for r in (rs.get("rules") or []):
+        if isinstance(r, dict) and r.get("type") == "required_status_checks":
+            for c in ((r.get("parameters") or {}).get("required_status_checks") or []):
+                if isinstance(c, dict):
+                    out.append(c.get("context"))
+    return out
 
-# Condition 3: no linear_history rule
-if any(isinstance(r, dict) and r.get("type") == "linear_history" for r in rules):
-    print("HAS_LINEAR"); sys.exit(0)
+
+def _has_linear(rs):
+    return any(
+        isinstance(r, dict) and r.get("type") in ("linear_history", "required_linear_history")
+        for r in (rs.get("rules") or [])
+    )
+
+
+def _find(pred):
+    for rs in rulesets:
+        if isinstance(rs, dict) and pred(_includes(rs)):
+            return rs
+    return None
+
+
+# Sub-PR tier: the ruleset whose ref include references staged-* (gates PR1 session→staged).
+subpr = _find(lambda incs: any(isinstance(p, str) and "staged-" in p for p in incs))
+if subpr is None:
+    print("NO_SUBPR_RULESET"); sys.exit(0)
+if subpr_check not in _required_contexts(subpr):
+    print("SUBPR_MISSING_CHECK"); sys.exit(0)
+if _has_linear(subpr):
+    print("SUBPR_HAS_LINEAR"); sys.exit(0)
+
+
+# Main tier: the ruleset whose ref include references the default branch (main) and NOT staged-*.
+def _is_main_include(p):
+    return isinstance(p, str) and (
+        p in ("refs/heads/main", "main", "~DEFAULT_BRANCH") or p.endswith("/main")
+    )
+
+
+main_rs = _find(
+    lambda incs: any(_is_main_include(p) for p in incs)
+    and not any(isinstance(p, str) and "staged-" in p for p in incs)
+)
+if main_rs is None:
+    print("NO_MAIN_RULESET"); sys.exit(0)
+main_checks = _required_contexts(main_rs)
+if "check-staged-head" not in main_checks:
+    print("MAIN_MISSING_STAGED_HEAD"); sys.exit(0)
+if "llm-review" not in main_checks:
+    print("MAIN_MISSING_LLM_REVIEW"); sys.exit(0)
+# review-sub-pr triggers on base != main, so it never runs on a staged-*→main PR;
+# requiring it on the main ruleset would leave PR2 permanently pending (deadlock).
+if subpr_check in main_checks:
+    print("MAIN_HAS_SUBPR"); sys.exit(0)
+if _has_linear(main_rs):
+    print("MAIN_HAS_LINEAR"); sys.exit(0)
 
 print("OK")
 PYEOF
@@ -191,29 +255,54 @@ PYEOF
 
 case "$_PRELIGHT_RESULT" in
     OK)
-        echo "GitHub Ruleset preflight check: success"
-        echo "  - session-* branch pattern: found"
-        echo "  - Required status check '$CHECK_NAME': found"
-        echo "  - No linear_history constraint: confirmed"
+        echo "GitHub Ruleset preflight check: success (two-tier promotion model)"
+        echo "  - Sub-PR ruleset (staged-*) requires '$CHECK_NAME': found"
+        echo "  - Main ruleset requires check-staged-head + llm-review: found"
+        echo "  - Main ruleset does not require the sub-PR check (no PR2 deadlock): confirmed"
+        echo "  - No linear_history constraint on either ruleset: confirmed"
         exit 0
         ;;
-    NO_SESSION_PATTERN)
-        echo "ERROR: No GitHub Ruleset found with a session-* branch pattern." >&2
-        echo "  Expected: a Ruleset with conditions.ref_name.include containing 'refs/heads/session-*' or 'session-*'." >&2
-        echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
+    FETCH_PARSE_ERROR)
+        echo "ERROR: could not parse the GitHub rulesets API response." >&2
         exit 1
         ;;
-    MISSING_CHECK)
-        echo "ERROR: Required status check '$CHECK_NAME' not found in the session-* Ruleset." >&2
-        echo "  The Ruleset must have a 'required_status_checks' rule with context '$CHECK_NAME'." >&2
-        echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
+    NO_SUBPR_RULESET)
+        echo "ERROR: No GitHub Ruleset found matching 'staged-*' (the sub-PR review tier)." >&2
+        echo "  Expected a Ruleset with conditions.ref_name.include containing 'refs/heads/staged-*'." >&2
+        echo "  Provision it via provision-ruleset.sh. See: INSTALL.md (two-tier promotion rulesets)." >&2
         exit 1
         ;;
-    HAS_LINEAR)
-        echo "ERROR: The session-* Ruleset contains a 'required_linear_history' rule." >&2
-        echo "  This would block the sprint merge strategy (which uses merge commits)." >&2
-        echo "  Remove the 'required_linear_history' rule from the session-* Ruleset." >&2
-        echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
+    SUBPR_MISSING_CHECK)
+        echo "ERROR: The staged-* (sub-PR) Ruleset does not require '$CHECK_NAME'." >&2
+        echo "  PR1 (session→staged) would not be gated by the sub-PR review." >&2
+        exit 1
+        ;;
+    SUBPR_HAS_LINEAR)
+        echo "ERROR: The staged-* Ruleset contains a 'required_linear_history' rule." >&2
+        echo "  This blocks the merge-commit promotion strategy. Remove it." >&2
+        exit 1
+        ;;
+    NO_MAIN_RULESET)
+        echo "ERROR: No GitHub Ruleset found matching 'main'." >&2
+        echo "  Expected a Ruleset with conditions.ref_name.include containing 'refs/heads/main'." >&2
+        exit 1
+        ;;
+    MAIN_MISSING_STAGED_HEAD)
+        echo "ERROR: The main Ruleset does not require 'check-staged-head'." >&2
+        echo "  Without it, non-staged-* branches could merge directly to main, bypassing the two-tier flow." >&2
+        exit 1
+        ;;
+    MAIN_MISSING_LLM_REVIEW)
+        echo "ERROR: The main Ruleset does not require 'llm-review' (the staged→main integration review)." >&2
+        exit 1
+        ;;
+    MAIN_HAS_SUBPR)
+        echo "ERROR: The main Ruleset requires '$CHECK_NAME', which never runs on a staged-*→main PR." >&2
+        echo "  This would leave PR2 permanently pending (deadlock). Remove the sub-PR check from the main ruleset." >&2
+        exit 1
+        ;;
+    MAIN_HAS_LINEAR)
+        echo "ERROR: The main Ruleset contains a 'required_linear_history' rule (blocks merge-commit promotion)." >&2
         exit 1
         ;;
     *)
