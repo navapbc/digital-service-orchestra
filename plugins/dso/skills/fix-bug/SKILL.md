@@ -977,6 +977,35 @@ Before dispatching any fix implementation (Phase E Step 3), verify that a RED te
 
 **LLM-behavioral bug exemption**: This gate is relaxed for llm-behavioral bugs. LLM behavioral bugs (prompt regressions, agent guidance gaps, skill misinterpretation) cannot always have a traditional executable RED unit test written before the fix — the behavioral regression lives in natural language instructions, not in executable code paths. For llm-behavioral bugs, the RED unit test requirement is replaced with eval-based verification: define an eval assertion that would fail with the current skill/agent/prompt content and pass after the fix. If no eval framework is available, document the behavioral assertion in the ticket as the verification criterion before proceeding to fix implementation.
 
+### Step 2.5: Hermetic Reproduction Gate (/dso:fix-bug)
+
+After the RED test is confirmed failing (Step 2), run the hermetic reproduction helper to verify the failure reproduces in an isolated environment. This gate applies only to shell/bash RED tests (`.sh` suffix or `$TEST_CMD` runner starts with `bash` or `sh`).
+
+```bash
+# Run hermetic reproduction check on the RED test
+"${CLAUDE_PLUGIN_ROOT}/scripts/run-hermetic.sh" "$TEST_CMD"
+```
+
+**Interpret the helper output:**
+
+| Outcome | Output | Action |
+|---------|--------|--------|
+| Shell reproduction confirmed | exits 0 | Proceed to Step 3 (Fix Implementation). |
+| Shell non-reproduction | exits non-zero | **HARD-GATE**: halt implementation immediately (see below). |
+| Non-shell test | emits `HERMETIC_SKIP: runner=<runner> reason=non-shell` | Record the `HERMETIC_SKIP` line in session notes and proceed to Step 3 — non-shell tests are never blocked by this gate. |
+
+<HARD-GATE>
+**Shell non-reproduction — full stop.**
+
+If `run-hermetic.sh` exits non-zero for a shell/bash RED test, the bug does NOT reliably reproduce in a hermetic environment. Implementation is blocked.
+
+1. Post a ticket comment: `Hermetic reproduction failed` (include the helper output as context).
+2. Do NOT dispatch a fix sub-agent or make any code changes.
+3. Return to Phase C (Investigation) to re-examine the environment assumptions underlying the root cause. The hermetic failure indicates the root cause analysis may depend on local state, path, or configuration that is not present in a clean environment.
+</HARD-GATE>
+
+**Non-shell path (never blocked)**: When `run-hermetic.sh` emits `HERMETIC_SKIP: runner=<runner> reason=non-shell`, the gate is automatically satisfied — record the skip line and proceed directly to Fix Implementation. Non-shell tests (pytest, node, etc.) are outside the hermetic shell-isolation contract and are never blocked by this gate.
+
 ### Step 3: Fix Implementation (/dso:fix-bug)
 
 **Exploration Decomposition**: During investigation, when a diagnostic question is compound or spans multiple sources (multiple codebase layers, web research, or ambiguous scope), apply the shared exploration decomposition protocol at `skills/shared/prompts/exploration-decomposition.md`. Classify as SINGLE_SOURCE or MULTI_SOURCE. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings directly contradict.
