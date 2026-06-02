@@ -85,19 +85,56 @@ STAGED2C=$(git -C "$T2C" diff --cached --name-only)
 assert_contains "Tier2c spaced file staged intact" "src/my work.py" "$STAGED2C"
 
 # ── Tier 2d: git add failure -> UNRECOVERABLE_REDISPATCH + exit 3 ────────────
-# When `git add` fails (e.g. due to a corrupted object store), the script must
-# NOT emit RECOVERED_FROM_SESSION (false success). It must emit
-# UNRECOVERABLE_REDISPATCH and exit 3 so the caller can requeue.
+# When `git add` fails, the script must NOT emit RECOVERED_FROM_SESSION (false
+# success). It must emit UNRECOVERABLE_REDISPATCH and exit 3.
+#
+# Failure injection uses a deterministic PATH-prepended git stub rather than
+# chmod-based permission manipulation, which is a no-op as root or on non-POSIX
+# filesystems.  The stub intercepts "git add" and exits 1; all other git
+# subcommands are forwarded to the real git binary.
 echo "--- Tier 2d: git add failure -> UNRECOVERABLE_REDISPATCH ---"
 T2D=$(mktemp -d "${TMPDIR:-/tmp}/recover.XXXXXX")
 mk_repo "$T2D"
 mkdir -p "$T2D/src"
 echo "leaked work" > "$T2D/src/leaked2d.py"   # untracked, non-empty
-# Force git add to fail by making .git/objects unwritable
-chmod 555 "$T2D/.git/objects"
-OUT=$(cd "$T2D" && bash "$SCRIPT" "wt/no-such-branch" "$T2D" "src/leaked2d.py" 2>/dev/null); RC=$?
-# Restore permissions before any assertions (cleanup-safe regardless of outcome)
-chmod 755 "$T2D/.git/objects"
+
+# Create a temp bin dir with a git wrapper that fails on `git add`.
+# Capture the real git path BEFORE prepending the stub dir to PATH, so the
+# stub can forward non-`add` subcommands to the actual binary without
+# recursive self-invocation.
+T2D_REAL_GIT="$(command -v git)"
+T2D_BIN=$(mktemp -d "${TMPDIR:-/tmp}/recover-stub-bin.XXXXXX")
+# Write the real git path into the stub at creation time (no runtime PATH lookup).
+cat > "$T2D_BIN/git" << GIT_STUB_EOF
+#!/usr/bin/env bash
+# Test stub: intercept "git [options] add" and exit 1; forward everything else.
+# git may be invoked as: git add ...  OR  git -C <dir> add ...
+# Walk args, skipping flags and their value arguments (-C val, --work-tree val),
+# to find the first subcommand token.
+_skip_next=0
+for _arg in "\$@"; do
+    if [ "\$_skip_next" = "1" ]; then
+        _skip_next=0
+        continue
+    fi
+    case "\$_arg" in
+        -C|--work-tree|--git-dir|--namespace|-c|--exec-path)
+            _skip_next=1; continue ;;
+        -*)
+            continue ;;
+        add)
+            echo "stub: git add failure injected" >&2; exit 1 ;;
+        *)
+            break ;;
+    esac
+done
+exec "${T2D_REAL_GIT}" "\$@"
+GIT_STUB_EOF
+chmod +x "$T2D_BIN/git"
+
+OUT=$(cd "$T2D" && PATH="$T2D_BIN:$PATH" bash "$SCRIPT" "wt/no-such-branch" "$T2D" "src/leaked2d.py" 2>/dev/null); RC=$?
+rm -rf "$T2D_BIN"
+
 assert_eq "Tier2d exit code 3 on git add failure" "3" "$RC"
 assert_not_contains "Tier2d no false RECOVERED_FROM_SESSION" "RECOVERED_FROM_SESSION" "$OUT"
 assert_contains "Tier2d emits UNRECOVERABLE_REDISPATCH" "UNRECOVERABLE_REDISPATCH" "$OUT"
@@ -117,6 +154,6 @@ assert_eq "Tier3 exit code 3" "3" "$RC"
 assert_contains "Tier3 stdout token" "UNRECOVERABLE_REDISPATCH" "$OUT"
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
-rm -rf "$T1" "$T2" "$T2B" "$T2C" "$T3"
+rm -rf "$T1" "$T2" "$T2B" "$T2C" "$T2D" "$T3"
 
 print_summary

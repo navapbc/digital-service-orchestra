@@ -969,9 +969,11 @@ print(orphans)
 test_zero_orphaned_annotations_after_migration
 
 # ── Helper: install a stub classifier and restore the real one on return ──────
-# Usage: _with_stub_classifier <stub_path> <body>
-# Sets _CLASSIFIER_STUB_INSTALLED=1 and stashes _CLASSIFIER_REAL_BACKUP path.
-# Caller MUST call _restore_real_classifier after the run.
+# Usage: _install_stub_classifier <stub_path>
+# Sets _CLASSIFIER_REAL_BACKUP path; registers a trap so the real file is
+# restored unconditionally (EXIT, ERR, INT, TERM) — even on abnormal exit.
+# Caller should still call _restore_real_classifier explicitly on the normal
+# path to clear the trap early, but it is not required for safety.
 _CLASSIFIER_REAL_BACKUP=""
 _install_stub_classifier() {
     local stub_src="$1"
@@ -982,6 +984,9 @@ _install_stub_classifier() {
     cp "$real" "$_CLASSIFIER_REAL_BACKUP"
     cp "$stub_src" "$real"
     chmod +x "$real"
+    # Guarantee restoration on any exit — covers assertion failures, ERR, signals.
+    # The trap is cleared by _restore_real_classifier once the stub region ends.
+    trap '_restore_real_classifier' EXIT ERR INT TERM
 }
 _restore_real_classifier() {
     local script_dir
@@ -992,6 +997,8 @@ _restore_real_classifier() {
         rm -f "$_CLASSIFIER_REAL_BACKUP"
         _CLASSIFIER_REAL_BACKUP=""
     fi
+    # Remove the restoration trap now that the real file is back.
+    trap - EXIT ERR INT TERM
 }
 
 # ── Helper: make a fast stub classifier ──────────────────────────────────────
@@ -1070,6 +1077,18 @@ test_classify_epic_count_cap() {
     deferred_count=$(echo "$output" | grep "Epic-count cap reached" | grep -c "2 deferred" 2>/dev/null || true)
     assert_eq "classify cap: message includes deferred count (2)" "1" "$deferred_count"
 
+    # Verify actual truncation: count MIGRATED/SKIPPED/BATCH_COMPLETE lines to confirm
+    # that exactly cap (3) epics were processed and the remaining 2 were not attempted.
+    # SKIPPED:already-has-section counts as processed (the classifier still runs).
+    local processed_lines
+    processed_lines=$(echo "$output" | grep -c "^\(MIGRATED:\|SKIPPED:\|BATCH_COMPLETE:.*migrated_this_batch\)" 2>/dev/null || true)
+    # BATCH_COMPLETE emits 1 summary line; MIGRATED/SKIPPED emit 1 line each per ticket.
+    # With 3 epics capped: 3 SKIPPED lines + 1 BATCH_COMPLETE = 4 lines.
+    # Confirm fewer than 5 SKIPPED lines (which would indicate the cap was not enforced).
+    local skipped_lines
+    skipped_lines=$(echo "$output" | grep -c "^SKIPPED:" 2>/dev/null || true)
+    assert_eq "classify cap: exactly 3 epics processed (3 SKIPPED lines, cap enforced)" "3" "$skipped_lines"
+
     assert_pass_if_clean "test_classify_epic_count_cap"
 }
 test_classify_epic_count_cap
@@ -1136,6 +1155,18 @@ test_classify_wall_time_guard() {
     local summary_count
     summary_count=$(echo "$output" | grep -c "Migration complete" 2>/dev/null || true)
     assert_eq "wall-time guard: summary still printed (clean break)" "1" "$summary_count"
+
+    # Verify the guard caused an actual early-break: count processed epics (SKIPPED/MIGRATED
+    # lines) to confirm fewer than the full 3 were processed.  With wall-time=0, the guard
+    # fires before or during the first iteration, so at most 0 epics complete.  If the guard
+    # were broken (prints the message but doesn't break), all 3 would appear.
+    local processed_epics
+    processed_epics=$(echo "$output" | grep -c "^\(MIGRATED:\|SKIPPED:\)" 2>/dev/null || true)
+    # Strictly fewer than 3 confirms the loop exited early, not just printed the message.
+    local full_set=3
+    local guard_broke_early=0
+    [ "$processed_epics" -lt "$full_set" ] && guard_broke_early=1
+    assert_eq "wall-time guard: loop exited early (fewer than $full_set epics processed)" "1" "$guard_broke_early"
 
     assert_pass_if_clean "test_classify_wall_time_guard"
 }

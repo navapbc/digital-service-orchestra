@@ -3448,6 +3448,39 @@ def test_reducer_link_event_alias_target_normalizes_to_canonical_uuid(
         data={"relation": "blocks", "target_id": "abcd-1234"},
     )
 
+    # Pre-assertion gate: confirm ticket_resolver.resolve_ticket_id is importable and
+    # actually maps the short-hex alias to the canonical UUID when called directly.
+    # This makes a resolver import/resolution failure unambiguous — the test will
+    # skip with a clear reason rather than appearing to test the reducer when the
+    # underlying resolver path is silently bypassed by the `except Exception` fallback.
+    try:
+        import importlib
+        import sys as _sys
+
+        # Resolve script directory so ticket_resolver is importable from tests.
+        _scripts_dir = str(REPO_ROOT / "plugins" / "dso" / "scripts")
+        if _scripts_dir not in _sys.path:
+            _sys.path.insert(0, _scripts_dir)
+        _tr = importlib.import_module("ticket_resolver")
+        _resolve_fn = getattr(_tr, "resolve_ticket_id", None)
+        assert _resolve_fn is not None, (
+            "ticket_resolver.resolve_ticket_id not found — "
+            "resolver module exists but lacks the expected function"
+        )
+        # Verify the resolver maps the alias to the canonical UUID against our tracker.
+        resolved = _resolve_fn("abcd-1234", str(tracker_dir))
+        assert resolved == _ALIAS_TARGET_UUID, (
+            f"ticket_resolver.resolve_ticket_id('abcd-1234', tracker_dir) returned "
+            f"{resolved!r}; expected {_ALIAS_TARGET_UUID!r}. "
+            "Resolver is available but does not resolve the alias correctly — "
+            "fix ticket_resolver before this test can be meaningful."
+        )
+    except ImportError as exc:
+        pytest.skip(
+            f"ticket_resolver is not importable ({exc}); cannot verify alias-resolution path. "
+            "Install/implement ticket_resolver to un-skip this test."
+        )
+
     state = reducer.reduce_ticket(source_ticket_dir)
 
     assert state is not None, "reduce_ticket must return state"
