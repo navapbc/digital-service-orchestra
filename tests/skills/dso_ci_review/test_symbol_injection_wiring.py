@@ -30,7 +30,16 @@ from dso_ci_review import runner as rn  # noqa: E402
 def _force_chunk_config(tmp_path, monkeypatch) -> None:
     """Lower the fan-out loc_threshold so a modest diff chunks per-file, and use
     an isolated empty default config otherwise.
+
+    Hermeticity: in addition to overriding default_config_path (the only config
+    seam the wiring exposes), pin HOME and clear git's global-config override at
+    the tmp dir. The current config reader (_config.read_config_int/bool) derives
+    its path from __file__ and reads NO environment variables, so this is
+    defense-in-depth — it keeps the wiring test independent of the CI runner's
+    environment if the reader ever grows an env fallback.
     """
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("GIT_CONFIG_GLOBAL", raising=False)
     config_file = tmp_path / "dso-config.conf"
     # loc_threshold low → each directory cluster with >threshold LOC fans out.
     config_file.write_text("review.region_split.loc_threshold=5\n")

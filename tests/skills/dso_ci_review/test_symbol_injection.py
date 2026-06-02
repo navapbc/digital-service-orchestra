@@ -377,19 +377,20 @@ def test_annotate_specs_is_additive_does_not_mutate_diff() -> None:
     )
 
 
-def test_disabled_by_config_injects_nothing(tmp_path, monkeypatch) -> None:
+def test_disabled_by_config_injects_nothing(tmp_path) -> None:
     """When review.region_split.symbol_injection=false, no spec is annotated."""
-    from dso_ci_review import _config as cfg_mod
-
     config_file = tmp_path / "dso-config.conf"
     config_file.write_text("review.region_split.symbol_injection=false\n")
-    monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(config_file))
 
     chunk_a = _spec("src/a", "src/a/m.py", ["def f(x):", "    return x"])
     chunk_b = _spec("src/b", "src/b/c.py", ["def g():", "    return f(1)"])
     specs = [chunk_a, chunk_b]
 
-    si.annotate_specs_with_symbol_injection(specs)
+    # Drive the config gate through the public config_path parameter rather than
+    # monkeypatching default_config_path. read_config_bool resolves the path at
+    # call time, so an explicit path is simpler and immune to import-order /
+    # caching concerns (no reliance on when the module was imported).
+    si.annotate_specs_with_symbol_injection(specs, config_path=str(config_file))
     assert all("symbol_injection_context" not in s for s in specs), (
         "feature disabled by config must annotate nothing"
     )

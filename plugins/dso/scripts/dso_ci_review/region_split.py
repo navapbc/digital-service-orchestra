@@ -749,11 +749,12 @@ def run_region_split_strategy_f(
     # read-only "Definitions referenced in other chunks of this PR" appendix to
     # each spec so a reviewer that can only see ONE chunk stops hallucinating
     # "missing"/"untested" references to symbols defined in a SIBLING chunk
-    # (55% of chunked-review FPs per M-1). This is ADDITIVE and OFF-BY-DEFAULT-
-    # SAFE: it only sets spec["symbol_injection_context"] (carried downstream as
-    # read-only reviewer review_context). It NEVER mutates spec["diff"] or
-    # spec["files"], so the OVER_BOUND / budget math (computed on the DIFF, not
-    # the appendix) is unaffected. Disabled via review.region_split.symbol_injection.
+    # (55% of chunked-review FPs per M-1). It is enabled by default and SAFE BY
+    # CONSTRUCTION: it only SETS spec["symbol_injection_context"] (carried
+    # downstream as read-only reviewer review_context) and NEVER mutates
+    # spec["diff"] or spec["files"], so the OVER_BOUND / budget math (computed on
+    # the DIFF, not the appendix) is unaffected. Opt out via
+    # review.region_split.symbol_injection=false.
     annotate_specs_with_symbol_injection(dispatch_specs)
 
     return dispatch_specs

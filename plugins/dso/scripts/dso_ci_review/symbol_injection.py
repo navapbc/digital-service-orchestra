@@ -386,9 +386,10 @@ def build_appendix_for_chunk(
         return None
 
     # G-2: bounded appendix with truncate-toward-OMISSION. Accumulate whole
-    # snippets; once the next snippet would exceed the budget, stop (drop it and
-    # all remaining — never split a definition). The header counts toward the
-    # budget so the TOTAL appendix is bounded.
+    # snippets; any snippet that would exceed the budget is skipped and counted
+    # as omitted, while smaller later snippets may still fit — a definition is
+    # never split mid-body. The header counts toward the budget so the TOTAL
+    # appendix is bounded.
     header = (
         f"## {_APPENDIX_HEADER}\n\n"
         "The following symbols are referenced in this chunk and DEFINED in other "
