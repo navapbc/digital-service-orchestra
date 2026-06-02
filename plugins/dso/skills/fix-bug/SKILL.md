@@ -1291,6 +1291,40 @@ ticket comment <BUG_TICKET_ID> "Anti-pattern scan complete: <total_confirmed> co
 
 This observation record feeds dogfooding analysis — tracking which patterns recur across sessions helps identify systemic issues in the codebase.
 
+#### Commit Trailer (dd-1)
+
+After the scan completes (including the zero-candidates case), copy the `SCAN_RESULT` `trailer_line` field **verbatim** into the commit message as a git-trailer footer. The trailer line must appear in the commit message footer, separated from the body by a blank line, in `key: value` form — do not reformat, truncate, or paraphrase it:
+
+```
+<commit body>
+
+<trailer_line verbatim from SCAN_RESULT>
+```
+
+Example (the exact string comes from `SCAN_RESULT.trailer_line`):
+
+```
+fix(auth): guard PLUGIN_ROOT before set -u
+
+Antipattern-Scan: PLUGIN_ROOT-unguarded-set-u root=/repo matches=3
+```
+
+If `trailer_line` is absent (MALFORMED scan result), record the malformation in a ticket comment and omit the trailer rather than fabricating one.
+
+#### Promote-Query Sub-Step (dd-4)
+
+After recording the scan observation, promote the confirmed scan query to the known-antipatterns registry so that future commits in this codebase are blocked by `check-known-antipatterns.sh` (epic 7575-5a90).
+
+**When `${CLAUDE_PLUGIN_ROOT}/config/known-antipatterns.yaml` exists**: append a new entry to the registry following the 7575-5a90 schema (fields: `id`, `pattern`, `targets`, `remediation`, `citation`). Use `SCAN_RESULT.query_used` as the `pattern` and the originating bug ticket as the `citation`. Do not mutate existing entries — the registry is append-only.
+
+**When `${CLAUDE_PLUGIN_ROOT}/config/known-antipatterns.yaml` does not exist** (registry not yet shipped — the deferred path): write a durable ticket comment with the exact text:
+
+```
+ANTIPATTERN_PROMOTE_DEFERRED: <query>
+```
+
+where `<query>` is `SCAN_RESULT.query_used`. This preserves the promotion intent so that when the registry ships (per epic 7575-5a90), the deferred queries can be bulk-applied.
+
 ### Step 2: Test Index Check (/dso:fix-bug)
 
 After the fix is verified GREEN and before committing, check whether the source file(s) modified by the fix have entries in `.test-index`. This prevents future regression detection gaps where the test gate cannot associate a source file with its test.
