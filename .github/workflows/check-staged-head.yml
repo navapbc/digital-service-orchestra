@@ -19,6 +19,11 @@ name: Check Staged Head Branch
 on:
   pull_request:
     branches: [main]
+    # ready_for_review is REQUIRED alongside the draft pass-through below: when a
+    # draft PR is marked ready WITHOUT a new push, only this activity type
+    # re-triggers the gate so it re-evaluates non-draft. Omitting it would let a
+    # session→main PR pass-as-draft and then merge once readied — a bypass.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -32,8 +37,20 @@ jobs:
       - name: Verify head branch matches staged-* pattern
         env:
           HEAD_REF: ${{ github.head_ref }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           set -euo pipefail
+          # Draft PRs cannot merge, so this gate is moot for them. The sprint
+          # umbrella defense-substrate PR (base=main, head=session) is always a
+          # draft; without this pass-through its failure (head ≠ staged-*) attaches
+          # to the shared head commit and contaminates PR1 (source→staged), which
+          # shares the same head SHA, blocking the two-tier promotion (bug 1f5f).
+          # This is NOT a bypass: ready_for_review re-triggers the workflow, so the
+          # gate re-evaluates the moment the PR becomes mergeable.
+          if [[ "$IS_DRAFT" == "true" ]]; then
+            echo "Draft PR — check-staged-head defers until the PR is marked ready; passing."
+            exit 0
+          fi
           if [[ -z "$HEAD_REF" ]]; then
             echo "::error::HEAD_REF is empty — refusing to evaluate; treating as fail-closed."
             exit 1

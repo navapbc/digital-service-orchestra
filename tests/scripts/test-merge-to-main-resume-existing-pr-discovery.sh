@@ -92,6 +92,52 @@ test_resume_populates_state_pr_url_from_gh() {
 }
 
 # ============================================================
+# test_resume_fallback_requests_baseRefName (1f5f / b7bf-c3b9)
+#
+# The gh query must request baseRefName so it can exclude the base=main umbrella
+# draft PR (the GitHubPRDefenseStore substrate). Resolving the umbrella made
+# --resume drive the wrong PR.
+# ============================================================
+test_resume_fallback_requests_baseRefName() {
+    local found=0
+    grep -qE 'gh pr list --head "\$BRANCH".*--state open' <<< "$_RESUME_DETECT_BLOCK" 2>/dev/null \
+        && grep -qE '\-\-json[^|]*baseRefName' <<< "$_RESUME_DETECT_BLOCK" 2>/dev/null && found=1 || true
+    assert_eq "resume fallback requests baseRefName to exclude the umbrella PR (1f5f)" "1" "$found"
+}
+
+# ============================================================
+# test_resume_fallback_filters_to_staged_base (1f5f / b7bf-c3b9)
+#
+# The resolution must select only PRs whose base is a staged-* branch, never the
+# base=main umbrella PR.
+# ============================================================
+test_resume_fallback_filters_to_staged_base() {
+    local found=0
+    grep -qE "startswith\('staged-'\)" <<< "$_RESUME_DETECT_BLOCK" 2>/dev/null && found=1 || true
+    assert_eq "resume fallback filters to staged-* base (excludes base=main umbrella) (1f5f)" "1" "$found"
+}
+
+# ============================================================
+# test_advance_block_not_resume_gated (73b5)
+#
+# The advance-to-PR2 detection block must run on EVERY invocation, not only under
+# --resume — a bare re-invocation after PR1 merged must also advance instead of
+# minting a duplicate staged ref + PR1 (#490/#492). Assert its guard is the bare
+# `if type _state_get_field`, NOT `[[ "${_RESUME:-0}" -eq 1 ]] && type _state_get_field`.
+# ============================================================
+test_advance_block_not_resume_gated() {
+    local advance_block resume_gated=0 unconditional=0
+    advance_block=$(awk '
+        /Advance to PR2 when PR1 has already merged \(runs UNCONDITIONALLY\)/ { found=1 }
+        found { print }
+        found && /_resume_should_advance_to_staged "\$_pr1_open"/ { exit }
+    ' "$MERGE_SCRIPT" 2>/dev/null)
+    grep -qE 'if \[\[ "\$\{_RESUME:-0\}" -eq 1 \]\] && type _state_get_field' <<< "$advance_block" 2>/dev/null && resume_gated=1 || true
+    grep -qE '^if type _state_get_field >/dev/null 2>&1; then' <<< "$advance_block" 2>/dev/null && unconditional=1 || true
+    assert_eq "advance-to-PR2 block runs unconditionally, not _RESUME-gated (73b5)" "01" "${resume_gated}${unconditional}"
+}
+
+# ============================================================
 # Run tests
 # ============================================================
 echo "=== test-merge-to-main-resume-existing-pr-discovery.sh ==="
@@ -99,5 +145,8 @@ echo "=== test-merge-to-main-resume-existing-pr-discovery.sh ==="
 test_resume_queries_gh_for_existing_pr
 test_resume_filters_drafts_in_gh_query
 test_resume_populates_state_pr_url_from_gh
+test_resume_fallback_requests_baseRefName
+test_resume_fallback_filters_to_staged_base
+test_advance_block_not_resume_gated
 
 print_summary
