@@ -3,7 +3,7 @@
 # Behavioral contract tests for the dso:bot-psychologist agent definition.
 #
 # These tests verify that the agent file at plugins/dso/agents/bot-psychologist.md
-# encodes the required behavioral contracts: 15-item failure taxonomy, 5 RCA probes,
+# encodes the required behavioral contracts: 17-item failure taxonomy, 5 RCA probes,
 # RESULT schema with hypothesis_tests sub-fields matching fix-bug format, frontmatter
 # with correct name/model, and SUB-AGENT-GUARD block.
 #
@@ -63,8 +63,8 @@ assert_eq "test_frontmatter_fields: model is sonnet" "present" "$actual_model"
 assert_eq "test_frontmatter_fields: description field present" "present" "$actual_desc"
 assert_pass_if_clean "test_frontmatter_fields"
 
-# ── test_failure_taxonomy_all_15_items ───────────────────────────────────────
-# All 15 taxonomy items must be named in the agent file.
+# ── test_failure_taxonomy_all_17_items ───────────────────────────────────────
+# All 17 taxonomy items must be named in the agent file.
 # Contract: the agent must reference every failure mode it is capable of diagnosing.
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
@@ -89,6 +89,8 @@ TAXONOMY_ITEMS=(
     "Phantom Capability Hallucination"
     "Instruction Leaking"
     "Confidence Calibration Failure"
+    "Instruction Locality"
+    "Pink Elephant Effect"
 )
 
 for item in "${TAXONOMY_ITEMS[@]}"; do
@@ -98,9 +100,9 @@ for item in "${TAXONOMY_ITEMS[@]}"; do
     else
         actual_item="missing"
     fi; shopt -u nocasematch
-    assert_eq "test_failure_taxonomy_all_15_items: '$item' present" "present" "$actual_item"
+    assert_eq "test_failure_taxonomy_all_17_items: '$item' present" "present" "$actual_item"
 done
-assert_pass_if_clean "test_failure_taxonomy_all_15_items"
+assert_pass_if_clean "test_failure_taxonomy_all_17_items"
 
 # ── test_rca_probes_all_5 ────────────────────────────────────────────────────
 # All 5 RCA probes must be named in the agent file.
