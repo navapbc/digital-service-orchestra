@@ -349,3 +349,187 @@ def test_primary_and_rechunk_share_one_budget_gate() -> None:
         "both the primary region-split path and the R-2 re-chunk path must route "
         f"through _apply_large_diff_budget_gate; found {call_count} call site(s)"
     )
+
+
+# ---------------------------------------------------------------------------
+# R-2 re-chunk MERGE path — end-to-end through real main()
+#
+# This exercises the FULL R-2 re-chunk MERGE branch with the REAL
+# _dispatch_and_aggregate_clusters closure (only the per-cluster LLM dispatch
+# and single-pass dispatch are stubbed; _aggregate_cluster_findings and
+# merge_findings run for real). It asserts the pre-rechunk REAL finding is
+# merged WITH the re-chunk cluster result.
+#
+# This ALSO empirically PROVES the "critical NameError about
+# _dispatch_and_aggregate_clusters closure scope" finding is a FALSE POSITIVE:
+# if that closure were out of scope when the else-branch R-2 path calls it,
+# main() would raise NameError here instead of producing merged findings.
+# ---------------------------------------------------------------------------
+
+
+def test_r2_rechunk_merge_path_end_to_end(tmp_path) -> None:
+    """R-2 MERGE end-to-end: a single-pass review that returns a REAL finding
+    alongside a fallback_exhausted sentinel re-routes to the chunked path; the
+    real _dispatch_and_aggregate_clusters runs, and the final output MERGES the
+    pre-rechunk real finding with the re-chunk cluster findings.
+    """
+    import json
+    import os
+    from unittest.mock import patch
+
+    import dso_ci_review.runner as runner_mod
+
+    # A 2-file / 2-directory diff: below the region-split GATE (single-pass
+    # branch), but run_region_split_strategy_f partitions it into 2 clusters,
+    # so _rechunk_on_fallback_exhausted returns >1 spec and the re-chunk fires.
+    diff_text = "\n".join(
+        _file_block("src/a/mod_a.py", 4) + _file_block("src/b/mod_b.py", 4)
+    )
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "findings.json"
+
+    tier_result = {
+        "selected_tier": "standard",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 8,
+        "blast_radius": 1,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 0,
+        "change_volume": 0,
+        "computed_total": 1,
+        "is_merge_commit": False,
+    }
+
+    # Single-pass dispatch returns a REAL finding PLUS the fallback_exhausted
+    # sentinel — the trigger for the R-2 re-chunk.
+    single_pass_result = {
+        "findings": [
+            {
+                "severity": "important",
+                "type": "correctness",
+                "description": "PRE_RECHUNK_REAL_FINDING",
+                "cited_lines": ["src/a/mod_a.py:1"],
+            },
+            {
+                "type": "fallback_exhausted",
+                "agent_id": "x",
+                "primary_model": "m",
+                "description": "context exhausted",
+            },
+        ],
+        "scores": {"correctness": 1},
+        "summary": "single-pass",
+    }
+
+    async def _mock_single_pass(agents):
+        return [single_pass_result]
+
+    # Per-cluster dispatch (the re-chunk) returns canned cluster RESULT dicts —
+    # _aggregate_cluster_findings + merge_findings run for REAL over these.
+    async def _mock_gather_clusters(*, specs, **kwargs):
+        results = []
+        for idx, spec in enumerate(specs):
+            results.append(
+                {
+                    "cluster_id": spec.get("cluster_dir", f"c{idx}"),
+                    "file_paths": spec.get("files", []),
+                    "findings": [
+                        {
+                            "severity": "minor",
+                            "type": "correctness",
+                            "description": f"RECHUNK_CLUSTER_FINDING_{idx}",
+                            "cited_lines": [f"{spec.get('files', ['x'])[0]}:1"],
+                        }
+                    ],
+                    "status": "ok",
+                }
+            )
+        return results
+
+    with (
+        patch.dict(
+            os.environ,
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "WORKFLOW_PLUGIN_ARTIFACTS_DIR": str(tmp_path),
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=tier_result,
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=_mock_single_pass,
+        ),
+        patch(
+            "dso_ci_review.runner._gather_clusters",
+            side_effect=_mock_gather_clusters,
+        ),
+        # Stub ONLY the aggregator's LLM synthesis boundary — returning None
+        # makes aggregate_cluster_findings fall back DETERMINISTICALLY to the
+        # real per-cluster findings (dedup + visibility trailer + ledger all
+        # run for real), so the MERGE path is exercised end-to-end without a
+        # live LLM call.
+        patch(
+            "dso_ci_review.aggregator._synthesize_via_llm",
+            return_value=None,
+        ),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        ),
+        patch(
+            "dso_ci_review.runner._init_cycle_ledger",
+            return_value=({"cycles": []}, 1),
+        ),
+        patch(
+            "dso_ci_review.runner.cycle_ledger.read_ledger",
+            return_value={"cycles": []},
+        ),
+        patch(
+            "dso_ci_review.runner.cycle_next_action",
+            return_value={"action": "CONTINUE"},
+        ),
+        patch("subprocess.check_output", return_value="deadbeef1234\n"),
+        patch("dso_ci_review.runner._post_pr_review", return_value=(0, 0)),
+        patch("dso_ci_review.runner._append_cycle", return_value=None),
+    ):
+        # If the _dispatch_and_aggregate_clusters closure were out of scope in
+        # the else-branch R-2 path, this call would raise NameError (the
+        # "critical" finding) — it does not.
+        runner_mod.main()
+
+    result = json.loads(output_file.read_text())
+    descriptions = [
+        (f.get("description") or "") for f in result.get("findings", [])
+    ]
+    joined = " ".join(descriptions)
+
+    # The pre-rechunk REAL finding must survive the merge.
+    assert "PRE_RECHUNK_REAL_FINDING" in joined, (
+        "the real finding emitted by the single pass BEFORE context exhaustion "
+        "must be merged forward with the re-chunk result, not discarded"
+    )
+    # At least one re-chunk cluster finding must be present (proves the real
+    # _dispatch_and_aggregate_clusters ran and its output was merged in).
+    assert any("RECHUNK_CLUSTER_FINDING_" in d for d in descriptions), (
+        "the re-chunk MERGE path must run the real _dispatch_and_aggregate_"
+        "clusters and merge its cluster findings into the final output"
+    )
+    # The fallback_exhausted sentinel must NOT be the surviving signal — it was
+    # replaced by the real re-chunk review.
+    assert "fallback_exhausted" not in joined.lower(), (
+        "the synthetic fallback_exhausted sentinel must be replaced by the "
+        "re-chunk review, not emitted as a finding"
+    )

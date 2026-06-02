@@ -425,6 +425,27 @@ def _validate_large_diff_config(config: dict) -> None:
         )
 
 
+def _resolve_large_diff_config(config_path: str | None) -> dict:
+    """Resolve the large-diff / file-filter config, honoring operator overrides.
+
+    ``_load_filter_config`` returns an ALL-DEFAULT config when given ``None`` —
+    unlike ``read_config_int`` it does NOT auto-resolve the repo's
+    dso-config.conf. The dispatch path historically called it with
+    ``config_path=None``, so every operator ``review.file_filter.*`` override
+    (``max_files`` / ``max_calls`` / ``ignore.glob`` / ``ignore.regex``) was
+    silently ignored for BOTH the region-split gate decision and the chunked
+    dispatch budget.
+
+    This helper resolves the canonical repo config path when the caller passes
+    ``None`` (mirroring ``_read_tier_model``'s ``default_config_path()``
+    fallback), then loads the filter config from it — so operator overrides
+    take effect. An explicit, non-None path is honored verbatim.
+    """
+    if config_path is None:
+        config_path = default_config_path()
+    return _load_filter_config(config_path)
+
+
 def _real_blocking_findings(findings: list[dict]) -> list[dict]:
     """Return the subset of findings that should block merge.
 
@@ -461,11 +482,14 @@ def _partition_reviewable_files(
     the should_split decision (component #3' R-1).
 
     The same partition feeds BOTH the gate decision (via
-    ``_should_region_split_on_files``) and, when the chunked path runs, the
-    dispatch filtering. This eliminates the previous asymmetry where the
-    generated/binary file-filter only ran inside the chunked branch — so a
-    generated-heavy diff that reviews single-pass now still has its generated
-    files filtered out of scope.
+    ``_should_region_split_on_files`` — so generated/binary files do not push a
+    diff over the file-count gate) and, when the chunked path runs, the dispatch
+    filtering (all-skipped specs dropped, mixed specs pruned to their reviewable
+    files). It does NOT alter the single-pass (non-chunked) dispatch, which
+    reviews the full diff text and does not consult these sets. Previously the
+    file-filter only ran inside the chunked branch; computing the partition
+    upstream makes the GATE file-count input filter-aware (its primary purpose),
+    not the single-pass dispatch payload.
 
     The diff TEXT is NOT mutated: only the file path sets are derived. This
     preserves the OVER_BOUND budget math and the visibility trailer's
@@ -594,14 +618,26 @@ def _apply_large_diff_budget_gate(
         slipped the LOC gate, exhausted single-pass context, and is being
         re-routed to the chunked path).
 
-    Centralizing it guarantees an R-2 re-chunk respects the operator's
-    ``max_files`` / ``max_calls`` budget and the ``max_calls >= max_files + 1``
-    config constraint EXACTLY as the primary path does — emitting the same
-    OVER_BOUND outcome rather than fanning out unbounded.
+    Centralizing it guarantees an R-2 re-chunk respects the operator's budget
+    and the ``max_calls >= max_files + 1`` config constraint EXACTLY as the
+    primary path does — emitting the same OVER_BOUND outcome rather than fanning
+    out unbounded.
+
+    Two INDEPENDENT caps are enforced (after pruning skipped files from each
+    spec — all-skipped specs are dropped, mixed specs are trimmed to their
+    reviewable files):
+      - ``max_files`` — the cluster-count cap: number of reviewable cluster
+        dispatches must not exceed it.
+      - ``max_calls`` — the call budget: the TOTAL LLM call count, counting one
+        call per dispatch PLUS one aggregation/synthesis call (the DD4
+        single-ledger-entry aggregation), must not exceed it. (Previously a
+        redundant ``> max_files * max_calls`` product check stood in for this
+        and ignored the +1 aggregation.)
 
     Args:
         dispatch_specs: raw Strategy-F cluster specs (pre skip-filter).
-        large_diff_config: config dict from ``_load_filter_config``.
+        large_diff_config: config dict from ``_resolve_large_diff_config`` /
+            ``_load_filter_config``.
         skipped_set: set of file paths filtered out of review scope (R-1).
 
     Returns:
@@ -625,27 +661,48 @@ def _apply_large_diff_budget_gate(
             "over_bound_reason": str(_cfg_exc),
         }
 
-    # Filter specs to only include reviewable files (remove skipped files).
-    _filtered_specs = [
-        spec
-        for spec in dispatch_specs
-        if not all(f in skipped_set for f in spec.get("files", []))
-    ]
+    # Filter specs against the skipped set. Two cases:
+    #   - ALL of a spec's files are skipped → drop the spec entirely.
+    #   - SOME of a spec's files are skipped (MIXED spec) → prune the skipped
+    #     files from spec["files"] AND trim their hunks from spec["diff"] so
+    #     out-of-scope (generated/ignored) files are never sent to the LLM. A
+    #     directory-level (Strategy-E) spec can carry multiple files; the prior
+    #     all-or-nothing drop left generated files inside a mixed cluster.
+    _filtered_specs: list[dict] = []
+    for spec in dispatch_specs:
+        _spec_files = spec.get("files", [])
+        _kept = [f for f in _spec_files if f not in skipped_set]
+        if not _kept:
+            # Every file in this spec is skipped — drop it.
+            continue
+        if len(_kept) == len(_spec_files):
+            # Nothing to prune — pass through unchanged.
+            _filtered_specs.append(spec)
+        else:
+            # Mixed spec — prune skipped files from files + diff.
+            _filtered_specs.append(_prune_skipped_from_spec(spec, _kept))
 
-    # OVER_BOUND check — clusters × calls exceeds budget.
+    # OVER_BOUND check — two INDEPENDENT caps (component #3' fix):
+    #   1. Cluster-count cap (max_files): the number of reviewable cluster
+    #      dispatches must not exceed max_files.
+    #   2. Call budget (max_calls): the TOTAL LLM call count — one call per
+    #      cluster dispatch PLUS one aggregation/synthesis call — must not
+    #      exceed max_calls. The aggregation pass counts as ONE call against
+    #      the budget regardless of cluster count (DD4 single-ledger-entry
+    #      invariant; _validate_large_diff_config documents max_calls >=
+    #      max_files + 1 for exactly this reason).
+    # The previous `> max_files * max_calls` product check was redundant with
+    # the cluster cap (since max_calls >= 1) and ignored the +1 aggregation.
     _max_files_cfg = large_diff_config.get("max_files") or 0
     _max_calls_cfg = large_diff_config.get("max_calls") or 0
     _total_dispatches = len(_filtered_specs)
-    _budget_exceeded = False
-    if _max_files_cfg > 0 and _total_dispatches > _max_files_cfg:
-        _budget_exceeded = True
-    if _max_calls_cfg > 0 and _total_dispatches > _max_files_cfg * _max_calls_cfg:
-        _budget_exceeded = True
+    # Total LLM calls: one per dispatch + one aggregation synthesis call.
+    _total_calls = _total_dispatches + 1
 
-    if _budget_exceeded:
+    if _max_files_cfg > 0 and _total_dispatches > _max_files_cfg:
         _over_bound_msg = (
-            f"{OVER_BOUND}: {_total_dispatches} clusters exceeds "
-            f"max_files ({_max_files_cfg}) × max_calls ({_max_calls_cfg}). "
+            f"{OVER_BOUND}: cluster-count cap — {_total_dispatches} reviewable "
+            f"clusters exceeds max_files ({_max_files_cfg}). "
             "Routed to admin/FP-recovery."
         )
         print(f"INFO: {_over_bound_msg}", file=sys.stderr)
@@ -655,7 +712,46 @@ def _apply_large_diff_budget_gate(
             "over_bound_reason": _over_bound_msg,
         }
 
+    if _max_calls_cfg > 0 and _total_calls > _max_calls_cfg:
+        _over_bound_msg = (
+            f"{OVER_BOUND}: call budget — {_total_dispatches} dispatch(es) + 1 "
+            f"aggregation = {_total_calls} LLM calls exceeds max_calls "
+            f"({_max_calls_cfg}). Routed to admin/FP-recovery."
+        )
+        print(f"INFO: {_over_bound_msg}", file=sys.stderr)
+        return [], {
+            "findings": [],
+            "status": OVER_BOUND,
+            "over_bound_reason": _over_bound_msg,
+        }
+
     return _filtered_specs, None
+
+
+def _prune_skipped_from_spec(spec: dict, kept_files: list[str]) -> dict:
+    """Return a copy of ``spec`` with skipped files pruned from BOTH ``files``
+    and ``diff`` (component #3' mixed-cluster fix).
+
+    ``kept_files`` is the subset of ``spec['files']`` that survived the
+    skip-filter (full paths). The diff is re-extracted to contain only the
+    hunks for the kept files, reusing ``region_split._extract_cluster_diff``
+    with the ``"."`` pseudo-cluster (which matches full paths verbatim) so the
+    hunk-delimiter parsing stays in one place.
+
+    Other spec keys (cluster_dir, oversized_single_file, symbol_injection
+    context, …) are preserved unchanged. The original spec is not mutated.
+    """
+    from dso_ci_review.region_split import (
+        _extract_cluster_diff as _rs_extract_cluster_diff,
+    )  # noqa: PLC0415
+
+    _pruned = dict(spec)
+    _pruned["files"] = list(kept_files)
+    _orig_diff = spec.get("diff", "")
+    if _orig_diff:
+        # "." pseudo-cluster → _extract_cluster_diff matches full paths verbatim.
+        _pruned["diff"] = _rs_extract_cluster_diff(_orig_diff, ".", list(kept_files))
+    return _pruned
 
 
 # ---------------------------------------------------------------------------
@@ -2753,15 +2849,37 @@ def main() -> int:
         # upstream, and feed BOTH the gate decision (_should_region_split_on_files)
         # AND the chunked dispatch from it. The diff TEXT is never mutated — only
         # the file path sets are derived — preserving the OVER_BOUND budget math
-        # and the visibility trailer's skipped-file list. This also means a
-        # generated-heavy diff that now reviews single-pass still has its
-        # generated files filtered out of scope (recorded below in Step 1s).
-        _large_diff_config = _load_filter_config(config_path)
+        # and the visibility trailer's skipped-file list.
+        #
+        # Scope of the filter (important): the reviewable/skipped partition
+        # affects (a) the GATE's file-count input — generated files do not push
+        # a diff over the file-count gate — and (b) the CHUNKED path, where
+        # all-skipped specs are dropped and mixed specs are pruned to their
+        # reviewable files before dispatch. It does NOT affect the single-pass
+        # (non-chunked) dispatch below: that branch reviews the full diff_text
+        # and does not consult _reviewable_files / _skipped_files. A
+        # generated-heavy diff that reviews single-pass therefore still sends
+        # the full diff to the reviewer (the gate file-count input is filtered;
+        # the single-pass dispatch payload is not).
+        # Resolve via _resolve_large_diff_config (NOT _load_filter_config
+        # directly): config_path is None here, and _load_filter_config(None)
+        # returns all-defaults — silently dropping operator
+        # review.file_filter.* overrides for the gate decision AND the chunked
+        # dispatch budget. The helper resolves the repo config path so overrides
+        # take effect.
+        _large_diff_config = _resolve_large_diff_config(config_path)
         _reviewable_files, _skipped_files = _partition_reviewable_files(
             diff_text, config=_large_diff_config
         )
         _skipped_set = {path for path, _ in _skipped_files}
 
+        # SCOPE NOTE: this closure is defined UNCONDITIONALLY here, BEFORE the
+        # `if _should_region_split_on_files(...)` branch below. It is therefore
+        # bound in both the `if` (primary region-split) branch and the `else`
+        # (single-pass) branch's component-#3' R-2 re-chunk call site — no
+        # NameError can occur in either path. (Confirmed end-to-end by
+        # test_r2_rechunk_merge_path_end_to_end.) Do not move this def inside
+        # the `if` branch.
         def _dispatch_and_aggregate_clusters(filtered_specs: list[dict]) -> dict:
             """Dispatch the given (already skip-filtered) cluster specs in
             parallel and aggregate into a merged result with visibility trailer.
