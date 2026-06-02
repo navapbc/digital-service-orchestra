@@ -348,13 +348,7 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 1. **DO NOT ask the user to confirm or narrow scope** (guard dd88-afb6 + 5554-9125). When `OPEN_BUG_COUNT` is large (e.g., N=53), the instinct to ask "P1 only, P1+P2, all 53, or triage duplicates first?" is exactly the failure mode this gate prevents. Scope is fixed by the skill's contract: every open bug, in priority order, until graceful shutdown is authorized by a literal compaction-event banner. The user invoking `/dso:debug-everything` IS the scope authorization. No `AskUserQuestion` between Phase A and Bug-Fix Mode Step 2 is valid. Begin processing immediately.
 
-2. **DO NOT fix bugs directly from the orchestrator** (guard jira-dig-1662). When the bug list is long, the instinct to dispatch parallel `general-purpose` sub-agents that "investigate + fix + commit inline" is also a violation. Each ticket MUST go through `/dso:fix-bug` (read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and follow it as a script — the orchestrator coordinates, fix-bug's sub-agents investigate and fix). The following are all PROHIBITED regardless of how mechanical or obvious the fix appears:
-   - Reading source files to understand a bug and then writing the fix yourself
-   - Dispatching a `general-purpose` agent with an inline fix prompt instead of reading fix-bug/SKILL.md
-   - Producing a patch or code change without going through fix-bug's HARD-GATE (intent search, complexity scoring, RED test, Phase D approval)
-   - Skipping fix-bug because the bug "looks simple" or "the fix is obvious from the title"
-
-   Inline orchestrator fixes, parallel batch sub-agents that bypass fix-bug, and ad-hoc patches all violate this contract. Fix-bug owns the investigation discipline. Delegating to it is not optional.
+2. **Resolve every ticket through the two-batch fix-bug pipeline** (guard jira-dig-1662). For each chunk, the orchestrator's job is to launch a **Phase 1 investigation-only batch**, await its compact summaries, then launch a separate **Phase 2 fix batch** — reading `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and following it as a script. The orchestrator coordinates the two batches; fix-bug's sub-agents do the investigation in Phase 1 and the fix in Phase 2. Structural invariant: the orchestrator MUST NOT produce code, patches, or fixes itself — that work belongs to the Phase 2 fix-batch sub-agents.
 
 Companion guards: f9b5-213b (Phase K premature shutdown drift). All three drift patterns share root cause: orchestrator pattern-matches toward "make progress fast" and skips the contract.
 </HARD-GATE>
@@ -416,8 +410,8 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
    In `local` mode (DEBUG_MODE=direct or absent): no sub-branch chunking; commit each fix-bug result directly to the session branch as before.
 
    **Per-chunk dispatch** — for each chunk, execute `prompts/dispatch-fix-batch.md` (the shared loop):
-   - The prompt handles pre-batch checks (`agent-batch-lifecycle.sh pre-check`), `MAX_AGENTS` protocol, task claim, blackboard write, file-ownership context, and Task tool dispatch with `/dso:fix-bug <bug-id>` delegation per bug in the chunk.
-   - Each fix-bug invocation enforces its own HARD-GATE (intent search, complexity scoring, RED test, Phase D approval). debug-everything does NOT re-implement those gates or pre-write fixes — fix-bug's investigation sub-agents do the work.
+   - dispatch-fix-batch.md runs the chunk as TWO sequential sub-agent batches: first a **Phase 1 investigation-only batch** (one sub-agent per bug, `MODE: investigation-only`, writes findings to `fix-bug:investigation` scratch); then, after that batch returns, a separate **Phase 2 fix batch** (one sub-agent per fixable bug, consumes the scratch findings and applies RED test + fix + commit). Launch the investigation batch, await its compact summaries, then launch the fix batch.
+   - The prompt also handles pre-batch checks (`agent-batch-lifecycle.sh pre-check`), the `MAX_AGENTS` protocol, task claim, blackboard write, and file-ownership context. Each batch sub-agent enforces fix-bug's own HARD-GATE (intent search, complexity scoring, RED test, Phase D approval); debug-everything does NOT re-implement those gates or pre-write fixes.
 
    **PROHIBITED (jira-dig-1662)** — the orchestrator MUST NOT investigate bugs, read source files related to bugs, write code, or produce fixes itself. These are fix-bug's responsibilities, not the orchestrator's.
 
