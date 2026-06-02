@@ -16,13 +16,48 @@ if [ ! -d "$WORKTREE_PATH" ]; then
         .claude/scripts/dso ticket comment "$TICKET_ID" \
             "ERROR (907d): worktree $WORKTREE_PATH reaped pre-harvest. Check session worktree for stray uncommitted changes (git status --short)." 2>/dev/null || true
     fi
-    # Clean up orphaned branch ref (worktree is gone but branch may linger)
-    _WORKTREE_BRANCH="${WORKTREE_BRANCH:-}"
-    if [ -n "$_WORKTREE_BRANCH" ]; then
-        git branch -D "$_WORKTREE_BRANCH" 2>/dev/null || true
-    fi
-    # HALT — do not proceed to cd, do not silently skip; the orchestrator must surface this.
-    exit 1
+    # ── Tiered recovery (bug 3ba5-0a11-02b8-483d) ──────────────────────────────
+    # Before the loud HALT, attempt recovery. The 907d diagnostics above are
+    # preserved; this is purely additive. recover-reaped-worktree.sh classifies
+    # the situation into one of three tiers and we route on its stdout token.
+    # REPORTED_FILES is the space-separated list of files the sub-agent claimed
+    # to have written (from its return report); empty is fine.
+    _SESSION_ROOT=$(git rev-parse --show-toplevel)
+    _RECOVERY=$(.claude/scripts/dso recover-reaped-worktree "${WORKTREE_BRANCH:-}" "$_SESSION_ROOT" ${REPORTED_FILES:-} 2>/dev/null)
+    _RECOVERY_RC=$?
+    case "$_RECOVERY" in
+        RECOVERABLE_VIA_BRANCH:*)
+            # Tier 1: the branch survived (local or pushed to origin). Fetch it and
+            # continue to harvest the fetched ref instead of halting.
+            echo "RECOVERY (3ba5): $_RECOVERY — fetching branch and continuing to harvest." >&2
+            git fetch origin "$WORKTREE_BRANCH" 2>/dev/null || true
+            # Fall through to Step 1b harvest using $WORKTREE_BRANCH; do NOT exit 1.
+            ;;
+        RECOVERED_FROM_SESSION:*)
+            # Tier 2: the agent leaked its files into the session worktree; they are
+            # now staged. Commit them via the normal session-branch path and mark
+            # the task complete. Do NOT exit 1.
+            echo "RECOVERY (3ba5): $_RECOVERY — files staged in session worktree; commit via normal session-branch path and mark task complete." >&2
+            ;;
+        *)
+            # Tier 3 (exit 3) or any unexpected output: genuinely unrecoverable.
+            # Revert the task to open and flag it for re-dispatch in the next batch
+            # (the b8c8 retention fix makes re-dispatch survive), then surface + HALT.
+            echo "RECOVERY (3ba5): UNRECOVERABLE (rc=$_RECOVERY_RC) — reverting task to open for re-dispatch." >&2
+            if [ -n "${TICKET_ID:-}" ]; then
+                .claude/scripts/dso ticket transition "$TICKET_ID" in_progress open 2>/dev/null || true
+                .claude/scripts/dso ticket comment "$TICKET_ID" \
+                    "UNRECOVERABLE (3ba5): worktree reaped pre-harvest and no branch/session-leak recovery possible. Task reverted to open for re-dispatch in next batch." 2>/dev/null || true
+            fi
+            # Clean up orphaned branch ref (worktree is gone but branch may linger)
+            _WORKTREE_BRANCH="${WORKTREE_BRANCH:-}"
+            if [ -n "$_WORKTREE_BRANCH" ]; then
+                git branch -D "$_WORKTREE_BRANCH" 2>/dev/null || true
+            fi
+            # HALT — do not proceed to cd, do not silently skip; the orchestrator must surface this.
+            exit 1
+            ;;
+    esac
 fi
 if [ -n "${WORKTREE_BRANCH:-}" ] && ! git rev-parse --verify "$WORKTREE_BRANCH" >/dev/null 2>&1; then
     echo "ERROR (907d): worktree branch $WORKTREE_BRANCH not resolvable after sub-agent return." >&2
