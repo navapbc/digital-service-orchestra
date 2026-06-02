@@ -585,6 +585,15 @@ test_write_commit_event_json_byte_exact_randomized() {
     local mismatches=0
     local failures=0
 
+    # Defer md5 hashing: collect (expected-input-json, actual-output-event) file
+    # path pairs in the loop, then compute and compare every hash in ONE python3
+    # process after the loop (was 2 python3 spawns per input → ~100 process
+    # startups). The ticket-create and write_commit_event subprocesses — the
+    # actual behavior under test — run exactly as before; only the redundant
+    # per-input md5 interpreter startups are batched. _make_event_json uses
+    # mktemp (unique, cleanup-registered paths), so the deferred reads are safe.
+    local -a _exp_inputs=() _act_outputs=()
+
     for title in "${titles[@]}"; do
         total=$((total + 1))
 
@@ -598,17 +607,6 @@ test_write_commit_event_json_byte_exact_randomized() {
 
         local event_json
         event_json=$(_make_event_json "$repo" "$ticket_id" "$title")
-
-        # Compute expected canonical form via Python.
-        local expected_md5
-        expected_md5=$(python3 - "$event_json" <<'PYEOF'
-import json, sys, hashlib
-with open(sys.argv[1], encoding='utf-8') as f:
-    data = json.load(f)
-canonical = json.dumps(data, ensure_ascii=False, separators=(',', ':'), sort_keys=True)
-print(hashlib.md5(canonical.encode('utf-8')).hexdigest())
-PYEOF
-        ) || { failures=$((failures + 1)); continue; }
 
         # Call write_commit_event (no shim — we only care about byte correctness here).
         local wce_exit=0
@@ -634,19 +632,48 @@ PYEOF
             continue
         fi
 
-        # Compute actual md5 of the raw bytes written (strip trailing newline to match).
-        local actual_md5
-        actual_md5=$(python3 - "$event_file" <<'PYEOF'
-import sys, hashlib
-raw = open(sys.argv[1], 'rb').read().rstrip(b'\n')
-print(hashlib.md5(raw).hexdigest())
-PYEOF
-        ) || { failures=$((failures + 1)); continue; }
-
-        if [ "$expected_md5" != "$actual_md5" ]; then
-            mismatches=$((mismatches + 1))
-        fi
+        _exp_inputs+=("$event_json")
+        _act_outputs+=("$event_file")
     done
+
+    # Batch md5: for each (input-json, output-event) pair, hash the expected
+    # canonical JSON and the actual raw bytes (trailing newline stripped) and
+    # count mismatches — identical per-input hashing to the prior inline form,
+    # in a single interpreter. A read/parse error counts as a mismatch so any
+    # problem still fails the test.
+    local _pair_count=${#_exp_inputs[@]}
+    if [ "$_pair_count" -gt 0 ]; then
+        mismatches=$(python3 - "$_pair_count" "${_exp_inputs[@]}" "${_act_outputs[@]}" <<'PYEOF'
+import json, sys, hashlib
+n = int(sys.argv[1])
+exp_files = sys.argv[2:2 + n]
+act_files = sys.argv[2 + n:2 + 2 * n]
+mism = 0
+for ef, af in zip(exp_files, act_files):
+    try:
+        with open(ef, encoding='utf-8') as fh:
+            data = json.load(fh)
+        canonical = json.dumps(data, ensure_ascii=False, separators=(',', ':'), sort_keys=True)
+        expected = hashlib.md5(canonical.encode('utf-8')).hexdigest()
+        raw = open(af, 'rb').read().rstrip(b'\n')
+        actual = hashlib.md5(raw).hexdigest()
+        if expected != actual:
+            mism += 1
+    except Exception as exc:
+        # Log the offending pair + error before counting it, so a fixture or
+        # encoding problem is diagnosable rather than silently folded into the
+        # mismatch total (the prior inline form surfaced these via a separate
+        # 'failures' path). stderr is captured in the CI job log.
+        sys.stderr.write(f"md5 batch error for {ef} / {af}: {exc!r}\n")
+        mism += 1
+print(mism)
+PYEOF
+        ) || mismatches=-1
+    fi
+    if [ "$mismatches" -lt 0 ]; then
+        echo "  batch md5 computation failed"
+        return 1
+    fi
 
     if [ "$failures" -gt 0 ]; then
         echo "  $failures/$total inputs failed setup or write_commit_event"

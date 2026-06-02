@@ -166,7 +166,10 @@ commands.lint_mypy=true
 commands.lint=$_VLT_LINT
 VLTEOT
 
-CONFIG_FILE="$_VLT_CFG" VALIDATE_CMD_TEST=true \
+# VALIDATE_SKIP_PLUGIN_CHECKS=1: this test asserts only commands.lint dispatch,
+# which is orthogonal to the repo-wide plugin-check battery — skipping it cuts
+# runtime ~15x with no effect on what is asserted.
+CONFIG_FILE="$_VLT_CFG" VALIDATE_CMD_TEST=true VALIDATE_SKIP_PLUGIN_CHECKS=1 \
     bash "$VALIDATE_SH" --skip-ci >/dev/null 2>&1 || true
 
 _vlt_lint_called=0
@@ -189,7 +192,7 @@ commands.format_check=true
 VLWEOT
 
 _vlt_warn_out=""
-_vlt_warn_out=$(CONFIG_FILE="$_VLW_CFG" VALIDATE_CMD_TEST=true \
+_vlt_warn_out=$(CONFIG_FILE="$_VLW_CFG" VALIDATE_CMD_TEST=true VALIDATE_SKIP_PLUGIN_CHECKS=1 \
     bash "$VALIDATE_SH" --skip-ci 2>&1 || true)
 rm -rf "$_VLW_DIR"
 
@@ -217,7 +220,7 @@ commands.lint_mypy=true
 VNWEOT
 
 _vnw_out=""
-_vnw_out=$(CONFIG_FILE="$_VNW_CFG" VALIDATE_CMD_TEST=true \
+_vnw_out=$(CONFIG_FILE="$_VNW_CFG" VALIDATE_CMD_TEST=true VALIDATE_SKIP_PLUGIN_CHECKS=1 \
     bash "$VALIDATE_SH" --skip-ci 2>&1 || true)
 rm -rf "$_VNW_DIR"
 
