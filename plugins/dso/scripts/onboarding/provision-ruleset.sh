@@ -41,6 +41,11 @@ DRY_RUN="${DSO_DRY_RUN:-0}"
 
 # Named knobs (defaults preserve current hardcoded behavior)
 BYPASS_ACTOR_POLICY="pull_request"
+# MQ-2 (ADR-0019): gate for provisioning the merge_queue rule on the MAIN ruleset.
+# Empty = "not set on CLI" → fall back to the dso.merge_queue.enabled config key
+# (default false). Merge Queue stays OFF until the MQ-6 cutover flips it; provisioning
+# the rule before then would prematurely enable the queue on the live ruleset.
+ENABLE_MERGE_QUEUE_FLAG=""
 REQUIRE_CONVERSATION_RESOLUTION=0
 REQUEST_COPILOT_REVIEW=0
 DISMISS_STALE_APPROVALS_ON_PUSH=0
@@ -99,6 +104,15 @@ while [[ $# -gt 0 ]]; do
       ;;
     --bypass-actor-policy=*)
       BYPASS_ACTOR_POLICY="${1#*=}"
+      shift
+      ;;
+    --enable-merge-queue)
+      # Bare flag = enable; explicit value form handled by the =* case below.
+      ENABLE_MERGE_QUEUE_FLAG=1
+      shift
+      ;;
+    --enable-merge-queue=*)
+      ENABLE_MERGE_QUEUE_FLAG=$(_normalize_bool "--enable-merge-queue" "${1#*=}")
       shift
       ;;
     --require-conversation-resolution)
@@ -281,6 +295,46 @@ else
   BYPASS_ACTORS_JSON="[{\"actor_id\": ${_ADMIN_REPO_ROLE_ID}, \"actor_type\": \"RepositoryRole\", \"bypass_mode\": \"${BYPASS_ACTOR_POLICY}\"}]"
 fi
 
+# ── Merge Queue gate (MQ-2, ADR-0019 migration step 3) ───────────────────────
+# Resolve effective merge_queue enablement: the --enable-merge-queue flag wins;
+# otherwise read dso.merge_queue.enabled (default false). Merge Queue stays OFF
+# until the MQ-6 cutover — provisioning the rule before then would prematurely
+# enable the live queue. When enabled, MERGE_QUEUE_RULE_JSON appends the rule to
+# the MAIN ruleset; when off it is empty so the rule is omitted (current state).
+if [[ -n "$ENABLE_MERGE_QUEUE_FLAG" ]]; then
+  _MQ_ENABLED="$ENABLE_MERGE_QUEUE_FLAG"
+else
+  _MQ_CONF="$("$_PROV_PLUGIN_ROOT/scripts/read-config.sh" dso.merge_queue.enabled "${DSO_CONFIG_FILE:-.claude/dso-config.conf}" 2>/dev/null || echo "")"
+  if [[ -n "$_MQ_CONF" ]]; then
+    _MQ_ENABLED=$(_normalize_bool "dso.merge_queue.enabled" "$_MQ_CONF")
+  else
+    _MQ_ENABLED=0
+  fi
+fi
+MERGE_QUEUE_RULE_JSON=""
+if [[ "$_MQ_ENABLED" == "1" ]]; then
+  # GO-scoped per ADR-0019: 1 PR per merge (max_entries_to_merge=1), no speculative
+  # batching (max_entries_to_build=1), ALLGREEN so required checks run on the true
+  # combined candidate before fast-forward, MERGE method (avoids the squash-revert
+  # incident). Wait/timeout are GitHub UI defaults (ADR silent on these two).
+  MERGE_QUEUE_RULE_JSON=$(cat <<'MQEOF'
+,
+    {
+      "type": "merge_queue",
+      "parameters": {
+        "merge_method": "MERGE",
+        "max_entries_to_build": 1,
+        "max_entries_to_merge": 1,
+        "min_entries_to_merge": 1,
+        "min_entries_to_merge_wait_minutes": 5,
+        "check_response_timeout_minutes": 60,
+        "grouping_strategy": "ALLGREEN"
+      }
+    }
+MQEOF
+)
+fi
+
 # ── Read check names from file ────────────────────────────────────────────────
 if [[ ! -f "$CHECKS_FILE" ]]; then
   echo "ERROR: checks file not found: $CHECKS_FILE" >&2
@@ -348,7 +402,7 @@ PAYLOAD_JSON=$(cat <<EOF
         "strict_required_status_checks_policy": false,
         "required_status_checks": ${STATUS_CONTEXTS_JSON}
       }
-    }
+    }${MERGE_QUEUE_RULE_JSON}
   ]
 }
 EOF
