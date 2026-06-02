@@ -110,6 +110,7 @@ Hook wrappers that don't fit the categories above — primarily lifecycle / infr
 | Hook | Role |
 |------|------|
 | `run-hook.sh` | Hook invoker — wraps every plugin.json hook entry, providing consistent logging, timing, and error trapping |
+| `check-antipattern-scan-trailer.sh` | Commit-msg gate invoked from `/dso:fix-bug`'s commit step — active only under the `.fix-bug-active` marker; refuses commit when the `Antipattern-Scan` trailer is absent, or when `matches>0` lacks a per-match follow-up artifact (ticket id in trailer / match file in cached diff / capped `# antipattern-ok` annotation). Never gates other skills |
 | `check-artifact-versions.sh` | Verifies that installed DSO artifacts (shim, config, pre-commit, ci.yml) carry compatible version stamps against the plugin manifest |
 | `check-precondition-emit.sh` | Pre-commit gate — verifies that skills with `EMIT-PRECONDITIONS` landmarks have the corresponding emit logic intact |
 | `check-tickets-boundary.sh` | Pre-commit gate — enforces the `<!-- tickets-boundary-ok -->` annotation requirement for files that touch ticket-tracker boundaries |
