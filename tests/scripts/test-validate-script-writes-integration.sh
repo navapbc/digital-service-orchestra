@@ -85,7 +85,7 @@ CONF
     # Run validate.sh with the minimal config. It will fail fast because the
     # app dir doesn't exist, but we only care that "script-writes" is not present.
     local _out=""
-    _out=$(CONFIG_FILE="$_tmpd/wc.conf" bash "$VALIDATE_SH" 2>&1 || true)
+    _out=$(CONFIG_FILE="$_tmpd/wc.conf" VALIDATE_SKIP_PLUGIN_CHECKS=1 bash "$VALIDATE_SH" 2>&1 || true)
     if [[ "$_out" == *"script-writes"* ]]; then
         assert_eq "script-writes absent when key absent" "absent" "present"
     else
@@ -112,7 +112,7 @@ checks.script_write_scan_dir=
 CONF
 
     local _out=""
-    _out=$(CONFIG_FILE="$_tmpd/wc.conf" bash "$VALIDATE_SH" 2>&1 || true)
+    _out=$(CONFIG_FILE="$_tmpd/wc.conf" VALIDATE_SKIP_PLUGIN_CHECKS=1 bash "$VALIDATE_SH" 2>&1 || true)
     if [[ "$_out" == *"script-writes"* ]]; then
         assert_eq "script-writes absent when key empty" "absent" "present"
     else
