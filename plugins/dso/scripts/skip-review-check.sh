@@ -80,12 +80,18 @@ _ALLOWLIST_PATTERNS+=("${_UNIT_SNAP_PREFIX}*.html")
 # dso_sanitized_doc_dirs additionally filters protected dirs defensively, keeping
 # this consumer symmetric with compute-diff-hash.sh's exclusion list.
 if declare -f dso_sanitized_doc_dirs >/dev/null 2>&1; then
+    # Capture in the parent shell via command substitution, then iterate over a
+    # here-string — rather than a process substitution. Both forms run the
+    # function in a forked subshell that inherits it (config-paths.sh is sourced
+    # above), but the capture form is unambiguous and matches compute-diff-hash.sh.
+    _sanitized_doc_dirs="$(dso_sanitized_doc_dirs)"
     while IFS= read -r _doc_dir; do
         if [[ -z "$_doc_dir" ]]; then
             continue
         fi
         _ALLOWLIST_PATTERNS+=("${_doc_dir}/*")
-    done < <(dso_sanitized_doc_dirs)
+    done <<< "$_sanitized_doc_dirs"
+    unset _sanitized_doc_dirs
 fi
 
 # _matches_allowlist: check if a file matches any non-reviewable pattern

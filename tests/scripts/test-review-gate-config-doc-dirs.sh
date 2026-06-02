@@ -137,10 +137,11 @@ SAN_OUT=$(
 )
 # Expect exactly the two safe entries (whitespace-trimmed, blanks dropped,
 # protected 'skills' and 'hooks' filtered out), one per line.
+# D1 asserts the EXACT output (only the two non-protected dirs, in order), which
+# inherently proves the protected 'skills'/'hooks' entries and the blank entry
+# were filtered — no separate absence-greps needed.
 SAN_EXPECTED=$'documentation\nproject-docs/adr'
-assert_eq "D1: helper emits trimmed, protected-filtered dir list" "$SAN_EXPECTED" "$SAN_OUT"
-assert_not_contains "D2: helper output excludes protected 'skills'" "skills" "$SAN_OUT"
-assert_not_contains "D3: helper output excludes protected 'hooks'" "hooks" "$SAN_OUT"
+assert_eq "D1: helper emits exactly the trimmed, protected-filtered dir list" "$SAN_EXPECTED" "$SAN_OUT"
 
 # ============================================================================
 # Part E — compute-diff-hash.sh mirrors the skip decision (hash consistency)

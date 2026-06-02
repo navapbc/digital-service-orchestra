@@ -184,12 +184,18 @@ fi
 # protected dir is needed, add it to DSO_PROTECTED_REVIEW_DIRS in config-paths.sh
 # — do NOT add a force-review block only to one consumer.
 if declare -f dso_sanitized_doc_dirs >/dev/null 2>&1; then
+    # config-paths.sh is sourced above (so dso_sanitized_doc_dirs and
+    # DSO_PROTECTED_REVIEW_DIRS are defined here). Capture the filtered dirs in
+    # the parent shell, then iterate over a here-string so the population of
+    # EXCLUDE_PATHSPECS cannot silently no-op on a reader-subshell technicality.
+    _sanitized_doc_dirs="$(dso_sanitized_doc_dirs)"
     while IFS= read -r _doc_dir; do
         if [[ -z "$_doc_dir" ]]; then
             continue
         fi
         EXCLUDE_PATHSPECS+=(":!${_doc_dir}/**")
-    done < <(dso_sanitized_doc_dirs)
+    done <<< "$_sanitized_doc_dirs"
+    unset _sanitized_doc_dirs
 fi
 
 # Hash staged and tracked working-tree changes only.
