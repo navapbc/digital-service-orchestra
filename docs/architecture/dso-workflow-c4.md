@@ -20,6 +20,68 @@ can represent cleanly.
 
 ---
 
+## Where Do I Start? — Skill Entry Decision Tree
+
+The four core skills look linear in the pipeline diagram, but in practice
+`/dso:sprint` is the most common entry point: it orchestrates the other three
+on demand. Use this decision tree to pick the right starting command.
+
+```mermaid
+flowchart TD
+  start([I want to work on something]):::start
+  q1{Do I have a ticket ID?}
+  start --> q1
+
+  q1 -->|no — just an idea| bs1["/dso:brainstorm"]
+  q1 -->|yes| q2{What ticket type?}
+
+  q2 -->|bug| fb["/dso:fix-bug bug-id"]
+  q2 -->|epic, story, or task| q3{Is it an epic?}
+
+  q3 -->|yes — epic| q4{Has it been brainstormed?<br/>brainstorm:complete tag}
+  q3 -->|no — story or task| q5{Does it have children?}
+
+  q4 -->|no — scrutiny:pending<br/>or zero-child unbrainstormed| bs2["/dso:brainstorm epic-id"]
+  q4 -->|yes — ready to plan or execute| sp1["/dso:sprint epic-id"]
+
+  q5 -->|story with no tasks| ip1["/dso:implementation-plan story-id"]
+  q5 -->|story/task with children| sp2["/dso:sprint story-or-task-id"]
+
+  bs1 --> bs_out[Epic created<br/>brainstorm:complete tag set]
+  bs2 --> bs_out
+  bs_out --> sp_route([Run /dso:sprint epic-id<br/>to execute])
+
+  note["Sprint orchestrates the others.<br/>If invoked on an epic that hasn't been<br/>preplanned or whose stories lack tasks,<br/>Phase A and Phase B cascade-invoke<br/>/dso:preplanning and<br/>/dso:implementation-plan automatically.<br/>You rarely need to invoke those directly."]:::note
+  sp1 -.-> note
+  sp2 -.-> note
+  sp_route -.-> note
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef note fill:#f3e8ff,stroke:#7e22ce,color:#000
+```
+
+**Cheat sheet** for common situations:
+
+| Situation                                                | Command                                     |
+|----------------------------------------------------------|---------------------------------------------|
+| Brand-new feature idea, no ticket yet                    | `/dso:brainstorm`                           |
+| Existing epic with `scrutiny:pending` tag                | `/dso:brainstorm <epic-id>`                 |
+| Existing epic without `brainstorm:complete`              | `/dso:brainstorm <epic-id>`                 |
+| Epic ready to execute, has `brainstorm:complete`         | `/dso:sprint <epic-id>` (cascades as needed) |
+| Bug or defect to investigate                             | `/dso:fix-bug <bug-id>`                     |
+| Story with no tasks (rare — usually do this via sprint)  | `/dso:implementation-plan <story-id>`       |
+| Imported Jira ticket (`jira-*` ID)                       | Same as native — type-detection routes it   |
+
+Skill back-edges (less common, but they exist):
+
+- `/dso:sprint` Phase A → `/dso:preplanning` (when story coverage is unmet)
+- `/dso:sprint` Phase B → `/dso:implementation-plan` (per story being expanded)
+- `/dso:sprint` Phase B cascade → `/dso:brainstorm` (on `REPLAN_ESCALATE: brainstorm`)
+- `/dso:preplanning` Phase A.1.5 → `/dso:implementation-plan` (SIMPLE epics skip stories)
+- `/dso:implementation-plan` Step 4 / Step 6 → `/dso:oscillation-check` (cycle ≥ 2)
+
+---
+
 ## Level 1 — System Context
 
 Shows the DSO plugin in its environment: who uses it and which external
@@ -708,6 +770,101 @@ flowchart LR
 
 ---
 
+## Review and Gate Timeline (Idea → Merge)
+
+The per-skill diagrams each show their local review/gate. This diagram
+consolidates **every** review, gate, and verification point along the path
+from a feature idea to a merged PR, in execution order. Each box names the
+mechanism and the sub-agent or hook responsible.
+
+```mermaid
+flowchart TB
+  idea([Feature idea]):::start
+
+  subgraph bs_gates["/dso:brainstorm — scrutiny + approval"]
+    direction TB
+    g_bs1[Cross-Epic Interaction Classifier<br/>haiku — Step 2.25]
+    g_bs2[Scrutiny Pipeline<br/>red-team + blue-team + feasibility<br/>+ Agent Clarity + Scope + Value<br/>+ bot-psychologist conditional]
+    g_bs3[Approval Gate<br/>user confirmation]
+    g_bs1 --> g_bs2 --> g_bs3
+  end
+
+  subgraph pp_gates["/dso:preplanning — story-level review"]
+    direction TB
+    g_pp1[Complexity Evaluator<br/>haiku — A.1.5]
+    g_pp2[Phase E Adversarial Review<br/>red-team-reviewer + blue-team-filter<br/>cross-story blind-spot audit]
+    g_pp3[Refusal Gate<br/>External Deps coverage<br/>for externally-shaped SCs]
+    g_pp1 --> g_pp2 --> g_pp3
+  end
+
+  subgraph ip_gates["/dso:implementation-plan — plan review"]
+    direction TB
+    g_ip1[Architectural Review<br/>3 reviewers — Step 2 conditional<br/>pass_threshold 4]
+    g_ip2[Plan Review<br/>5 reviewers — Step 4<br/>pass_threshold 5]
+    g_ip3[Behavioral Coverage<br/>Cross-Check<br/>haiku — Step 5b]
+    g_ip4[Gap Analysis<br/>opus — Step 6]
+    g_ip1 --> g_ip2 --> g_ip3 --> g_ip4
+  end
+
+  subgraph sp_gates["/dso:sprint — execution review and gates"]
+    direction TB
+    g_sp1[SC Coverage Gate<br/>haiku → sonnet → opus<br/>Phase A]
+    g_sp2[Per-task Code Review<br/>dso:code-reviewer light / standard / deep<br/>via REVIEW-WORKFLOW classifier<br/>Phase F]
+    g_sp3[Pre-commit Hooks<br/>review gate, test gate, ticket-boundary,<br/>branch invariant, compliance verifier<br/>Phase F per commit]
+    g_sp4[Story Completion Verifier<br/>dso:completion-verifier<br/>P1 typed-enum verdict<br/>Phase F]
+    g_sp5[Epic Completion Verifier<br/>dso:completion-verifier<br/>Phase G]
+    g_sp6["/dso:validate-work<br/>5-domain validation<br/>Phase G"]
+    g_sp1 --> g_sp2 --> g_sp3 --> g_sp4 --> g_sp5 --> g_sp6
+  end
+
+  subgraph ci_gates["GitHub Actions — CI on every push and PR"]
+    direction TB
+    g_ci1[ci.yml static gates<br/>actionlint, shellcheck, ruff,<br/>hook tests, script tests]
+    g_ci2[review-sub-pr.yml<br/>llm-review on per-story PRs<br/>required check]
+    g_ci3[ci.yml llm-review job<br/>tier classifier + provenance narrowing<br/>+ named code-reviewer agents<br/>on integration diff]
+    g_ci4[merge-pipeline-checks<br/>umbrella required check]
+    g_ci1 --> g_ci2 --> g_ci3 --> g_ci4
+  end
+
+  merged([PR merged to main]):::done
+
+  idea --> bs_gates --> pp_gates --> ip_gates --> sp_gates --> ci_gates --> merged
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef done fill:#dcfce7,stroke:#166534
+  classDef bs fill:#dbeafe,stroke:#1e40af
+  classDef pp fill:#dbeafe,stroke:#1e40af
+  classDef ip fill:#dbeafe,stroke:#1e40af
+  classDef sp fill:#dbeafe,stroke:#1e40af
+  classDef ci fill:#fce7f3,stroke:#9d174d
+  class bs_gates bs
+  class pp_gates pp
+  class ip_gates ip
+  class sp_gates sp
+  class ci_gates ci
+```
+
+**Approximate review-point count along the happy path**: 4 in brainstorm, 3 in
+preplanning, 4 in implementation-plan, 6 in sprint, 4 in CI = **~21 distinct
+gate or review evaluations** between idea and merge. Most are scoped (only
+fire when their preconditions are met — e.g., Phase E adversarial review only
+fires when there are ≥ 3 stories; architectural review only fires when a new
+pattern is proposed). Typical end-to-end runs encounter 8–12 of these.
+
+**Failure routes** (not shown above, see per-skill diagrams):
+
+- A failed review enters the **remediation loop** (`remediation-loop-protocol.md`)
+  with a bounded cycle cap and an `/dso:oscillation-check` hard gate at cycle ≥ 2.
+- Story-level verifier `P1 ≠ PASS` routes through `dso:verification-remediation-planner`
+  which classifies the failure and emits one of four scopes: `replan_story`,
+  `new_tasks_in_story`, `new_story_in_epic`, or `replan_epic`.
+- CI `llm-review` blocking on a suspect false positive escapes via
+  `/dso:fp-recovery <pr-number>` (opus-tier reviewer rerun).
+- Catastrophic failure escapes via `REPLAN_ESCALATE: <upstream>` which routes
+  back to `/dso:brainstorm` or `/dso:preplanning`.
+
+---
+
 ## Level 3 — GitHub Actions Workflow Catalog
 
 The DSO plugin is supported by 12 GitHub Actions workflows that fall into four
@@ -952,6 +1109,8 @@ sequenceDiagram
   participant CI as ci.yml
   participant SubPR as review-sub-pr.yml
   participant Merge as merge-to-main.sh
+  participant FP as /dso:fp-recovery
+  participant Agents as code-reviewer agents
 
   Dev->>Sprint: /dso:sprint <epic-id>
   Sprint->>Git: create session branch
@@ -965,8 +1124,9 @@ sequenceDiagram
     Sprint->>Git: merge story branch<br/>(DSO-Story-Merge trailer)
     Sprint->>GH: push story PR
     GH->>SubPR: trigger (session/** PR)
-    SubPR->>SubPR: llm-review on story diff
-    SubPR-->>GH: findings.json + required check
+    SubPR->>Agents: dispatch dso:code-reviewer<br/>(tier from classifier)
+    Agents-->>SubPR: findings.json
+    SubPR-->>GH: findings + required check
     GH-->>Sprint: required check passed
   end
 
@@ -974,7 +1134,23 @@ sequenceDiagram
   Sprint->>Merge: invoke merge-to-main.sh
   Merge->>GH: mark PR ready for review
   GH->>CI: re-trigger (session PR updated)
-  CI->>CI: llm-review on integration diff<br/>(provenance-aware narrowing)
+  CI->>Agents: llm-review on integration diff<br/>(provenance-aware narrowing)
+  Agents-->>CI: findings (severity-tagged)
+
+  alt critical findings — CI blocks merge
+    Note over Dev,Agents: Suspected false positive escape valve
+    Dev->>FP: /dso:fp-recovery <pr-number>
+    FP->>Agents: dispatch dso:code-reviewer-standard<br/>@ opus tier
+    Agents-->>FP: rescored findings
+    FP-->>Dev: clearance verdict<br/>(or confirmed-block — fix locally)
+    Dev->>Dev: address remaining findings<br/>commit + push
+    GH->>CI: re-trigger
+    CI->>Agents: llm-review (next cycle)
+    Agents-->>CI: findings cleared
+  else findings all minor or none
+    Note over CI,GH: standard path
+  end
+
   CI-->>GH: merge-pipeline-checks pass
   Merge->>GH: gh pr merge
   GH-->>Dev: PR merged to main
@@ -1002,6 +1178,12 @@ sequenceDiagram
 ## Reading Guide
 
 - **For a quick mental model**: read Level 1 + the pipeline flowchart in Level 3.
+- **For "where do I start?"**: read the Skill Entry Decision Tree near the top.
+  It maps ticket state → command and lists the back-edges so the sprint-as-
+  orchestrator pattern is explicit.
+- **For "where will my work be reviewed?"**: read the Review and Gate Timeline
+  after Cross-Cutting Concerns. It consolidates all ~21 review/gate points
+  along the path from idea to merge.
 - **For operating the plugin**: read each per-skill Level 3 diagram; trace
   which sub-agents fire and what each phase produces.
 - **For modifying the plugin**: also consult the underlying SKILL.md files
