@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"SC coverage audit (red team): 4 fully covered, 2 partial (sc-1 consumer-validation, sc-2 test_artifact_fails), 0 uncovered."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780439239763487000,"uuid":"218743dd-5d6e-4b03-b2fb-230b500b638e"}
