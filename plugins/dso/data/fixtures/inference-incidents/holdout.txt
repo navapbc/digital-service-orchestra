@@ -1,0 +1,10 @@
+# holdout: md5(ticket_id)[0:8] as int mod 3 == 0
+3da0-dc8c
+027a-ad30
+1175-497a
+0fb0-e23a
+3916-ad17
+0ecc-9ce1
+b430-9eb3
+4911-c7ba
+0824-5e61

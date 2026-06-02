@@ -38,7 +38,7 @@ _PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
 
 # ── Argument parsing ─────────────────────────────────────────────────────────
 _REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
-_DEFAULT_CORPUS="$_REPO_ROOT/tests/fixtures/818-corpus/sample-bugs.json"
+_DEFAULT_CORPUS="$_PLUGIN_ROOT/data/fixtures/818-corpus/sample-bugs.json"
 _CORPUS="$_DEFAULT_CORPUS"
 _DRY_RUN=true
 _OUTPUT_FORMAT="json"
