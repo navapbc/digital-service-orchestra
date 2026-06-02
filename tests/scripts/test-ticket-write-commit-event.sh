@@ -659,7 +659,12 @@ for ef, af in zip(exp_files, act_files):
         actual = hashlib.md5(raw).hexdigest()
         if expected != actual:
             mism += 1
-    except Exception:
+    except Exception as exc:
+        # Log the offending pair + error before counting it, so a fixture or
+        # encoding problem is diagnosable rather than silently folded into the
+        # mismatch total (the prior inline form surfaced these via a separate
+        # 'failures' path). stderr is captured in the CI job log.
+        sys.stderr.write(f"md5 batch error for {ef} / {af}: {exc!r}\n")
         mism += 1
 print(mism)
 PYEOF
