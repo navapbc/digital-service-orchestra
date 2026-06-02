@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"FORCE_CLOSE: verdict hash bypassed by user approval. Reason: \"Superseded: dependency 8787-ac16 deleted; ci-pr per-story-PR architecture replaced the per-batch model\". Session: 68afa3861b."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780442227142048000,"uuid":"6dffab52-e70a-4d14-8a5a-056d15c5d4cb"}
