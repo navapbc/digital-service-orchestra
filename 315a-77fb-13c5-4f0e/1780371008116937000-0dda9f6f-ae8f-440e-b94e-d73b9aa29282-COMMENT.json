@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"CHECKPOINT 4/6: Changes staged. Files: .gitignore (added .fix-bug-active entry), plugins/dso/skills/fix-bug/SKILL.md (added marker lifecycle + counter). All AC grep checks pass."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780371008116937000,"uuid":"0dda9f6f-ae8f-440e-b94e-d73b9aa29282"}
