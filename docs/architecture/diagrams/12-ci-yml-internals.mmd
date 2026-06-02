@@ -1,0 +1,53 @@
+flowchart TB
+  start([push or pull_request]):::start
+
+  start --> changes[changes job<br/>skip-review-check.sh<br/>→ code_changed flag]
+
+  changes -->|code_changed| static
+  changes -->|always| vcheck
+
+  subgraph static["Static + Test Gates"]
+    al[actionlint]
+    sc[shellcheck]
+    lp[lint-python<br/>ruff]
+    th[test-hooks]
+    ts[test-scripts]
+    al --> th
+    sc --> th
+    lp --> th
+    sc --> ts
+    lp --> ts
+  end
+
+  vcheck[validate-required-checks<br/>check-context names<br/>vs required-checks.txt]
+
+  static --> mirror[mirror-defenses-to-pr<br/>TrackerDefenseStore<br/>→ PR comments]
+
+  mirror --> llmreview
+
+  subgraph llmreview["llm-review job (PR + main only)"]
+    direction TB
+    lr1[Step 1-3<br/>Cycle tracking<br/>DSO_REVIEW_CYCLE env]
+    lr2[Step 4-8<br/>Provenance narrowing<br/>verify-session-provenance.sh<br/>+ DSO-Story-Merge trailer scan]
+    lr3["Step 9<br/>Dispatch gate<br/>llm-review-dispatch-or-skip.sh"]
+    lr4{exit code?}
+    lr5[Skip:<br/>all provenanced<br/>or OVER_BOUND]
+    lr6[Step 10<br/>ci-llm-review-runner.sh<br/>→ runner.py<br/>+ context-augmentation loop]
+    lr7[review-complexity-classifier.sh<br/>→ light / standard / deep]
+    lr8["Named code-reviewer agents<br/>dso:code-reviewer-light<br/>dso:code-reviewer-standard<br/>dso:code-reviewer-deep-*"]
+    lr9[Step 11<br/>Liveness gate<br/>findings.json non-empty]
+    lr1 --> lr2 --> lr3 --> lr4
+    lr4 -->|0 or 3| lr5
+    lr4 -->|1 or 2| lr6
+    lr6 --> lr7 --> lr8 --> lr9
+  end
+
+  llmreview --> mpc[merge-pipeline-checks<br/>umbrella + RED-marker scan<br/>required check]
+
+  mpc --> done([PR mergeable])
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef gate fill:#dbeafe,stroke:#1e40af
+  classDef llm fill:#fce7f3,stroke:#9d174d
+  class static gate
+  class llmreview llm
