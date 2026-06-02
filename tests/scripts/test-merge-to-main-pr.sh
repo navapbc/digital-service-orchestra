@@ -6205,5 +6205,69 @@ t_emit_local_escalation_includes_next_action() {
 t_emit_local_escalation_includes_next_action
 
 # ---------------------------------------------------------------------------
+# t_pr1_staged_intermediate_enqueues_auto_merge  (bug c9fe-8b6c-9421-4faf)
+# _phase_staged_intermediate (the non-sprint two-tier PR1 flow) MUST enqueue
+# auto-merge on PR1 right after creating it. Without it, the subsequent
+# wait-for-pr.sh (which only exits 0 on MERGED) deadlocks: nothing merges PR1
+# before the wait, so on real GitHub the PR stays OPEN until the 30-min timeout.
+# This test drives _phase_staged_intermediate in library mode against a
+# github.com origin (so the "not a github.com remote" skip guard does NOT fire)
+# and asserts PR1 (#42) receives `gh pr merge 42 --auto`. The inline-wait
+# fallback resolves immediately via the gh stub's `--json state == MERGED`.
+# ---------------------------------------------------------------------------
+t_pr1_staged_intermediate_enqueues_auto_merge() {
+    local _T branch _argv _has_pr1_auto
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr1-automerge.XXXXXX")"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-pr1-automerge"
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+
+    # Give the fixture a github.com origin so _phase_staged_intermediate does NOT
+    # auto-skip on the "origin is not a github.com remote" guard (line ~884).
+    git -C "$_T" remote add origin https://github.com/x/y.git 2>/dev/null \
+        || git -C "$_T" remote set-url origin https://github.com/x/y.git
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" >/dev/null 2>&1
+            # Stub the heavy phase deps so the PR1 flow reaches the auto-merge
+            # enqueue without needing a real staged ref, version bump, or push.
+            _create_staged_ref() { echo "staged-test-123"; }
+            _phase_source_branch_version_bump() { return 0; }
+            _state_write_phase() { return 0; }
+            _state_set_field() { return 0; }
+            _state_init() { return 0; }
+            # Force the inline-wait fallback: no executable wait-for-pr.sh under
+            # this path, so the wait resolves immediately via the gh stub
+            # (gh pr view --json state -> MERGED).
+            _PLUGIN_ROOT="'"$_T"'/noplugin"
+            unset STORY_PR_BASE
+            BRANCH="'"$branch"'"
+            # Steps 6-7 (checkout staged-*) fail under the stub; the auto-merge
+            # enqueue (step 3b) happens earlier, so tolerate the late failure.
+            _phase_staged_intermediate >/dev/null 2>&1 || true
+        ' "$PR_SCRIPT"
+    ) || true
+
+    _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
+
+    _has_pr1_auto="false"
+    if echo "$_argv" | grep -E "^pr merge 42" | grep -q -- "--auto"; then
+        _has_pr1_auto="true"
+    fi
+
+    assert_eq "t_pr1_staged_intermediate_enqueues_auto_merge: PR1 gets gh pr merge --auto before the wait" \
+        "true" "$_has_pr1_auto"
+}
+t_pr1_staged_intermediate_enqueues_auto_merge
+
+# ---------------------------------------------------------------------------
 # end of file
 print_summary

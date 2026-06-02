@@ -83,9 +83,13 @@ commands.test_unit=true
 CONF
 
 run_rc=0
+# VALIDATE_SKIP_PLUGIN_CHECKS=1: this test asserts only the commands.build
+# sentinel; the repo-wide plugin-check battery is orthogonal and dominates
+# runtime, so skip it.
 PATH="$STUB_BIN:$PATH" \
     CONFIG_FILE="$CONFIG_WITH_BUILD" \
     VALIDATE_CMD_TEST="true" \
+    VALIDATE_SKIP_PLUGIN_CHECKS="1" \
     VALIDATE_TEST_BATCHED_SCRIPT="$STUB_TEST_BATCHED" \
     bash "$VALIDATE_SH" 2>/dev/null || run_rc=$?
 
@@ -122,6 +126,7 @@ run_rc2=0
 PATH="$STUB_BIN:$PATH" \
     CONFIG_FILE="$CONFIG_NO_BUILD" \
     VALIDATE_CMD_TEST="true" \
+    VALIDATE_SKIP_PLUGIN_CHECKS="1" \
     VALIDATE_TEST_BATCHED_SCRIPT="$STUB_TEST_BATCHED" \
     bash "$VALIDATE_SH" 2>/dev/null || run_rc2=$?
 
