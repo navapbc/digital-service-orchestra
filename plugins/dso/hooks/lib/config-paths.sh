@@ -82,9 +82,66 @@ CFG_SRC_DIR="${PATHS_SRC_DIR:-src}"
 export CFG_TEST_DIR
 CFG_TEST_DIR="${PATHS_TEST_DIR:-tests}"
 
+# Host-declared non-LLM-instruction documentation directories that the review
+# gate may skip (review.non_reviewable_doc_dirs) — comma-separated dir prefixes.
+# Read from the batch-evaluated intermediate; empty when the key (or the config
+# file) is absent. Consumed via dso_sanitized_doc_dirs (defined below) by both
+# skip-review-check.sh and compute-diff-hash.sh.
+export CFG_NON_REVIEWABLE_DOC_DIRS
+CFG_NON_REVIEWABLE_DOC_DIRS="${REVIEW_NON_REVIEWABLE_DOC_DIRS:-}"
+
 # Clean up batch-populated intermediates so they do not leak into the environment
-unset PATHS_APP_DIR PATHS_SRC_DIR PATHS_TEST_DIR INTERPRETER_PYTHON_VENV MERGE_VISUAL_BASELINE_PATH FORMAT_SOURCE_DIRS _cfg_batch_raw
+unset PATHS_APP_DIR PATHS_SRC_DIR PATHS_TEST_DIR INTERPRETER_PYTHON_VENV MERGE_VISUAL_BASELINE_PATH FORMAT_SOURCE_DIRS REVIEW_NON_REVIEWABLE_DOC_DIRS _cfg_batch_raw
 
 # Derived: unit snapshot path uses both CFG_APP_DIR and CFG_TEST_DIR
 export CFG_UNIT_SNAPSHOT_PATH
 CFG_UNIT_SNAPSHOT_PATH="${CFG_APP_DIR}/${CFG_TEST_DIR}/unit/templates/snapshots/"
+
+# ── Review-gate doc-dir exemption helper ─────────────────────────────────────
+# Directory prefixes that hold LLM-instruction artifacts and must ALWAYS be
+# reviewed. A host can never exempt these via review.non_reviewable_doc_dirs:
+# skip-review-check.sh force-reviews them via a hardcoded case block, and
+# compute-diff-hash.sh has no such block — this protected list is what closes
+# that asymmetry so a misconfigured key cannot silently drop an agent-guidance
+# dir from the review hash. Keep in sync with the force-review case block in
+# skip-review-check.sh.
+DSO_PROTECTED_REVIEW_DIRS=(skills hooks agents prompts docs/workflows .claude/skills .claude/hooks .claude/hookify CLAUDE.md)
+
+# dso_sanitized_doc_dirs: parse CFG_NON_REVIEWABLE_DOC_DIRS (comma-separated),
+# trim whitespace, drop blanks, normalize (strip a leading "./" and trailing
+# "/"), and filter out any entry that is — or sits under — a protected dir
+# (emitting a stderr warning for each). Emits one safe directory prefix per line
+# on stdout. Defined here so skip-review-check.sh and compute-diff-hash.sh share
+# one filter implementation and cannot drift apart.
+dso_sanitized_doc_dirs() {
+    local raw="${CFG_NON_REVIEWABLE_DOC_DIRS:-}"
+    if [[ -z "$raw" ]]; then
+        return 0
+    fi
+    local -a _parts=()
+    IFS=',' read -ra _parts <<< "$raw"
+    local _d _p _blocked
+    for _d in "${_parts[@]}"; do
+        # Trim leading/trailing whitespace.
+        _d="${_d#"${_d%%[![:space:]]*}"}"
+        _d="${_d%"${_d##*[![:space:]]}"}"
+        # Normalize: strip a leading "./" and any trailing "/".
+        _d="${_d#./}"
+        _d="${_d%/}"
+        if [[ -z "$_d" ]]; then
+            continue
+        fi
+        _blocked=0
+        for _p in "${DSO_PROTECTED_REVIEW_DIRS[@]}"; do
+            if [[ "$_d" == "$_p" || "$_d" == "$_p"/* ]]; then
+                _blocked=1
+                break
+            fi
+        done
+        if [[ "$_blocked" == "1" ]]; then
+            printf 'DSO WARNING: review.non_reviewable_doc_dirs entry "%s" overlaps a protected always-reviewed directory; ignoring it.\n' "$_d" >&2
+            continue
+        fi
+        printf '%s\n' "$_d"
+    done
+}

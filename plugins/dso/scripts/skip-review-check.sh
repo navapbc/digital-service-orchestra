@@ -73,6 +73,21 @@ fi
 _ALLOWLIST_PATTERNS+=("${_E2E_SNAP_PREFIX}*")
 _ALLOWLIST_PATTERNS+=("${_UNIT_SNAP_PREFIX}*.html")
 
+# Add host-declared non-LLM-instruction doc dirs (review.non_reviewable_doc_dirs).
+# These are appended to the allowlist, which is consulted by _matches_allowlist
+# AFTER the force-review case block in the classification loop below — so listing
+# a protected dir (skills/, hooks/, CLAUDE.md, ...) can never skip its review.
+# dso_sanitized_doc_dirs additionally filters protected dirs defensively, keeping
+# this consumer symmetric with compute-diff-hash.sh's exclusion list.
+if declare -f dso_sanitized_doc_dirs >/dev/null 2>&1; then
+    while IFS= read -r _doc_dir; do
+        if [[ -z "$_doc_dir" ]]; then
+            continue
+        fi
+        _ALLOWLIST_PATTERNS+=("${_doc_dir}/*")
+    done < <(dso_sanitized_doc_dirs)
+fi
+
 # _matches_allowlist: check if a file matches any non-reviewable pattern
 _matches_allowlist() {
     local f="$1"

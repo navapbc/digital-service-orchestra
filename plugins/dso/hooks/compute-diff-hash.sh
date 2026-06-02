@@ -171,6 +171,21 @@ if [[ -n "${CFG_UNIT_SNAPSHOT_PATH:-}" ]]; then
     EXCLUDE_PATHSPECS+=(":!${CFG_UNIT_SNAPSHOT_PATH}*.html")
 fi
 
+# Add host-declared non-LLM-instruction doc dirs (review.non_reviewable_doc_dirs) — ADDITIVE.
+# Mirrors skip-review-check.sh so the review hash and the skip decision stay
+# consistent (otherwise the pre-commit hash gate would reject doc-only changes
+# that the skip check exempted). dso_sanitized_doc_dirs filters protected dirs,
+# so a misconfigured entry (e.g. skills) cannot silently drop an agent-guidance
+# dir from the hash — compute-diff-hash.sh has no force-review block of its own.
+if declare -f dso_sanitized_doc_dirs >/dev/null 2>&1; then
+    while IFS= read -r _doc_dir; do
+        if [[ -z "$_doc_dir" ]]; then
+            continue
+        fi
+        EXCLUDE_PATHSPECS+=(":!${_doc_dir}/**")
+    done < <(dso_sanitized_doc_dirs)
+fi
+
 # Hash staged and tracked working-tree changes only.
 # Untracked files are excluded to prevent temp test fixtures from causing hash
 # mismatches between review time and pre-commit time (dso-fqxu).
