@@ -85,11 +85,52 @@ if [[ "$_has_ticket" -eq 1 ]]; then
     exit 0
 fi
 
-# Check 2b: A match/findings file is staged in the cached diff.
+# Check 2b: A staged file in the cached diff contains a match for the
+# scan query's pattern. Epic SC2(b) requires the *match file* (a file
+# genuinely containing the antipattern) to appear in the diff — not just
+# any staged file.
+#
+# Algorithm:
+#   1. Extract the search pattern from the trailer's <query> field: the
+#      first single- or double-quoted string (e.g. 'retry_count' →
+#      retry_count, or "PAT" → PAT).
+#   2. For each staged file that exists on disk, grep for the pattern.
+#      If any file matches, the follow-up is satisfied.
+#
+# Fallback (unparseable query): if no quoted pattern can be extracted
+# (exotic/composite query), retain the prior permissive behavior — any
+# staged file passes — so legitimate edge-case commits are not hard-blocked.
+# This preserves "discipline aid, not a proof system" while closing the
+# common bypass path.
 _has_diff_file=0
 _staged_files=$(git diff --cached --name-only 2>/dev/null || true)
 if [[ -n "$_staged_files" ]]; then
-    _has_diff_file=1
+    # Extract <query>: the substring between "Antipattern-Scan: " and " root="
+    _query=""
+    if [[ "$_scan_line" =~ ^Antipattern-Scan:[[:space:]]+(.*)[[:space:]]root= ]]; then
+        _query="${BASH_REMATCH[1]}"
+    fi
+
+    # Extract the first single- or double-quoted pattern from the query.
+    _pattern=""
+    if [[ "$_query" =~ \'([^\']+)\' ]]; then
+        _pattern="${BASH_REMATCH[1]}"
+    elif [[ "$_query" =~ \"([^\"]+)\" ]]; then
+        _pattern="${BASH_REMATCH[1]}"
+    fi
+
+    if [[ -z "$_pattern" ]]; then
+        # Fallback: unparseable query — any staged file satisfies the check.
+        _has_diff_file=1
+    else
+        # Strict check: at least one staged file must contain the pattern.
+        while IFS= read -r _staged_file; do
+            if [[ -f "$_staged_file" ]] && grep -qE "$_pattern" "$_staged_file" 2>/dev/null; then
+                _has_diff_file=1
+                break
+            fi
+        done <<< "$_staged_files"
+    fi
 fi
 if [[ "$_has_diff_file" -eq 1 ]]; then
     exit 0

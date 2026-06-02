@@ -170,14 +170,19 @@ assert_eq "matches>0,ticket-in-trailer: exit 0 when ticket id satisfies follow-u
 
 # ---------------------------------------------------------------------------
 # Test 4b (follow-up via match file in cached diff): matches=2, scan result
-# file staged in the cached git diff → exit 0
+# file staged in the cached git diff, AND the file genuinely contains the
+# trailer query's pattern (retry_count) → exit 0.
+#
+# The staged file must contain the pattern from the query so Check 2b's
+# strict pattern-match validation is satisfied.
 # ---------------------------------------------------------------------------
 echo "--- test_matches_nonzero_satisfied_by_match_file_in_cached_diff ---"
 _repo4b=$(make_git_repo)
 touch "$_repo4b/.fix-bug-active"
-# Create a scan-results file and stage it so it appears in the cached diff
+# Create a scan-results file whose content includes the pattern 'retry_count'
+# (the same pattern used in the Antipattern-Scan trailer query).
 mkdir -p "$_repo4b/docs/findings"
-printf "Antipattern matches:\n  - src/lib/retry.sh:42\n  - src/lib/retry.sh:87\n" \
+printf "Antipattern matches for retry_count:\n  - src/lib/retry.sh:42 uses retry_count variable\n  - src/lib/retry.sh:87 increments retry_count\n" \
     > "$_repo4b/docs/findings/antipattern-matches.txt"
 git -C "$_repo4b" add docs/findings/antipattern-matches.txt
 _msg4b="fix: fix broken retry loop
@@ -190,7 +195,37 @@ _exit4b=0
     GIT_DIR="$_repo4b/.git" \
     bash "$TARGET_HOOK" "$_msg_file4b"
 ) 2>/dev/null || _exit4b=$?
-assert_eq "matches>0,match-file-in-diff: exit 0 when staged file satisfies follow-up" "0" "$_exit4b"
+assert_eq "matches>0,match-file-in-diff: exit 0 when staged file contains the pattern" "0" "$_exit4b"
+
+# ---------------------------------------------------------------------------
+# Test 4b-bypass-closed (bypass-closed case): .fix-bug-active set, trailer
+# with matches=2 and a parseable query pattern ('retry_count'), staged ONLY
+# an UNRELATED file that does NOT contain the pattern, NO ticket/annotation
+# artifact → hook must exit non-zero (bypass is now closed).
+#
+# This test FAILS on the original hook (which passed any staged file) and
+# PASSES after the Check 2b strengthening.
+# ---------------------------------------------------------------------------
+echo "--- test_bypass_closed_unrelated_staged_file_without_pattern_exits_nonzero ---"
+_repo4b2=$(make_git_repo)
+touch "$_repo4b2/.fix-bug-active"
+# Stage a file that does NOT contain 'retry_count' — completely unrelated content.
+mkdir -p "$_repo4b2/docs"
+printf "This file is about something else entirely.\nNo match here.\n" \
+    > "$_repo4b2/docs/unrelated-notes.txt"
+git -C "$_repo4b2" add docs/unrelated-notes.txt
+_msg4b2="fix: fix broken retry loop
+
+Antipattern-Scan: grep -r 'retry_count' root=/path/to/repo matches=2"
+_msg_file4b2=$(write_commit_msg_file "$_repo4b2" "$_msg4b2")
+_exit4b2=0
+_out4b2=$(
+    cd "$_repo4b2" && \
+    GIT_DIR="$_repo4b2/.git" \
+    bash "$TARGET_HOOK" "$_msg_file4b2" 2>&1
+) || _exit4b2=$?
+assert_ne "bypass-closed: unrelated staged file without pattern must not satisfy Check 2b" "0" "$_exit4b2"
+assert_contains "bypass-closed: stderr mentions follow-up requirement" "follow-up" "$_out4b2"
 
 # ---------------------------------------------------------------------------
 # Test 4c (follow-up via antipattern-ok annotation, different-context): exit 0
