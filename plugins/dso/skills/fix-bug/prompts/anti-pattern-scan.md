@@ -72,6 +72,7 @@ Report your findings using the exact schema below.
 ```
 SCAN_RESULT:
   pattern_summary: <one sentence describing the anti-pattern searched for>
+  query_used: <the exact search query / regex string passed to the scanner in Step 2>
   candidates:
     - file: <relative file path>
       confirmed: true | false
@@ -82,17 +83,38 @@ SCAN_RESULT:
     - file: <relative file path>
       ...
   total_confirmed: <integer count of confirmed candidates>
+  trailer_line: "Antipattern-Scan: <query> root=<scan-root> matches=<n>"
 ```
+
+**MALFORMED rule**: A SCAN_RESULT that is missing either `query_used` or `trailer_line` is **MALFORMED** and fails the Phase G step. Both fields are REQUIRED.
 
 ### Field Definitions
 
 | Field | Description |
 |-------|-------------|
 | `pattern_summary` | One sentence. Name the anti-pattern and describe why it is harmful. |
+| `query_used` | The exact search query or regex string the scanner ran in Step 2. Copied verbatim from the Grep/search call — no paraphrase. |
 | `candidates` | All files examined, including rejected candidates (confirmed: false). |
 | `occurrences` | One entry per occurrence within the file. At minimum one entry per confirmed candidate. |
 | `evidence` | The exact line of code (or condensed form if >80 chars) that demonstrates the anti-pattern. |
 | `total_confirmed` | Count of files where `confirmed: true`. |
+| `trailer_line` | Rendered commit-trailer string, formatted EXACTLY as `Antipattern-Scan: <query> root=<repo-root> matches=<n>` where `<query>` = `query_used`, `<repo-root>` = absolute path from `git rev-parse --show-toplevel`, `<n>` = `total_confirmed`. Copy this string verbatim into the commit message. |
+
+### trailer_line Rendering
+
+After completing Step 4, render `trailer_line` as follows:
+
+```
+trailer_line: "Antipattern-Scan: <query_used> root=<output of `git rev-parse --show-toplevel`> matches=<total_confirmed>"
+```
+
+Example:
+
+```
+trailer_line: "Antipattern-Scan: PLUGIN_ROOT-unguarded-set-u root=/path/to/repo matches=3"
+```
+
+The value must be a single line with no embedded newlines. Use the `query_used` value exactly as captured in Step 2 — do not paraphrase or shorten it.
 
 ## Rules
 
