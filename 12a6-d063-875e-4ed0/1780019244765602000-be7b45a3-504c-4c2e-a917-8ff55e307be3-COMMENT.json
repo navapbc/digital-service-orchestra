@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"RED_TEST_FAILED_AS_EXPECTED: yes (3 of 5 assertions fail in test-push-tickets-dirty-wd-recovery.sh before fix; all 5 pass after)"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780019244765602000,"uuid":"be7b45a3-504c-4c2e-a917-8ff55e307be3"}
