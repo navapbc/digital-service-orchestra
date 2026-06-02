@@ -38,6 +38,41 @@ _expect block "gh pr merge 546 --merge --admin"               "real_invocation_f
 # shellcheck disable=SC2016  # intentional literal command string under test (no expansion wanted)
 _expect block 'X=1 GH_TOKEN="$(cat tok)" gh pr merge 546 --admin --merge' "real_invocation_spaced_env_prefix"
 _expect block "git fetch && gh pr merge 7 --admin --squash"   "real_invocation_after_separator"
+# Quoting the flag does NOT evade the guard — shlex unquotes `"--admin"` back to
+# a real token, so the override is still a real invocation (the under-block hole).
+_expect block 'gh pr merge 1 "--admin" --merge'               "real_invocation_quoted_flag"
+_expect block "gh pr merge 1 '--admin' --merge"               "real_invocation_single_quoted_flag"
+# Invocation hidden behind eval / bash -c is still a real invocation.
+_expect block 'eval "gh pr merge 9 --admin --merge"'          "real_invocation_via_eval"
+_expect block 'bash -c "gh pr merge 9 --admin --merge"'       "real_invocation_via_bash_c"
+# Real invocation on a non-first line of a multi-line script (not anchored at
+# token 0) must still BLOCK.
+_REAL_MULTILINE=$'echo start\ngh pr merge 5 --admin --merge'
+_expect block "$_REAL_MULTILINE"                              "real_invocation_second_line"
+# Command-position bypass class: gh shifted off token 0 by a wrapper, an
+# absolute path, a subshell, or command substitution must still BLOCK.
+_expect block "command gh pr merge 9 --admin --merge"         "real_invocation_command_wrapper"
+_expect block "/usr/bin/gh pr merge 9 --admin --merge"        "real_invocation_absolute_path"
+_expect block "env gh pr merge 9 --admin --merge"             "real_invocation_env_wrapper"
+_expect block "timeout 60 gh pr merge 9 --admin --merge"      "real_invocation_timeout_wrapper"
+_expect block "(gh pr merge 9 --admin --merge)"               "real_invocation_subshell"
+# shellcheck disable=SC2016  # literal command-substitution string under test (no expansion wanted)
+_expect block 'x=$(gh pr merge 9 --admin --merge)'            "real_invocation_command_substitution"
+_expect block "if true; then gh pr merge 9 --admin --merge; fi" "real_invocation_compound"
+# shellcheck disable=SC2016  # literal backtick command-substitution string under test
+_expect block 'x=`gh pr merge 9 --admin --merge`'             "real_invocation_backticks"
+_expect block "cat <(gh pr merge 9 --admin --merge)"          "real_invocation_process_substitution"
+# Backslash-newline line continuation: the shell collapses `\`+newline, so these
+# run as one admin override and must BLOCK (shlex does not collapse them itself).
+_CONT_FLAG=$'gh pr merge 546 \\\n  --admin --merge'
+_expect block "$_CONT_FLAG"                                   "real_invocation_continuation_before_flag"
+_CONT_NOSPACE=$'gh pr merge 9 \\\n--admin'
+_expect block "$_CONT_NOSPACE"                                "real_invocation_continuation_no_space"
+_CONT_SUBCMD=$'gh pr \\\nmerge 546 --admin'
+_expect block "$_CONT_SUBCMD"                                 "real_invocation_continuation_in_subcommand"
+# Whitespace / quoted-subcommand normalization (pre-filter must not drop these).
+_expect block "gh  pr  merge 9 --admin --merge"               "real_invocation_double_space"
+_expect block 'gh "pr" merge 9 --admin --merge'               "real_invocation_quoted_subcommand"
 
 # --- ALLOW: mere mentions of the literal (the false-positive class) ---
 _expect allow 'grep -n "Use gh pr merge --admin here" file.md'        "mention_in_grep_pattern"
@@ -46,6 +81,15 @@ _expect allow 'echo "gh pr merge --admin"'                            "mention_i
 # Heredoc body mention (the real failure that motivated this fix):
 _HEREDOC=$'git commit -F - <<\'EOF\'\nnote: so gh pr merge --admin from the agent fails\nEOF'
 _expect allow "$_HEREDOC"                                             "mention_in_heredoc_body"
+# Heredoc delimiters with a hyphen or dot must also strip the body — the prior
+# `\w+` delimiter regex missed these, over-blocking the mention (blocking finding).
+_HEREDOC_HYPHEN=$'cat <<MY-DELIM\ngh pr merge 5 --admin --merge\nMY-DELIM'
+_expect allow "$_HEREDOC_HYPHEN"                                     "mention_in_heredoc_hyphen_delim"
+_HEREDOC_DOT=$'cat <<DELIM.v1\ngh pr merge 5 --admin --merge\nDELIM.v1'
+_expect allow "$_HEREDOC_DOT"                                        "mention_in_heredoc_dot_delim"
+# `gh pr merge` WITHOUT --admin is not an admin override (e.g. fp-recovery's
+# `--disable-auto`) — must ALLOW.
+_expect allow "gh pr merge 553 --disable-auto"                       "gh_pr_merge_without_admin"
 # Unrelated commands are unaffected.
 _expect allow "ls -la && echo done"                                   "unrelated_command"
 

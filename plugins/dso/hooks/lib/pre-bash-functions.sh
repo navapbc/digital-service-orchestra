@@ -979,30 +979,27 @@ hook_tickets_tracker_bash_guard() {
 # substring test (`*"gh pr merge"*"--admin"*`) fired on all of those, blocking
 # legitimate commands that only referenced the string.
 #
-# Approach: strip quoted spans (single/double/backtick) and heredoc bodies, then
-# re-check the surviving "live" command text — a real invocation survives, a
-# mention does not. Fails CLOSED (treats the input as an invocation) if python3
-# is unavailable or errors, so a stripper failure can never produce a false
-# negative on a genuine override.
+# Approach: structural, not textual. A real invocation has `gh pr merge` and
+# `--admin` as separate tokens at a command position; a mention is fused into a
+# single quoted token or lives in a heredoc body. detect-admin-merge.py
+# shlex-tokenizes the command (correct shell unquoting, so a real `"--admin"` is
+# caught while a fused mention is not), strips heredoc bodies, and recurses into
+# eval / bash -c payloads. Fails CLOSED (treats the input as an invocation) if
+# python3 or the helper is unavailable or errors, so a parser failure can never
+# produce a false negative on a genuine override.
 _is_admin_merge_invocation() {
     local cmd="$1"
-    # Cheap pre-filter: the literal must be present at all.
-    [[ "$cmd" == *"gh pr merge"*"--admin"* ]] || return 1
-    if command -v python3 >/dev/null 2>&1; then
-        local stripped
-        # shellcheck disable=SC2016  # python script is intentionally single-quoted (no bash expansion)
-        stripped=$(printf '%s' "$cmd" | python3 -c 'import sys,re
-s=sys.stdin.read()
-s=re.sub(r"<<-?\s*[\x27\x22]?(\w+)[\x27\x22]?.*?\n\1"," ",s,flags=re.S)
-s=re.sub(r"[\x27][^\x27]*[\x27]"," ",s)
-s=re.sub(r"[\x22][^\x22]*[\x22]"," ",s)
-s=re.sub(r"[`][^`]*[`]"," ",s)
-sys.stdout.write(s)' 2>/dev/null) && {
-            [[ "$stripped" == *"gh pr merge"*"--admin"* ]]
-            return
-        }
+    # Cheap pre-filter: skip only commands that cannot possibly be a gh merge.
+    # Deliberately looser than the detector (substrings, not adjacency) so it can
+    # never false-negative relative to it — e.g. `gh  pr  merge` (double space)
+    # or `gh "pr" merge` (quoted subcommand) must still reach the detector.
+    [[ "$cmd" == *gh* && "$cmd" == *merge* ]] || return 1
+    local _detect="${BASH_SOURCE[0]%/*}/detect-admin-merge.py"
+    if command -v python3 >/dev/null 2>&1 && [[ -f "$_detect" ]]; then
+        printf '%s' "$cmd" | python3 "$_detect"
+        return  # exit 0 = invocation (block); exit 1 = mention (allow)
     fi
-    # Fail closed: cannot strip → treat the mention as an invocation (block).
+    # Fail closed: cannot run the detector → treat as an invocation (block).
     return 0
 }
 
