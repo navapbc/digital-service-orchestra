@@ -52,6 +52,8 @@ tests/scripts/fixtures/isolation-rules/tmp-*
 # Sprint-active marker file (created by Phase A, removed by Phase I, never committed)
 .sprint-active
 .debug-active
+# Fix-bug-active marker file (created at Phase A Step 2 activation, removed at clean skill close, never committed)
+.fix-bug-active
 
 # Review artifacts (transient — written by code-reviewer sub-agents, never committed)
 reviewer-findings.json

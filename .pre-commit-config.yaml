@@ -344,6 +344,13 @@ repos:
         # commit being made — git log -1 returned the previous HEAD.
         stages: [commit-msg]
 
+      - id: antipattern-scan-trailer-check
+        name: Antipattern Scan Trailer Check (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh antipattern-scan-trailer-check 10 "plugins/dso/hooks/check-antipattern-scan-trailer.sh"
+        language: system
+        pass_filenames: false
+        stages: [commit-msg]
+
       - id: session-merge-only-check
         name: Session Worktree Merge-Only Check (10s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh session-merge-only-check 10 "plugins/dso/scripts/check-session-merge-only.sh"
