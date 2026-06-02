@@ -184789,6 +184789,7 @@
     },
     "labels": [
       "CLI_user",
+      "bug-type-logic",
       "dso-id:7a0e-21cf-a340-4474"
     ],
     "priority": {
@@ -184800,15 +184801,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "merge-to-main-pr.sh: PR2 created in two-tier flow -> polling phase aborts with 'could not resolve PR number', PR2 left unmerged"
@@ -184927,6 +184928,7 @@
     },
     "labels": [
       "CLI_user",
+      "bug-type-logic",
       "dso-id:77ab-1dbd-6016-427d"
     ],
     "priority": {
@@ -184938,17 +184940,210 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "llm-review-dispatch-or-skip.sh: staged->main PR whose scope is fully sub-PR-covered -> 'refusing to SKIP an unprovenanced range on an empty diff', llm-review fails closed and blocks merge"
+  },
+  "DIG-5067": {
+    "assignee": null,
+    "description": null,
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:55a5-8118-d104-409f"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "#3': raise + decouple region-split thresholds (R-1 filter-before-split, R-2 fallback re-chunk, R-3 decouple gate/fan-out, R-4 config)"
+  },
+  "DIG-5068": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "test_validate_findings_schema_pass_no_tmpfile_remains FAILED in a local full-suite run (798 passed, 1 failed) on origin/main HEAD 0e388e9e81, but the SAME test PASSED in CI on PR #531's Script Tests and in the isolated #3' worktree run (825 passed). The local run was in a worktree with heavy accumulated /tmp state from a long session. The test asserts no tmpfile remains after validate_findings_schema; likely detecting unrelated leftover /tmp files (isolation) rather than a real leak \u2014 but verify validate_findings_schema isn't leaking a tmpfile on the pass path. Priority low (CI-green). code_version: 0e388e9e81",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:6973-5abf-6d87-4009"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "test_runner_smoke.py::test_validate_findings_schema_pass_no_tmpfile_remains: passes in CI -> fails in a /tmp-polluted local worktree (suspected isolation/flake)"
+  },
+  "DIG-5069": {
+    "assignee": null,
+    "description": null,
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:dc57-efc3-35bf-4294"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "#2: deterministic cross-chunk symbol injection (G-1 uniqueness/confidence, G-2 bounded appendix, G-3 no shell-out coupling)"
+  },
+  "DIG-5070": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Implement the M-1-measured FP-reduction levers from docs/designs/chunked-review-fp-reduction-proposal.md (v5). M-1: cross-chunk hallucinated-reference = 55% of chunked-review FPs (the real dominant class); source-grep #6 = 0%. Ship #3' (lead) then #2 (re-elevated). \u00a7E spec/intent injection = follow-up for the 35% residual.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10307,
+      "description": "Workstreams track a set of related work and activities that work towards a larger deliverable.",
+      "entityId": "ac43421d-383b-4d08-ba0e-cc35239fdb4d",
+      "hierarchyLevel": 1,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10307?size=medium",
+      "id": "17009",
+      "name": "Epic",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17009",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:fd99-09ac-5776-4fdb"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Chunked-review FP reduction (#3' threshold raise/decouple + #2 cross-chunk symbol injection)"
   }
 }
