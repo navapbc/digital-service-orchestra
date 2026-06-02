@@ -1,0 +1,59 @@
+sequenceDiagram
+  participant Dev as Developer
+  participant Sprint as /dso:sprint
+  participant Git as Local Git
+  participant GH as GitHub
+  participant CI as ci.yml
+  participant SubPR as review-sub-pr.yml
+  participant Merge as merge-to-main.sh
+  participant FP as /dso:fp-recovery
+  participant Agents as code-reviewer agents
+
+  Dev->>Sprint: /dso:sprint <epic-id>
+  Sprint->>Git: create session branch
+  Sprint->>GH: create-sprint-draft-pr.sh<br/>(ci-pr mode)
+  GH->>CI: trigger (PR opened)
+  CI-->>GH: changes / static gates running
+
+  loop per story
+    Sprint->>Git: story/<epic>/<story> branch
+    Sprint->>Sprint: Phases E-F<br/>tasks + per-task review
+    Sprint->>Git: merge story branch<br/>(DSO-Story-Merge trailer)
+    Sprint->>GH: push story PR
+    GH->>SubPR: trigger (session/** PR)
+    SubPR->>Agents: dispatch dso:code-reviewer<br/>(tier from classifier)
+    Agents-->>SubPR: findings.json
+    SubPR-->>GH: findings + required check
+    GH-->>Sprint: required check passed
+  end
+
+  Sprint->>Sprint: Phase G epic validation<br/>completion-verifier
+  Sprint->>Merge: invoke merge-to-main.sh
+  Merge->>GH: mark PR ready for review
+  GH->>CI: re-trigger (session PR updated)
+  CI->>Agents: llm-review on integration diff<br/>(provenance-aware narrowing)
+  Agents-->>CI: findings (severity-tagged)
+
+  alt critical findings — CI blocks merge
+    Note over Dev,Agents: Suspected false positive escape valve
+    Dev->>FP: /dso:fp-recovery <pr-number>
+    FP->>Agents: dispatch dso:code-reviewer-standard<br/>@ opus tier
+    Agents-->>FP: rescored findings
+    FP-->>Dev: clearance verdict<br/>(or confirmed-block — fix locally)
+    Dev->>Dev: address remaining findings<br/>commit + push
+    GH->>CI: re-trigger
+    CI->>Agents: llm-review (next cycle)
+    Agents-->>CI: findings cleared
+  else findings all minor or none
+    Note over CI,GH: standard path
+  end
+
+  CI-->>GH: merge-pipeline-checks pass
+  Merge->>GH: gh pr merge
+  GH-->>Dev: PR merged to main
+
+  GH->>CI: post-merge (push main)
+  CI->>CI: calibration-rollup<br/>mutation + churn append
+
+  Note over GH: every 20 min<br/>(out of band)
+  GH->>GH: reconcile-bridge.yml<br/>syncs tickets ↔ Jira

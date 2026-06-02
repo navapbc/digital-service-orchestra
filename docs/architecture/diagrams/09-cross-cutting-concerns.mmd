@@ -1,0 +1,30 @@
+flowchart LR
+  subgraph cross["Cross-Cutting Mechanisms"]
+    direction TB
+    prec[PRECONDITIONS<br/>gate chain]
+    scratch[Scratch + Receipt<br/>contract]
+    remed[Remediation Loop<br/>+ Oscillation Check]
+    hooks[Pre-commit Hooks<br/>review gate /<br/>test gate /<br/>branch invariant]
+    review[REVIEW-WORKFLOW<br/>tier classifier]
+  end
+
+  brainstorm["/dso:brainstorm"] --> prec
+  preplanning["/dso:preplanning"] --> prec
+  implplan["/dso:implementation-plan"] --> prec
+  sprint["/dso:sprint"] --> prec
+
+  preplanning --> scratch
+  implplan --> scratch
+
+  brainstorm --> remed
+  preplanning --> remed
+  implplan --> remed
+  sprint --> remed
+
+  sprint --> hooks
+  sprint --> review
+
+  classDef skill fill:#dbeafe,stroke:#1e40af
+  classDef cross fill:#fce7f3,stroke:#9d174d
+  class brainstorm,preplanning,implplan,sprint skill
+  class prec,scratch,remed,hooks,review cross

@@ -1,0 +1,46 @@
+flowchart TB
+  trigger([Trigger]):::actor
+
+  subgraph cigate["CI Gates (PR-blocking)"]
+    ci[ci.yml<br/>main CI orchestrator<br/>+ llm-review<br/>+ merge-pipeline-checks]
+    subpr[review-sub-pr.yml<br/>per-story PR review]
+    plat1[ci-python-skills.yml]
+    plat2[ticket-platform-matrix.yml]
+    plat3[ticket-perf-regression.yml]
+    plat4[portability-smoke.yml]
+  end
+
+  subgraph jira["Jira Reconciliation"]
+    rb[reconcile-bridge.yml<br/>every 20 min<br/>+ workflow_dispatch]
+    rbc[reconcile-bridge-canary.yml<br/>hourly heartbeat]
+    fsck[weekly-bridge-fsck.yml<br/>Mon 06:00 UTC]
+  end
+
+  subgraph maint["Maintenance / Telemetry"]
+    tl[ticket-lifecycle.yml<br/>daily 03:00 UTC]
+    cal[calibration-rollup.yml<br/>monthly + quarterly]
+    e2e[template-real-url-e2e.yml<br/>daily + tag push]
+  end
+
+  trigger -->|push / PR| cigate
+  trigger -->|cron| jira
+  trigger -->|cron| maint
+  trigger -->|workflow_dispatch| rb
+  trigger -->|workflow_dispatch| tl
+  trigger -->|workflow_dispatch| e2e
+  trigger -->|tag v*| e2e
+
+  ci -->|gates merge of<br/>session/main PRs| out([Required<br/>checks pass])
+  subpr -->|gates merge of<br/>story PRs| out
+  plat1 --> out
+  plat2 --> out
+  plat3 --> out
+  plat4 --> out
+
+  classDef actor fill:#fef3c7,stroke:#92400e,color:#000
+  classDef gate fill:#dbeafe,stroke:#1e40af,color:#000
+  classDef bridge fill:#fce7f3,stroke:#9d174d,color:#000
+  classDef maint fill:#dcfce7,stroke:#166534,color:#000
+  class cigate gate
+  class jira bridge
+  class maint maint

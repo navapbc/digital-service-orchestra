@@ -1,0 +1,70 @@
+flowchart TB
+  start([Invocation:<br/>/dso:brainstorm or<br/>/dso:brainstorm epic-id]):::start
+
+  start --> typegate{Type Detection<br/>Gate}
+  typegate -->|epic| p1
+  typegate -->|story/task/bug<br/>convert| convert[phases/convert-to-epic.md]
+  typegate -->|story/task/bug<br/>enrich| enrich[phases/enrich-in-place.md]
+  convert --> p1
+  enrich --> done
+
+  subgraph p1["Phase 1 — Context + Dialogue"]
+    p1a[Scale Inference Protocol] --> p1b[Codebase Investigation]
+    p1b --> p1c[Tell-Me-More Loop<br/>one question at a time]
+    p1c --> p1d[Phase 1 Gate:<br/>Understanding Summary →<br/>Intent Gap Analysis]
+  end
+
+  p1 --> ui15{UI Intent<br/>Detection?}
+  ui15 -->|clear-ui| probes[UX Probe Set<br/>3 probes]
+  ui15 -->|clear-non-ui| skipui[skip probes]
+  ui15 -->|ambiguous| haiku1[haiku UI classifier<br/>prompt: ui-detection-classifier.md]
+  haiku1 --> ui15decide{result}
+  ui15decide -->|ui| probes
+  ui15decide -->|non-ui| skipui
+  probes --> p15
+  skipui --> p15
+
+  subgraph p15["Phase 1.5 — UI-Copy Detector"]
+    p15a[Signal scan]
+    p15b[Idempotency guard]
+    p15c[Tag copy-needed<br/>+ ## Copy Needs section]
+    p15a --> p15b --> p15c
+  end
+
+  p15 --> ecls[classify-epic-class.sh<br/>→ EPIC_CLASS]
+  ecls --> probe{architectural?}
+  probe -->|yes| archprobe[run-architectural-probe.sh<br/>dso:architectural-probe]
+  probe -->|no| p2
+  archprobe --> p2
+
+  subgraph p2["Phase 2 — Approach + Spec"]
+    p2a[Propose 2-3 approaches<br/>complexity-gate.md]
+    p2b[Draft Epic Spec<br/>SCs + Closure Checks<br/>verifiable-sc-check.md]
+    p2c[Step 2.15<br/>Verify-intents]
+    p2d[Step 2.25<br/>Cross-Epic Scan]
+    p2e[Scrutiny Pipeline]
+    p2f[Step 4<br/>Approval Gate]
+    p2a --> p2b --> p2c --> p2d --> p2e --> p2f
+  end
+
+  p2d -->|haiku| cei[dso:cross-epic-<br/>interaction-classifier]
+  p2e -->|sub-agents| scrut[shared/workflows/<br/>epic-scrutiny-pipeline.md<br/>→ red-team-reviewer<br/>→ blue-team-filter<br/>→ feasibility-reviewer<br/>→ bot-psychologist]
+
+  p2 --> p3
+
+  subgraph p3["Phase 3 — Ticket Integration"]
+    p3a[Follow-on Gate]
+    p3b[ticket create epic]
+    p3c[ticket link depends_on]
+    p3d[validate-issues.sh]
+    p3e[Write PIL comment<br/>+ emit brainstorm-fidelity result]
+    p3f[preconditions-record.sh<br/>+ tag brainstorm:complete]
+    p3g[Write brainstorm-sentinel]
+    p3a --> p3b --> p3c --> p3d --> p3e --> p3f --> p3g
+  end
+
+  p3 --> done([Brainstorm complete])
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef phase fill:#dbeafe,stroke:#1e40af
+  class p1,p15,p2,p3 phase

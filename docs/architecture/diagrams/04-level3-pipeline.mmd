@@ -1,0 +1,55 @@
+flowchart LR
+  user([Developer]):::actor
+
+  subgraph brainstorm["/dso:brainstorm"]
+    direction TB
+    bs1[Phase 1<br/>Socratic Dialogue]
+    bs2[Phase 1.5<br/>UI-Copy Detector]
+    bs3[Phase 2<br/>Approach + Scrutiny]
+    bs4[Phase 3<br/>Epic Ticket Write]
+    bs1 --> bs2 --> bs3 --> bs4
+  end
+
+  subgraph preplanning["/dso:preplanning"]
+    direction TB
+    pp1[Phase A<br/>Reconciliation +<br/>Complexity Route]
+    pp2[Phase B<br/>External Deps]
+    pp3[Story Decomposition]
+    pp4[Phase C-D<br/>Risk + Integration]
+    pp5[Phase E<br/>Adversarial Review]
+    pp6[Phase F-G<br/>Slicing + Research]
+    pp7[Phase H<br/>Write Stories]
+    pp1 --> pp2 --> pp3 --> pp4 --> pp5 --> pp6 --> pp7
+  end
+
+  subgraph implplan["/dso:implementation-plan"]
+    direction TB
+    ip1[Step 1<br/>Contextual Discovery]
+    ip2[Step 2<br/>Architectural Review]
+    ip3[Step 3<br/>Task Drafting]
+    ip4[Step 4<br/>Plan Review]
+    ip5[Step 5<br/>Task Create]
+    ip6[Step 6<br/>Gap Analysis]
+    ip1 --> ip2 --> ip3 --> ip4 --> ip5 --> ip6
+  end
+
+  subgraph sprint["/dso:sprint"]
+    direction TB
+    sp1[Phase A-B<br/>Init + Planning]
+    sp2[Phase C-D<br/>Batch Prep + Manual Pause]
+    sp3[Phase E<br/>Sub-Agent Launch]
+    sp4[Phase F<br/>Story Validation]
+    sp5[Phase G<br/>Epic Validation]
+    sp6[Phase H-I<br/>Remediation + Closure]
+    sp1 --> sp2 --> sp3 --> sp4 --> sp5 --> sp6
+  end
+
+  user -->|"feature idea"| brainstorm
+  brainstorm -->|"epic ticket<br/>brainstorm:complete"| preplanning
+  preplanning -->|"story tickets<br/>+ done definitions"| implplan
+  implplan -->|"task tickets<br/>+ TDD specs"| sprint
+  sprint -->|"PR merged<br/>epic closed"| user
+
+  classDef actor fill:#fef3c7,stroke:#92400e,color:#000
+  classDef skill fill:#dbeafe,stroke:#1e40af,color:#000
+  class brainstorm,preplanning,implplan,sprint skill

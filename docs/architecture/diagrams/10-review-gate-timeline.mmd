@@ -1,0 +1,64 @@
+flowchart LR
+  idea([Feature idea]):::start
+
+  subgraph bs_gates["/dso:brainstorm — scrutiny + approval"]
+    direction TB
+    g_bs1[Cross-Epic Interaction Classifier<br/>haiku — Step 2.25]
+    g_bs2[Scrutiny Pipeline<br/>red-team + blue-team + feasibility<br/>+ Agent Clarity + Scope + Value<br/>+ bot-psychologist conditional]
+    g_bs3[Approval Gate<br/>user confirmation]
+    g_bs1 --> g_bs2 --> g_bs3
+  end
+
+  subgraph pp_gates["/dso:preplanning — story-level review"]
+    direction TB
+    g_pp1[Complexity Evaluator<br/>haiku — A.1.5]
+    g_pp2[Phase E Adversarial Review<br/>red-team-reviewer + blue-team-filter<br/>cross-story blind-spot audit]
+    g_pp3[Refusal Gate<br/>External Deps coverage<br/>for externally-shaped SCs]
+    g_pp1 --> g_pp2 --> g_pp3
+  end
+
+  subgraph ip_gates["/dso:implementation-plan — plan review"]
+    direction TB
+    g_ip1[Architectural Review<br/>3 reviewers — Step 2 conditional<br/>pass_threshold 4]
+    g_ip2[Plan Review<br/>5 reviewers — Step 4<br/>pass_threshold 5]
+    g_ip3[Behavioral Coverage<br/>Cross-Check<br/>haiku — Step 5b]
+    g_ip4[Gap Analysis<br/>opus — Step 6]
+    g_ip1 --> g_ip2 --> g_ip3 --> g_ip4
+  end
+
+  subgraph sp_gates["/dso:sprint — execution review and gates"]
+    direction TB
+    g_sp1[SC Coverage Gate<br/>haiku → sonnet → opus<br/>Phase A]
+    g_sp2[Per-task Code Review<br/>dso:code-reviewer light / standard / deep<br/>via REVIEW-WORKFLOW classifier<br/>Phase F]
+    g_sp3[Pre-commit Hooks<br/>review gate, test gate, ticket-boundary,<br/>branch invariant, compliance verifier<br/>Phase F per commit]
+    g_sp4[Story Completion Verifier<br/>dso:completion-verifier<br/>P1 typed-enum verdict<br/>Phase F]
+    g_sp5[Epic Completion Verifier<br/>dso:completion-verifier<br/>Phase G]
+    g_sp6["/dso:validate-work<br/>5-domain validation<br/>Phase G"]
+    g_sp1 --> g_sp2 --> g_sp3 --> g_sp4 --> g_sp5 --> g_sp6
+  end
+
+  subgraph ci_gates["GitHub Actions — CI on every push and PR"]
+    direction TB
+    g_ci1[ci.yml static gates<br/>actionlint, shellcheck, ruff,<br/>hook tests, script tests]
+    g_ci2[review-sub-pr.yml<br/>llm-review on per-story PRs<br/>required check]
+    g_ci3[ci.yml llm-review job<br/>tier classifier + provenance narrowing<br/>+ named code-reviewer agents<br/>on integration diff]
+    g_ci4[merge-pipeline-checks<br/>umbrella required check]
+    g_ci1 --> g_ci2 --> g_ci3 --> g_ci4
+  end
+
+  merged([PR merged to main]):::done
+
+  idea --> bs_gates --> pp_gates --> ip_gates --> sp_gates --> ci_gates --> merged
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef done fill:#dcfce7,stroke:#166534
+  classDef bs fill:#dbeafe,stroke:#1e40af
+  classDef pp fill:#dbeafe,stroke:#1e40af
+  classDef ip fill:#dbeafe,stroke:#1e40af
+  classDef sp fill:#dbeafe,stroke:#1e40af
+  classDef ci fill:#fce7f3,stroke:#9d174d
+  class bs_gates bs
+  class pp_gates pp
+  class ip_gates ip
+  class sp_gates sp
+  class ci_gates ci

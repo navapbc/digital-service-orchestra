@@ -1,0 +1,26 @@
+C4Context
+  title System Context — DSO Plugin
+
+  Person(dev, "Developer / Operator", "Invokes /dso:* skills via Claude Code; reviews diagrams, plans, PRs.")
+
+  System_Boundary(harness, "Claude Code Harness") {
+    System(dso, "DSO Plugin", "Skills, agents, hooks, scripts that orchestrate the four-stage workflow.")
+  }
+
+  System_Ext(llm, "Anthropic LLM API", "Backs orchestrator and all sub-agents (haiku / sonnet / opus tiers).")
+  System_Ext(fs, "Repository Filesystem", "Source code, tests, designs, configs; edited by sub-agents.")
+  System_Ext(tickets, "Ticket Store", "Event-sourced log on orphan tickets branch (under .tickets-tracker).")
+  System_Ext(git, "Git / GitHub", "Worktrees, branches, PRs, required-checks.")
+  System_Ext(actions, "GitHub Actions", "12 workflows: CI gates, llm-review orchestration, Jira reconciler trio, calibration rollups, ticket lifecycle.")
+  System_Ext(jira, "Jira (optional)", "Bidirectional sync via the reconciler bridge (DIG project).")
+
+  Rel(dev, dso, "Invokes skills, answers Socratic questions, approves plans")
+  Rel(dso, llm, "Dispatches sub-agents per tier; receives JSON / structured output")
+  Rel(dso, fs, "Reads code, runs validate.sh, writes edits")
+  Rel(dso, tickets, "Creates epics / stories / tasks; reads dependency graph")
+  Rel(dso, git, "Creates worktrees, opens PRs, merges to main")
+  Rel(git, actions, "Triggers workflows on push / PR / schedule")
+  Rel(actions, llm, "ci.yml + review-sub-pr.yml dispatch code-reviewer agents")
+  Rel(actions, tickets, "reconcile-bridge.yml + ticket-lifecycle.yml mutate ticket store")
+  Rel(actions, jira, "reconcile-bridge.yml syncs tickets bidirectionally")
+  Rel(dso, jira, "Local tickets staged by reconciler", "Optional")

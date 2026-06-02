@@ -1,0 +1,31 @@
+flowchart TD
+  start([I want to work on something]):::start
+  q1{Do I have a ticket ID?}
+  start --> q1
+
+  q1 -->|no — just an idea| bs1["/dso:brainstorm"]
+  q1 -->|yes| q2{What ticket type?}
+
+  q2 -->|bug| fb["/dso:fix-bug bug-id"]
+  q2 -->|epic, story, or task| q3{Is it an epic?}
+
+  q3 -->|yes — epic| q4{Has it been brainstormed?<br/>brainstorm:complete tag}
+  q3 -->|no — story or task| q5{Does it have children?}
+
+  q4 -->|no — scrutiny:pending<br/>or zero-child unbrainstormed| bs2["/dso:brainstorm epic-id"]
+  q4 -->|yes — ready to plan or execute| sp1["/dso:sprint epic-id"]
+
+  q5 -->|story with no tasks| ip1["/dso:implementation-plan story-id"]
+  q5 -->|story/task with children| sp2["/dso:sprint story-or-task-id"]
+
+  bs1 --> bs_out[Epic created<br/>brainstorm:complete tag set]
+  bs2 --> bs_out
+  bs_out --> sp_route([Run /dso:sprint epic-id<br/>to execute])
+
+  note["Sprint orchestrates the others.<br/>If invoked on an epic that hasn't been<br/>preplanned or whose stories lack tasks,<br/>Phase A and Phase B cascade-invoke<br/>/dso:preplanning and<br/>/dso:implementation-plan automatically.<br/>You rarely need to invoke those directly."]:::note
+  sp1 -.-> note
+  sp2 -.-> note
+  sp_route -.-> note
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef note fill:#f3e8ff,stroke:#7e22ce,color:#000

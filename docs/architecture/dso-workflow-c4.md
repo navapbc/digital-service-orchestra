@@ -18,6 +18,10 @@ Diagrams progress from highest-level context (Level 1) to per-skill internals
 flowcharts because per-skill flow has more shape than C4 component diagrams
 can represent cleanly.
 
+> **Pre-rendered images** of every diagram below are available under
+> [`diagrams/`](diagrams/README.md) (SVG + PNG) for contexts where mermaid
+> won't render — Confluence, Word/PDF export, slide decks, printing.
+
 ---
 
 ## Where Do I Start? — Skill Entry Decision Tree
@@ -778,7 +782,7 @@ from a feature idea to a merged PR, in execution order. Each box names the
 mechanism and the sub-agent or hook responsible.
 
 ```mermaid
-flowchart TB
+flowchart LR
   idea([Feature idea]):::start
 
   subgraph bs_gates["/dso:brainstorm — scrutiny + approval"]
