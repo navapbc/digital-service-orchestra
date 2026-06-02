@@ -970,9 +970,9 @@ copy.artifact_dir=copy/
 
 | | |
 |---|---|
-| **Description** | GitHub check name for the PR-side LLM review CI job. Dual-consistency requirement: this value MUST match both (1) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (2) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint Story Review`. Note: `per-branch-review.yml` was removed in story 20d7-09d6; `ci.yml`'s `llm-review` job is now the sole PR-side consumer. |
+| **Description** | GitHub check name for the **sub-PR review** CI job in the two-tier promotion model. Consistency requirement: this value MUST match (1) the `required_status_checks` context in the **sub-PR ruleset** (`staged-*`), and (2) the expected sub-PR check asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, the preflight falls back to `review-sub-pr`. (The `main`-ruleset integration check `llm-review` and `check-staged-head` are structural to the two-tier model and asserted by the preflight directly — they are not configured via this key.) |
 | **Accepted values** | Non-empty string. Must match the literal check name produced by GitHub Actions (no shell-quoting, no leading/trailing whitespace). |
-| **Default** | `Sprint Story Review` |
+| **Default** | `review-sub-pr` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
