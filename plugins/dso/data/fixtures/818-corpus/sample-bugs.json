@@ -1,0 +1,602 @@
+[
+  {
+    "id": "bug-001",
+    "description": "Variable declared but never used in hook script",
+    "type": "linting",
+    "severity": "low"
+  },
+  {
+    "id": "bug-002",
+    "description": "Missing shellcheck directive for SC2086 unquoted expansion",
+    "type": "linting",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-003",
+    "description": "Function defined after first use without forward declaration",
+    "type": "linting",
+    "severity": "high"
+  },
+  {
+    "id": "bug-004",
+    "description": "Inconsistent indentation (tabs vs spaces) in configuration file",
+    "type": "linting",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-005",
+    "description": "Hard-coded debug print statement left in production code",
+    "type": "linting",
+    "severity": "low"
+  },
+  {
+    "id": "bug-006",
+    "description": "Off-by-one error in loop boundary causes last element to be skipped",
+    "type": "logic",
+    "severity": "low"
+  },
+  {
+    "id": "bug-007",
+    "description": "Incorrect operator: uses assignment (=) instead of equality (==) in conditional",
+    "type": "logic",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-008",
+    "description": "Boolean logic inverted: NOT applied to wrong subexpression",
+    "type": "logic",
+    "severity": "high"
+  },
+  {
+    "id": "bug-009",
+    "description": "Integer overflow when ticket count exceeds 16-bit boundary",
+    "type": "logic",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-010",
+    "description": "Race condition: file read between existence check and open",
+    "type": "logic",
+    "severity": "low"
+  },
+  {
+    "id": "bug-011",
+    "description": "Null dereference when optional field absent from PRECONDITIONS event",
+    "type": "logic",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-012",
+    "description": "Wrong base for percentage calculation: divides by 100 instead of total",
+    "type": "logic",
+    "severity": "high"
+  },
+  {
+    "id": "bug-013",
+    "description": "Truncation error: integer division loses fractional restart rate",
+    "type": "logic",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-014",
+    "description": "Missing guard: continues processing after validator returns non-zero",
+    "type": "logic",
+    "severity": "low"
+  },
+  {
+    "id": "bug-015",
+    "description": "Stale cache not invalidated after ticket state transition",
+    "type": "logic",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-016",
+    "description": "PRECONDITIONS event missing required schema_version field",
+    "type": "schema",
+    "severity": "low"
+  },
+  {
+    "id": "bug-017",
+    "description": "tier field accepts undeclared value 'ultra-deep' not in schema",
+    "type": "schema",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-018",
+    "description": "manifest_depth value 'EXTREME' not in {minimal,standard,deep}",
+    "type": "schema",
+    "severity": "high"
+  },
+  {
+    "id": "bug-019",
+    "description": "timestamp field stored as string instead of integer milliseconds",
+    "type": "schema",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-020",
+    "description": "gate_name field allows empty string, violating schema constraint",
+    "type": "schema",
+    "severity": "low"
+  },
+  {
+    "id": "bug-021",
+    "description": "session_id missing from event written by batch-lifecycle handler",
+    "type": "schema",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-022",
+    "description": "worktree_id set to null instead of empty string when not in worktree",
+    "type": "schema",
+    "severity": "high"
+  },
+  {
+    "id": "bug-023",
+    "description": "data field is array instead of object for fp_flagged events",
+    "type": "schema",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-024",
+    "description": "event_type field uses underscore (PRECONDITIONS_V2) instead of canonical form",
+    "type": "schema",
+    "severity": "low"
+  },
+  {
+    "id": "bug-025",
+    "description": "Schema version field is integer 2 instead of string '2'",
+    "type": "schema",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-026",
+    "description": "flock timeout exceeded when tickets branch has >10k events",
+    "type": "runtime",
+    "severity": "low"
+  },
+  {
+    "id": "bug-027",
+    "description": "gc.auto not set to 0 before batch write, triggering git gc mid-operation",
+    "type": "runtime",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-028",
+    "description": "Temp file created in /tmp/ not cleaned up on SIGTERM",
+    "type": "runtime",
+    "severity": "high"
+  },
+  {
+    "id": "bug-029",
+    "description": "EAGAIN on socket when OAuth usage endpoint rate-limits heavy polling",
+    "type": "runtime",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-030",
+    "description": "File descriptor leak: fd not closed after flock acquisition fails",
+    "type": "runtime",
+    "severity": "low"
+  },
+  {
+    "id": "bug-031",
+    "description": "mktemp falls back to predictable path when TMPDIR unset on NixOS",
+    "type": "runtime",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-032",
+    "description": "Recursive ticket compact triggers another compact, causing loop",
+    "type": "runtime",
+    "severity": "high"
+  },
+  {
+    "id": "bug-033",
+    "description": "SIGPIPE when downstream consumer closes pipe during streaming output",
+    "type": "runtime",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-034",
+    "description": "Exit 144 from test runner not distinguished from other non-zero exits",
+    "type": "runtime",
+    "severity": "low"
+  },
+  {
+    "id": "bug-035",
+    "description": "Stale lock file from killed process blocks next session for 30s",
+    "type": "runtime",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-036",
+    "description": "JSON parse error on malformed event causes entire batch to abort",
+    "type": "runtime",
+    "severity": "high"
+  },
+  {
+    "id": "bug-037",
+    "description": "Python3 fcntl.flock unavailable on Windows Subsystem for Linux v1",
+    "type": "runtime",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-038",
+    "description": "Empty ticket directory handled incorrectly: returns error instead of empty list",
+    "type": "boundary",
+    "severity": "low"
+  },
+  {
+    "id": "bug-039",
+    "description": "Single-event corpus reports division-by-zero in prevention_rate calculation",
+    "type": "boundary",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-040",
+    "description": "Zero-byte PRECONDITIONS.json file treated as valid event",
+    "type": "boundary",
+    "severity": "high"
+  },
+  {
+    "id": "bug-041",
+    "description": "Corpus with exactly 100 bugs triggers off-by-one in >= comparison",
+    "type": "boundary",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-042",
+    "description": "Ticket ID containing path separator (/) breaks directory resolution",
+    "type": "boundary",
+    "severity": "low"
+  },
+  {
+    "id": "bug-043",
+    "description": "Unicode in description field causes JSON parse to fail on macOS locale",
+    "type": "boundary",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-044",
+    "description": "Baseline rate of 0.0 causes Wilson CI calculation to return NaN",
+    "type": "boundary",
+    "severity": "high"
+  },
+  {
+    "id": "bug-045",
+    "description": "Post rate higher than baseline produces negative drop_pct",
+    "type": "boundary",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-046",
+    "description": "Sample size of 1 produces degenerate 95% CI bounds [0, 1]",
+    "type": "boundary",
+    "severity": "low"
+  },
+  {
+    "id": "bug-047",
+    "description": "Threshold of 0 trivially passes; gate should reject threshold < 1",
+    "type": "boundary",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-048",
+    "description": "FP rate exactly at threshold (0.10) should not trigger fallback",
+    "type": "boundary",
+    "severity": "high"
+  },
+  {
+    "id": "bug-049",
+    "description": "manifest_depth defaults to 'standard' when field absent from old event",
+    "type": "boundary",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-050",
+    "description": "Comparison uses string equality for numeric ticket count",
+    "type": "logic",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-051",
+    "description": "Short-circuit evaluation bypasses mandatory side effect",
+    "type": "logic",
+    "severity": "high"
+  },
+  {
+    "id": "bug-052",
+    "description": "Dead branch: condition is always true due to prior assignment",
+    "type": "logic",
+    "severity": "low"
+  },
+  {
+    "id": "bug-053",
+    "description": "MAX_AGENTS cap of 0 not enforced when orchestration.max_agents is null",
+    "type": "boundary",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-054",
+    "description": "Batch size of exactly max_agents triggers fence-post error",
+    "type": "boundary",
+    "severity": "high"
+  },
+  {
+    "id": "bug-055",
+    "description": "Extra field 'debug_info' in event passes write but rejected by validator",
+    "type": "schema",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-056",
+    "description": "Field order in JSON output differs from contract specification",
+    "type": "schema",
+    "severity": "low"
+  },
+  {
+    "id": "bug-057",
+    "description": "Trailing whitespace in heredoc body causes SC1009 in strict mode",
+    "type": "linting",
+    "severity": "low"
+  },
+  {
+    "id": "bug-058",
+    "description": "Concurrent writes to same ticket directory without flock cause corruption",
+    "type": "runtime",
+    "severity": "high"
+  },
+  {
+    "id": "bug-059",
+    "description": "Log rotation mid-session truncates breadcrumb file to zero bytes",
+    "type": "runtime",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-060",
+    "description": "Validator returns exit 0 for unknown gate_name instead of exit 2",
+    "type": "logic",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-061",
+    "description": "Empty corpus produces COVERAGE_RESULT with prevention_rate NaN",
+    "type": "boundary",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-062",
+    "description": "Missing required 'signal' field causes parser to raise KeyError",
+    "type": "schema",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-063",
+    "description": "Unused import statement in Python bridge module",
+    "type": "linting",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-064",
+    "description": "Warning suppressed via 2>/dev/null hides legitimate stderr diagnostic",
+    "type": "runtime",
+    "severity": "low"
+  },
+  {
+    "id": "bug-065",
+    "description": "Regex captures wrong group when ticket ID contains hyphen",
+    "type": "logic",
+    "severity": "high"
+  },
+  {
+    "id": "bug-066",
+    "description": "Ticket ID of length 1 accepted but violates 8-char minimum",
+    "type": "boundary",
+    "severity": "low"
+  },
+  {
+    "id": "bug-067",
+    "description": "Confidence interval uses Z=1.64 for 90% instead of 1.96 for 95%",
+    "type": "logic",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-068",
+    "description": "fp_rate field stored as string '0.15' instead of float 0.15",
+    "type": "schema",
+    "severity": "high"
+  },
+  {
+    "id": "bug-069",
+    "description": "PRECONDITIONS write fails silently when .tickets-tracker is read-only",
+    "type": "runtime",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-070",
+    "description": "Wilson CI lower bound returns negative value for small samples",
+    "type": "boundary",
+    "severity": "high"
+  },
+  {
+    "id": "bug-071",
+    "description": "Fallback engagement flag not cleared when fp_rate drops below threshold",
+    "type": "logic",
+    "severity": "low"
+  },
+  {
+    "id": "bug-072",
+    "description": "event_type field truncated to 12 characters on some filesystems",
+    "type": "schema",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-073",
+    "description": "SC2155: local variable assigned from command substitution in one step",
+    "type": "linting",
+    "severity": "high"
+  },
+  {
+    "id": "bug-074",
+    "description": "Temp directory not removed when generator called with CORPUS_OUTPUT=/dev/null",
+    "type": "runtime",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-075",
+    "description": "Corpus with 0 records of a given type causes type distribution check to fail",
+    "type": "boundary",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-076",
+    "description": "Drop_pct rounds to 0 when baseline and post are both very small floats",
+    "type": "logic",
+    "severity": "high"
+  },
+  {
+    "id": "bug-077",
+    "description": "schema_version field has value '2.0' instead of '2'",
+    "type": "schema",
+    "severity": "low"
+  },
+  {
+    "id": "bug-078",
+    "description": "Git commit in flock critical section times out when repo has 100k objects",
+    "type": "runtime",
+    "severity": "high"
+  },
+  {
+    "id": "bug-079",
+    "description": "Benchmark p95 undefined when iterations < 20 samples",
+    "type": "boundary",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-080",
+    "description": "Preconditions validator treats exit 2 as passed when gate name is unknown",
+    "type": "logic",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-081",
+    "description": "Function name uses camelCase instead of project snake_case convention",
+    "type": "linting",
+    "severity": "low"
+  },
+  {
+    "id": "bug-082",
+    "description": "FALLBACK_ENGAGED signal lacks required ticket_id field in output",
+    "type": "schema",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-083",
+    "description": "Orphaned lock file from SIGKILL blocks all writes for 30-min TTL",
+    "type": "runtime",
+    "severity": "high"
+  },
+  {
+    "id": "bug-084",
+    "description": "Negative sample size passed to sc13-restart-analysis causes divide-by-zero",
+    "type": "boundary",
+    "severity": "low"
+  },
+  {
+    "id": "bug-085",
+    "description": "Benchmark p95 computed before sorting samples, giving wrong percentile",
+    "type": "logic",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-086",
+    "description": "ci_lower and ci_upper swapped in Wilson CI output when post > baseline",
+    "type": "schema",
+    "severity": "high"
+  },
+  {
+    "id": "bug-087",
+    "description": "Deprecated bash construct: uses backtick instead of $() for substitution",
+    "type": "linting",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-088",
+    "description": "PRECONDITIONS read returns empty on first call due to filesystem cache lag",
+    "type": "runtime",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-089",
+    "description": "Corpus size of exactly threshold (100) requires >= not > comparison",
+    "type": "boundary",
+    "severity": "high"
+  },
+  {
+    "id": "bug-090",
+    "description": "String comparison for ticket_id 'None' fails when id is Python None",
+    "type": "logic",
+    "severity": "low"
+  },
+  {
+    "id": "bug-091",
+    "description": "manifest_depth absent from minimal-tier events, violates schema_version 2",
+    "type": "schema",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-092",
+    "description": "set -e not present in corpus generator script, masks python3 exit code",
+    "type": "linting",
+    "severity": "high"
+  },
+  {
+    "id": "bug-093",
+    "description": "flock acquire succeeds but file renamed by concurrent process before write",
+    "type": "runtime",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-094",
+    "description": "fp_rate threshold of exactly 0.0 causes division by zero in rate calc",
+    "type": "boundary",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-095",
+    "description": "Gate_name field present but empty string treated as valid gate by validator",
+    "type": "logic",
+    "severity": "high"
+  },
+  {
+    "id": "bug-096",
+    "description": "Sample-bugs.json uses Windows line endings (CRLF), breaks json.load on Linux",
+    "type": "schema",
+    "severity": "low"
+  },
+  {
+    "id": "bug-097",
+    "description": "Python3 subprocess encoding defaults to ASCII, fails on Unicode bug descriptions",
+    "type": "runtime",
+    "severity": "low"
+  },
+  {
+    "id": "bug-098",
+    "description": "Preconditions compact skips last event when count is exact power of 2",
+    "type": "boundary",
+    "severity": "critical"
+  },
+  {
+    "id": "bug-099",
+    "description": "Fallback writes minimal event with wrong ticket_id (uses env var instead of arg)",
+    "type": "logic",
+    "severity": "medium"
+  },
+  {
+    "id": "bug-100",
+    "description": "p95_ms field is integer in spec but float in implementation output",
+    "type": "schema",
+    "severity": "high"
+  }
+]

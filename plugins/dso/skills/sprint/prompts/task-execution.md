@@ -76,12 +76,12 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 5. Implement the task following existing conventions
    - **Prior-art check**: Before writing new code, consult `skills/shared/prompts/prior-art-search.md` for existing patterns (exempt: single-file logic fixes, formatting changes)
    → Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 4/6: Implementation complete ✓"`
-6. Run `make format-check && make lint` from app/, then run unit tests via `.claude/scripts/dso test-batched.sh --runner=pytest --test-dir=app/tests` (CLAUDE.md `rule:no-broad-tests-bash` — raw `make test-unit-only` may exceed the ~73s Bash-tool ceiling and get killed with exit 144)
+6. Run `{FORMAT_CHECK_CMD} && {LINT_CMD}`, then run unit tests via `{TEST_CMD}` (CLAUDE.md `rule:no-broad-tests-bash` — raw `make test-unit-only` may exceed the ~73s Bash-tool ceiling and get killed with exit 144)
    → On pass: Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 5/6: Validation passed ✓"`
    → On failure: **Investigate before retrying.** Do NOT revert and try a different approach without first understanding WHY the tests failed:
      a. Identify WHICH specific tests failed (not just "4 tests failed")
      b. Read the failing test code and trace the failure to your change
-     c. Determine: did your change break these tests, or were they pre-existing failures? Use `git stash && make test-unit-only && git stash pop` to compare — this diagnostic intentionally uses raw `make` so the stash/unstash boundary holds identical invocation semantics; if invoking from the Bash tool, substitute both sides with `.claude/scripts/dso test-batched.sh --runner=pytest --test-dir=app/tests` to stay under the ceiling.
+     c. Determine: did your change break these tests, or were they pre-existing failures? Use `git stash && {TEST_CMD} && git stash pop` to compare baseline vs. post-change results.
      d. If your change caused the failures: understand the dependency between your change and the failing tests before attempting a fix
      e. If pre-existing: note them and proceed (they are not your responsibility)
      f. Write checkpoint: `.claude/scripts/dso ticket comment {id} "CHECKPOINT 5/6: Validation failed — <which tests failed and why>"`

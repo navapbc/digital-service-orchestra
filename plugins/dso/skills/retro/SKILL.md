@@ -211,10 +211,10 @@ Quarterly append step for the inference-incident corpus consumed by `inference-r
 
 ### Cadence Gate (STOP HERE if SHOULD_RUN=false)
 
-Check `tests/fixtures/inference-incidents/last-curator-run.json` for the previous run's UTC timestamp. If the timestamp exists and is less than 90 days old, **skip the rest of Phase F** and proceed to Guardrails:
+Check `${CLAUDE_PLUGIN_ROOT}/data/fixtures/inference-incidents/last-curator-run.json` for the previous run's UTC timestamp. If the timestamp exists and is less than 90 days old, **skip the rest of Phase F** and proceed to Guardrails:
 
 ```bash
-LAST_RUN_FILE="tests/fixtures/inference-incidents/last-curator-run.json"
+LAST_RUN_FILE="${CLAUDE_PLUGIN_ROOT}/data/fixtures/inference-incidents/last-curator-run.json"
 NOW_TS=$(date -u +%s)
 SHOULD_RUN=true
 if [[ -f "$LAST_RUN_FILE" ]]; then
@@ -254,7 +254,7 @@ If the curator emitted at least one valid record, append to the corpus and updat
 
 ```bash
 if [[ "$SHOULD_RUN" == "true" && -s "$NEW_INCIDENTS_FILE" ]]; then
-    cat "$NEW_INCIDENTS_FILE" >> tests/fixtures/inference-incidents/incidents.jsonl
+    cat "$NEW_INCIDENTS_FILE" >> "${CLAUDE_PLUGIN_ROOT}/data/fixtures/inference-incidents/incidents.jsonl"
     printf '{"last_run_unix": %s, "last_run_iso": "%s"}\n' \
         "$NOW_TS" "$(date -u -r "$NOW_TS" +%Y-%m-%dT%H:%M:%SZ)" \
         > "$LAST_RUN_FILE"
@@ -276,8 +276,8 @@ After appending, validate that the corpus's new tail parses as well-formed JSONL
 Required fields per `inference-incident-schema.md`: `ticket_id`, `inferred_decision_text`, `affects_fields`, `outcome`, `source_decision_text` (all 5 must be non-null on every record).
 
 ```bash
-if [[ "$SHOULD_RUN" == "true" && -f tests/fixtures/inference-incidents/incidents.jsonl ]]; then
-    _corpus_file=tests/fixtures/inference-incidents/incidents.jsonl
+if [[ "$SHOULD_RUN" == "true" && -f "${CLAUDE_PLUGIN_ROOT}/data/fixtures/inference-incidents/incidents.jsonl" ]]; then
+    _corpus_file="${CLAUDE_PLUGIN_ROOT}/data/fixtures/inference-incidents/incidents.jsonl"
 
     # Step 1: detect JSONL parse errors. `jq empty` exits non-zero on the FIRST
     # malformed line and writes its error to stderr; we want a count of parse
@@ -313,7 +313,7 @@ The validation is non-blocking — corpus issues surface as a warning rather tha
 In addition to the cadence gate, **skip Phase F entirely** when:
 - The session is operating under high token usage (the same constraint as Phase E).
 - The retro is run with `--no-curator` (user override; not implemented as a literal flag — surface as a Phase F prompt question).
-- The repo does not have `tests/fixtures/inference-incidents/` (e.g., DSO not fully onboarded).
+- The plugin does not have `${CLAUDE_PLUGIN_ROOT}/data/fixtures/inference-incidents/` (e.g., DSO not fully onboarded).
 
 ---
 

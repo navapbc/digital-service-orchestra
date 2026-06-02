@@ -802,6 +802,26 @@ def _init_cycle_ledger(
     else:
         cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
 
+    # reconstruction_gaps floor (bug c6bf-19df-ac83-43fb):
+    # When reconstruction_gaps=True (partial/failed reconstruction), the derived
+    # cycle_number may under-count because cancelled CI runs don't write PR comment
+    # markers. Apply DSO_REVIEW_CYCLE as a floor so a cancelled cycle-1 run doesn't
+    # cause cycle-2 to execute as cycle-1.
+    if ledger.get("reconstruction_gaps"):
+        _env_rc = os.environ.get("DSO_REVIEW_CYCLE")
+        if _env_rc is not None:
+            try:
+                _env_rc_int = int(_env_rc)
+                if _env_rc_int > cycle_number:
+                    print(
+                        f"INFO: reconstruction_gaps=True — applying DSO_REVIEW_CYCLE={_env_rc_int} "
+                        f"as floor (derived={cycle_number})",
+                        file=sys.stderr,
+                    )
+                    cycle_number = _env_rc_int
+            except ValueError:
+                pass
+
     return ledger, cycle_number
 
 
@@ -1615,11 +1635,22 @@ def init_cycle_ledger(
         try:
             env_cycle_int = int(env_cycle)
             if env_cycle_int != cycle_num:
-                print(
-                    f"WARNING: DSO_REVIEW_CYCLE={env_cycle_int} disagrees with "
-                    f"ledger-derived cycle_num={cycle_num}; ledger wins",
-                    file=sys.stderr,
-                )
+                # reconstruction_gaps floor (bug c6bf-19df-ac83-43fb):
+                # When reconstruction had gaps (partial/failed), the env var is
+                # more reliable than the reconstructed count — apply it as a floor.
+                if ledger.get("reconstruction_gaps") and env_cycle_int > cycle_num:
+                    print(
+                        f"INFO: reconstruction_gaps=True — applying DSO_REVIEW_CYCLE={env_cycle_int} "
+                        f"as floor (derived={cycle_num})",
+                        file=sys.stderr,
+                    )
+                    cycle_num = env_cycle_int
+                else:
+                    print(
+                        f"WARNING: DSO_REVIEW_CYCLE={env_cycle_int} disagrees with "
+                        f"ledger-derived cycle_num={cycle_num}; ledger wins",
+                        file=sys.stderr,
+                    )
         except ValueError:
             pass
 
@@ -2747,7 +2778,9 @@ def main() -> int:
                 file=sys.stderr,
             )
             _env_cycle = 1
-        cycle_number = _ledger_cycle_number or _env_cycle
+        # Use `is not None` instead of `or` — `or` would silently ignore
+        # _env_cycle when _ledger_cycle_number=1 (truthy) (bug c6bf-19df-ac83-43fb).
+        cycle_number = _ledger_cycle_number if _ledger_cycle_number is not None else _env_cycle
 
         # Load the raw ledger for SHORT_CIRCUIT pre-check (cycle_next_action needs it).
         _ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")

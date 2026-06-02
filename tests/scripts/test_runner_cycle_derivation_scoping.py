@@ -24,6 +24,10 @@ from __future__ import annotations
 import json
 import pathlib
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pytest
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
@@ -268,4 +272,82 @@ def test_sentinel_pr_number_zero_counts_for_all_prs(tmp_path: pathlib.Path) -> N
         f"Expected cycle_number=2 for PR 42 when sentinel pr_number=0 entry exists, "
         f"got {cycle_number!r}. "
         "Sentinel-0 entries must be treated as matching all PRs (v1.1.0 compat)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: reconstruction_gaps=True + partial stale matching + env floor
+#
+# This tests the fix for bug c6bf-19df-ac83-43fb:
+#   - cycle-1 CI run was cancelled (no ledger entry written to PR comments)
+#   - reconstruct_from_pr_comments returned reconstruction_gaps=True and
+#     a stale partial entry [{cycle_num:1}] (from an unrelated prior run)
+#   - DSO_REVIEW_CYCLE=3 (set by CI to indicate the actual re-review cycle)
+#   - Without fix: matching[-1]['cycle_num'] + 1 = 2 (wrong — ignores env floor)
+#   - With fix: env floor applied → cycle_number = 3
+# ---------------------------------------------------------------------------
+
+
+def test_init_cycle_ledger_reconstruction_gaps_applies_env_floor(
+    tmp_path: pathlib.Path, monkeypatch: "pytest.MonkeyPatch"
+) -> None:
+    """
+    Given: empty on-disk ledger (no cycles in file),
+           reconstruct_from_pr_comments returns reconstruction_gaps=True
+           with partial stale matching=[{cycle_num:1}] for PR 284,
+           DSO_REVIEW_CYCLE=3 in environment
+    When: _init_cycle_ledger is called with pr_number="284", repo="org/repo"
+    Then: cycle_number == 3 (env floor applied, not 2 from matching[-1]+1)
+
+    RED before fix: current code returns 2 (wrong)
+        — matching=[{cycle_num:1}] → matching[-1]['cycle_num']+1 = 2
+        — reconstruction_gaps=True is never consulted as an env-floor trigger
+    GREEN after fix: reconstruction_gaps=True AND env_cycle(3) > derived(2)
+        → apply env as floor → cycle_number = 3
+    """
+    import json
+    import unittest.mock as mock
+
+    from dso_ci_review import cycle_ledger as cycle_ledger_mod
+
+    # Empty on-disk ledger — triggers reconstruction path
+    ledger_path = tmp_path / "cycle-ledger.json"
+    ledger_path.write_text(
+        json.dumps({"schema_version": "1.2.0", "cycles": [], "epic_id": ""})
+    )
+
+    # reconstruct_from_pr_comments returns partial stale data with reconstruction_gaps=True
+    partial_ledger = {
+        "schema_version": "1.2.0",
+        "cycles": [
+            {
+                "cycle_num": 1,
+                "pr_number": 284,
+                "commit_sha": "abc123stale",
+                "findings": [],
+                "findings_hash": "h0",
+                "halt_reason": None,
+            }
+        ],
+        "reconstruction_gaps": True,
+    }
+
+    monkeypatch.setenv("DSO_REVIEW_CYCLE", "3")
+
+    import dso_ci_review.runner as runner_mod  # noqa: PLC0415 — local import to pick up patched env
+
+    with mock.patch.object(
+        cycle_ledger_mod, "reconstruct_from_pr_comments", return_value=partial_ledger
+    ):
+        ledger, cycle_number = runner_mod._init_cycle_ledger(
+            artifacts_dir=str(tmp_path),
+            pr_number="284",
+            repo="org/repo",
+        )
+
+    assert cycle_number == 3, (
+        f"Expected cycle_number=3 (env floor on reconstruction_gaps=True), "
+        f"got {cycle_number!r}. "
+        "When reconstruction_gaps=True AND DSO_REVIEW_CYCLE(3) > derived(2), "
+        "the env floor must be applied so the correct cycle context is used."
     )

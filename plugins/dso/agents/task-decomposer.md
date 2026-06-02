@@ -153,6 +153,24 @@ For each task:
 
 **AC semantic consistency**: every `Verify:` command must test what the criterion text claims. If the criterion mentions entity X, the verify command must reference entity X — not a different entity. For migration tasks, verify both removal AND replacement.
 
+#### Verify-Command Robustness
+
+Before emitting each task-specific `Verify:` command, apply this robustness checklist. For each item, write the affirmative robust form — not just avoid the anti-pattern:
+
+1. **Word-boundary matching** — use `\b` word-boundary anchors or quote JSON/YAML key names (`"key":`) so a grep matches only the intended token and not substrings. Example robust form: `grep -E '"cycle_count"[[:space:]]*:' file.json` instead of `grep 'cycle' file.json`.
+2. **Shell expansion in Verify strings** — use single quotes or escape `$` characters (`\$PATH`, `\$?`) for literal shell metacharacters that must reach the tool unchanged. Example robust form: `grep -F '$PATH' file` or `grep 'PATH=.*:\$PATH'`.
+3. **Helper script invocation signature** — before citing a helper script in a Verify command, identify its expected argv by reading its `--help` output or its first-line usage comment, then supply all required positional arguments. Example robust form: `bash tests/scripts/validate-review-output.sh <prompt-id> <output-file>`.
+4. **Fixture independence** — select a fixture that is independently valid for the AC's specific purpose: run the fixture through the target validator in isolation first. A fixture that fails a prerequisite validation step (e.g., missing required fields) cannot be used to assert passing behavior.
+5. **Cardinality guards** — when a DD names a count ("all N event types"), write an AC that asserts the exact count. Example robust form: `[ "$(jq '.events | length' output.json)" -eq 5 ]`.
+6. **Format tolerance for documentation checks** — when verifying a value's presence in a `.md` file, write a pattern that matches JSON (`"key": value`), YAML (`key: value`), prose, and pipe-table forms unless the DD mandates a specific format. Example robust form: `grep -E '"?schema_version"?[[:space:]]*:?[[:space:]]*1'`.
+7. **Structured-artifact assertion target** — when the DD requires presence in a structured block (JSON example, YAML block, table row), write the Verify command to check that structure, not surrounding prose text. Example robust form: `jq -e '.examples[] | select(.schema_version == 1)' doc-examples.json`.
+8. **Prerequisite-state ACs** — when a downstream Universal AC depends on a project mechanism (e.g., a RED test-index marker, a feature flag, a migration), include an explicit earlier AC that establishes that prerequisite state. Example: add `"Add .test-index RED entry for new source — Verify: grep -F 'new-source' .test-index"` before the Universal test-pass AC.
+9. **Conflicting ACs need a resolution AC** — when two ACs would produce logically opposite results on the same artifact (e.g., "tests pass" and "test fails RED"), add a sequencing AC (e.g., the RED-marker AC) that resolves the ordering so both can be true at commit time.
+10. **Positive next-section anchors in awk/sed range patterns** — use `/^## /` (or the equivalent positive pattern for the section-start token) as both the start and the end anchor of section-extraction ranges, not negation patterns (`/^##[[:space:]]+[^P]/`). Example robust form: `awk '/^## Target Section$/,/^## /' file.md`.
+11. **Sibling-task file references** — before citing a file created by a sibling task, verify that file already exists in the codebase. If it does not, either depend on the sibling task explicitly or reference the closest existing analogue. Example robust form: check `ls "${CLAUDE_PLUGIN_ROOT}/scripts/verify-session-provenance.sh"` before writing `verify-session-provenance.sh` as a pattern reference.
+
+Apply this checklist on every task-specific AC before finalizing the task list. If a Verify command fails any item, rewrite it in the affirmative robust form before emitting.
+
 ### Step 6: Identify Dependencies
 
 For each task, list dependencies on:
@@ -176,6 +194,7 @@ Re-read your output against this checklist before emitting:
 5. Every task description includes a Story DD Coverage section listing the DDs the task owns (verbatim DD text).
 6. Sequential ordering: data model → API → UI → cleanup; E2E depends on implementation; docs depend on implementation.
 7. No task bundles two independently-testable behaviors (Gate 3 violation).
+8. Every task-specific `Verify:` command passes all 11 items in the **Verify-Command Robustness** checklist from Step 5 (word-boundary matching, shell expansion escaping, helper script argv signature, fixture independence, cardinality guards, format tolerance, structured-artifact assertion target, prerequisite-state ACs, conflicting-AC resolution, positive awk anchors, sibling-file existence).
 
 If any check fails, iterate until valid. Do not emit an invalid set.
 
