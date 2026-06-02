@@ -37,13 +37,14 @@ flowchart TB
   e -->|no| refusal
 
   subgraph eadv["Phase E Adversarial Review"]
-    e1[dso:red-team-reviewer<br/>opus<br/>mode story_review]
-    e2[dso:blue-team-filter<br/>sonnet]
+    e1["red-team-reviewer (opus)<br/>mode: story_review"]
+    e2["blue-team-filter (sonnet)"]
     e3{findings?}
-    e4[Remediation Loop<br/>max_cycles<br/>+ /dso:oscillation-check<br/>at N≥2]
-    e1 --> e2 --> e3 -->|non-empty| e4
-    e4 --> e1
-    e3 -->|empty| eDone[exit]
+    e4["Remediation Loop + oscillation-check"]
+    eDone[exit]
+    e1 --> e2 --> e3
+    e3 -->|non-empty| e4 --> e1
+    e3 -->|empty| eDone
   end
 
   eadv --> refusal

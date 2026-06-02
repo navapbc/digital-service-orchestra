@@ -22,9 +22,8 @@ flowchart TD
   bs2 --> bs_out
   bs_out --> sp_route([Run /dso:sprint epic-id<br/>to execute])
 
-  note["Sprint orchestrates the others.<br/>If invoked on an epic that hasn't been<br/>preplanned or whose stories lack tasks,<br/>Phase A and Phase B cascade-invoke<br/>/dso:preplanning and<br/>/dso:implementation-plan automatically.<br/>You rarely need to invoke those directly."]:::note
+  note["Sprint cascade-invokes /dso:preplanning<br/>and /dso:implementation-plan on demand.<br/>You rarely need to invoke them directly."]:::note
   sp1 -.-> note
-  sp2 -.-> note
   sp_route -.-> note
 
   classDef start fill:#fef3c7,stroke:#92400e

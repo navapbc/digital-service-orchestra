@@ -1,30 +1,38 @@
 flowchart LR
-  subgraph cross["Cross-Cutting Mechanisms"]
+  subgraph skills["Core Skills"]
     direction TB
-    prec[PRECONDITIONS<br/>gate chain]
-    scratch[Scratch + Receipt<br/>contract]
-    remed[Remediation Loop<br/>+ Oscillation Check]
-    hooks[Pre-commit Hooks<br/>review gate /<br/>test gate /<br/>branch invariant]
-    review[REVIEW-WORKFLOW<br/>tier classifier]
+    sk1["/dso:brainstorm"]
+    sk2["/dso:preplanning"]
+    sk3["/dso:implementation-plan"]
+    sk4["/dso:sprint"]
   end
 
-  brainstorm["/dso:brainstorm"] --> prec
-  preplanning["/dso:preplanning"] --> prec
-  implplan["/dso:implementation-plan"] --> prec
-  sprint["/dso:sprint"] --> prec
+  subgraph all4["used by all 4"]
+    direction TB
+    prec[PRECONDITIONS gate chain]
+    remed[Remediation Loop +<br/>Oscillation Check]
+  end
 
-  preplanning --> scratch
-  implplan --> scratch
+  subgraph some["used by some"]
+    direction TB
+    scratch["Scratch + Receipt contract<br/>(preplanning + impl-plan)"]
+  end
 
-  brainstorm --> remed
-  preplanning --> remed
-  implplan --> remed
-  sprint --> remed
+  subgraph sprintonly["used by sprint only"]
+    direction TB
+    hooks[Pre-commit Hooks]
+    review[REVIEW-WORKFLOW]
+  end
 
-  sprint --> hooks
-  sprint --> review
+  sk1 --> all4
+  sk2 --> all4
+  sk3 --> all4
+  sk4 --> all4
+  sk2 --> scratch
+  sk3 --> scratch
+  sk4 --> sprintonly
 
   classDef skill fill:#dbeafe,stroke:#1e40af
   classDef cross fill:#fce7f3,stroke:#9d174d
-  class brainstorm,preplanning,implplan,sprint skill
+  class sk1,sk2,sk3,sk4 skill
   class prec,scratch,remed,hooks,review cross

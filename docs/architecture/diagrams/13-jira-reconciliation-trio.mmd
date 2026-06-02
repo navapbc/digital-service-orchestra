@@ -2,7 +2,7 @@ flowchart TB
   cronA[(cron */20 min)]:::cron
   cronB[(cron hourly)]:::cron
   cronC[(cron Mon 06:00 UTC)]:::cron
-  disp[(workflow_dispatch:<br/>dry-run / bootstrap / live)]:::dispatch
+  disp[(workflow_dispatch<br/>modes: dry-run / bootstrap / live)]:::dispatch
 
   subgraph rb["reconcile-bridge.yml"]
     rb1[Pre-flight: BRIDGE_ENV_ID<br/>+ __main__.py exists]
@@ -41,12 +41,11 @@ flowchart TB
   cronB --> rbc
   cronC --> fsck
 
-  rb -.->|writes SYNC events| store[(tickets branch)]
   rbc -.->|reads run history| ghapi[(GitHub Actions API)]
-  rbc -.->|opens / closes tickets| store
+  rb -.->|writes SYNC events| store[(tickets branch)]
   fsck -.->|reads events| store
-
-  rb -.->|bidirectional<br/>via ACLI| jira[(Jira / DIG project)]
+  rbc -.->|opens / closes tickets| store
+  rb -.->|bidirectional ACLI sync| jira[(Jira / DIG project)]
 
   classDef cron fill:#fef3c7,stroke:#92400e,color:#000
   classDef dispatch fill:#fef3c7,stroke:#92400e,color:#000

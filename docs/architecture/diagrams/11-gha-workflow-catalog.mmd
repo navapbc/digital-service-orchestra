@@ -23,15 +23,12 @@ flowchart TB
   end
 
   trigger -->|push / PR| cigate
-  trigger -->|cron| jira
-  trigger -->|cron| maint
-  trigger -->|workflow_dispatch| rb
-  trigger -->|workflow_dispatch| tl
-  trigger -->|workflow_dispatch| e2e
+  trigger -->|cron + dispatch| jira
+  trigger -->|cron + dispatch| maint
   trigger -->|tag v*| e2e
 
-  ci -->|gates merge of<br/>session/main PRs| out([Required<br/>checks pass])
-  subpr -->|gates merge of<br/>story PRs| out
+  ci --> out([Required checks pass])
+  subpr --> out
   plat1 --> out
   plat2 --> out
   plat3 --> out

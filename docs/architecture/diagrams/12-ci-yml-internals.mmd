@@ -29,12 +29,12 @@ flowchart TB
     direction TB
     lr1[Step 1-3<br/>Cycle tracking<br/>DSO_REVIEW_CYCLE env]
     lr2[Step 4-8<br/>Provenance narrowing<br/>verify-session-provenance.sh<br/>+ DSO-Story-Merge trailer scan]
-    lr3[Step 9<br/>Dispatch gate<br/>llm-review-dispatch-or-skip.sh]
+    lr3["Step 9<br/>Dispatch gate<br/>llm-review-dispatch-or-skip.sh"]
     lr4{exit code?}
     lr5[Skip:<br/>all provenanced<br/>or OVER_BOUND]
     lr6[Step 10<br/>ci-llm-review-runner.sh<br/>→ runner.py<br/>+ context-augmentation loop]
     lr7[review-complexity-classifier.sh<br/>→ light / standard / deep]
-    lr8[Named code-reviewer agents<br/>dso:code-reviewer-light<br/>dso:code-reviewer-standard<br/>dso:code-reviewer-deep-*]
+    lr8["Named code-reviewer agents<br/>dso:code-reviewer-light<br/>dso:code-reviewer-standard<br/>dso:code-reviewer-deep-*"]
     lr9[Step 11<br/>Liveness gate<br/>findings.json non-empty]
     lr1 --> lr2 --> lr3 --> lr4
     lr4 -->|0 or 3| lr5
