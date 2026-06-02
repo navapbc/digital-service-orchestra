@@ -36,11 +36,19 @@ for f in ci.yml ticket-platform-matrix.yml ruleset-invariants.yml review-coverag
     assert_pass_if_clean "merge_group_trigger_${f%.yml}"
 done
 
-# 2. merge-pipeline-checks has an explicit merge_group if-arm.
+# 2. merge-pipeline-checks silent-rejection invariant — checked in LOCKSTEP.
+#    The job's merge_group if-arm is useless without ci.yml's workflow-level
+#    merge_group trigger (the job is never evaluated on the queue branch), and
+#    the workflow-level trigger without the arm leaves merge-pipeline-checks
+#    gating solely on base_ref so it never reports on the queue = silent
+#    rejection of every entry. Assert BOTH in one check so neither can be
+#    removed in isolation (the exact trap ADR-0019 migration step 2 warns of).
 _snapshot_fail
-_mpc=$(grep -cE "event_name == 'merge_group'" "$WF/ci.yml" 2>/dev/null || true)
-assert_ne "merge-pipeline-checks (ci.yml) has a merge_group if-arm" "0" "$_mpc"
-assert_pass_if_clean "merge_pipeline_checks_merge_group_arm"
+_wf_trigger=$(grep -cE '^[[:space:]]*merge_group:' "$WF/ci.yml" 2>/dev/null || true)
+_mpc_arm=$(grep -cE "event_name == 'merge_group'" "$WF/ci.yml" 2>/dev/null || true)
+assert_ne "ci.yml declares the workflow-level merge_group trigger (lockstep)" "0" "$_wf_trigger"
+assert_ne "merge-pipeline-checks has its merge_group if-arm (lockstep)" "0" "$_mpc_arm"
+assert_pass_if_clean "merge_pipeline_checks_silent_rejection_lockstep"
 
 # 3. Backstop workflows derive head SHA from the merge_group event shape.
 for f in review-coverage-invariant.yml dangling-references.yml; do
