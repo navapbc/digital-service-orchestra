@@ -51,12 +51,10 @@ on:
   merge_group:
 
 concurrency:
-  # NOTE (ADR-0019): cancel-in-progress can cancel an in-flight merge_group
-  # check. If queue-check cancellation becomes a problem under MQ, scope a
-  # separate non-cancelling concurrency group keyed on github.ref for
-  # merge_group events.
+  # GitHub Merge Queue (ADR-0019): NEVER cancel an in-flight merge_group check —
+  # a cancellation evicts the queue entry. Cancel only pull_request / push runs.
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
   # ── Path-change detection ───────────────────────────────────

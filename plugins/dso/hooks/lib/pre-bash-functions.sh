@@ -973,6 +973,53 @@ hook_tickets_tracker_bash_guard() {
 # ---------------------------------------------------------------------------
 # hook_no_force_merge
 # ---------------------------------------------------------------------------
+# Returns 0 (true) iff COMMAND actually INVOKES `gh pr merge ... --admin` — an
+# admin override — rather than merely MENTIONING the literal inside a quoted
+# argument (a grep pattern), a commit message, or a heredoc body. The prior
+# substring test (`*"gh pr merge"*"--admin"*`) fired on all of those, blocking
+# legitimate commands that only referenced the string.
+#
+# Approach: structural, not textual. A real invocation has `gh pr merge` and
+# `--admin` as separate tokens at a command position; a mention is fused into a
+# single quoted token or lives in a heredoc body. detect-admin-merge.py
+# shlex-tokenizes the command (correct shell unquoting, so a real `"--admin"` is
+# caught while a fused mention is not), strips heredoc bodies, and recurses into
+# eval / bash -c payloads. If python3 or the helper is unavailable, degrades to
+# a conservative substring fallback (see _admin_merge_fallback) that still
+# fail-closes on the --admin literal while letting non-admin merges through.
+#
+# Conservative fallback when the structural detector cannot run (python3 or the
+# helper absent). Block iff the `--admin` flag literal is present — so normal and
+# non-admin merges (`--auto`, `--merge`, the fp-recovery `--disable-auto`) still
+# pass, accepting only that a bare MENTION of --admin alongside a gh merge is
+# over-blocked in this rare degraded path. This is the original substring
+# behaviour, scoped to --admin so it cannot break the everyday merge workflow.
+#
+# KNOWN SCOPE LIMIT (deliberate): with no python3, a command that merely mentions
+# `--admin` (e.g. `echo "note: --admin" && gh pr merge 5 --auto`) is over-blocked,
+# because distinguishing mention from invocation needs the structural parser. This
+# is fail-closed (safe direction) and effectively unreachable in practice —
+# python3 is a hard dependency of the DSO toolchain — so the precise detector runs
+# on every real host. The over-block is pinned by `fallback_overblocks_admin_mention_by_design`.
+_admin_merge_fallback() {
+    [[ "$1" == *"--admin"* ]]
+}
+
+_is_admin_merge_invocation() {
+    local cmd="$1"
+    # Cheap pre-filter: skip only commands that cannot possibly be a gh merge.
+    # Deliberately looser than the detector (substrings, not adjacency) so it can
+    # never false-negative relative to it — e.g. `gh  pr  merge` (double space)
+    # or `gh "pr" merge` (quoted subcommand) must still reach the detector.
+    [[ "$cmd" == *gh* && "$cmd" == *merge* ]] || return 1
+    local _detect="${BASH_SOURCE[0]%/*}/detect-admin-merge.py"
+    if command -v python3 >/dev/null 2>&1 && [[ -f "$_detect" ]]; then
+        printf '%s' "$cmd" | python3 "$_detect"
+        return  # exit 0 = invocation (block); exit 1 = mention (allow)
+    fi
+    _admin_merge_fallback "$cmd"
+}
+
 # PreToolUse hook: block `gh pr merge --admin` outside /dso:fp-recovery.
 #
 # The --admin flag overrides ALL branch protection rules (required status
@@ -1005,8 +1052,9 @@ hook_no_force_merge() {
         return 0
     fi
 
-    # Detect: gh pr merge ... --admin (in any position)
-    if [[ "$COMMAND" == *"gh pr merge"*"--admin"* ]] || [[ "$COMMAND" == *"gh pr merge"*"--admin" ]]; then
+    # Detect an actual `gh pr merge ... --admin` INVOCATION — not a mere mention
+    # of the literal inside a quoted argument, commit message, or heredoc body.
+    if _is_admin_merge_invocation "$COMMAND"; then
         # Check for FP-recovery bypass env var
         if [[ "${DSO_FP_RECOVERY_ACTIVE:-}" == "1" ]]; then
             return 0
@@ -1022,8 +1070,13 @@ hook_no_force_merge() {
         echo "  2. Auto-merge when ready: gh pr merge <pr> --auto --merge" >&2
         echo "  3. FP-recovery (when CI review is a false positive): /dso:fp-recovery <pr>" >&2
         echo "" >&2
-        echo "To use FP-recovery: set DSO_FP_RECOVERY_ACTIVE=1 (set automatically" >&2
-        echo "by the /dso:fp-recovery workflow — do not set manually)." >&2
+        echo "Under /dso:fp-recovery the HUMAN completes the merge via the web UI once the" >&2
+        echo "manual opus review clears the PR — the skill emits a web-UI merge link +" >&2
+        echo "annotation for the human to use, then stops. The automating identity is a" >&2
+        echo "non-bypass actor by design and does not run the merge itself." >&2
+        echo "" >&2
+        echo "Docs: the /dso:fp-recovery skill (see CLAUDE.md) and FP-RECOVERY-WORKFLOW.md" >&2
+        echo "under the dso plugin docs/workflows/ directory." >&2
         trap - ERR; return 2
     fi
 

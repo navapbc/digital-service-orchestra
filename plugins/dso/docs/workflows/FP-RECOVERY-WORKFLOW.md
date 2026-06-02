@@ -148,13 +148,13 @@ If all four hold, you are **cleared to force-merge**.
 
 ### Step 5: Confirm other required checks are green, then hand off a web-UI merge link
 
-**The autonomous agent does NOT merge.** Under the Goal-4 containment model the dev
-agent runs as a non-bypass identity (`current_user_can_bypass: never` on both rulesets),
-so `gh pr merge --admin` from the agent simply fails — and SHOULD. The override is a
-**human action via the GitHub web UI**, performed by the named bypass actor
-(`ruleset.bypass_user_id`). The agent's job here is to (a) prove every OTHER required
-check is green so the bypass covers ONLY the FP'd `llm-review`, then (b) emit a merge link
-plus the mandatory annotation for the human to paste.
+**The merge is a human action via the GitHub web UI**, performed by the named bypass actor
+(`ruleset.bypass_user_id`) — this is the Goal-4 containment model working as designed: the
+dev agent runs as a non-bypass identity (`current_user_can_bypass: never` on both rulesets),
+so the override stays a deliberate human step. The agent's job here is precisely two things:
+(a) prove every OTHER required check is green so the bypass covers ONLY the FP'd `llm-review`,
+then (b) emit a merge link plus the mandatory annotation for the human to paste — and stop
+there. That handoff is the successful completion of FP-recovery.
 
 **5a — confirm all other required checks are green.** The bypass must not be used to skip
 a genuinely-failing test. Verify that every required check context (from
@@ -166,6 +166,15 @@ gh pr checks "<PR_NUMBER>"   # inspect: only llm-review (the FP) may be non-gree
 
 If ANY non-`llm-review` required check is failing or pending, **STOP** — this is not an
 FP-recovery situation (fix the failing check first; see "What this workflow does NOT do").
+
+**5a.5 — clear any queued auto-merge.** The PR usually has auto-merge queued (from the
+merge-to-main pipeline). With the `llm-review` check failing it will never fire, and leaving
+it queued forces the human to dismiss the auto-merge prompt before they can merge. Disable it
+so the web-UI **Merge** is a single clean click:
+
+```bash
+gh pr merge "<PR_NUMBER>" --disable-auto 2>/dev/null || true   # no-op if none queued
+```
 
 **5b — emit the web-UI merge link + annotation for the human.** Print:
 

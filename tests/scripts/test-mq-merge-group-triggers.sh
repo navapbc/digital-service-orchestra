@@ -66,4 +66,25 @@ assert_ne "review-sub-pr job stays pull_request-only (off merge_group)" "0" "$_s
 assert_ne "llm-review job stays pull_request-only (off merge_group)" "0" "$_llm"
 assert_pass_if_clean "llm_review_jobs_stay_pull_request_only"
 
+# 5. cancel-in-progress must NOT cancel merge_group runs — a cancellation evicts
+#    the queue entry. The required workflows guard it on the event being non-merge_group.
+#
+# Test level: this is a STRUCTURAL assertion (the guard expression is declared in
+# the workflow YAML), which is the correct and only feasible unit-test level for a
+# GitHub Actions concurrency expression — its RUNTIME evaluation belongs to GitHub
+# Actions, not to a shell unit test. Behavioral validation of the merge_group
+# lifecycle (event fires on the combined candidate, required checks report,
+# green→fast-forward / red→blocked) was performed empirically against a live
+# merge_queue ruleset during the de-risk spike and is recorded in
+# docs/adr/0019-github-merge-queue-for-staged-to-main.md. The structural assertion
+# here pins the declaration against accidental removal; the spike covers behavior.
+for f in ci.yml ticket-platform-matrix.yml; do
+    _snapshot_fail
+    # Anchor at line start (optional indent, no leading '#') so a commented-out or
+    # documentation-block occurrence of the pattern is NOT counted as the guard.
+    _cip=$(grep -cE "^[[:space:]]*cancel-in-progress:[[:space:]]*\\\$\{\{[[:space:]]*github\.event_name != 'merge_group'" "$WF/$f" 2>/dev/null || true)
+    assert_ne "$f declares the cancel-in-progress merge_group guard (uncommented)" "0" "$_cip"
+    assert_pass_if_clean "cancel_in_progress_guards_merge_group_${f%.yml}"
+done
+
 print_summary
