@@ -84,6 +84,24 @@ assert_contains "Tier2c stdout token" "RECOVERED_FROM_SESSION" "$OUT"
 STAGED2C=$(git -C "$T2C" diff --cached --name-only)
 assert_contains "Tier2c spaced file staged intact" "src/my work.py" "$STAGED2C"
 
+# ── Tier 2d: git add failure -> UNRECOVERABLE_REDISPATCH + exit 3 ────────────
+# When `git add` fails (e.g. due to a corrupted object store), the script must
+# NOT emit RECOVERED_FROM_SESSION (false success). It must emit
+# UNRECOVERABLE_REDISPATCH and exit 3 so the caller can requeue.
+echo "--- Tier 2d: git add failure -> UNRECOVERABLE_REDISPATCH ---"
+T2D=$(mktemp -d "${TMPDIR:-/tmp}/recover.XXXXXX")
+mk_repo "$T2D"
+mkdir -p "$T2D/src"
+echo "leaked work" > "$T2D/src/leaked2d.py"   # untracked, non-empty
+# Force git add to fail by making .git/objects unwritable
+chmod 555 "$T2D/.git/objects"
+OUT=$(cd "$T2D" && bash "$SCRIPT" "wt/no-such-branch" "$T2D" "src/leaked2d.py" 2>/dev/null); RC=$?
+# Restore permissions before any assertions (cleanup-safe regardless of outcome)
+chmod 755 "$T2D/.git/objects"
+assert_eq "Tier2d exit code 3 on git add failure" "3" "$RC"
+assert_not_contains "Tier2d no false RECOVERED_FROM_SESSION" "RECOVERED_FROM_SESSION" "$OUT"
+assert_contains "Tier2d emits UNRECOVERABLE_REDISPATCH" "UNRECOVERABLE_REDISPATCH" "$OUT"
+
 # ── Tier err: invalid session_root -> exit 2 (PR #548 finding 6) ─────────────
 echo "--- Tier err: invalid session_root -> exit 2 ---"
 OUT=$(bash "$SCRIPT" "wt/x" "/nonexistent/session/root/$$/xyz" "f.py" 2>&1); RC=$?
