@@ -45,8 +45,13 @@ _MAX_DEPTH = 5
 
 # Heredoc body: <<[-]? optional-quote DELIM optional-quote ... newline DELIM.
 # The delimiter run is any non-space, non-quote, non-backtick characters, so it
-# matches EOF, MY-DELIM, DELIM.v1, etc. — not just [A-Za-z0-9_].
-_HEREDOC = re.compile(r"""<<-?\s*(["']?)([^\s"'`]+)\1.*?\n[ \t]*\2\b""", re.S)
+# matches EOF, MY-DELIM, DELIM.v1, etc. — not just [A-Za-z0-9_]. The closing
+# delimiter is anchored on LINE POSITION (alone on its line, optional surrounding
+# whitespace, then newline or end-of-string) rather than a `\b` word boundary —
+# `\b` fails for a delimiter ending in punctuation (e.g. `<<DELIM.`).
+_HEREDOC = re.compile(
+    r"""<<-?[ \t]*(["']?)([^\s"'`]+)\1.*?\n[ \t]*\2[ \t]*(?:\n|$)""", re.S
+)
 
 # Tokens that end a simple command — the `--admin` search stops here so a flag
 # belonging to a *later* command (`gh pr merge 5 ; echo --admin`) is not counted.

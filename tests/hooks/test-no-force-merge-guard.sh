@@ -90,7 +90,28 @@ _expect allow "$_HEREDOC_DOT"                                        "mention_in
 # `gh pr merge` WITHOUT --admin is not an admin override (e.g. fp-recovery's
 # `--disable-auto`) — must ALLOW.
 _expect allow "gh pr merge 553 --disable-auto"                       "gh_pr_merge_without_admin"
+# Heredoc delimiter ending in punctuation: the line-position close anchor strips
+# the body (a `\b` word-boundary anchor would not), so the mention is ALLOWED.
+_HEREDOC_PUNCT=$'cat <<DELIM.\ngh pr merge 5 --admin --merge\nDELIM.'
+_expect allow "$_HEREDOC_PUNCT"                                     "mention_in_heredoc_punct_delim"
 # Unrelated commands are unaffected.
 _expect allow "ls -la && echo done"                                   "unrelated_command"
+
+# --- Fallback path: python3 / detect-admin-merge.py unavailable ---
+# _admin_merge_fallback is the degraded detector. It must still BLOCK on the
+# --admin literal but ALLOW non-admin merges so the everyday workflow (and the
+# fp-recovery --disable-auto command) is not broken when python3 is absent.
+_expect_fallback() {
+    local expected="$1" cmd="$2" label="$3"
+    _snapshot_fail
+    local got="allow"
+    if _admin_merge_fallback "$cmd"; then got="block"; fi
+    assert_eq "$label" "$expected" "$got"
+    assert_pass_if_clean "$label"
+}
+_expect_fallback block "gh pr merge 5 --admin --merge"   "fallback_blocks_admin"
+_expect_fallback allow "gh pr merge 5 --disable-auto"    "fallback_allows_disable_auto"
+_expect_fallback allow "gh pr merge 5 --auto --merge"    "fallback_allows_auto_merge"
+_expect_fallback allow "gh pr merge 5 --merge"           "fallback_allows_plain_merge"
 
 print_summary

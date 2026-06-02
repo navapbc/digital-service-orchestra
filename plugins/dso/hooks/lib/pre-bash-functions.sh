@@ -984,9 +984,20 @@ hook_tickets_tracker_bash_guard() {
 # single quoted token or lives in a heredoc body. detect-admin-merge.py
 # shlex-tokenizes the command (correct shell unquoting, so a real `"--admin"` is
 # caught while a fused mention is not), strips heredoc bodies, and recurses into
-# eval / bash -c payloads. Fails CLOSED (treats the input as an invocation) if
-# python3 or the helper is unavailable or errors, so a parser failure can never
-# produce a false negative on a genuine override.
+# eval / bash -c payloads. If python3 or the helper is unavailable, degrades to
+# a conservative substring fallback (see _admin_merge_fallback) that still
+# fail-closes on the --admin literal while letting non-admin merges through.
+#
+# Conservative fallback when the structural detector cannot run (python3 or the
+# helper absent). Block iff the `--admin` flag literal is present — so normal and
+# non-admin merges (`--auto`, `--merge`, the fp-recovery `--disable-auto`) still
+# pass, accepting only that a bare MENTION of --admin alongside a gh merge is
+# over-blocked in this rare degraded path. This is the original substring
+# behaviour, scoped to --admin so it cannot break the everyday merge workflow.
+_admin_merge_fallback() {
+    [[ "$1" == *"--admin"* ]]
+}
+
 _is_admin_merge_invocation() {
     local cmd="$1"
     # Cheap pre-filter: skip only commands that cannot possibly be a gh merge.
@@ -999,8 +1010,7 @@ _is_admin_merge_invocation() {
         printf '%s' "$cmd" | python3 "$_detect"
         return  # exit 0 = invocation (block); exit 1 = mention (allow)
     fi
-    # Fail closed: cannot run the detector → treat as an invocation (block).
-    return 0
+    _admin_merge_fallback "$cmd"
 }
 
 # PreToolUse hook: block `gh pr merge --admin` outside /dso:fp-recovery.
