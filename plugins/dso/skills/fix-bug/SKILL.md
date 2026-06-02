@@ -204,6 +204,14 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment "$BUG_TICKET_ID" "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
+Create the `.fix-bug-active` marker so the commit-msg HARD-GATE knows fix-bug is the active skill. Initialize the per-session `# antipattern-ok: <reason>` annotation counter (cap: 3/session — if ANTIPATTERN_OK_COUNT exceeds 3 in a single session, flag the excess occurrences for review rather than applying them silently):
+```bash
+# Create fix-bug-active marker to enable fix-bug session enforcement
+touch "$(git rev-parse --show-toplevel)/.fix-bug-active"
+# Per-session antipattern-ok annotation counter (cap: 3/session)
+ANTIPATTERN_OK_COUNT=0
+```
+
 #### Auto-Resume Detection
 
 After transitioning the bug ticket to in_progress, scan for abandoned worktrees from prior sessions:
@@ -276,6 +284,8 @@ if ! git merge-base --is-ancestor "$CODE_VERSION" HEAD 2>/dev/null; then
               "Worktree ancestry check: FAILED — code_version ${CODE_VERSION} is not an ancestor of HEAD on $(git rev-parse --abbrev-ref HEAD) and does not appear to be squash-merged (object absent, remote tip, or remote unavailable). Investigation skipped; re-queue when the source branch lands."
             # Transition ticket back to open so it is visible for re-queuing
             .claude/scripts/dso ticket transition "$BUG_TICKET_ID" in_progress open 2>/dev/null || true
+            # Remove fix-bug-active marker — skill exiting (ancestry gate failed)
+            rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
             # END the skill
             exit 0
         fi
@@ -398,7 +408,11 @@ Intent Gate has four possible outcomes. The **ambiguous** outcome falls through 
      ```bash
      ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: Intent-contradicting — <evidence source>"
      ```
-  3. **Stop** — do not proceed to investigation.
+  3. Remove the `.fix-bug-active` marker — skill is closing cleanly:
+     ```bash
+     rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
+     ```
+  4. **Stop** — do not proceed to investigation.
 
   **Sub-case B: Feature never implemented** — Evidence indicates the capability was never built (no implementation found, no design doc, no commit). Do NOT auto-close. Escalate to user:
   1. Add evidence comment:
@@ -1131,6 +1145,8 @@ When `route: "escalate"` and non-interactive mode, defer the epic escalation as 
 ```bash
 if [ "${FIX_BUG_INTERACTIVE:-true}" = "false" ] && [ "$ROUTE" = "escalate" ]; then
     ticket comment <BUG_TICKET_ID> "INTERACTIVITY_DEFERRED: escalation to /dso:brainstorm deferred (non-interactive mode). Signal count: $(echo $ROUTING_OUTPUT | python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get(\"signal_count\",\"?\"))'). All gate evidence attached to this ticket for follow-up."
+    # Remove fix-bug-active marker — skill exiting (non-interactive escalation)
+    rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
     # Stop — do not proceed to Phase H Step 1; escalation must be handled interactively.
     exit 0
 fi
@@ -1324,12 +1340,20 @@ Retry tag writes once on failure. On second tag-write failure: post a comment re
    ```bash
    ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: <one-line summary of the fix>"
    ```
+3. Remove the `.fix-bug-active` marker — skill is closing cleanly:
+   ```bash
+   rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
+   ```
 
 **When running as a sub-agent** (detected per Sub-Agent Context Detection below):
 
 1. Do NOT commit — the orchestrator owns the commit workflow.
 2. Do NOT close the ticket — the orchestrator handles ticket lifecycle after the sub-agent returns.
-3. Return the resolved ticket ID in the sub-agent result so the orchestrator can commit and close:
+3. Remove the `.fix-bug-active` marker before returning:
+   ```bash
+   rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
+   ```
+4. Return the resolved ticket ID in the sub-agent result so the orchestrator can commit and close:
 
 ```
 FIX_RESULT: resolved
@@ -1346,7 +1370,11 @@ red_captures: <for multi-commit fixes (≥2 behavioral commits): one line per ax
 - `n/a (llm-behavioral)` — LLM-behavioral bug; RED unit test requirement replaced by eval-based verification per Phase E Step 2 exemption
 - `n/a (testing_mode=GREEN)` — fix is implementation-only with no observable behavior change; existing tests validate correctness
 
-If the bug CANNOT be fixed (all investigation tiers exhausted, COMPLEX escalation, LLM-behavioral with no testable surface, etc.), return the unresolved signal instead — do NOT close the ticket:
+If the bug CANNOT be fixed (all investigation tiers exhausted, COMPLEX escalation, LLM-behavioral with no testable surface, etc.), remove the marker and return the unresolved signal instead — do NOT close the ticket:
+
+```bash
+rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
+```
 
 ```
 FIX_RESULT: unresolved
