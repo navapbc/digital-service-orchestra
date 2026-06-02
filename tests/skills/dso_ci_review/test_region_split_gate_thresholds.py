@@ -223,9 +223,12 @@ def test_gate_loc_clamped_above_size_upgrade_lines(tmp_path, monkeypatch) -> Non
     monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(config_file))
 
     resolved = rs._gate_loc_threshold()
-    assert resolved > rs._SIZE_UPGRADE_LINES_FLOOR, (
-        f"gate_loc=200 must be clamped above the size_upgrade_lines floor "
-        f"({rs._SIZE_UPGRADE_LINES_FLOOR}); got {resolved}"
+    # Consolidated to the exact clamp offset (finding 6): with the default
+    # size_upgrade_lines (300), the floor is max(300, 300) = 300 so gate_loc
+    # clamps to exactly floor + 1.
+    assert resolved == rs._SIZE_UPGRADE_LINES_FLOOR + 1, (
+        f"gate_loc=200 must be clamped to exactly the size_upgrade_lines floor "
+        f"+ 1 ({rs._SIZE_UPGRADE_LINES_FLOOR + 1}); got {resolved}"
     )
 
 
@@ -265,4 +268,65 @@ def test_gate_loc_invalid_zero_falls_back_to_default(tmp_path, monkeypatch) -> N
 
     assert rs._gate_loc_threshold() == rs._GATE_LOC_THRESHOLD_DEFAULT, (
         "gate_loc=0 must fall back to the default"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fix 5 — clamp floor reads review.size_upgrade_lines dynamically.
+#
+# The invariant is gate_loc > review.size_upgrade_lines. The clamp floor must
+# therefore track a RAISED size_upgrade_lines (so the invariant holds), while
+# never dropping below the safe synchronized default (300) when an operator
+# LOWERS size_upgrade_lines. Effective floor = max(300, configured) + 1.
+# ---------------------------------------------------------------------------
+
+
+def test_clamp_floor_respects_raised_size_upgrade_lines(tmp_path, monkeypatch) -> None:
+    """Given: an operator RAISES review.size_upgrade_lines to 500 (above the
+             300 default) and misconfigures gate_loc=400 (below the raised
+             size_upgrade_lines, so the invariant gate_loc > size_upgrade_lines
+             is violated).
+    When:  _gate_loc_threshold() is read
+    Then:  gate_loc is clamped UP to size_upgrade_lines + 1 (501), so a
+           region-split-eligible diff is always already deep-tier — NOT merely
+           to the hardcoded 301, which would still violate the invariant.
+    """
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text(
+        "review.size_upgrade_lines=500\n"
+        "review.region_split.gate_loc=400\n"
+    )
+    monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(config_file))
+
+    resolved = rs._gate_loc_threshold()
+    assert resolved == 501, (
+        "a raised size_upgrade_lines (500) must raise the clamp floor so "
+        f"gate_loc clamps to 501 (size_upgrade_lines + 1); got {resolved}. "
+        "Clamping only to the hardcoded 301 would leave gate_loc <= "
+        "size_upgrade_lines, violating the invariant."
+    )
+
+
+def test_clamp_floor_never_below_safe_default_when_lowered(
+    tmp_path, monkeypatch
+) -> None:
+    """Given: an operator LOWERS review.size_upgrade_lines to 100 (below the
+             300 synchronized default) and sets gate_loc=200.
+    When:  _gate_loc_threshold() is read
+    Then:  the clamp floor stays at the safe default (max(300, 100) = 300), so
+           gate_loc clamps to 301 — a lowered size_upgrade_lines cannot drag
+           the region-split gate below the safe floor.
+    """
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text(
+        "review.size_upgrade_lines=100\n"
+        "review.region_split.gate_loc=200\n"
+    )
+    monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(config_file))
+
+    resolved = rs._gate_loc_threshold()
+    assert resolved == rs._SIZE_UPGRADE_LINES_FLOOR + 1 == 301, (
+        "a lowered size_upgrade_lines (100) must NOT drop the clamp floor below "
+        f"the safe default ({rs._SIZE_UPGRADE_LINES_FLOOR}); expected 301, "
+        f"got {resolved}"
     )

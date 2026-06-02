@@ -112,12 +112,20 @@ _GATE_LOC_THRESHOLD_DEFAULT = 20000
 _GATE_FILE_COUNT_THRESHOLD_DEFAULT = 120
 
 # Floor coupling the gate to the size-tier upgrade. review.size_upgrade_lines
-# (default 300) force-upgrades any >=300-line diff to the deep tier, which uses
+# force-upgrades any diff at/above its value to the deep tier, which uses
 # single-pass deep-arch synthesis. The region-split GATE must never fire on a
 # diff that has NOT already been size-upgraded to deep — otherwise a
 # region-split-eligible diff could be reviewed by a non-deep single-pass path,
-# losing the deep synthesis. So gate_loc MUST be strictly greater than this
-# floor; _gate_loc_threshold() clamps any smaller configured value up.
+# losing the deep synthesis. So gate_loc MUST be strictly greater than the
+# active size_upgrade_lines value; _gate_loc_threshold() clamps any smaller
+# configured value up.
+#
+# IMPORTANT — SYNCHRONIZED CONSTANT: 300 MUST stay in lockstep with the DEFAULT
+# of `review.size_upgrade_lines`. It is the SAFE floor used when that config key
+# is absent or LOWERED below 300. The clamp also reads the *configured*
+# size_upgrade_lines at call time (see _gate_loc_threshold) so a RAISED value is
+# respected dynamically: the effective floor is max(300, configured) + 1. If the
+# size_upgrade_lines default ever changes, update this constant to match.
 _SIZE_UPGRADE_LINES_FLOOR = 300
 
 
@@ -145,24 +153,37 @@ def _gate_loc_threshold() -> int:
 
     1. Values <= 0 from config (which would disable LOC gating entirely or
        invert the comparison) fall back to the default.
-    2. The invariant ``gate_loc > review.size_upgrade_lines`` (the 300-line
+    2. The invariant ``gate_loc > review.size_upgrade_lines`` (the
        force-upgrade-to-deep floor) is enforced by clamping any smaller
-       configured value UP to ``_SIZE_UPGRADE_LINES_FLOOR + 1``. This keeps a
-       region-split-eligible diff always already deep-tier, preserving
-       single-pass deep synthesis. A clamp emits a warning to stderr.
+       configured value UP to ``effective_floor + 1``. The effective floor is
+       computed DYNAMICALLY as ``max(_SIZE_UPGRADE_LINES_FLOOR, configured
+       review.size_upgrade_lines)``:
+         - A RAISED size_upgrade_lines (e.g. 500) raises the floor so the
+           invariant still holds (clamp to 501, not the stale 301).
+         - A LOWERED size_upgrade_lines (e.g. 100) cannot drag the floor below
+           the safe synchronized default (_SIZE_UPGRADE_LINES_FLOOR=300).
+       This keeps a region-split-eligible diff always already deep-tier,
+       preserving single-pass deep synthesis. A clamp emits a warning to stderr.
     """
     value = read_config_int(
         "review.region_split.gate_loc", _GATE_LOC_THRESHOLD_DEFAULT
     )
     if value <= 0:
         return _GATE_LOC_THRESHOLD_DEFAULT
-    if value <= _SIZE_UPGRADE_LINES_FLOOR:
-        clamped = _SIZE_UPGRADE_LINES_FLOOR + 1
+    # Effective floor: never below the safe synchronized default, but track a
+    # raised size_upgrade_lines so the gate_loc > size_upgrade_lines invariant
+    # holds dynamically.
+    configured_size_upgrade = read_config_int(
+        "review.size_upgrade_lines", _SIZE_UPGRADE_LINES_FLOOR
+    )
+    effective_floor = max(_SIZE_UPGRADE_LINES_FLOOR, configured_size_upgrade)
+    if value <= effective_floor:
+        clamped = effective_floor + 1
         print(
-            f"WARNING: review.region_split.gate_loc={value} is <= "
-            f"review.size_upgrade_lines floor ({_SIZE_UPGRADE_LINES_FLOOR}); "
-            f"clamping up to {clamped} so region-split-eligible diffs stay "
-            "deep-tier (single-pass synthesis).",
+            f"WARNING: review.region_split.gate_loc={value} is <= the "
+            f"size_upgrade_lines floor ({effective_floor}); clamping up to "
+            f"{clamped} so region-split-eligible diffs stay deep-tier "
+            "(single-pass synthesis).",
             file=sys.stderr,
         )
         return clamped
