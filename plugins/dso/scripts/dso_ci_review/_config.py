@@ -67,3 +67,46 @@ def read_config_int(key: str, default: int, config_path: str | None = None) -> i
         except (OSError, UnicodeDecodeError):
             return default
     return default
+
+
+# Truthy / falsy literals accepted for boolean config values (case-insensitive).
+_TRUE_LITERALS: frozenset[str] = frozenset({"1", "true", "yes", "on"})
+_FALSE_LITERALS: frozenset[str] = frozenset({"0", "false", "no", "off"})
+
+
+def read_config_bool(
+    key: str, default: bool, config_path: str | None = None
+) -> bool:
+    """Read a boolean config value from dso-config.conf.
+
+    Resolution order:
+      1. ``key=<value>`` in ``config_path`` (or auto-detected repo config),
+         parsed case-insensitively against the true/false literal sets
+         (``1/true/yes/on`` and ``0/false/no/off``).
+      2. ``default`` (returned when key absent, value unrecognized, or the
+         config is unreadable).
+
+    Mirrors ``read_config_int``'s comment-handling and fail-to-default
+    semantics so boolean and integer keys behave consistently.
+    """
+    if config_path is None:
+        config_path = default_config_path()
+
+    if os.path.isfile(config_path):
+        try:
+            with open(config_path, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    parts = line.split("=", 1)
+                    if len(parts) == 2 and parts[0].strip() == key:
+                        value = parts[1].strip().lower()
+                        if value in _TRUE_LITERALS:
+                            return True
+                        if value in _FALSE_LITERALS:
+                            return False
+                        return default
+        except (OSError, UnicodeDecodeError):
+            return default
+    return default

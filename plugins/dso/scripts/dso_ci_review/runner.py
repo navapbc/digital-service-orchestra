@@ -2450,6 +2450,24 @@ async def _gather_clusters(
     )
 
 
+def _compose_review_context(
+    base_context: str | None, injection: str | None
+) -> str | None:
+    """Combine a base review_context with the component-#2 symbol-injection
+    appendix, preserving the base and never dropping either part.
+
+    Returns ``base`` alone when there is no injection, the ``injection`` alone
+    when there is no base, both joined by a blank line when both are present,
+    and ``None`` only when both are empty. Kept additive so the injection never
+    SHADOWS the base "ci" review_context that downstream tiers rely on.
+    """
+    if injection and base_context:
+        return f"{base_context}\n\n{injection}"
+    if injection:
+        return injection
+    return base_context
+
+
 async def _run_cluster(
     spec: dict,
     tier_agents: list[dict],
@@ -2478,6 +2496,12 @@ async def _run_cluster(
     cluster_files = spec.get("files", [])
     cluster_dir = spec.get("cluster_dir", ".")
     oversized_single_file = spec.get("oversized_single_file", False)
+    # Component #2: read-only cross-chunk symbol-definition appendix attached by
+    # region_split.annotate_specs_with_symbol_injection. Carried as review_context
+    # (NOT folded into the diff) so the reviewer sees sibling-chunk definitions
+    # without them being treated as part of the diff under review. None when the
+    # feature is disabled or nothing safe to inject.
+    symbol_injection_context = spec.get("symbol_injection_context")
 
     if oversized_single_file:
         skip_file = cluster_files[0] if cluster_files else cluster_dir
@@ -2499,7 +2523,18 @@ async def _run_cluster(
 
     async with sem:
         cluster_agents = [
-            {**agent, "diff_text": cluster_diff} for agent in tier_agents
+            {
+                **agent,
+                "diff_text": cluster_diff,
+                # Component #2: append the cross-chunk symbol-definition appendix
+                # to this cluster's review_context (preserving the base "ci"
+                # context). Read-only — never folded into diff_text — so the diff
+                # under review and the OVER_BOUND budget are untouched.
+                "review_context": _compose_review_context(
+                    agent.get("review_context"), symbol_injection_context
+                ),
+            }
+            for agent in tier_agents
         ]
         try:
             dispatch_results = await async_dispatch_specialists(

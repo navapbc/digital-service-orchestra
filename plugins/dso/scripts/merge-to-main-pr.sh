@@ -954,6 +954,16 @@ EOF
     fi
     echo "INFO: PR1 created #${_pr1_number}: $_pr1_url"
 
+    # 3b. Enqueue auto-merge on PR1 so GitHub merges it once review-sub-pr passes.
+    #     Without this the wait at step 4 deadlocks: wait-for-pr.sh only exits 0
+    #     on MERGED, but nothing merges PR1 before the wait — on real GitHub the
+    #     PR stays OPEN until the 30-min timeout, then the phase aborts (bug
+    #     c9fe-8b6c-9421-4faf). Mirrors PR2's path, which enqueues via
+    #     _phase_queue_auto_merge. The helper tolerates auto-merge-disabled repos
+    #     (returns 0, warns); step 5's direct `gh pr merge` remains the fallback.
+    _phase_queue_auto_merge "$_pr1_number" \
+        || echo "WARNING: failed to enqueue auto-merge for PR1 #${_pr1_number}; relying on step-5 manual merge after the wait." >&2
+
     # 4. Wait for review-sub-pr to complete. Use the existing wait-for-pr helper
     #    if available; otherwise poll inline.
     local _wait_for_pr_helper="${_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/scripts/wait-for-pr.sh"
