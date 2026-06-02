@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 
 _SEVERITY_RANK: dict[str, int] = {
     "critical": 4,
@@ -40,22 +41,43 @@ def _extract_json_from_text(text: str) -> dict | None:
     t2 = t2.strip()
 
     dec = json.JSONDecoder()
+    best, best_score = _scan_for_best_dict(t2, dec)
+
+    # Self-healing repair fallback (deterministic) for common, fixable LLM JSON format
+    # errors the clean scan above does not handle: trailing commas before `}`/`]` and
+    # stray trailing fence backticks. Only applied when the clean scan did NOT already
+    # find a full {summary, findings} object (best_score < 3), so a well-formed response
+    # is never mutated. The sole false-positive risk is a literal ",}"/",]" sequence
+    # inside a string value — acceptable as a last resort vs. dropping the whole response.
+    # NOTE: a truncated/incomplete response is NOT a format error and is intentionally
+    # not "repaired" here (no deterministic fix exists); it surfaces as a parse_error.
+    if best_score < 3:
+        repaired = re.sub(r",(\s*[}\]])", r"\1", t2.rstrip("`").strip())
+        if repaired != t2:
+            r_best, r_score = _scan_for_best_dict(repaired, dec)
+            if r_score > best_score:
+                best = r_best
+
+    return best
+
+
+def _scan_for_best_dict(s: str, dec: json.JSONDecoder) -> tuple[dict | None, int]:
+    """Scan ``s`` for embedded JSON dicts and return (best_candidate, score).
+
+    Score: 3 = has 'findings', 2 = has 'summary', 1 = any dict, 0 = none found.
+    Short-circuits on the first score-3 match.
+    """
     pos = 0
     best: dict | None = None
     best_score = 0
-
-    while pos < len(t2):
-        i = t2.find("{", pos)
+    while pos < len(s):
+        i = s.find("{", pos)
         if i < 0:
             break
         try:
-            obj, end = dec.raw_decode(t2, i)
+            obj, end = dec.raw_decode(s, i)
             if isinstance(obj, dict):
-                score = 1
-                if "summary" in obj:
-                    score = 2
-                if "findings" in obj:
-                    score = 3
+                score = 3 if "findings" in obj else (2 if "summary" in obj else 1)
                 if score > best_score:
                     best = obj
                     best_score = score
@@ -65,8 +87,7 @@ def _extract_json_from_text(text: str) -> dict | None:
             pos = end
         except json.JSONDecodeError:
             pos = i + 1
-
-    return best
+    return best, best_score
 
 
 def normalize_findings(response_text: str) -> dict:

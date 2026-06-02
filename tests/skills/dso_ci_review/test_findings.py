@@ -181,3 +181,40 @@ class TestMergeTakesMinScores:
         assert result["scores"]["maintainability"] == 2, (
             f"Expected min maintainability=2, got {result['scores'].get('maintainability')!r}"
         )
+
+
+class TestNormalizeTrailingCommaSelfHeal:
+    """Deterministic self-heal: trailing commas (a common LLM JSON format error) are
+    repaired rather than dropping the whole response — without mutating well-formed JSON."""
+
+    def test_trailing_comma_in_object_and_array_fenced(self) -> None:
+        """Given a fenced response with JSON5-style trailing commas before } and ]
+        When normalize_findings is called
+        Then the findings are recovered (not lost to a parse_error)."""
+        raw = (
+            "```json\n"
+            '{"findings":[{"severity":"minor","description":"x",}],"summary":"s",}\n'
+            "```"
+        )
+        result = normalize_findings(raw)
+        assert len(result["findings"]) == 1
+        assert result["findings"][0].get("severity") == "minor"
+
+    def test_clean_string_with_comma_not_corrupted(self) -> None:
+        """Regression: a well-formed response whose string value contains a comma is
+        parsed by the clean scan and MUST NOT be altered by the repair path."""
+        raw = (
+            "```json\n"
+            '{"findings":[{"severity":"minor","description":"use a, b list"}],"summary":"s"}\n'
+            "```"
+        )
+        result = normalize_findings(raw)
+        assert result["findings"][0]["description"] == "use a, b list"
+
+    def test_truncated_response_is_not_falsely_repaired(self) -> None:
+        """A truncated/incomplete response is NOT a fixable format error: it must surface
+        as a parse_error (synthetic), never a silently-fabricated partial object."""
+        raw = '```json\n{"summary":"s","findings":[{"severity":"minor","description":"cut off'
+        result = normalize_findings(raw)
+        types = {f.get("type") for f in result.get("findings", [])}
+        assert "parse_error" in types or result.get("findings") == []

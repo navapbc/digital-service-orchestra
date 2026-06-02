@@ -992,8 +992,18 @@ EOF
     # 6. Re-point BRANCH to the staged branch so the subsequent _phase_merge
     #    opens PR2 (staged-* → main). Persist to state file for --resume.
     BRANCH="$_staged_branch"
-    if type _state_write_branch >/dev/null 2>&1; then
-        _state_write_branch "$BRANCH" 2>/dev/null || true
+    # Re-init state for the re-pointed (staged-) BRANCH so the staged-keyed state
+    # file exists before _phase_merge writes PR2's pr_meta. The state-file path is
+    # BRANCH-derived (_state_file_path), so without this re-init the staged file is
+    # never created on the fresh path, _state_write_pr_meta no-ops on its `[[ -f ]]`
+    # guard, and the polling phase cannot resolve PR2's number (bug 7a0e:
+    # "could not resolve PR number for polling phase"). Mirrors the --resume path
+    # (which re-invokes _state_init after restoring the staged BRANCH). _state_init
+    # writes a fresh skeleton that drops staged_branch, so re-persist it for --resume.
+    # (The previously-called _state_write_branch was never defined — a silent no-op.)
+    if type _state_init >/dev/null 2>&1; then
+        _state_init 2>/dev/null || true
+        type _state_set_field >/dev/null 2>&1 && _state_set_field "staged_branch" "$_staged_branch" 2>/dev/null || true
     fi
 
     # 7. Switch the local working copy to the staged branch so _phase_merge's
@@ -3002,6 +3012,23 @@ try:
 except Exception:
     print('')
 " 2>/dev/null || true)
+    fi
+fi
+
+# Defense-in-depth (bug 7a0e): the state file may be absent or path-diverged across
+# a BRANCH re-point. Before failing, resolve the open PR directly from GitHub for the
+# current BRANCH -> default branch, so a created PR is never stranded and an already-
+# open PR from a prior interrupted run self-heals on the next invocation.
+if [[ -z "$_PR_NUMBER" ]]; then
+    _PR_NUMBER=$(gh pr list --head "$BRANCH" --base "${_DEFAULT_BRANCH:-main}" --state open \
+        --json number --jq '.[0].number // empty' 2>/dev/null || true)
+    # Validate numeric-only before reuse as a positional arg to gh (defensive: gh's
+    # .number is already an integer, but never feed an unvalidated value to a sink).
+    if [[ "$_PR_NUMBER" =~ ^[0-9]+$ ]]; then
+        _PR_URL=$(gh pr view "$_PR_NUMBER" --json url --jq '.url' 2>/dev/null || true)
+        echo "INFO: resolved PR #${_PR_NUMBER} via GitHub fallback (state file did not carry the PR number)" >&2
+    else
+        _PR_NUMBER=""   # non-numeric (or empty) -> treat as unresolved
     fi
 fi
 

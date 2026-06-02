@@ -156,6 +156,72 @@ _reviewed_pulls 30 "$sha" > "$md/pulls_$sha"; _checks success > "$md/checks_$sha
 out="$(_run "$r" "$sha" "$md")"; rc=$?
 if [[ $rc -eq 0 ]] && grep -q "every SHA proven reviewed" <<<"$out"; then _pass "T10_covering_pr_head_eq_sha_is_reviewed"; else _fail "T10_covering_pr_head_eq_sha_is_reviewed" "rc=$rc out=$out"; fi
 
+# ── T11: a CLEAN merge commit at HEAD (the staged->main case) is EXEMPT. The
+#     two-tier flow's HEAD is always the staged merge commit, which no MERGED PR
+#     covers (A3b excludes the sub-PR whose merge_commit IS this SHA; A1 excludes
+#     the open PR under review). A clean merge introduces no content of its own,
+#     so its independently-verified parents fully cover it. Without the exemption
+#     this returns false-UNREVIEWED and blocks every legitimate staged->main PR. ──
+r="$_WORK/t11"; mkdir -p "$r"; md="$_WORK/t11.mock"; mkdir -p "$md"
+git -C "$r" init -q -b main
+git -C "$r" config user.email t@e.st; git -C "$r" config user.name t; git -C "$r" config commit.gpgsign false
+printf 'base\n' > "$r/base.txt"; git -C "$r" add base.txt; git -C "$r" commit -qm base
+git -C "$r" init -q --bare "$r/origin.git"; git -C "$r" remote add origin "$r/origin.git"; git -C "$r" push -q origin main
+git -C "$r" checkout -q -b feature
+printf 'feat\n' > "$r/feat.txt"; git -C "$r" add feat.txt; git -C "$r" commit -qm "feat-A"
+featsha="$(git -C "$r" rev-parse HEAD)"
+git -C "$r" checkout -q main; git -C "$r" checkout -q -b staged
+git -C "$r" merge -q --no-ff -m "Merge pull request #40 from feature" feature
+mergesha="$(git -C "$r" rev-parse HEAD)"
+# feat-A is covered by a reviewed merged PR; the merge commit has NO covering PR.
+_reviewed_pulls 40 "$featsha" > "$md/pulls_$featsha"; _checks success > "$md/checks_$featsha"
+printf '[]' > "$md/pulls_$mergesha"   # would be UNREVIEWED without the clean-merge exemption
+out="$(_run "$r" "$mergesha" "$md")"; rc=$?
+if [[ $rc -eq 0 ]] && grep -q "every SHA proven reviewed" <<<"$out" && grep -q "exempt_merges=1" <<<"$out"; then _pass "T11_clean_merge_commit_exempt"; else _fail "T11_clean_merge_commit_exempt" "rc=$rc out=$out"; fi
+
+# ── T12: an EVIL merge (manual edit in the merge commit → non-empty combined
+#     diff) is NOT exempt and still requires review — fail-closed against
+#     laundering content through a merge commit. ──
+r="$_WORK/t12"; mkdir -p "$r"; md="$_WORK/t12.mock"; mkdir -p "$md"
+git -C "$r" init -q -b main
+git -C "$r" config user.email t@e.st; git -C "$r" config user.name t; git -C "$r" config commit.gpgsign false
+printf 'base\n' > "$r/base.txt"; git -C "$r" add base.txt; git -C "$r" commit -qm base
+git -C "$r" init -q --bare "$r/origin.git"; git -C "$r" remote add origin "$r/origin.git"; git -C "$r" push -q origin main
+git -C "$r" checkout -q -b feature
+printf 'feat\n' > "$r/feat.txt"; git -C "$r" add feat.txt; git -C "$r" commit -qm "feat-A"
+featsha="$(git -C "$r" rev-parse HEAD)"
+git -C "$r" checkout -q main; git -C "$r" checkout -q -b staged
+git -C "$r" merge -q --no-ff --no-commit feature >/dev/null 2>&1 || true
+printf 'evil-injected\n' > "$r/base.txt"   # content in neither parent → evil merge
+git -C "$r" add base.txt
+git -C "$r" commit -qm "Merge pull request #41 (evil)"
+evilsha="$(git -C "$r" rev-parse HEAD)"
+_reviewed_pulls 40 "$featsha" > "$md/pulls_$featsha"; _checks success > "$md/checks_$featsha"
+printf '[]' > "$md/pulls_$evilsha"   # no covering review for the evil merge
+out="$(_run "$r" "$evilsha" "$md")"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${evilsha}" <<<"$out" && grep -q "exempt_merges=0" <<<"$out"; then _pass "T12_evil_merge_not_exempt"; else _fail "T12_evil_merge_not_exempt" "rc=$rc out=$out"; fi
+
+# ── T13: the anti-laundering guarantee — a CLEAN merge whose feature parent is
+#     UNREVIEWED still BLOCKS. The merge commit is exempt (exempt_merges=1), but
+#     its unreviewed parent is independently enumerated in the base..head walk and
+#     caught (unreviewed>=1, rc=1). This is the case that proves the exemption
+#     cannot launder unreviewed content through a clean merge. ──
+r="$_WORK/t13"; mkdir -p "$r"; md="$_WORK/t13.mock"; mkdir -p "$md"
+git -C "$r" init -q -b main
+git -C "$r" config user.email t@e.st; git -C "$r" config user.name t; git -C "$r" config commit.gpgsign false
+printf 'base\n' > "$r/base.txt"; git -C "$r" add base.txt; git -C "$r" commit -qm base
+git -C "$r" init -q --bare "$r/origin.git"; git -C "$r" remote add origin "$r/origin.git"; git -C "$r" push -q origin main
+git -C "$r" checkout -q -b feature
+printf 'feat\n' > "$r/feat.txt"; git -C "$r" add feat.txt; git -C "$r" commit -qm "feat-A-unreviewed"
+featsha="$(git -C "$r" rev-parse HEAD)"
+git -C "$r" checkout -q main; git -C "$r" checkout -q -b staged
+git -C "$r" merge -q --no-ff -m "Merge pull request #42 from feature" feature
+mergesha="$(git -C "$r" rev-parse HEAD)"
+printf '[]' > "$md/pulls_$featsha"    # feature parent has NO covering review → must block
+printf '[]' > "$md/pulls_$mergesha"   # clean merge → exempt, but cannot rescue the parent
+out="$(_run "$r" "$mergesha" "$md")"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${featsha}" <<<"$out" && grep -q "exempt_merges=1" <<<"$out" && grep -q "unreviewed=1" <<<"$out"; then _pass "T13_clean_merge_unreviewed_parent_blocks"; else _fail "T13_clean_merge_unreviewed_parent_blocks" "rc=$rc out=$out"; fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1

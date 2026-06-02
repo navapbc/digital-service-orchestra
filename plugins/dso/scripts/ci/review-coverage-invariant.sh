@@ -95,8 +95,36 @@ if [[ -z "$_SHAS" ]]; then
     exit 0
 fi
 
-_total=0; _ledger_hits=0; _verified=0; _unreviewed=0; _errors=0
+_total=0; _ledger_hits=0; _verified=0; _unreviewed=0; _errors=0; _exempt_merges=0
 _violations=""
+
+# A merge commit (>=2 parents) that introduces NO content of its own (empty
+# combined diff) carries no standalone reviewable code: its parents are
+# enumerated in THIS SAME base..head walk and verified independently, so the
+# merge adds nothing to review. Such a commit is EXEMPT. This is NOT a
+# reachability shortcut — the exemption is gated on the commit being a *clean*
+# merge. An EVIL merge (manual conflict-resolution edits → non-empty combined
+# diff) is NOT exempt and still requires a covering review. Fail closed: if
+# parentage or the combined diff cannot be computed, return non-zero (do NOT
+# exempt).
+#
+# Why this is required: the two-tier staged->main flow's HEAD is always the
+# staged merge commit, which no MERGED PR covers — A3b (review-coverage-lib.sh)
+# excludes the sub-PR whose merge_commit_sha IS this SHA, and A1 excludes the
+# open PR under review. Without this exemption the invariant returns
+# false-UNREVIEWED for that merge commit and blocks every legitimate
+# staged->main PR. The code-bearing (non-merge) commits in the range remain
+# fully verified.
+_is_clean_merge() {
+    local _s="$1" _parents _cc
+    _parents="$(git rev-list --parents -n1 "$_s" 2>/dev/null)" || return 1
+    # tokens = self + N parents; a merge has >=2 parents => >=3 tokens.
+    [[ "$(printf '%s' "$_parents" | wc -w)" -ge 3 ]] || return 1
+    # Evil-merge guard: any combined-diff content => the merge has its own
+    # changes => NOT a clean merge (must be reviewed).
+    _cc="$(git diff-tree --cc --no-commit-id "$_s" 2>/dev/null)" || return 1
+    [[ -z "$_cc" ]]
+}
 
 _ledger_has() {
     [[ -n "$LEDGER" && -f "$LEDGER" ]] && grep -q "^$1 " "$LEDGER" 2>/dev/null
@@ -110,6 +138,12 @@ _ledger_add() {
 while IFS= read -r _sha; do
     [[ -z "$_sha" ]] && continue
     _total=$(( _total + 1 ))
+    # Clean-merge exemption (see _is_clean_merge): a merge commit with no content
+    # of its own is covered by its independently-verified parents in this walk.
+    if _is_clean_merge "$_sha"; then
+        _exempt_merges=$(( _exempt_merges + 1 ))
+        continue
+    fi
     # Perf prefilter: a ledger HIT (proven reviewed in a prior run) skips
     # re-verification. This is a ledger hit, NOT reachability-to-main.
     if _ledger_has "$_sha"; then
@@ -133,7 +167,7 @@ while IFS= read -r _sha; do
     esac
 done <<< "$_SHAS"
 
-echo "review-coverage-invariant: ${_total} SHA(s) in ${_BASE_REF}..${_HEAD} — verified=${_verified} ledger_hits=${_ledger_hits} unreviewed=${_unreviewed} errors=${_errors}"
+echo "review-coverage-invariant: ${_total} SHA(s) in ${_BASE_REF}..${_HEAD} — verified=${_verified} exempt_merges=${_exempt_merges} ledger_hits=${_ledger_hits} unreviewed=${_unreviewed} errors=${_errors}"
 
 if (( _unreviewed == 0 && _errors == 0 )); then
     echo "review-coverage-invariant: ok (every SHA proven reviewed)"

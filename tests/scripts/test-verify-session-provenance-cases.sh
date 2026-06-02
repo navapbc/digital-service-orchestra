@@ -403,6 +403,76 @@ _expect "t14b: NEW diff-tree -m includes feature-file.txt" "[[ '$T14_NEW' == *'f
 rm -f "$T14_MSHA_FILE"
 rm -rf "$T14_REPO"
 
+# Run the verifier against an explicit (base, head, repo) — like _run_verifier but
+# for a caller-built topology (e.g. a staged branch whose HEAD is a merge commit).
+_run_verifier_repo() {
+    local pr_payload="$1" pr_number_env="$2" base_sha="$3" head_sha="$4" repo_path="$5"
+    local mock_dir; mock_dir=$(_make_mock_gh "$pr_payload")
+    local artifact_dir; artifact_dir=$(mktemp -d "${TMPDIR:-/tmp}/wcl-artifact.XXXXXX")
+    local out_file; out_file=$(mktemp)
+    PATH="$mock_dir:$PATH" \
+    DSO_REPO_PATH="$repo_path" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$head_sha" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="navapbc/test-repo" \
+    PR_NUMBER="$pr_number_env" \
+    GH_RETRY_MAX=1 \
+        bash "$SCRIPT" > "$out_file" 2>&1
+    echo "RC=$?"
+    echo "UNPROVENANCED_FILE:"
+    if [[ -f "$artifact_dir/unprovenanced-shas.txt" ]]; then cat "$artifact_dir/unprovenanced-shas.txt"; else echo "(absent)"; fi
+    rm -rf "$mock_dir" "$artifact_dir"; rm -f "$out_file"; return 0
+}
+
+# ─── t15 (bug 77ab): a CLEAN staged merge commit is EXEMPT from provenance ────
+# The two-tier staged->main PR's HEAD is the merge commit PR1 created when it
+# merged into staged. Its only covering PR (the sub-PR) is dropped by the A3b
+# self-merge guard (merge_commit_sha == sha), so without a clean-merge exemption it
+# is flagged unprovenanced -> dispatcher fails closed on the empty net diff. A clean
+# merge introduces no content of its own; its parents are provenanced independently
+# in this same walk. Mirrors review-coverage-invariant.sh::_is_clean_merge.
+echo
+echo "=== t15: clean staged merge commit is exempt (not unprovenanced) ==="
+T15_REPO=$(mktemp -d "${TMPDIR:-/tmp}/t15-merge.XXXXXX")
+read -r T15_BASE T15_MERGE T15_FEAT < <(
+    cd "$T15_REPO" || exit
+    git init -q -b main; git config user.email t@e.st; git config user.name t; git config commit.gpgsign false
+    echo base > base.txt; git add base.txt; git commit -q -m base; git rev-parse HEAD | tr '\n' ' '
+    git checkout -q -b feature; echo feat > feature.txt; git add feature.txt; git commit -q -m "feature commit"
+    git checkout -q main; git checkout -q -b staged
+    git merge -q --no-ff -m "Merge pull request #530 from feature" feature
+    git rev-parse HEAD | tr '\n' ' '; git rev-parse feature
+)
+# Merged sub-PR whose merge_commit_sha IS the staged merge commit (the A3b case).
+T15_PAYLOAD='[{"number":530,"state":"closed","merged_at":"2026-01-01T00:00:00Z","head":{"sha":"'"$T15_FEAT"'"},"merge_commit_sha":"'"$T15_MERGE"'"}]'
+T15_UNPROV=$(_run_verifier_repo "$T15_PAYLOAD" "531" "$T15_BASE" "$T15_MERGE" "$T15_REPO" | sed -n '/UNPROVENANCED_FILE:/,$p')
+if grep -q "$T15_MERGE" <<< "$T15_UNPROV"; then T15_RES=flagged; else T15_RES=exempt; fi
+_expect "t15: clean merge commit is exempt (not flagged unprovenanced)" "[[ '$T15_RES' == 'exempt' ]]"
+# Anti-laundering: the exemption covers ONLY the merge; an unreviewed parent is still flagged.
+if grep -q "$T15_FEAT" <<< "$T15_UNPROV"; then T15B_RES=flagged; else T15B_RES=exempt; fi
+_expect "t15b: clean merge does NOT launder its unreviewed feature parent" "[[ '$T15B_RES' == 'flagged' ]]"
+rm -rf "$T15_REPO"
+
+# ─── t16 (bug 77ab): an EVIL merge (own content) is NOT exempt ────────────────
+echo
+echo "=== t16: evil merge (manual edits -> non-empty combined diff) still requires provenance ==="
+T16_REPO=$(mktemp -d "${TMPDIR:-/tmp}/t16-merge.XXXXXX")
+read -r T16_BASE T16_EVIL < <(
+    cd "$T16_REPO" || exit
+    git init -q -b main; git config user.email t@e.st; git config user.name t; git config commit.gpgsign false
+    echo base > base.txt; git add base.txt; git commit -q -m base; git rev-parse HEAD | tr '\n' ' '
+    git checkout -q -b feature; echo feat > feature.txt; git add feature.txt; git commit -q -m "feature commit"
+    git checkout -q main; git checkout -q -b staged
+    git merge -q --no-ff --no-commit feature >/dev/null 2>&1 || true
+    echo evil-injected > base.txt; git add base.txt; git commit -q -m "Merge pull request #531 (evil)"
+    git rev-parse HEAD
+)
+T16_UNPROV=$(_run_verifier_repo '[]' "531" "$T16_BASE" "$T16_EVIL" "$T16_REPO" | sed -n '/UNPROVENANCED_FILE:/,$p')
+if grep -q "$T16_EVIL" <<< "$T16_UNPROV"; then T16_RES=flagged; else T16_RES=exempt; fi
+_expect "t16: evil merge is NOT exempt (still flagged unprovenanced)" "[[ '$T16_RES' == 'flagged' ]]"
+rm -rf "$T16_REPO"
+
 echo "================================="
 echo "Results: $PASS passed, $FAIL failed"
 echo "================================="
