@@ -183,7 +183,7 @@ if [[ "${SPRINT_MODE:-}" == "ci-pr" ]]; then
     # https:// URL — defense in depth against either the script silently emitting
     # empty stdout, or future error paths writing diagnostics to stdout.
     DRAFT_PR_URL=$(SESSION_BRANCH="${_BRANCH}" PRIMARY_TICKET_ID="${primary_ticket_id}" EPIC_TITLE="${_EPIC_TITLE:-}" \
-        bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso create-sprint-draft-pr.sh")
+        "$(git rev-parse --show-toplevel)/.claude/scripts/dso" create-sprint-draft-pr.sh)
     _draft_rc=$?
     if [[ $_draft_rc -ne 0 || "$DRAFT_PR_URL" != https://* ]]; then
         echo "ERROR: Phase A draft PR creation failed (rc=$_draft_rc) — halting before Phase E dispatch" >&2
