@@ -186981,15 +186981,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Regression test: fixture set produces >=4 query matches (GREEN after task-6 fixtures exist)"
@@ -187515,15 +187515,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Wire .fix-bug-active marker lifecycle + 3-annotation session counter + .gitignore in SKILL.md"
@@ -187742,15 +187742,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Create check-antipattern-scan-trailer.sh hook until task-2a test passes (GREEN)"
@@ -188189,15 +188189,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Register check-antipattern-scan-trailer.sh at commit-msg stage in .pre-commit-config.yaml"
@@ -188419,15 +188419,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Write RED test for check-antipattern-scan-trailer.sh (fails because hook absent)"
@@ -188637,15 +188637,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Freeze four Pattern 3 chain root-cause excerpt fixtures under tests/fixtures/antipattern-chain/"
@@ -188885,15 +188885,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Wire Phase E hermetic reproduction HARD-GATE into SKILL.md (dd-3 SKILL wiring)"
@@ -189124,15 +189124,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Create run-hermetic.sh until task-4a test passes (GREEN)"
@@ -190197,15 +190197,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Wire Phase H Step 1 commit HARD-GATE invoking check-antipattern-scan-trailer.sh in SKILL.md"
@@ -191114,15 +191114,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Write RED test for run-hermetic.sh (fails because helper absent)"
@@ -191714,15 +191714,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Wire Phase G trailer-verbatim-copy + promote-query into SKILL.md (dd-4 + dd-1 evidence)"
@@ -199158,15 +199158,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[merge-to-main]: re-invocation on a branch with an open PR1 (no --resume) -> duplicate staged ref + duplicate PR1"
@@ -201440,5 +201440,1413 @@
       }
     },
     "summary": "[PR #42] Deferred review comment: Agreed, we should track this separately."
+  },
+  "DIG-5123": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 4bf355cfdd0718adcc4fa04af021d14cefb2a675",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Component:** plugins/dso/scripts/dso_ci_review/runner.py (findings parser); surfaced by the `review-sub-pr` CI job (.github/workflows/ci.yml) during the merge-to-main two-channel flow.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Observed on:** PR #557, CI run 26846036445, job 79167795371.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** User-Flagged Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The dso_ci_review runner should tolerate an LLM findings response that is valid JSON wrapped in Markdown code fences (e.g. a payload beginning with ```json and ending with ```), strip the fences, and parse the enclosed object. Here the enclosed object was `{\"findings\": [], \"summary\": \"...\"}` \u2014 i.e. zero findings \u2014 so the review should have reported a clean pass for that reviewer call. Bug f148-2cb6-8b7e-4cdd (closed; R1-R7 multi-PR fixes 67f75a2be6 / d8a7f93b58 / e1a8c8ca37 / 85bd8475af) was intended to make the runner robust to non-JSON / fallback-chain responses; fenced-JSON handling appears either uncovered by that work or regressed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The runner emitted (verbatim from the CI job log):",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "ERROR: LLM returned non-JSON response (length=1187); cannot parse as findings.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "ERROR [preview]: ```json\\n{\\n  \"findings\": [],\\n  \"summary\": \"This diff updates documentation and test contracts for the dso plugin: ... No security vulnerabilities ... are present in the diff. ...\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The preview shows the LLM response WAS well-formed JSON (`{\"findings\": [], \"summary\": \"...\"}`) \u2014 it was simply enclosed in a ```json fenced code block. The parser treated the fenced payload as non-JSON and discarded it (including its empty `findings` array). A subsequent fallback path then produced blocking findings, ending with:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "ERROR: llm-review found blocking finding(s) \u2014 1 critical, 1 important (see findings JSON above and 2 PR review comments for details)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Net effect: a reviewer call that legitimately returned zero findings was discarded as a parse failure, and the `review-sub-pr` required check failed (1 critical + 1 important from the fallback path), blocking PR #557 and aborting the merge-to-main pipeline (\"PR1 #557 reached terminal failure state \u2014 refusing to advance to PR2\").",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* dso_ci_review runner (`runner.py`) findings-parse path",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* `review-sub-pr` CI job (work\u2192staged channel) in `.github/workflows/ci.yml`",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* `merge-to-main.sh` two-channel staged-release flow (PR1\u2192PR2)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 6. Logs / Evidence",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* CI run: https://github.com/navapbc/digital-service-orchestra/actions/runs/26846036445/job/79167795371",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* PR: #557",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Related (closed) ticket: f148-2cb6-8b7e-4cdd \u2014 same family (non-JSON response handling); this fenced-valid-JSON case was not covered or has regressed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Reproduction is non-deterministic: depends on whether the review LLM wraps its JSON payload in Markdown code fences on a given call. The runner should deterministically strip a leading/trailing ```json ... ``` (and bare ``` ... ```) fence before JSON parsing.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:tests",
+      "dso-id:05ca-0388-6415-4406"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[ci-llm-review/runner]: LLM wraps valid findings JSON in markdown code fences -> 'non-JSON response, cannot parse as findings' + spurious blocking-findings fallback"
+  },
+  "DIG-5124": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Scenario Type:** User-flagged process non-conformance.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The session worktree should reach main only through the conforming promotion path (merge-to-main.sh: source -> staged-* PR1 with review-sub-pr, staged-* -> main PR2 with llm-review; or the MQ model under MQ-4). No standalone draft PR that proposes a direct session-worktree -> main merge should exist.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "sprint Phase A (ci-pr mode) calls create-sprint-draft-pr.sh, which runs `gh pr create --draft --base $_DEFAULT_BRANCH(main) --head $SESSION_BRANCH` (create-sprint-draft-pr.sh:113-116; also :46,:62). This opens a long-lived DRAFT PR proposing session-worktree -> main. Its stated purpose is to be the GitHubPRDefenseStore substrate (a PR to attach per-story review defenses to), but as a base=main/head=session PR it (a) implies a direct session->main merge our process does not perform, (b) lingers alongside the staged-tier PRs that actually carry promotion, and (c) would bypass staged review if marked ready.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Open scoping question (for triage)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This overlaps MQ-4 (40f7-e831-b9e8-4158), which rewrites the promotion path to 'session->main direct' through the merge queue and retires the staged-*/PR1/PR2 tiers. Under MQ-4 a session->main PR becomes the REAL promotion PR (through the queue), which may SUBSUME this umbrella draft PR. Decision needed: fix standalone now (e.g., point the defense substrate at the conforming PR, or stop opening a base=main draft) vs. fold into MQ-4's promotion-path rewrite.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Affected files",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "plugins/dso/scripts/create-sprint-draft-pr.sh; plugins/dso/skills/sprint/SKILL.md (Phase A Draft PR Creation, ~line 175-192).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**code_version:** 2bb8ef2bebc9601df9580196a77e23ca0bd68966",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "dso-id:1f5f-f9af-415e-46e0"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[sprint/create-sprint-draft-pr]: ci-pr Phase A opens a draft PR base=main head=session -> non-conforming session->main PR"
+  },
+  "DIG-5125": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 52cd3ad71beeb9b9a40f02b6d0b07d67226d31d9",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **files:** plugins/dso/skills/sprint/prompts/per-worktree-review-commit.md (Step 3.5); plugins/dso/scripts/check-session-merge-only.sh; plugins/dso/scripts/check-sprint-trailer.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **mode:** dso.workflow=ci-pr, .sprint-active present (sprint waxen-sigma)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Workflow gate mutual-incompatibility",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Per-worktree Step 3.5 copies .sprint-active into the agent worktree so check-sprint-trailer.sh enforces the DSO-Story trailer (bug e081-63c0). Step 4 then commits the agent's staged changes in the worktree branch successfully.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "check-session-merge-only.sh exits 1 for ANY non-merge commit in a linked worktree whose REPO_ROOT contains .sprint-active. Because Step 3.5 just placed .sprint-active there, the Step 4 per-task commit is rejected:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \"ERROR: Direct commit to session worktree rejected (sprint-active mode).\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Observed verbatim during sprint waxen-sigma Layer-0 harvest of task 5e96. Removing the copied .sprint-active from the agent worktree let the identical commit succeed (Session Worktree Merge-Only Check: Passed).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The two hooks both key on .sprint-active presence and are mutually exclusive on an agent worktree: copying it satisfies check-sprint-trailer but trips check-session-merge-only; not copying it satisfies merge-only but skips trailer enforcement.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Suggested direction (not prescriptive)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "check-session-merge-only.sh should exempt agent worktrees (path contains /.claude/worktrees/agent-) since those are the harvest source, not the session worktree; OR Step 3.5 should not propagate .sprint-active.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Workaround used in this session: skip Step 3.5 (do not propagate .sprint-active); commit succeeds; DSO-Story trailer included manually in the commit message.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
+      "dso-id:3349-8532-1183-4fc1"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[per-worktree-review-commit]: Step 3.5 .sprint-active copy makes check-session-merge-only reject the per-task commit"
+  },
+  "DIG-5126": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** ed2792c71457a45e494bf6b2d44859f4163acd46",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **scripts:** plugins/dso/scripts/merge-to-main-pr.sh (_phase_staged_intermediate PR1 wait), plugins/dso/scripts/wait-for-pr.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **workflow:** .github/workflows/check-staged-head.yml (on: pull_request: branches:[main])",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **context:** /dso:sprint waxen-sigma \u2014 merge-to-main after closing the Phase A draft PR",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Release-pipeline blocker (two-channel staged promotion)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Per merge-to-main-pr.sh design comments (lines 748-764): PR1 (source->staged-*) requires ONLY review-sub-pr (sub-PR ruleset); check-staged-head is a PR2 (staged-*->main) requirement (main ruleset). So PR1's wait must not be blocked by check-staged-head.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "PR1 (worktree-20260602-122923 -> staged-*) is declared a terminal failure on 'check-staged-head':",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \"ERROR: PR1 #559 has failed required check(s): checks=check-staged-head\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Root cause chain:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. sprint Phase A opened draft PR #556 (session -> main). check-staged-head.yml (on: pull_request branches:[main]) fired on PR #556 and FAILED (head 'worktree-*' != 'staged-*' pattern) \u2014 correct for a session->main PR, which should never exist in the two-channel model.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. merge-to-main created the version-bump commit (ed2792c714) on the session branch WHILE #556 was still open, so check-staged-head ran on ed2792c714 and recorded a FAILED status permanently on that commit.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. The user closed #556, but the recorded failed check-staged-head status on ed2792c714 persists.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "4. merge-to-main PR1 (#558, then #559) reuses ed2792c714 as head. wait-for-pr.sh polls 'gh pr checks <pr>' which reports ALL checks on the head commit \u2014 including the stale failed check-staged-head \u2014 and exits non-zero. merge-to-main treats this as a PR1 terminal failure and refuses to advance to PR2.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Two contributing defects",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(a) merge-to-main does not close/guard the Phase A draft session->main PR before creating the version-bump commit, allowing check-staged-head to contaminate the shared commit.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(b) wait-for-pr.sh / merge-to-main PR1 wait does not scope required checks to the PR1 set (review-sub-pr); it treats every reported check (incl. PR2-only check-staged-head) as blocking.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Suggested directions (not prescriptive)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- merge-to-main should close (or refuse to proceed with) an open session->main draft PR before the bump; OR create the bump commit only after that PR is closed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- The PR1 wait should restrict to PR1's actually-required checks (review-sub-pr), ignoring statuses for checks not required by the staged-* ruleset.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Workaround that should work: rewrite the session head (reset to last work commit + let merge-to-main regenerate a fresh, uncontaminated version-bump commit) AFTER the draft PR is closed, so PR1's head has no check-staged-head status.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
+      "dso-id:4d06-3db1-8187-4de9"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[merge-to-main two-channel]: stale check-staged-head status on shared session commit blocks PR1 (session->staged)"
+  },
+  "DIG-5127": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 52cd3ad71beeb9b9a40f02b6d0b07d67226d31d9",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **harness:** Claude Code Agent tool, isolation:worktree",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **context:** /dso:sprint waxen-sigma Layer-0 batch (4 parallel agents)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Upstream harness defect (infrastructure)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Every Agent dispatch with isolation:\"worktree\" runs in its own .claude/worktrees/agent-<id> worktree; the completion notification carries a <worktree> block; the sub-agent's git rev-parse --show-toplevel resolves to that isolated worktree.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3 of 4 Layer-0 agents isolated correctly (each notification carried a <worktree> block; agent worktrees present in git worktree list). The 4th agent (task b5fd-7682, dso:red-test-writer) ran WITHOUT isolation: its completion notification had NO <worktree> block, no agent-<id> worktree was ever created, and its git rev-parse --show-toplevel resolved to the SESSION worktree \u2014 so its files (tests/scripts/test-run-hermetic.sh + .test-index) landed staged in the session worktree.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The dispatch prompt did NOT contain any session-worktree absolute path (only SESSION_BRANCH branch name + SESSION_HEAD sha + relative paths), so this is NOT the prompt-path-leak failure mode (6b67-2aad / 1053-4ec3). It is a harness isolation-allocation flake: isolation was requested on the Agent call but not applied to that one dispatch.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Distinguishing signal",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Presence/absence of the <worktree> block in the task-completion notification reliably separated isolated (5e96, 55c7, 315a) from un-isolated (b5fd) dispatches in the same batch.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 3. Action History",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Work was NOT lost: recovered by backing up the staged session changes to a patch, stashing, recreating a worktree-agent-b5fd-recovered branch from session HEAD, restoring the files + .test-index entry, then committing + harvesting like the others.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* per-worktree-review-commit.md Step 1a 907d / Tier-2 RECOVERED_FROM_SESSION path is the documented recovery for exactly this; here it was handled manually.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
+      "dso-id:94fc-1027-7664-4a8c"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[Claude Code harness]: isolation:worktree dispatch ran un-isolated -> sub-agent wrote to session worktree"
+  },
+  "DIG-5128": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 2f28c680656e7166d4c704163d760fd04c3ed95b",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **test:** tests/skills/test-onboarding-skill.sh :: test_design_notes_output",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Pre-existing test failure (caught by sprint test gate)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "tests/skills/test-onboarding-skill.sh passes on the session/main HEAD (89/89).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On clean session HEAD 2f28c68065 (no local edits), the suite reports PASSED: 89 FAILED: 1 with the single failing case test_design_notes_output. The failure is pre-existing and reproduces with no working-tree changes.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Secondary impact (why surfaced now): record-test-status.sh maps any plugins/dso/skills/**/SKILL.md edit to the FULL skills test set via an over-broad test->source mapping, so an unrelated fix-bug/SKILL.md change (sprint task 315a-77fb under epic waxen-sigma) pulls test-onboarding-skill.sh into its gate and harvest-worktree.sh blocks (exit 2) on a failure the change did not cause. Relates to epic c13f-6196 (irrelevant test->source mappings).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* tests/skills/test-onboarding-skill.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* record-test-status.sh test->source mapping breadth",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "detected_by:tests",
+      "dso-id:e558-91ea-fbf8-4b14"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[onboarding skill tests]: test_design_notes_output fails on main HEAD -> blocks unrelated skill-file harvests"
   }
 }
