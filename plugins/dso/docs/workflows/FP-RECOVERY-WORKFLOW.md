@@ -167,6 +167,15 @@ gh pr checks "<PR_NUMBER>"   # inspect: only llm-review (the FP) may be non-gree
 If ANY non-`llm-review` required check is failing or pending, **STOP** — this is not an
 FP-recovery situation (fix the failing check first; see "What this workflow does NOT do").
 
+**5a.5 — clear any queued auto-merge.** The PR usually has auto-merge queued (from the
+merge-to-main pipeline). With the `llm-review` check failing it will never fire, and leaving
+it queued forces the human to dismiss the auto-merge prompt before they can merge. Disable it
+so the web-UI **Merge** is a single clean click:
+
+```bash
+gh pr merge "<PR_NUMBER>" --disable-auto 2>/dev/null || true   # no-op if none queued
+```
+
 **5b — emit the web-UI merge link + annotation for the human.** Print:
 
 ```
