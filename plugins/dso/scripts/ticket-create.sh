@@ -152,6 +152,10 @@ fi
 
 # ── Validate parent_id exists if provided ─────────────────────────────────────
 if [ -n "$parent_id" ]; then
+    # Resolve alias or jira-* ID to canonical ticket_id (mirrors ticket-edit.sh:145)
+    if ! parent_id=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$parent_id"); then
+        exit 1
+    fi
     if [ ! -d "$TRACKER_DIR/$parent_id" ]; then
         echo "Error: parent ticket '$parent_id' does not exist" >&2
         exit 1
