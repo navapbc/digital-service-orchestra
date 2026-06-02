@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: behavioral, Score: 3 (INTERMEDIATE). Severity 1, Complexity 2 (touches safeguard hook), Environment 0, Intermittent 0. Strong context from sister bug 85f3 investigation."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778939985908997000,"uuid":"5c60df26-80b4-40ee-a0ff-285bed01ffc1"}
