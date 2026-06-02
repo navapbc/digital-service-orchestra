@@ -95,23 +95,42 @@ def _make_diff_touching_files(count: int) -> str:
 
 
 def test_size_gate_loc_threshold() -> None:
-    """Given: a diff with > 3000 added/removed lines across 2+ files
+    """Given: a diff above the GATE LOC threshold (default 20000) across 2+ files
     When: _should_region_split is called
-    Then: returns True (LOC gate triggered)
+    Then: returns True (GATE LOC gate triggered)
 
-    Note (bug 532e-6ab7): the diff must span 2+ files for the LOC gate to fire.
-    A diff in a single file is always atomic and never region-split, regardless
-    of LOC count — see test_single_file_never_region_split.
+    Note (component #3'): the GATE now uses _gate_loc_threshold() (default
+    20000), NOT the per-cluster fan-out _loc_threshold() (default 3000). A
+    medium-large 3001-LOC diff therefore reviews single-pass — see
+    test_gate_does_not_trip_below_gate_loc. The diff must also span 2+ files
+    for the gate to fire (bug 532e-6ab7 single-file atomicity).
     """
-    # Helper divides per-file then generates one block; ask for 4002/2000 so
-    # actual produced LOC = (4002/2) + (2000/2) = 3001 > 3000 threshold.
+    # Helper divides per-file then generates one block; ask for 30000/12000 so
+    # actual produced LOC = (30000/2) + (12000/2) = 21000 > 20000 gate threshold.
+    diff = _make_diff_with_loc(
+        added=30000, removed=12000, filenames=["src/a.py", "src/b.py"]
+    )
+    result = _should_region_split(diff)
+    assert result is True, (
+        f"_should_region_split must return True when a multi-file diff exceeds "
+        f"the GATE loc threshold (default 20000); got {result!r}"
+    )
+
+
+def test_gate_does_not_trip_below_gate_loc() -> None:
+    """Component #3': a 3001-LOC multi-file diff (above the OLD 3000 fan-out
+    threshold but below the raised 20000 GATE threshold) reviews single-pass.
+
+    This is the core #3' behavior change: medium-large PRs no longer chunk, so
+    they incur zero cross-chunk hallucinated-reference false positives.
+    """
     diff = _make_diff_with_loc(
         added=4002, removed=2000, filenames=["src/a.py", "src/b.py"]
     )
     result = _should_region_split(diff)
-    assert result is True, (
-        f"_should_region_split must return True when a multi-file diff has "
-        f"> 3000 added/removed lines (default loc_threshold); got {result!r}"
+    assert result is False, (
+        f"A 3001-LOC diff must NOT trip the raised GATE (single-pass); "
+        f"got {result!r}"
     )
 
 
@@ -152,18 +171,21 @@ def test_cluster_files_atomicity_count_preserved() -> None:
 
 
 def test_loc_threshold_config_override(tmp_path, monkeypatch) -> None:
-    """Given: a config file lowering review.region_split.loc_threshold to 100
+    """Given: a config file lowering the GATE threshold review.region_split.gate_loc to 100
     When: a 200-LOC two-file diff is checked
-    Then: _should_region_split returns True (config-overridden threshold fires).
+    Then: _should_region_split returns True (config-overridden GATE threshold fires).
 
-    Verifies bug 532e-6ab7 config indirection: thresholds are not hardcoded
-    constants — projects can tune via review.region_split.* keys.
+    Component #3': the GATE reads review.region_split.gate_loc (not the
+    per-cluster fan-out review.region_split.loc_threshold). Verifies config
+    indirection: the gate threshold is not a hardcoded constant.
     """
-    # Build a config file with a low threshold
+    # Build a config file with a low GATE threshold
     config_dir = tmp_path / ".claude"
     config_dir.mkdir()
+    # gate_loc must stay above the 300 size_upgrade_lines floor (else it is
+    # clamped up); 350 is a valid low override that still proves config indirection.
     config_file = config_dir / "dso-config.conf"
-    config_file.write_text("review.region_split.loc_threshold=100\n")
+    config_file.write_text("review.region_split.gate_loc=350\n")
 
     # Make _default_config_path resolve to our temp config
     from dso_ci_review import region_split as rs
@@ -175,24 +197,24 @@ def test_loc_threshold_config_override(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(config_file))
 
-    # 200-LOC two-file diff — under the 3000 default, but over the 100 override
+    # 400-LOC two-file diff — under the 20000 default, but over the 350 override
     diff = _make_diff_with_loc(
-        added=200, removed=200, filenames=["src/a.py", "src/b.py"]
+        added=400, removed=400, filenames=["src/a.py", "src/b.py"]
     )
-    # Helper: (200/2)+(200/2) = 200 LOC produced
+    # Helper: (400/2)+(400/2) = 400 LOC produced
     result = rs._should_region_split(diff)
     assert result is True, (
-        f"Config override should make the LOC gate fire at 100 (vs 3000 default); "
+        f"Config override should make the GATE fire at gate_loc=350 (vs 20000 default); "
         f"got {result!r}"
     )
 
-    # And the inverse: without the override (point at an empty config), 200 LOC < 3000 default → False
+    # And the inverse: without the override (empty config), 400 LOC < 20000 default → False
     empty_config = tmp_path / "empty.conf"
     empty_config.write_text("")
     monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(empty_config))
     result_default = rs._should_region_split(diff)
     assert result_default is False, (
-        f"With default threshold (3000), 200-LOC diff should not region-split; "
+        f"With default GATE threshold (20000), 400-LOC diff should not region-split; "
         f"got {result_default!r}"
     )
 
@@ -212,7 +234,6 @@ def test_threshold_readers_clamp_invalid_config_to_default(
     config_file = tmp_path / "bad-config.conf"
     config_file.write_text(
         "review.region_split.loc_threshold=0\n"
-        "review.region_split.file_count_threshold=-5\n"
         "review.region_split.max_clusters=0\n"
     )
     # Patch the shared config resolver where it lives — region_split's
@@ -224,9 +245,6 @@ def test_threshold_readers_clamp_invalid_config_to_default(
 
     assert rs._loc_threshold() == rs._LOC_THRESHOLD_DEFAULT, (
         "loc_threshold must fall back to default when config value is 0"
-    )
-    assert rs._file_count_threshold() == rs._FILE_COUNT_THRESHOLD_DEFAULT, (
-        "file_count_threshold must fall back to default when config value is negative"
     )
     assert rs._max_clusters() == rs._MAX_CLUSTERS_DEFAULT, (
         "max_clusters must fall back to default when config value is < 1"
@@ -333,14 +351,31 @@ def test_cluster_files_atomicity_holds_under_overflow() -> None:
 
 
 def test_size_gate_file_count_threshold() -> None:
-    """Given: a diff touching > 40 distinct files
+    """Given: a diff touching > the GATE file-count threshold (default 120)
     When: _should_region_split is called
-    Then: returns True (file count gate triggered)
+    Then: returns True (GATE file-count gate triggered)
+
+    Component #3': the GATE now uses _gate_file_count_threshold() (default
+    120), NOT the per-cluster fan-out _file_count_threshold() (default 40). A
+    41-file diff therefore reviews single-pass — see
+    test_gate_does_not_trip_below_gate_file_count.
     """
-    diff = _make_diff_touching_files(41)  # 41 > 40
+    diff = _make_diff_touching_files(121)  # 121 > 120
     result = _should_region_split(diff)
     assert result is True, (
-        f"_should_region_split must return True when diff touches > 40 distinct files; "
+        f"_should_region_split must return True when diff touches > the GATE "
+        f"file-count threshold (default 120); got {result!r}"
+    )
+
+
+def test_gate_does_not_trip_below_gate_file_count() -> None:
+    """Component #3': a 41-file diff (above the OLD 40 fan-out file threshold
+    but below the raised 120 GATE threshold) reviews single-pass.
+    """
+    diff = _make_diff_touching_files(41)  # 41 > 40 (old) but < 120 (gate)
+    result = _should_region_split(diff)
+    assert result is False, (
+        f"A 41-file diff must NOT trip the raised GATE (single-pass); "
         f"got {result!r}"
     )
 
@@ -920,7 +955,8 @@ def test_gate_and_clustering_see_same_file_set_under_deletion() -> None:
     gate and _async_run_region_split's clustering path (via _cluster_files)
     must see the same file count.
     """
-    # 41 files (clears the 40-file threshold), one of which is a deletion.
+    # 121 files (clears the raised 120-file GATE threshold under #3'), one of
+    # which is a deletion.
     diff_lines: list[str] = []
     diff_lines.extend(
         [
@@ -932,7 +968,7 @@ def test_gate_and_clustering_see_same_file_set_under_deletion() -> None:
             "-old",
         ]
     )
-    for i in range(40):
+    for i in range(120):
         diff_lines.extend(
             [
                 f"diff --git a/m/file_{i}.py b/m/file_{i}.py",
@@ -945,24 +981,25 @@ def test_gate_and_clustering_see_same_file_set_under_deletion() -> None:
         )
     diff_text = "\n".join(diff_lines)
 
-    # Gate sees the deletion: file_count = 41 > 40 → should region-split
+    # Gate sees the deletion: file_count = 121 > 120 (gate) → should region-split
     assert _should_region_split(diff_text) is True, (
-        "Gate must trigger region-split when total files including deletions > 40"
+        "Gate must trigger region-split when total files including deletions "
+        "exceeds the GATE file-count threshold (120)"
     )
 
     # Clustering must see the SAME file set — including the deletion — so the
     # atomicity invariant has a faithful baseline. _cluster_files will raise
     # RegionSplitInvariantError if a file is dropped.
     files = _extract_filenames(diff_text)
-    assert len(files) == 41, (
-        f"Unified extractor must see all 41 files (including the deletion); "
+    assert len(files) == 121, (
+        f"Unified extractor must see all 121 files (including the deletion); "
         f"got {len(files)}: {files}"
     )
     # Atomicity assertion fires inside _cluster_files; if it raised, the test
     # would error out here, which is exactly the regression contract.
     clusters = _cluster_files(files)
-    assert sum(len(v) for v in clusters.values()) == 41, (
-        f"Clustering must preserve all 41 files; got clusters={clusters}"
+    assert sum(len(v) for v in clusters.values()) == 121, (
+        f"Clustering must preserve all 121 files; got clusters={clusters}"
     )
 
 
