@@ -204,6 +204,14 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment "$BUG_TICKET_ID" "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
+Create the `.fix-bug-active` marker so the commit-msg HARD-GATE knows fix-bug is the active skill. Initialize the per-session `# antipattern-ok: <reason>` annotation counter (cap: 3/session — if ANTIPATTERN_OK_COUNT exceeds 3 in a single session, flag the excess occurrences for review rather than applying them silently):
+```bash
+# Create fix-bug-active marker to enable fix-bug session enforcement
+touch "$(git rev-parse --show-toplevel)/.fix-bug-active"
+# Per-session antipattern-ok annotation counter (cap: 3/session)
+ANTIPATTERN_OK_COUNT=0
+```
+
 #### Auto-Resume Detection
 
 After transitioning the bug ticket to in_progress, scan for abandoned worktrees from prior sessions:
@@ -276,6 +284,8 @@ if ! git merge-base --is-ancestor "$CODE_VERSION" HEAD 2>/dev/null; then
               "Worktree ancestry check: FAILED — code_version ${CODE_VERSION} is not an ancestor of HEAD on $(git rev-parse --abbrev-ref HEAD) and does not appear to be squash-merged (object absent, remote tip, or remote unavailable). Investigation skipped; re-queue when the source branch lands."
             # Transition ticket back to open so it is visible for re-queuing
             .claude/scripts/dso ticket transition "$BUG_TICKET_ID" in_progress open 2>/dev/null || true
+            # Remove fix-bug-active marker — skill exiting (ancestry gate failed)
+            rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
             # END the skill
             exit 0
         fi
@@ -398,7 +408,11 @@ Intent Gate has four possible outcomes. The **ambiguous** outcome falls through 
      ```bash
      ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: Intent-contradicting — <evidence source>"
      ```
-  3. **Stop** — do not proceed to investigation.
+  3. Remove the `.fix-bug-active` marker — skill is closing cleanly:
+     ```bash
+     rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
+     ```
+  4. **Stop** — do not proceed to investigation.
 
   **Sub-case B: Feature never implemented** — Evidence indicates the capability was never built (no implementation found, no design doc, no commit). Do NOT auto-close. Escalate to user:
   1. Add evidence comment:
@@ -963,6 +977,35 @@ Before dispatching any fix implementation (Phase E Step 3), verify that a RED te
 
 **LLM-behavioral bug exemption**: This gate is relaxed for llm-behavioral bugs. LLM behavioral bugs (prompt regressions, agent guidance gaps, skill misinterpretation) cannot always have a traditional executable RED unit test written before the fix — the behavioral regression lives in natural language instructions, not in executable code paths. For llm-behavioral bugs, the RED unit test requirement is replaced with eval-based verification: define an eval assertion that would fail with the current skill/agent/prompt content and pass after the fix. If no eval framework is available, document the behavioral assertion in the ticket as the verification criterion before proceeding to fix implementation.
 
+### Step 2.5: Hermetic Reproduction Gate (/dso:fix-bug)
+
+After the RED test is confirmed failing (Step 2), run the hermetic reproduction helper to verify the failure reproduces in an isolated environment. This gate applies only to shell/bash RED tests (`.sh` suffix or `$TEST_CMD` runner starts with `bash` or `sh`).
+
+```bash
+# Run hermetic reproduction check on the RED test
+"${CLAUDE_PLUGIN_ROOT}/scripts/run-hermetic.sh" "$TEST_CMD"
+```
+
+**Interpret the helper output:**
+
+| Outcome | Output | Action |
+|---------|--------|--------|
+| Shell reproduction confirmed | exits 0 | Proceed to Step 3 (Fix Implementation). |
+| Shell non-reproduction | exits non-zero | **HARD-GATE**: halt implementation immediately (see below). |
+| Non-shell test | emits `HERMETIC_SKIP: runner=<runner> reason=non-shell` | Record the `HERMETIC_SKIP` line in session notes and proceed to Step 3 — non-shell tests are never blocked by this gate. |
+
+<HARD-GATE>
+**Shell non-reproduction — full stop.**
+
+If `run-hermetic.sh` exits non-zero for a shell/bash RED test, the bug does NOT reliably reproduce in a hermetic environment. Implementation is blocked.
+
+1. Post a ticket comment: `Hermetic reproduction failed` (include the helper output as context).
+2. Do NOT dispatch a fix sub-agent or make any code changes.
+3. Return to Phase C (Investigation) to re-examine the environment assumptions underlying the root cause. The hermetic failure indicates the root cause analysis may depend on local state, path, or configuration that is not present in a clean environment.
+</HARD-GATE>
+
+**Non-shell path (never blocked)**: When `run-hermetic.sh` emits `HERMETIC_SKIP: runner=<runner> reason=non-shell`, the gate is automatically satisfied — record the skip line and proceed directly to Fix Implementation. Non-shell tests (pytest, node, etc.) are outside the hermetic shell-isolation contract and are never blocked by this gate.
+
 ### Step 3: Fix Implementation (/dso:fix-bug)
 
 **Exploration Decomposition**: During investigation, when a diagnostic question is compound or spans multiple sources (multiple codebase layers, web research, or ambiguous scope), apply the shared exploration decomposition protocol at `skills/shared/prompts/exploration-decomposition.md`. Classify as SINGLE_SOURCE or MULTI_SOURCE. Emit DECOMPOSE_RECOMMENDED when a factor is unspecified or two findings directly contradict.
@@ -1131,6 +1174,8 @@ When `route: "escalate"` and non-interactive mode, defer the epic escalation as 
 ```bash
 if [ "${FIX_BUG_INTERACTIVE:-true}" = "false" ] && [ "$ROUTE" = "escalate" ]; then
     ticket comment <BUG_TICKET_ID> "INTERACTIVITY_DEFERRED: escalation to /dso:brainstorm deferred (non-interactive mode). Signal count: $(echo $ROUTING_OUTPUT | python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get(\"signal_count\",\"?\"))'). All gate evidence attached to this ticket for follow-up."
+    # Remove fix-bug-active marker — skill exiting (non-interactive escalation)
+    rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
     # Stop — do not proceed to Phase H Step 1; escalation must be handled interactively.
     exit 0
 fi
@@ -1246,6 +1291,40 @@ ticket comment <BUG_TICKET_ID> "Anti-pattern scan complete: <total_confirmed> co
 
 This observation record feeds dogfooding analysis — tracking which patterns recur across sessions helps identify systemic issues in the codebase.
 
+#### Commit Trailer (dd-1)
+
+After the scan completes (including the zero-candidates case), copy the `SCAN_RESULT` `trailer_line` field **verbatim** into the commit message as a git-trailer footer. The trailer line must appear in the commit message footer, separated from the body by a blank line, in `key: value` form — do not reformat, truncate, or paraphrase it:
+
+```
+<commit body>
+
+<trailer_line verbatim from SCAN_RESULT>
+```
+
+Example (the exact string comes from `SCAN_RESULT.trailer_line`):
+
+```
+fix(auth): guard PLUGIN_ROOT before set -u
+
+Antipattern-Scan: PLUGIN_ROOT-unguarded-set-u root=/repo matches=3
+```
+
+If `trailer_line` is absent (MALFORMED scan result), record the malformation in a ticket comment and omit the trailer rather than fabricating one.
+
+#### Promote-Query Sub-Step (dd-4)
+
+After recording the scan observation, promote the confirmed scan query to the known-antipatterns registry so that future commits in this codebase are blocked by `check-known-antipatterns.sh` (epic 7575-5a90).
+
+**When `${CLAUDE_PLUGIN_ROOT}/config/known-antipatterns.yaml` exists**: append a new entry to the registry following the 7575-5a90 schema (fields: `id`, `pattern`, `targets`, `remediation`, `citation`). Use `SCAN_RESULT.query_used` as the `pattern` and the originating bug ticket as the `citation`. Do not mutate existing entries — the registry is append-only.
+
+**When `${CLAUDE_PLUGIN_ROOT}/config/known-antipatterns.yaml` does not exist** (registry not yet shipped — the deferred path): write a durable ticket comment with the exact text:
+
+```
+ANTIPATTERN_PROMOTE_DEFERRED: <query>
+```
+
+where `<query>` is `SCAN_RESULT.query_used`. This preserves the promotion intent so that when the registry ships (per epic 7575-5a90), the deferred queries can be bulk-applied.
+
 ### Step 2: Test Index Check (/dso:fix-bug)
 
 After the fix is verified GREEN and before committing, check whether the source file(s) modified by the fix have entries in `.test-index`. This prevents future regression detection gaps where the test gate cannot associate a source file with its test.
@@ -1319,17 +1398,33 @@ Retry tag writes once on failure. On second tag-write failure: post a comment re
 
 > **CRITICAL — Review invocation**: COMMIT-WORKFLOW.md Step 5 handles the DSO review gate internally. NEVER invoke `Skill("review")` or the bare `/review` command — these trigger the built-in Claude Code PR-review skill, NOT the DSO code reviewer (`/dso:review`). The only valid review invocation is to read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (which calls REVIEW-WORKFLOW.md at Step 5). Do NOT call `Skill("review")`, `/review`, or `/dso:review` directly from fix-bug.
 
+<HARD-GATE>
+**Antipattern-Scan trailer HARD-GATE** — Run `${CLAUDE_PLUGIN_ROOT}/hooks/check-antipattern-scan-trailer.sh` BEFORE invoking the commit workflow. The hook exits non-zero (blocking the commit) when either:
+- The `Antipattern-Scan` trailer is absent from the staged commit message, OR
+- The scan recorded `matches>0` but the required per-match follow-up artifact is missing.
+
+Do NOT proceed to the commit workflow until this gate exits 0. If it exits non-zero, resolve the missing trailer or follow-up artifact first, then re-run the gate.
+</HARD-GATE>
+
 1. Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 2. Close the bug ticket only after a successful code fix:
    ```bash
    ticket transition <BUG_TICKET_ID> in_progress closed --reason="Fixed: <one-line summary of the fix>"
+   ```
+3. Remove the `.fix-bug-active` marker — skill is closing cleanly:
+   ```bash
+   rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
    ```
 
 **When running as a sub-agent** (detected per Sub-Agent Context Detection below):
 
 1. Do NOT commit — the orchestrator owns the commit workflow.
 2. Do NOT close the ticket — the orchestrator handles ticket lifecycle after the sub-agent returns.
-3. Return the resolved ticket ID in the sub-agent result so the orchestrator can commit and close:
+3. Remove the `.fix-bug-active` marker before returning:
+   ```bash
+   rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
+   ```
+4. Return the resolved ticket ID in the sub-agent result so the orchestrator can commit and close:
 
 ```
 FIX_RESULT: resolved
@@ -1346,7 +1441,11 @@ red_captures: <for multi-commit fixes (≥2 behavioral commits): one line per ax
 - `n/a (llm-behavioral)` — LLM-behavioral bug; RED unit test requirement replaced by eval-based verification per Phase E Step 2 exemption
 - `n/a (testing_mode=GREEN)` — fix is implementation-only with no observable behavior change; existing tests validate correctness
 
-If the bug CANNOT be fixed (all investigation tiers exhausted, COMPLEX escalation, LLM-behavioral with no testable surface, etc.), return the unresolved signal instead — do NOT close the ticket:
+If the bug CANNOT be fixed (all investigation tiers exhausted, COMPLEX escalation, LLM-behavioral with no testable surface, etc.), remove the marker and return the unresolved signal instead — do NOT close the ticket:
+
+```bash
+rm -f "$(git rev-parse --show-toplevel)/.fix-bug-active"
+```
 
 ```
 FIX_RESULT: unresolved
