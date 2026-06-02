@@ -1,0 +1,88 @@
+flowchart TB
+  start([/dso:implementation-plan<br/>story-id or epic-id]):::start
+
+  start --> guard[SUB-AGENT-GUARD:<br/>orchestrator-level only]
+  guard --> preflt[Pre-flight Tag Guards<br/>check-tag-guards.sh<br/>scrutiny_pending /<br/>interaction_deferred /<br/>manual_awaiting_user]
+  preflt --> copybypass{copy-story<br/>tag?}
+  copybypass -->|yes| bypass([STATUS:bypass<br/>handoff to sprint])
+  copybypass -->|no| s1
+
+  subgraph s1["Step 1 — Contextual Discovery"]
+    s1a[Re-invocation guard<br/>check-reinvocation.sh]
+    s1b[Epic Type Detection]
+    s1c[Architectural Alignment<br/>+ ADR scan]
+    s1d[Recipe Consultation<br/>consult-recipe-registry.sh]
+    s1e[Ambiguity Scan +<br/>Unsatisfiable Criteria]
+    s1f[Cross-Cutting Detection<br/>≥3 layers / ≥5 interfaces]
+    s1a --> s1b --> s1c --> s1d --> s1e --> s1f
+  end
+
+  s1 --> doconly{doc-only<br/>story?}
+  doconly -->|yes| s3
+  doconly -->|no| prop
+
+  subgraph prop["Proposal Generation"]
+    prop1[Dispatch<br/>dso:approach-proposer<br/>opus]
+    prop2[Validate<br/>≥3 distinct proposals<br/>4 structural axes<br/>complexity gates]
+    prop1 --> prop2
+  end
+
+  prop --> rloop
+
+  subgraph rloop["Resolution Loop"]
+    rl1[Dispatch<br/>dso:approach-decision-maker<br/>opus]
+    rl2{mode?}
+    rl3[counter_proposal<br/>NEW_COUNT++<br/>retry ≤2]
+    rl1 --> rl2
+    rl2 -->|selection| rlSel[Selected proposal]
+    rl2 -->|counter_proposal| rl3
+    rl3 --> prop
+  end
+
+  rloop --> s2{new<br/>pattern?}
+  s2 -->|yes| s2rev[Step 2:<br/>REVIEW-PROTOCOL-WORKFLOW<br/>+ 3 architectural reviewers<br/>best-practices /<br/>project-alignment /<br/>justification]
+  s2 -->|no| s3
+  s2rev --> s3
+
+  subgraph s3["Step 3 — Task Drafting"]
+    s3a[File Impact Enumeration<br/>+ Consumer Detection]
+    s3b[Testing Mode Classification<br/>RED / GREEN / UPDATE / recipe]
+    s3c[Dispatch<br/>dso:task-decomposer<br/>opus<br/>via scratch + receipt]
+    s3d[Validate<br/>dd_partition_map<br/>+ task_drafts<br/>+ AC library<br/>+ Story DD Coverage]
+    s3a --> s3b --> s3c --> s3d
+  end
+
+  s3 --> s4
+
+  subgraph s4["Step 4 — Plan Review"]
+    s4a[REVIEW-PROTOCOL-WORKFLOW<br/>pass_threshold 5<br/>5 reviewers]
+    s4b{pass?}
+    s4c[Remediation:<br/>re-dispatch task-decomposer<br/>+ /dso:oscillation-check at N≥2]
+    s4a --> s4b
+    s4b -->|fail| s4c --> s4a
+    s4b -->|pass| s4done
+  end
+
+  s4done --> s5
+
+  s5[Step 5 — Task Create<br/>ticket create task<br/>--parent story-id<br/>+ AC + verify commands]
+  s5 --> s5b[Step 5b<br/>Behavioral Coverage<br/>Cross-Check<br/>haiku]
+  s5b --> s6{TRIVIAL?}
+  s6 -->|no| s6gap
+
+  subgraph s6gap["Step 6 — Gap Analysis"]
+    s6a[Dispatch opus<br/>prompt: gap-analysis.md]
+    s6b{gaps?}
+    s6c[Re-dispatch<br/>dso:task-decomposer<br/>+ oscillation-check<br/>at N≥2]
+    s6a --> s6b
+    s6b -->|gaps| s6c --> s6a
+    s6b -->|clean| done
+  end
+
+  s6 -->|yes| done
+  s6gap --> done([Plan complete])
+  bypass --> done
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef phase fill:#dbeafe,stroke:#1e40af
+  class s1,prop,rloop,s3,s4,s6gap phase

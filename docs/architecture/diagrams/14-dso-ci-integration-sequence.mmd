@@ -1,0 +1,58 @@
+sequenceDiagram
+  participant Dev as Developer
+  participant Sprint as /dso:sprint
+  participant Git as Local Git
+  participant GH as GitHub
+  participant SubPR as review-sub-pr.yml
+  participant Agents as code-reviewers
+  participant CI as ci.yml
+  participant FP as /dso:fp-recovery
+  participant Merge as merge-to-main.sh
+
+  Dev->>Sprint: /dso:sprint epic-id
+  Sprint->>Git: create session branch
+  Sprint->>GH: open draft PR
+  Note over GH,CI: ci-pr mode
+  GH->>CI: PR opened
+  CI-->>GH: static gates
+
+  loop per story
+    Sprint->>Git: story branch + DSO-Story-Merge trailer
+    Sprint->>GH: push story PR
+    GH->>SubPR: trigger
+    SubPR->>Agents: dispatch reviewer
+    Agents-->>SubPR: findings
+    SubPR-->>GH: required check
+    GH-->>Sprint: check passed
+  end
+
+  Sprint->>Sprint: Phase G epic verify
+  Sprint->>Merge: merge-to-main.sh
+  Merge->>GH: PR ready
+  GH->>CI: re-trigger
+  CI->>Agents: llm-review (provenance-narrowed)
+  Agents-->>CI: findings
+
+  alt critical findings block merge
+    Note over Dev,FP: FP-recovery escape
+    Dev->>FP: /dso:fp-recovery
+    FP->>Agents: dispatch @ opus
+    Agents-->>FP: rescored
+    FP-->>Dev: verdict
+    Note over Dev: fix + push if needed
+    GH->>CI: re-trigger
+    CI->>Agents: llm-review
+    Agents-->>CI: cleared
+  else findings minor or none
+    Note over CI: standard path
+  end
+
+  CI-->>GH: checks pass
+  Merge->>GH: gh pr merge
+  GH-->>Dev: merged
+
+  GH->>CI: post-merge
+  CI->>CI: calibration-rollup
+
+  Note over GH: every 20 min
+  GH->>GH: reconcile-bridge: Jira sync

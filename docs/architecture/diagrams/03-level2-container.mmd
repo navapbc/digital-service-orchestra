@@ -1,0 +1,51 @@
+C4Container
+  title Container — Inside the DSO Plugin
+
+  Person(dev, "Developer")
+
+  System_Boundary(dso, "DSO Plugin") {
+    Container(core, "Core Workflow Skills", "Markdown", "brainstorm, preplanning, implementation-plan, sprint")
+    Container(support, "Supporting Skills", "Markdown", "review, commit, fix-bug, oscillation-check, etc.")
+    Container(agents, "Sub-Agent Pool", "Agent files", "~53 dso:* agents (reviewers, decomposers, verifiers)")
+    Container(workflows, "Shared Workflows", "Markdown", "scrutiny-pipeline, remediation-loop, REVIEW, COMMIT")
+    Container(prompts, "Shared Prompts", "Markdown", "behavioral-testing, complexity-gate, scale-inference")
+    Container(scripts, "Scripts", "Bash / Python", "ticket CLI, validators, merge-to-main, lifecycle")
+    Container(hooks, "Hooks", "Bash", "pre-commit gates, PostToolUse, PreToolUse")
+    ContainerDb(tickdb, "Ticket Event Log", "Orphan branch", "Append-only events per ticket; scratch store")
+    ContainerDb(artifacts, "Artifact Store", "Local files", "Scrutiny outputs, review findings, sentinels")
+  }
+
+  System_Boundary(ghaboundary, "GitHub Actions") {
+    Container(ci, "ci.yml", "GHA", "Primary CI gate + llm-review")
+    Container(subpr, "review-sub-pr.yml", "GHA", "Per-story PR review")
+    Container(recon, "reconcile-bridge trio", "GHA", "Jira reconciler + canary + weekly fsck")
+    Container(maint, "Maintenance workflows", "GHA", "lifecycle, calibration, template e2e")
+    Container(plat, "Platform CI", "GHA", "Python skills, platform matrix, perf, portability")
+  }
+
+  System_Ext(llm, "LLM API")
+  System_Ext(git, "Git / GitHub")
+  System_Ext(jira, "Jira")
+
+  Rel(dev, core, "Invokes")
+  Rel(core, support, "Invokes via Skill tool")
+  Rel(core, agents, "Dispatches")
+  Rel(support, agents, "Dispatches")
+  Rel(core, workflows, "Reads")
+  Rel(core, prompts, "Reads")
+  Rel(agents, prompts, "Reads")
+  Rel(core, scripts, "Executes")
+  Rel(scripts, tickdb, "Reads / writes")
+  Rel(scripts, git, "Worktree + merge ops")
+  Rel(hooks, scripts, "Runs gates")
+  Rel(agents, llm, "Per-tier dispatch")
+  Rel(core, artifacts, "Writes")
+  Rel(git, ci, "Push / PR triggers")
+  Rel(git, subpr, "Sub-PR triggers")
+  Rel(ci, agents, "Dispatches reviewers")
+  Rel(subpr, agents, "Dispatches reviewers")
+  Rel(recon, scripts, "Invokes reconciler")
+  Rel(recon, jira, "ACLI sync")
+  Rel(recon, tickdb, "SYNC events")
+  Rel(maint, scripts, "Lifecycle + calibration")
+  Rel(plat, scripts, "Platform tests")

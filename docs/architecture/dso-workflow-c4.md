@@ -18,6 +18,10 @@ Diagrams progress from highest-level context (Level 1) to per-skill internals
 flowcharts because per-skill flow has more shape than C4 component diagrams
 can represent cleanly.
 
+> **Pre-rendered images** of every diagram below are available under
+> [`diagrams/`](diagrams/README.md) (SVG + PNG) for contexts where mermaid
+> won't render — Confluence, Word/PDF export, slide decks, printing.
+
 ---
 
 ## Where Do I Start? — Skill Entry Decision Tree
@@ -51,9 +55,8 @@ flowchart TD
   bs2 --> bs_out
   bs_out --> sp_route([Run /dso:sprint epic-id<br/>to execute])
 
-  note["Sprint orchestrates the others.<br/>If invoked on an epic that hasn't been<br/>preplanned or whose stories lack tasks,<br/>Phase A and Phase B cascade-invoke<br/>/dso:preplanning and<br/>/dso:implementation-plan automatically.<br/>You rarely need to invoke those directly."]:::note
+  note["Sprint cascade-invokes /dso:preplanning<br/>and /dso:implementation-plan on demand.<br/>You rarely need to invoke them directly."]:::note
   sp1 -.-> note
-  sp2 -.-> note
   sp_route -.-> note
 
   classDef start fill:#fef3c7,stroke:#92400e
@@ -97,23 +100,22 @@ C4Context
     System(dso, "DSO Plugin", "Skills, agents, hooks, scripts that orchestrate the four-stage workflow.")
   }
 
-  System_Ext(llm, "Anthropic LLM API", "Backs orchestrator and all sub-agents (haiku / sonnet / opus tiers).")
-  System_Ext(fs, "Repository Filesystem", "Source code, tests, designs, configs; edited by sub-agents.")
-  System_Ext(tickets, "Ticket Store", "Event-sourced log on orphan tickets branch (under .tickets-tracker).")
-  System_Ext(git, "Git / GitHub", "Worktrees, branches, PRs, required-checks.")
-  System_Ext(actions, "GitHub Actions", "12 workflows: CI gates, llm-review orchestration, Jira reconciler trio, calibration rollups, ticket lifecycle.")
-  System_Ext(jira, "Jira (optional)", "Bidirectional sync via the reconciler bridge (DIG project).")
+  System_Ext(llm, "Anthropic LLM API", "Backs all sub-agents (haiku / sonnet / opus).")
+  System_Ext(fs, "Repository Filesystem", "Source code, tests, configs.")
+  System_Ext(tickets, "Ticket Store", "Event log on orphan tickets branch.")
+  System_Ext(git, "Git / GitHub", "Worktrees, branches, PRs.")
+  System_Ext(actions, "GitHub Actions", "12 workflows: CI, llm-review, Jira reconciler.")
+  System_Ext(jira, "Jira (optional)", "Synced via reconciler bridge.")
 
-  Rel(dev, dso, "Invokes skills, answers Socratic questions, approves plans")
-  Rel(dso, llm, "Dispatches sub-agents per tier; receives JSON / structured output")
-  Rel(dso, fs, "Reads code, runs validate.sh, writes edits")
-  Rel(dso, tickets, "Creates epics / stories / tasks; reads dependency graph")
-  Rel(dso, git, "Creates worktrees, opens PRs, merges to main")
-  Rel(git, actions, "Triggers workflows on push / PR / schedule")
-  Rel(actions, llm, "ci.yml + review-sub-pr.yml dispatch code-reviewer agents")
-  Rel(actions, tickets, "reconcile-bridge.yml + ticket-lifecycle.yml mutate ticket store")
-  Rel(actions, jira, "reconcile-bridge.yml syncs tickets bidirectionally")
-  Rel(dso, jira, "Local tickets staged by reconciler", "Optional")
+  Rel(dev, dso, "Invokes skills")
+  Rel(dso, llm, "Dispatches sub-agents")
+  Rel(dso, fs, "Reads / edits code")
+  Rel(dso, tickets, "CRUD epics / stories / tasks")
+  Rel(dso, git, "Worktrees, branches, PRs")
+  Rel(git, actions, "Triggers workflows")
+  Rel(actions, llm, "Dispatches code-reviewers")
+  Rel(actions, tickets, "Mutates via reconciler")
+  Rel(actions, jira, "Bidirectional sync")
 ```
 
 Key contracts at this boundary:
@@ -138,54 +140,51 @@ C4Container
   Person(dev, "Developer")
 
   System_Boundary(dso, "DSO Plugin") {
-    Container(core, "Core Workflow Skills", "Skill files (Markdown)", "brainstorm, preplanning, implementation-plan, sprint — the four-stage pipeline.")
-    Container(support, "Supporting Skills", "Skill files (Markdown)", "review, commit, fix-bug, end-session, oscillation-check, validate-work, plan-review, fp-recovery, retro, ...")
-    Container(agents, "Named Sub-Agent Pool", "Agent definition files", "~53 dso:* agents — code-reviewer-*, completion-verifier, story-decomposer, task-decomposer, approach-proposer, red-team-reviewer, ui-designer, ...")
-    Container(workflows, "Shared Workflows", "Markdown protocols", "epic-scrutiny-pipeline, remediation-loop-protocol, REVIEW-WORKFLOW, COMMIT-WORKFLOW, REVIEW-PROTOCOL-WORKFLOW, FP-RECOVERY-WORKFLOW.")
-    Container(prompts, "Shared Prompts", "Markdown prompt fragments", "behavioral-testing-standard, complexity-gate, scale-inference, verifiable-sc-check, exploration-decomposition, prior-art-search, ...")
-    Container(scripts, "Scripts", "Bash / Python", "plugins/dso/scripts/ — dso ticket CLI, validate-issues, merge-to-main, agent-batch-lifecycle, append_review_cycle, classify-epic-class, run-architectural-probe, ...")
-    Container(hooks, "Hooks", "Bash", "pre-commit (review gate, test gate, branch invariants), PostToolUse (format), PreToolUse (skill routing).")
-    ContainerDb(tickdb, "Ticket Event Log", "Append-only YAML/JSON", "Orphan 'tickets' branch — events for epic / story / task / bug, scratch store, decisions log.")
-    ContainerDb(artifacts, "Artifact Store", "Local files", ".claude/artifacts/ — scrutiny outputs, review findings, scratch payloads, sentinels, PRECONDITIONS log.")
+    Container(core, "Core Workflow Skills", "Markdown", "brainstorm, preplanning, implementation-plan, sprint")
+    Container(support, "Supporting Skills", "Markdown", "review, commit, fix-bug, oscillation-check, etc.")
+    Container(agents, "Sub-Agent Pool", "Agent files", "~53 dso:* agents (reviewers, decomposers, verifiers)")
+    Container(workflows, "Shared Workflows", "Markdown", "scrutiny-pipeline, remediation-loop, REVIEW, COMMIT")
+    Container(prompts, "Shared Prompts", "Markdown", "behavioral-testing, complexity-gate, scale-inference")
+    Container(scripts, "Scripts", "Bash / Python", "ticket CLI, validators, merge-to-main, lifecycle")
+    Container(hooks, "Hooks", "Bash", "pre-commit gates, PostToolUse, PreToolUse")
+    ContainerDb(tickdb, "Ticket Event Log", "Orphan branch", "Append-only events per ticket; scratch store")
+    ContainerDb(artifacts, "Artifact Store", "Local files", "Scrutiny outputs, review findings, sentinels")
   }
 
   System_Boundary(ghaboundary, "GitHub Actions") {
-    Container(ci, "ci.yml", "GHA Workflow", "Primary CI gate: lint, hooks/scripts tests, llm-review orchestration, merge-pipeline-checks (required check).")
-    Container(subpr, "review-sub-pr.yml", "GHA Workflow", "Per-story PR review (session/**, bug-batch/**, worktree-**).")
-    Container(recon, "reconcile-bridge trio", "GHA Workflows", "reconcile-bridge.yml (20-min), reconcile-bridge-canary.yml (hourly), weekly-bridge-fsck.yml (Mon 06:00).")
-    Container(maint, "Maintenance workflows", "GHA Workflows", "ticket-lifecycle (daily), calibration-rollup (monthly/quarterly), template-real-url-e2e (daily + tag).")
-    Container(plat, "Platform CI", "GHA Workflows", "ci-python-skills, ticket-platform-matrix, ticket-perf-regression, portability-smoke.")
+    Container(ci, "ci.yml", "GHA", "Primary CI gate + llm-review")
+    Container(subpr, "review-sub-pr.yml", "GHA", "Per-story PR review")
+    Container(recon, "reconcile-bridge trio", "GHA", "Jira reconciler + canary + weekly fsck")
+    Container(maint, "Maintenance workflows", "GHA", "lifecycle, calibration, template e2e")
+    Container(plat, "Platform CI", "GHA", "Python skills, platform matrix, perf, portability")
   }
 
   System_Ext(llm, "LLM API")
   System_Ext(git, "Git / GitHub")
   System_Ext(jira, "Jira")
 
-  Rel(dev, core, "/dso:brainstorm, /dso:preplanning, ...")
-  Rel(core, support, "Invokes via Skill tool: /dso:review, /dso:oscillation-check, /dso:commit, /dso:fix-bug")
-  Rel(core, agents, "Dispatches via Agent tool (subagent_type)")
-  Rel(support, agents, "Dispatches code reviewers, investigators")
-  Rel(core, workflows, "Reads inline; executes phases")
-  Rel(support, workflows, "Reads inline (REVIEW, COMMIT, FP-RECOVERY)")
-  Rel(core, prompts, "Reads shared prompts on demand")
-  Rel(agents, prompts, "Reads behavioral standards, exploration patterns")
-  Rel(core, scripts, "Executes dso ticket CLI, validators, agent-batch-lifecycle")
-  Rel(scripts, tickdb, "Reads / appends events")
-  Rel(scripts, git, "Operates worktrees, branches, PRs")
-  Rel(hooks, scripts, "Run safety / gate scripts on tool calls")
-  Rel(agents, llm, "Per-tier model dispatch")
-  Rel(core, artifacts, "Writes scrutiny outputs, scratch payloads")
-  Rel(scripts, jira, "reconcile-bridge workflow (optional)")
-  Rel(scripts, git, "merge-to-main.sh opens PRs, triggers GHA")
-  Rel(git, ci, "PR / push triggers")
-  Rel(git, subpr, "Sub-PR triggers (session/**, etc.)")
-  Rel(ci, agents, "Dispatches code-reviewer agents via runner.py")
-  Rel(subpr, agents, "Dispatches code-reviewer agents on sub-PR diff")
-  Rel(recon, scripts, "Invokes dso_reconciler Python module")
-  Rel(recon, jira, "Bidirectional sync via ACLI")
-  Rel(recon, tickdb, "Mounts tickets branch, commits SYNC events")
-  Rel(maint, scripts, "ticket-lifecycle.sh, calibration-report.sh")
-  Rel(plat, scripts, "Cross-platform ticket-lib-api tests")
+  Rel(dev, core, "Invokes")
+  Rel(core, support, "Invokes via Skill tool")
+  Rel(core, agents, "Dispatches")
+  Rel(support, agents, "Dispatches")
+  Rel(core, workflows, "Reads")
+  Rel(core, prompts, "Reads")
+  Rel(agents, prompts, "Reads")
+  Rel(core, scripts, "Executes")
+  Rel(scripts, tickdb, "Reads / writes")
+  Rel(scripts, git, "Worktree + merge ops")
+  Rel(hooks, scripts, "Runs gates")
+  Rel(agents, llm, "Per-tier dispatch")
+  Rel(core, artifacts, "Writes")
+  Rel(git, ci, "Push / PR triggers")
+  Rel(git, subpr, "Sub-PR triggers")
+  Rel(ci, agents, "Dispatches reviewers")
+  Rel(subpr, agents, "Dispatches reviewers")
+  Rel(recon, scripts, "Invokes reconciler")
+  Rel(recon, jira, "ACLI sync")
+  Rel(recon, tickdb, "SYNC events")
+  Rel(maint, scripts, "Lifecycle + calibration")
+  Rel(plat, scripts, "Platform tests")
 ```
 
 Key cross-container conventions:
@@ -415,13 +414,14 @@ flowchart TB
   e -->|no| refusal
 
   subgraph eadv["Phase E Adversarial Review"]
-    e1[dso:red-team-reviewer<br/>opus<br/>mode story_review]
-    e2[dso:blue-team-filter<br/>sonnet]
+    e1["red-team-reviewer (opus)<br/>mode: story_review"]
+    e2["blue-team-filter (sonnet)"]
     e3{findings?}
-    e4[Remediation Loop<br/>max_cycles<br/>+ /dso:oscillation-check<br/>at N≥2]
-    e1 --> e2 --> e3 -->|non-empty| e4
-    e4 --> e1
-    e3 -->|empty| eDone[exit]
+    e4["Remediation Loop + oscillation-check"]
+    eDone[exit]
+    e1 --> e2 --> e3
+    e3 -->|non-empty| e4 --> e1
+    e3 -->|empty| eDone
   end
 
   eadv --> refusal
@@ -729,34 +729,42 @@ plugin. The most important cross-cutting mechanisms:
 
 ```mermaid
 flowchart LR
-  subgraph cross["Cross-Cutting Mechanisms"]
+  subgraph skills["Core Skills"]
     direction TB
-    prec[PRECONDITIONS<br/>gate chain]
-    scratch[Scratch + Receipt<br/>contract]
-    remed[Remediation Loop<br/>+ Oscillation Check]
-    hooks[Pre-commit Hooks<br/>review gate /<br/>test gate /<br/>branch invariant]
-    review[REVIEW-WORKFLOW<br/>tier classifier]
+    sk1["/dso:brainstorm"]
+    sk2["/dso:preplanning"]
+    sk3["/dso:implementation-plan"]
+    sk4["/dso:sprint"]
   end
 
-  brainstorm["/dso:brainstorm"] --> prec
-  preplanning["/dso:preplanning"] --> prec
-  implplan["/dso:implementation-plan"] --> prec
-  sprint["/dso:sprint"] --> prec
+  subgraph all4["used by all 4"]
+    direction TB
+    prec[PRECONDITIONS gate chain]
+    remed[Remediation Loop +<br/>Oscillation Check]
+  end
 
-  preplanning --> scratch
-  implplan --> scratch
+  subgraph some["used by some"]
+    direction TB
+    scratch["Scratch + Receipt contract<br/>(preplanning + impl-plan)"]
+  end
 
-  brainstorm --> remed
-  preplanning --> remed
-  implplan --> remed
-  sprint --> remed
+  subgraph sprintonly["used by sprint only"]
+    direction TB
+    hooks[Pre-commit Hooks]
+    review[REVIEW-WORKFLOW]
+  end
 
-  sprint --> hooks
-  sprint --> review
+  sk1 --> all4
+  sk2 --> all4
+  sk3 --> all4
+  sk4 --> all4
+  sk2 --> scratch
+  sk3 --> scratch
+  sk4 --> sprintonly
 
   classDef skill fill:#dbeafe,stroke:#1e40af
   classDef cross fill:#fce7f3,stroke:#9d174d
-  class brainstorm,preplanning,implplan,sprint skill
+  class sk1,sk2,sk3,sk4 skill
   class prec,scratch,remed,hooks,review cross
 ```
 
@@ -778,7 +786,7 @@ from a feature idea to a merged PR, in execution order. Each box names the
 mechanism and the sub-agent or hook responsible.
 
 ```mermaid
-flowchart TB
+flowchart LR
   idea([Feature idea]):::start
 
   subgraph bs_gates["/dso:brainstorm — scrutiny + approval"]
@@ -897,15 +905,12 @@ flowchart TB
   end
 
   trigger -->|push / PR| cigate
-  trigger -->|cron| jira
-  trigger -->|cron| maint
-  trigger -->|workflow_dispatch| rb
-  trigger -->|workflow_dispatch| tl
-  trigger -->|workflow_dispatch| e2e
+  trigger -->|cron + dispatch| jira
+  trigger -->|cron + dispatch| maint
   trigger -->|tag v*| e2e
 
-  ci -->|gates merge of<br/>session/main PRs| out([Required<br/>checks pass])
-  subpr -->|gates merge of<br/>story PRs| out
+  ci --> out([Required checks pass])
+  subpr --> out
   plat1 --> out
   plat2 --> out
   plat3 --> out
@@ -976,12 +981,12 @@ flowchart TB
     direction TB
     lr1[Step 1-3<br/>Cycle tracking<br/>DSO_REVIEW_CYCLE env]
     lr2[Step 4-8<br/>Provenance narrowing<br/>verify-session-provenance.sh<br/>+ DSO-Story-Merge trailer scan]
-    lr3[Step 9<br/>Dispatch gate<br/>llm-review-dispatch-or-skip.sh]
+    lr3["Step 9<br/>Dispatch gate<br/>llm-review-dispatch-or-skip.sh"]
     lr4{exit code?}
     lr5[Skip:<br/>all provenanced<br/>or OVER_BOUND]
     lr6[Step 10<br/>ci-llm-review-runner.sh<br/>→ runner.py<br/>+ context-augmentation loop]
     lr7[review-complexity-classifier.sh<br/>→ light / standard / deep]
-    lr8[Named code-reviewer agents<br/>dso:code-reviewer-light<br/>dso:code-reviewer-standard<br/>dso:code-reviewer-deep-*]
+    lr8["Named code-reviewer agents<br/>dso:code-reviewer-light<br/>dso:code-reviewer-standard<br/>dso:code-reviewer-deep-*"]
     lr9[Step 11<br/>Liveness gate<br/>findings.json non-empty]
     lr1 --> lr2 --> lr3 --> lr4
     lr4 -->|0 or 3| lr5
@@ -1033,7 +1038,7 @@ flowchart TB
   cronA[(cron */20 min)]:::cron
   cronB[(cron hourly)]:::cron
   cronC[(cron Mon 06:00 UTC)]:::cron
-  disp[(workflow_dispatch:<br/>dry-run / bootstrap / live)]:::dispatch
+  disp[(workflow_dispatch<br/>modes: dry-run / bootstrap / live)]:::dispatch
 
   subgraph rb["reconcile-bridge.yml"]
     rb1[Pre-flight: BRIDGE_ENV_ID<br/>+ __main__.py exists]
@@ -1072,12 +1077,11 @@ flowchart TB
   cronB --> rbc
   cronC --> fsck
 
-  rb -.->|writes SYNC events| store[(tickets branch)]
   rbc -.->|reads run history| ghapi[(GitHub Actions API)]
-  rbc -.->|opens / closes tickets| store
+  rb -.->|writes SYNC events| store[(tickets branch)]
   fsck -.->|reads events| store
-
-  rb -.->|bidirectional<br/>via ACLI| jira[(Jira / DIG project)]
+  rbc -.->|opens / closes tickets| store
+  rb -.->|bidirectional ACLI sync| jira[(Jira / DIG project)]
 
   classDef cron fill:#fef3c7,stroke:#92400e,color:#000
   classDef dispatch fill:#fef3c7,stroke:#92400e,color:#000
@@ -1106,60 +1110,59 @@ sequenceDiagram
   participant Sprint as /dso:sprint
   participant Git as Local Git
   participant GH as GitHub
-  participant CI as ci.yml
   participant SubPR as review-sub-pr.yml
-  participant Merge as merge-to-main.sh
+  participant Agents as code-reviewers
+  participant CI as ci.yml
   participant FP as /dso:fp-recovery
-  participant Agents as code-reviewer agents
+  participant Merge as merge-to-main.sh
 
-  Dev->>Sprint: /dso:sprint <epic-id>
+  Dev->>Sprint: /dso:sprint epic-id
   Sprint->>Git: create session branch
-  Sprint->>GH: create-sprint-draft-pr.sh<br/>(ci-pr mode)
-  GH->>CI: trigger (PR opened)
-  CI-->>GH: changes / static gates running
+  Sprint->>GH: open draft PR
+  Note over GH,CI: ci-pr mode
+  GH->>CI: PR opened
+  CI-->>GH: static gates
 
   loop per story
-    Sprint->>Git: story/<epic>/<story> branch
-    Sprint->>Sprint: Phases E-F<br/>tasks + per-task review
-    Sprint->>Git: merge story branch<br/>(DSO-Story-Merge trailer)
+    Sprint->>Git: story branch + DSO-Story-Merge trailer
     Sprint->>GH: push story PR
-    GH->>SubPR: trigger (session/** PR)
-    SubPR->>Agents: dispatch dso:code-reviewer<br/>(tier from classifier)
-    Agents-->>SubPR: findings.json
-    SubPR-->>GH: findings + required check
-    GH-->>Sprint: required check passed
+    GH->>SubPR: trigger
+    SubPR->>Agents: dispatch reviewer
+    Agents-->>SubPR: findings
+    SubPR-->>GH: required check
+    GH-->>Sprint: check passed
   end
 
-  Sprint->>Sprint: Phase G epic validation<br/>completion-verifier
-  Sprint->>Merge: invoke merge-to-main.sh
-  Merge->>GH: mark PR ready for review
-  GH->>CI: re-trigger (session PR updated)
-  CI->>Agents: llm-review on integration diff<br/>(provenance-aware narrowing)
-  Agents-->>CI: findings (severity-tagged)
+  Sprint->>Sprint: Phase G epic verify
+  Sprint->>Merge: merge-to-main.sh
+  Merge->>GH: PR ready
+  GH->>CI: re-trigger
+  CI->>Agents: llm-review (provenance-narrowed)
+  Agents-->>CI: findings
 
-  alt critical findings — CI blocks merge
-    Note over Dev,Agents: Suspected false positive escape valve
-    Dev->>FP: /dso:fp-recovery <pr-number>
-    FP->>Agents: dispatch dso:code-reviewer-standard<br/>@ opus tier
-    Agents-->>FP: rescored findings
-    FP-->>Dev: clearance verdict<br/>(or confirmed-block — fix locally)
-    Dev->>Dev: address remaining findings<br/>commit + push
+  alt critical findings block merge
+    Note over Dev,FP: FP-recovery escape
+    Dev->>FP: /dso:fp-recovery
+    FP->>Agents: dispatch @ opus
+    Agents-->>FP: rescored
+    FP-->>Dev: verdict
+    Note over Dev: fix + push if needed
     GH->>CI: re-trigger
-    CI->>Agents: llm-review (next cycle)
-    Agents-->>CI: findings cleared
-  else findings all minor or none
-    Note over CI,GH: standard path
+    CI->>Agents: llm-review
+    Agents-->>CI: cleared
+  else findings minor or none
+    Note over CI: standard path
   end
 
-  CI-->>GH: merge-pipeline-checks pass
+  CI-->>GH: checks pass
   Merge->>GH: gh pr merge
-  GH-->>Dev: PR merged to main
+  GH-->>Dev: merged
 
-  GH->>CI: post-merge (push main)
-  CI->>CI: calibration-rollup<br/>mutation + churn append
+  GH->>CI: post-merge
+  CI->>CI: calibration-rollup
 
-  Note over GH: every 20 min<br/>(out of band)
-  GH->>GH: reconcile-bridge.yml<br/>syncs tickets ↔ Jira
+  Note over GH: every 20 min
+  GH->>GH: reconcile-bridge: Jira sync
 ```
 
 **Workflow → Skill triggers (table)**:
