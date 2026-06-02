@@ -43,8 +43,18 @@ on:
     # review.yml's LLM check ran. Removing the branches filter makes ci.yml run
     # on every PR regardless of base. Bug 3914-0848-faad-4f6a.
   workflow_dispatch:
+  # GitHub Merge Queue (ADR-0019): merge_group fires on the queue's combined
+  # candidate branch. Deterministic jobs (no job-level if:) auto-run here; the
+  # LLM-review jobs are guarded `event_name == 'pull_request'` so they correctly
+  # do NOT run on the queue (the large combined diff is never LLM-reviewed).
+  # Inert until Merge Queue is provisioned on a branch (MQ-6).
+  merge_group:
 
 concurrency:
+  # NOTE (ADR-0019): cancel-in-progress can cancel an in-flight merge_group
+  # check. If queue-check cancellation becomes a problem under MQ, scope a
+  # separate non-cancelling concurrency group keyed on github.ref for
+  # merge_group events.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -923,15 +933,20 @@ jobs:
     name: merge-pipeline-checks
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Run on pull_request events targeting session branches or main.
+    # Run on pull_request events targeting session branches or main, OR on the
+    # merge_group candidate (ADR-0019). Without the merge_group arm this job
+    # gates solely on base_ref and would never report on the queue branch =
+    # silent queue rejection of every entry.
     if: |
-      github.event_name == 'pull_request' && (
-        github.base_ref == 'main' ||
-        startsWith(github.base_ref, 'session/') ||
-        startsWith(github.base_ref, 'session-') ||
-        startsWith(github.base_ref, 'session_') ||
-        startsWith(github.base_ref, 'bug-batch/') ||
-        startsWith(github.base_ref, 'worktree-')
+      github.event_name == 'merge_group' || (
+        github.event_name == 'pull_request' && (
+          github.base_ref == 'main' ||
+          startsWith(github.base_ref, 'session/') ||
+          startsWith(github.base_ref, 'session-') ||
+          startsWith(github.base_ref, 'session_') ||
+          startsWith(github.base_ref, 'bug-batch/') ||
+          startsWith(github.base_ref, 'worktree-')
+        )
       )
     steps:
       - uses: actions/checkout@v4
