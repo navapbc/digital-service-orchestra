@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"CHECKPOINT 4/6: get_call_site_threshold() implemented in plugins/dso/hooks/lib/planning-config.sh — reads migration.call_site_threshold, default 3, floor 1, non-silent rejection ✓"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780443264340094000,"uuid":"c3cff315-2555-4f69-8a8f-6fd9858596bd"}
