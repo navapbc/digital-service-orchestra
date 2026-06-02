@@ -1,0 +1,34 @@
+# MQ SPIKE — throwaway empirical test of GitHub Merge Queue merge_group semantics.
+# Targets ONLY the throwaway `mq-spike-target` branch; never touches main.
+# Delete this file + the branch + the `mq-spike` ruleset when the spike is done.
+name: mq-spike-check
+
+on:
+  pull_request:
+    branches: [mq-spike-target]
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  mq-spike-check:
+    name: mq-spike-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report event context + pass/fail
+        run: |
+          echo "=== MQ SPIKE check ==="
+          echo "event_name = ${{ github.event_name }}"
+          echo "ref        = ${{ github.ref }}"
+          echo "pr.head.sha = ${{ github.event.pull_request.head.sha }}"
+          echo "merge_group.head_sha = ${{ github.event.merge_group.head_sha }}"
+          echo "merge_group.base_ref = ${{ github.event.merge_group.base_ref }}"
+          # Eviction test hook: if a FAIL_ME marker is present in the tree, fail.
+          if [ -f FAIL_ME ]; then
+            echo "FAIL_ME marker present -> failing this check (eviction test)"
+            exit 1
+          fi
+          echo "ok"
