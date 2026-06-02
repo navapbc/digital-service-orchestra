@@ -1074,6 +1074,9 @@ hook_no_force_merge() {
         echo "manual opus review clears the PR — the skill emits a web-UI merge link +" >&2
         echo "annotation for the human to use, then stops. The automating identity is a" >&2
         echo "non-bypass actor by design and does not run the merge itself." >&2
+        echo "" >&2
+        echo "Docs: the /dso:fp-recovery skill (see CLAUDE.md) and FP-RECOVERY-WORKFLOW.md" >&2
+        echo "under the dso plugin docs/workflows/ directory." >&2
         trap - ERR; return 2
     fi
 

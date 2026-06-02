@@ -16,9 +16,23 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# Validate test dependencies up front so a missing file or failed source surfaces
+# with a clear message instead of a confusing command-not-found mid-suite.
+for _dep in "$REPO_ROOT/tests/lib/assert.sh" "$REPO_ROOT/plugins/dso/hooks/lib/pre-bash-functions.sh"; do
+    [ -r "$_dep" ] || { echo "FATAL: required test dependency not found: $_dep" >&2; exit 1; }
+done
+
 source "$REPO_ROOT/tests/lib/assert.sh"
 # shellcheck disable=SC1091
 source "$REPO_ROOT/plugins/dso/hooks/lib/pre-bash-functions.sh"
+
+# Confirm the sourced units actually exposed the functions under test.
+for _fn in _is_admin_merge_invocation _admin_merge_fallback hook_no_force_merge assert_eq; do
+    command -v "$_fn" >/dev/null 2>&1 || { echo "FATAL: expected function '$_fn' not defined after sourcing dependencies" >&2; exit 1; }
+done
+# python3 backs the structural detector and the _expect_py cases below. The suite
+# genuinely requires it — fail loudly rather than emit a confusing error mid-run.
+command -v python3 >/dev/null 2>&1 || { echo "FATAL: python3 required for this suite (structural detector + _expect_py cases)" >&2; exit 1; }
 
 echo "=== test-no-force-merge-guard.sh ==="
 
@@ -153,5 +167,35 @@ _snapshot_fail
 printf '%s' 'gh pr merge 5 --admin `unbalanced backtick' | python3 "$DETECT_PY"; _BOUND_RC=$?
 assert_eq "py_exit_code_bounded" "true" "$([ "$_BOUND_RC" = "0" ] || [ "$_BOUND_RC" = "1" ] && echo true || echo false)"
 assert_pass_if_clean "py_exit_code_bounded"
+
+# --- End-to-end hook coverage: hook_no_force_merge() with real JSON tool-input ---
+# The cases above test the detector helpers in isolation. These exercise the
+# actual PreToolUse entry point end-to-end — JSON parsing, the Bash-tool guard,
+# the DSO_FP_RECOVERY_ACTIVE bypass, and the block return code (2) — so a
+# regression in the hook's wiring (not just its helpers) is caught.
+# _expect_hook <expected_rc> <command> <fp_active:0|1> <label>
+_expect_hook() {
+    local expected="$1" cmd="$2" fp="$3" label="$4"
+    _snapshot_fail
+    local input rc
+    input=$(printf '{"tool_name":"Bash","tool_input":{"command":%s}}' \
+        "$(printf '%s' "$cmd" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')")
+    DSO_FP_RECOVERY_ACTIVE="$fp" hook_no_force_merge "$input" >/dev/null 2>&1; rc=$?
+    assert_eq "$label" "$expected" "$rc"
+    assert_pass_if_clean "$label"
+}
+# Real admin override with no FP-recovery active -> BLOCK (return 2).
+_expect_hook 2 "gh pr merge 5 --admin --merge"           0 "hook_blocks_admin_invocation"
+# Same command under an active FP-recovery session -> bypass (return 0).
+_expect_hook 0 "gh pr merge 5 --admin --merge"           1 "hook_bypass_when_fp_recovery_active"
+# A mere mention of the literal -> allow (return 0).
+_expect_hook 0 'git commit -m "doc: gh pr merge --admin"' 0 "hook_allows_mention"
+# A non-admin merge -> allow (return 0).
+_expect_hook 0 "gh pr merge 5 --auto --merge"            0 "hook_allows_non_admin_merge"
+# A non-Bash tool call is ignored even if the payload names the flag -> allow.
+_snapshot_fail
+hook_no_force_merge '{"tool_name":"Edit","tool_input":{"command":"gh pr merge 5 --admin"}}' >/dev/null 2>&1
+assert_eq "hook_ignores_non_bash_tool" "0" "$?"
+assert_pass_if_clean "hook_ignores_non_bash_tool"
 
 print_summary
