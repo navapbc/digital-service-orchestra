@@ -29,8 +29,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Derive _PLUGIN_ROOT via SCRIPT_DIR, which is always correct for the current worktree.
 _PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-BASELINE="${_PLUGIN_ROOT}/tests/fixtures/dogfood/bad-copy-baseline.yaml"
-IMPROVED="${_PLUGIN_ROOT}/tests/fixtures/dogfood/good-copy-improved.yaml"
+BASELINE="${_PLUGIN_ROOT}/data/fixtures/dogfood/bad-copy-baseline.yaml"
+IMPROVED="${_PLUGIN_ROOT}/data/fixtures/dogfood/good-copy-improved.yaml"
 
 # Parse optional overrides
 while [[ $# -gt 0 ]]; do

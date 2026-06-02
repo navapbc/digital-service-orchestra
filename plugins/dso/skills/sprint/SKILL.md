@@ -24,6 +24,7 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
 TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: internal orchestration script
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
+FORMAT_CHECK_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.format_check)  # shim-exempt: internal orchestration script
 VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)  # shim-exempt: internal orchestration script
 E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)  # shim-exempt: internal orchestration script
 SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: SPRINT_MODE must be set before any ci-pr-only Phase A block reads it (bug f6fd-af80-9b13-4649)
@@ -32,8 +33,9 @@ SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: SPRINT_MODE
 Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
 
 Resolved commands used in this skill:
-- `TEST_CMD` — replaces `make test-unit-only` in post-batch and remediation validation
-- `LINT_CMD` — replaces `make lint` in validation steps
+- `TEST_CMD` — replaces `make test-unit-only` in post-batch and remediation validation; interpolated as `{TEST_CMD}` in task-execution.md
+- `LINT_CMD` — replaces `make lint` in validation steps; interpolated as `{LINT_CMD}` in task-execution.md
+- `FORMAT_CHECK_CMD` — replaces `make format-check` in validation steps; interpolated as `{FORMAT_CHECK_CMD}` in task-execution.md
 - `VISUAL_CMD` — replaces `make test-visual` in post-batch checks
 - `E2E_CMD` — replaces `make test-e2e` in post-batch checks
 - `SPRINT_MODE` — `ci-pr` or `local`; governs per-story PR mechanisms. Resolved here at activation so every Phase A ci-pr-only block (Ruleset Preflight, Draft PR Creation) can read it safely. The Mode Banner subsection later in Phase A only emits the banner.
@@ -1474,7 +1476,7 @@ For each task, launch a Task with the appropriate `subagent_type`.
 .claude/scripts/dso issue-quality-check.sh <task-id>
 ```
 
-- **Exit 0 (quality pass)**: Use ticket-as-prompt template (`$PLUGIN_ROOT/skills/sprint/prompts/task-execution.md`), fill in `{id}` and `{escalation_policy}` (see COMPLEX detection and escalation policy extraction below).
+- **Exit 0 (quality pass)**: Use ticket-as-prompt template (`$PLUGIN_ROOT/skills/sprint/prompts/task-execution.md`), fill in `{id}`, `{escalation_policy}`, `{TEST_CMD}`, `{LINT_CMD}`, and `{FORMAT_CHECK_CMD}` (see COMPLEX detection and escalation policy extraction below; `TEST_CMD`, `LINT_CMD`, `FORMAT_CHECK_CMD` are resolved in the Config Resolution block above).
 - **Exit 1 (too sparse)**: Try `.claude/scripts/dso enrich-file-impact.sh <task-id>`, re-run check. If still failing, fall back to inline prompt via `.claude/scripts/dso ticket show <id>`.
 
 **Acceptance criteria gate**: After the quality gate, run:
@@ -2741,7 +2743,7 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?  # shi
    /compact
    ```
 5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase C** after re-resolving session variables (step 5a below). Do NOT go to Phase I.
-5a. **Re-resolve session-scoped variables (bug 570a-b3b9)**: Context compaction drops all LLM-held session variables set during Phase A Config Resolution. Before proceeding to Phase C, re-execute the Config Resolution block from the top of this skill file (the block that sets `TEST_CMD`, `LINT_CMD`, `VISUAL_CMD`, `E2E_CMD`, and `SPRINT_MODE` via `read-config.sh` and `mode-detect.sh`). Log: `"Post-compaction: re-resolved SPRINT_MODE=<value>, TEST_CMD, LINT_CMD."` This prevents the class of bugs where session variables lost during compaction cause silent fallback to default values (e.g., `${SPRINT_MODE:-local}` routing to the wrong merge path).
+5a. **Re-resolve session-scoped variables (bug 570a-b3b9)**: Context compaction drops all LLM-held session variables set during Phase A Config Resolution. Before proceeding to Phase C, re-execute the Config Resolution block from the top of this skill file (the block that sets `TEST_CMD`, `LINT_CMD`, `FORMAT_CHECK_CMD`, `VISUAL_CMD`, `E2E_CMD`, and `SPRINT_MODE` via `read-config.sh` and `mode-detect.sh`). Log: `"Post-compaction: re-resolved SPRINT_MODE=<value>, TEST_CMD, LINT_CMD, FORMAT_CHECK_CMD."` This prevents the class of bugs where session variables lost during compaction cause silent fallback to default values (e.g., `${SPRINT_MODE:-local}` routing to the wrong merge path).
 6. **Agent-count after compact**: No special action needed — Phase C Step 2's pre-check re-evaluates `MAX_AGENTS` (may return `unlimited`, `N`, or `0`) automatically.
 
 ---

@@ -1409,4 +1409,77 @@ test_alias_fallback_on_missing_wordlist() {
 }
 test_alias_fallback_on_missing_wordlist
 
+# ── Test alias_5 (RED): --parent=<alias> resolves to canonical parent_id ──────
+echo "Test alias_5 (RED): ticket create --parent=<alias> resolves alias to canonical parent_id"
+test_parent_alias_resolution() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"  # tickets-boundary-ok
+
+    # Create parent epic and get its canonical ID and alias
+    local parent_canonical parent_alias
+    parent_canonical=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Parent epic for alias test" 2>/dev/null) || true
+    parent_canonical=$(echo "$parent_canonical" | tail -1)
+
+    if [ -z "$parent_canonical" ]; then
+        assert_eq "parent epic created successfully" "non-empty" "empty"
+        return
+    fi
+
+    # Read the alias from the CREATE event
+    local parent_event
+    parent_event=$(_find_create_event "$tracker_dir" "$parent_canonical")
+    if [ -z "$parent_event" ]; then
+        assert_eq "parent CREATE event found" "found" "missing"
+        return
+    fi
+
+    parent_alias=$(_extract_event_field "$parent_event" "alias")
+    if [ -z "$parent_alias" ] || [ "$parent_alias" = "MISSING" ]; then
+        assert_eq "parent alias is non-empty" "non-empty" "empty-or-missing: $parent_alias"
+        return
+    fi
+
+    # RED gate: create child task using alias as --parent value
+    local child_id exit_code=0 child_stderr
+    child_stderr=$(mktemp "${TMPDIR:-/tmp}/alias5-stderr.XXXXXX")
+    child_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Child task via alias parent" --parent "$parent_alias" 2>"$child_stderr") || exit_code=$?
+    child_id=$(echo "$child_id" | tail -1)
+    local stderr_content
+    stderr_content=$(cat "$child_stderr" 2>/dev/null) || true
+    rm -f "$child_stderr"
+
+    # Assert: exit code 0 (alias must resolve without error)
+    assert_eq "exit code 0 when --parent=<alias> is given" "0" "$exit_code"
+
+    if [ "$exit_code" -ne 0 ]; then
+        # Show the error for diagnostics
+        assert_eq "no error on stderr" "(none)" "$stderr_content"
+        return
+    fi
+
+    if [ -z "$child_id" ]; then
+        assert_eq "child ticket ID is non-empty" "non-empty" "empty"
+        return
+    fi
+
+    # Assert: child's parent_id in CREATE event equals canonical parent ID
+    local child_event child_parent_id
+    child_event=$(_find_create_event "$tracker_dir" "$child_id")
+    if [ -z "$child_event" ]; then
+        assert_eq "child CREATE event found" "found" "missing"
+        return
+    fi
+
+    child_parent_id=$(_extract_event_field "$child_event" "parent_id")
+    assert_eq "child parent_id equals canonical parent ID (not alias)" "$parent_canonical" "$child_parent_id"
+}
+test_parent_alias_resolution
+
 print_summary

@@ -1,0 +1,76 @@
+flowchart TB
+  start([/dso:preplanning epic-id]):::start
+
+  start --> gates[Gates:<br/>scrutiny:pending<br/>interaction:deferred<br/>ui_probes:deferred<br/>brainstorm preconditions]
+
+  gates --> a1[Phase A.1 Select<br/>+ Load Epic]
+  a1 --> a15[A.1.5<br/>Complexity Classifier<br/>dso:complexity-evaluator]
+  a15 --> route{Tier?}
+  route -->|SIMPLE| impl[Invoke<br/>/dso:implementation-plan]
+  route -->|MODERATE| lightweight[Lightweight Mode<br/>enrich epic only]
+  route -->|COMPLEX| a2
+
+  a2[A.2 Escalation Policy<br/>autonomous /<br/>escalate-when-blocked /<br/>escalate-unless-confident]
+  a2 --> a3[A.3-5 Reconcile<br/>existing children]
+  a3 --> b[Phase B<br/>External Deps Reading]
+
+  b -->|claude_auto| bauto[Story: Verify and integrate X]
+  b -->|user_manual| bman[Story tagged<br/>manual:awaiting_user]
+
+  bauto --> sd
+  bman --> sd
+
+  subgraph sd["Story Decomposition"]
+    sd1[Dispatch<br/>dso:story-decomposer<br/>opus<br/>via scratch + receipt]
+    sd2[Validate<br/>sc_coverage_plan<br/>+ story_drafts<br/>+ verify_commands]
+    sd1 --> sd2
+  end
+
+  sd --> c[Phase C<br/>Risk & Scope Scan<br/>6 reviewer areas]
+  c --> d{external<br/>integration?}
+  d -->|yes| dres[Phase D<br/>Integration Research<br/>WebSearch + verify]
+  d -->|no| e
+  dres --> e
+
+  e{≥3 stories?}
+  e -->|yes| eadv[Phase E<br/>Adversarial Review]
+  e -->|no| refusal
+
+  subgraph eadv["Phase E Adversarial Review"]
+    e1["red-team-reviewer (opus)<br/>mode: story_review"]
+    e2["blue-team-filter (sonnet)"]
+    e3{findings?}
+    e4["Remediation Loop + oscillation-check"]
+    eDone[exit]
+    e1 --> e2 --> e3
+    e3 -->|non-empty| e4 --> e1
+    e3 -->|empty| eDone
+  end
+
+  eadv --> refusal
+  refusal[Refusal Gate:<br/>External Deps coverage<br/>for externally-shaped SCs]
+  refusal --> f[Phase F<br/>Walking Skeleton<br/>+ Foundation/Enhancement<br/>+ INVEST]
+  f --> g[Phase G<br/>Story-Level Research]
+
+  g --> h
+
+  subgraph h["Phase H — Verification + Traceability"]
+    h1[Create story tickets<br/>via ticket create story]
+    h2[set-verify-commands<br/>per DD]
+    h3{UI story?}
+    h4[Dispatch<br/>dso:ui-designer]
+    h5[validate-issues.sh]
+    h6[Write<br/>PREPLANNING_CONTEXT<br/>comment on epic]
+    h1 --> h2 --> h3
+    h3 -->|yes| h4 --> h5
+    h3 -->|no| h5
+    h5 --> h6
+  end
+
+  h --> done([Preplanning complete])
+  lightweight --> done
+  impl --> done
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef phase fill:#dbeafe,stroke:#1e40af
+  class eadv,sd,h phase

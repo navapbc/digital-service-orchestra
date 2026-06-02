@@ -83,8 +83,8 @@ The parser matches lines beginning with `{"signal": "RECALL_RESULT"` or `{"signa
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/inference-recall-replay.sh" \
-  --corpus=tests/fixtures/inference-incidents/incidents.jsonl \
-  --holdout=tests/fixtures/inference-incidents/holdout.txt \
+  --corpus="${CLAUDE_PLUGIN_ROOT}/data/fixtures/inference-incidents/incidents.jsonl" \
+  --holdout="${CLAUDE_PLUGIN_ROOT}/data/fixtures/inference-incidents/holdout.txt" \
   --dry-run
 ```
 

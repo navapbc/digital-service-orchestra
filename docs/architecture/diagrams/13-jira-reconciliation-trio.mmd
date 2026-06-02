@@ -1,0 +1,53 @@
+flowchart TB
+  cronA[(cron */20 min)]:::cron
+  cronB[(cron hourly)]:::cron
+  cronC[(cron Mon 06:00 UTC)]:::cron
+  disp[(workflow_dispatch<br/>modes: dry-run / bootstrap / live)]:::dispatch
+
+  subgraph rb["reconcile-bridge.yml"]
+    rb1[Pre-flight: BRIDGE_ENV_ID<br/>+ __main__.py exists]
+    rb2[Mount tickets worktree]
+    rb3[Install requirements.lock<br/>+ download ACLI<br/>SHA256 verify]
+    rb4[acli jira auth login]
+    rb5[Set bridge bot git identity]
+    rb6[python -m dso_reconciler<br/>--mode MODE]
+    rb7[Commit + fetch-rebase-push<br/>5-retry exponential backoff]
+    rb8[Failure alert →<br/>chronic-failure ticket]
+    rb1 --> rb2 --> rb3 --> rb4 --> rb5 --> rb6 --> rb7
+    rb6 -.->|on failure| rb8
+  end
+
+  subgraph rbc["reconcile-bridge-canary.yml"]
+    rbc1[GitHub API: last<br/>successful rb run]
+    rbc2{stale<br/>>2h?}
+    rbc3[Open / continue<br/>heartbeat-alert ticket]
+    rbc4[Close ticket on recovery]
+    rbc5[Exit 1 on stale<br/>→ GHA failure UI]
+    rbc1 --> rbc2
+    rbc2 -->|stale| rbc3 --> rbc5
+    rbc2 -->|healthy + ticket open| rbc4
+  end
+
+  subgraph fsck["weekly-bridge-fsck.yml"]
+    f1[Mount tickets worktree]
+    f2[python ticket-bridge-fsck.py]
+    f3[Detect orphan jira_keys<br/>+ duplicate mappings<br/>+ stale SYNC events<br/>+ unresolved alerts]
+    f4[Exit 1 on anomalies<br/>→ on-call investigates]
+    f1 --> f2 --> f3 --> f4
+  end
+
+  cronA --> rb
+  disp --> rb
+  cronB --> rbc
+  cronC --> fsck
+
+  rbc -.->|reads run history| ghapi[(GitHub Actions API)]
+  rb -.->|writes SYNC events| store[(tickets branch)]
+  fsck -.->|reads events| store
+  rbc -.->|opens / closes tickets| store
+  rb -.->|bidirectional ACLI sync| jira[(Jira / DIG project)]
+
+  classDef cron fill:#fef3c7,stroke:#92400e,color:#000
+  classDef dispatch fill:#fef3c7,stroke:#92400e,color:#000
+  classDef workflow fill:#fce7f3,stroke:#9d174d,color:#000
+  class rb,rbc,fsck workflow

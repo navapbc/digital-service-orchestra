@@ -10,8 +10,8 @@ _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && 
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
-INCIDENTS_FILE="${INCIDENTS_FILE:-tests/fixtures/inference-incidents/incidents.jsonl}"
-HOLDOUT_FILE="${HOLDOUT_FILE:-tests/fixtures/inference-incidents/holdout.txt}"
+INCIDENTS_FILE="${INCIDENTS_FILE:-${_PLUGIN_ROOT}/data/fixtures/inference-incidents/incidents.jsonl}"
+HOLDOUT_FILE="${HOLDOUT_FILE:-${_PLUGIN_ROOT}/data/fixtures/inference-incidents/holdout.txt}"
 CLASSIFIER_CMD="${CLASSIFIER_CMD:-}"
 TICKET_EXISTS_CMD="${TICKET_EXISTS_CMD:-}"
 OUTPUT_FORMAT="json"

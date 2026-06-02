@@ -1,0 +1,38 @@
+flowchart LR
+  subgraph skills["Core Skills"]
+    direction TB
+    sk1["/dso:brainstorm"]
+    sk2["/dso:preplanning"]
+    sk3["/dso:implementation-plan"]
+    sk4["/dso:sprint"]
+  end
+
+  subgraph all4["used by all 4"]
+    direction TB
+    prec[PRECONDITIONS gate chain]
+    remed[Remediation Loop +<br/>Oscillation Check]
+  end
+
+  subgraph some["used by some"]
+    direction TB
+    scratch["Scratch + Receipt contract<br/>(preplanning + impl-plan)"]
+  end
+
+  subgraph sprintonly["used by sprint only"]
+    direction TB
+    hooks[Pre-commit Hooks]
+    review[REVIEW-WORKFLOW]
+  end
+
+  sk1 --> all4
+  sk2 --> all4
+  sk3 --> all4
+  sk4 --> all4
+  sk2 --> scratch
+  sk3 --> scratch
+  sk4 --> sprintonly
+
+  classDef skill fill:#dbeafe,stroke:#1e40af
+  classDef cross fill:#fce7f3,stroke:#9d174d
+  class sk1,sk2,sk3,sk4 skill
+  class prec,scratch,remed,hooks,review cross

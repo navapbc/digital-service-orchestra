@@ -64,6 +64,19 @@ Tasks whose side effects break another task's preconditions:
 - Cross-task interference: a task's side effects (logging, caching, event emission) that alter the behavior another task tests against
 - Import restructuring that invalidates another task's file paths
 
+### 6. AC Verify-Command Defects
+
+Task-specific `Verify:` commands that would fail or silently produce incorrect results at execution time:
+- **Substring false positives** — a grep/awk pattern matches unintended tokens (e.g., `'cycle'` matches `review_cycle`); use word-boundary anchors or quoted key names (e.g., `'"cycle_count":'`) instead
+- **Shell-expansion leakage** — a `$VAR` or `$?` inside a grep pattern is expanded by the shell before the command sees it; use single quotes or escape the `$` (e.g., `grep '\$PATH'`) for literal metacharacters
+- **Wrong helper-script argv** — a Verify command invokes a helper script with the wrong number of positional arguments; cross-check against the script's `--help` or first-line usage comment and supply all required args
+- **Fixture invalidity** — a fixture file cited in a Verify command fails an upstream validator for reasons unrelated to the AC under test; select a fixture that is independently valid for the AC's specific purpose
+- **Missing cardinality guards** — a DD names a count ("all N items") but no AC asserts that exact count; add an explicit count assertion (e.g., `[ "$(jq '.items | length' out.json)" -eq N ]`)
+- **Narrow format patterns** — a documentation AC checks only one serialization form (e.g., bare prose) when JSON, YAML, or pipe-table forms are equally valid; broaden the pattern or add alternation
+- **Wrong assertion target (prose vs structured artifact)** — the criterion requires presence in a structured block (JSON example, YAML block, table row) but the Verify command scans free-form text; target the structured form directly (e.g., `jq -e '.examples[].schema_version'`)
+- **Missing prerequisite-state ACs** — a Universal AC (e.g., "tests pass") depends on a project mechanism (RED test-index marker, feature flag, migration) that no prior AC establishes; add the setup AC before the downstream Universal AC
+- **Sibling-task file references without dependency** — a Verify command references a file created by a sibling task that has no `depends_on` edge; add the dependency or reference an already-existing analogue
+
 ## Analysis Instructions
 
 1. For each gap category, examine every task individually AND every pair of tasks for interactions
@@ -108,7 +121,7 @@ Return a JSON object with a single `findings` array. Each finding must have thes
 | `title` | string | Yes | Finding title (used as task title for `new_task` type) |
 | `description` | string | Yes | Detailed description of the gap and the recommended fix |
 | `rationale` | string | Yes | Why this gap matters — what breaks if unaddressed |
-| `taxonomy_category` | string | Yes | One of: `race_condition`, `state_file_conflict`, `implicit_assumption`, `missing_error_path`, `cross_task_interference` |
+| `taxonomy_category` | string | Yes | One of: `race_condition`, `state_file_conflict`, `implicit_assumption`, `missing_error_path`, `cross_task_interference`, `ac_verify_defect` |
 
 ### When No Gaps Are Found
 

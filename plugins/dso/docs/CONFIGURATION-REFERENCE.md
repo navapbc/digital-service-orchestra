@@ -1440,6 +1440,22 @@ This IS a `dso-config.conf` key (read via `read-config.sh`), unlike the CLI flag
 
 ---
 
+### `dso.merge_queue.enabled`
+
+This IS a `dso-config.conf` key (read via `read-config.sh`). Added in MQ-2 (ADR-0019, GitHub Merge Queue migration).
+
+| | |
+|---|---|
+| **Description** | Gates whether `provision-ruleset.sh` emits a `merge_queue` rule on the MAIN ruleset. **Default false** — Merge Queue stays OFF until the MQ-6 cutover; provisioning the rule before then would prematurely enable the live queue. When `true` (or `--enable-merge-queue`), the provisioner appends the GO-scoped `merge_queue` rule: `merge_method=MERGE`, `max_entries_to_build=1`, `max_entries_to_merge=1`, `min_entries_to_merge=1`, `min_entries_to_merge_wait_minutes=5`, `check_response_timeout_minutes=60`, `grouping_strategy=ALLGREEN`. The `test-ruleset-provisioner-roundtrip.sh` drift lock (R9–R13) monitors that the live ruleset's merge_queue config matches the provisioner's. |
+| **Accepted values** | `true` / `false` (and the usual yes/no/1/0 aliases) |
+| **Default** | unset → `false` (no merge_queue rule emitted) |
+| **CLI override** | `--enable-merge-queue` (bare = enable) or `--enable-merge-queue=true|false` on `provision-ruleset.sh`; the flag wins over the config key |
+| **Used by** | `provision-ruleset.sh` (under the plugin `scripts/onboarding/`) |
+
+**Example**: `dso.merge_queue.enabled=true` flips the gate at the MQ-6 cutover. Until then leave it unset.
+
+---
+
 The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`. They are NOT `dso-config.conf` keys — they are passed as command-line arguments when provisioning the GitHub Ruleset. Each flag has a default that matches the prior hardcoded behavior so existing invocations remain backward compatible. # shim-exempt: internal implementation references in config documentation
 
 ### `--bypass-actor-policy`

@@ -1,0 +1,111 @@
+flowchart TB
+  start([/dso:sprint epic-id]):::start
+
+  subgraph a["Phase A — Init + Ticket Selection"]
+    a1[Resolve primary ticket<br/>list-epics --has-tag=brainstorm:complete]
+    a2{ticket type?}
+    a3[Validate status open/in_progress]
+    a4[Bug routing →<br/>/dso:fix-bug]
+    a5[Drift Detection<br/>sprint-drift-check.sh]
+    a6[SC Coverage Gate<br/>haiku → sonnet → opus]
+    a7[Preplanning Gate<br/>epic-complexity-evaluator<br/>haiku]
+    a8{tier?}
+    a9[Invoke /dso:preplanning<br/>lightweight or full]
+    a10[Create draft PR<br/>ci-pr mode]
+    a1 --> a2 -->|bug| a4
+    a2 -->|epic/story| a3 --> a5 --> a6 --> a7 --> a8
+    a8 -->|MODERATE/COMPLEX| a9 --> a10
+    a8 -->|SIMPLE| a10
+  end
+
+  a --> b
+
+  subgraph b["Phase B — Task Analysis"]
+    b1[Filter design-blocked<br/>+ manual:awaiting_user]
+    b2[Per-story complexity<br/>dso:complexity-evaluator<br/>haiku]
+    b3[Dispatch<br/>/dso:implementation-plan<br/>per story]
+    b4{REPLAN_ESCALATE?}
+    b5[d-replan-collect<br/>cascade to<br/>/dso:brainstorm or<br/>/dso:preplanning<br/>cycle-capped]
+    b1 --> b2 --> b3 --> b4
+    b4 -->|yes| b5 --> b1
+    b4 -->|no| bDone
+  end
+
+  b --> c
+
+  subgraph c["Phase C — Batch Prep"]
+    c1[agent-batch-lifecycle.sh<br/>pre-check<br/>usage-aware cap]
+    c2[check-recipe-engines.sh]
+    c3[ticket next-batch<br/>--epic=ID]
+    c4[Claim tasks<br/>transition open in_progress]
+    c5[Pull latest main]
+    c1 --> c2 --> c3 --> c4 --> c5
+  end
+
+  c --> d{manual:<br/>awaiting_user?}
+  d -->|yes| dpause[Phase D<br/>Manual-Pause Handshake]
+  d -->|no| e
+  dpause --> e
+
+  subgraph e["Phase E — Sub-Agent Launch"]
+    e1[Compose batch<br/>per-task subagent_type<br/>+ model selection]
+    e2[Doc story?<br/>dso:doc-writer]
+    e3[Copy story?<br/>dso:gov-copy-writer]
+    e4[Code task?<br/>task-execution.md<br/>haiku/sonnet/opus]
+    e5[RED test?<br/>dso:red-test-writer<br/>+ dso:red-test-evaluator]
+    e1 --> e2
+    e1 --> e3
+    e1 --> e4
+    e1 --> e5
+  end
+
+  e --> f
+
+  subgraph f["Phase F — Post-Batch Processing<br/>(story validation)"]
+    f1[Test Gate / Lint Gate /<br/>AC Gate]
+    f2[Per-worktree review<br/>→ /dso:review<br/>→ dso:code-reviewer-*]
+    f3[Story-level dispatch<br/>dso:completion-verifier]
+    f4{P1 verdict?}
+    f5[Dispatch<br/>dso:verification-<br/>remediation-planner]
+    f6[Close story<br/>transition closed]
+    f1 --> f2 --> f3 --> f4
+    f4 -->|non-PASS| f5 --> fRemed[Remediation]
+    f4 -->|PASS| f6
+  end
+
+  f --> ctx{more tasks<br/>or context<br/>≥70%?}
+  ctx -->|more tasks| c
+  ctx -->|context| compact["/compact"]
+  compact --> c
+  ctx -->|done| g
+
+  subgraph g["Phase G — Post-Primary Ticket Validation<br/>(epic-level)"]
+    g1[Integration + E2E gates<br/>epic-ci-and-e2e-gates.md]
+    g2[Epic-level dispatch<br/>dso:completion-verifier]
+    g3{P1 verdict?}
+    g4[planner-dispatch:<br/>dso:verification-<br/>remediation-planner]
+    g5["/dso:validate-work"]
+    g6[Epic-specific<br/>validation agent<br/>UI vs backend]
+    g1 --> g2 --> g3
+    g3 -->|non-PASS| g4 --> gRemed[Remediation]
+    g3 -->|PASS| g5 --> g6
+  end
+
+  g --> h{remediation<br/>needed?}
+  h -->|yes| hloop[Phase H<br/>remediation-loop.md<br/>+ gap-classification<br/>+ bounded attempts<br/>+ oscillation check]
+  h -->|no| i
+  hloop --> b
+
+  subgraph i["Phase I — Closure"]
+    i1[Remove .sprint-active]
+    i2[Verify merged to main]
+    i3[Close epic]
+    i4["/dso:end-session<br/>--bump minor"]
+    i1 --> i2 --> i3 --> i4
+  end
+
+  i --> done([Sprint complete])
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef phase fill:#dbeafe,stroke:#1e40af
+  class a,b,c,e,f,g,i phase
