@@ -69,7 +69,8 @@ fi
 # marker line and ends at the next "---" marker line.
 _extract_payload() {
     local marker_substr="$1"
-    python3 - "$_dryrun_out" "$marker_substr" <<'PY'
+    local src="${2:-$_dryrun_out}"
+    python3 - "$src" "$marker_substr" <<'PY'
 import sys, json
 path, marker = sys.argv[1], sys.argv[2]
 lines = open(path, encoding="utf-8").read().splitlines()
@@ -108,6 +109,23 @@ SUB_PR_PAYLOAD="$(_extract_payload "Session-branch ruleset")"
 if [[ -z "$SUB_PR_PAYLOAD" ]]; then
     echo "PRECONDITION_NOT_MET: could not extract sub-PR payload from dry-run output" >&2
     cat "$_dryrun_out" >&2
+    exit 78
+fi
+
+# ── Second dry-run with the merge_queue gate ON (MQ-2, ADR-0019) ─────────────
+# The default dry-run above reflects the live/default gate state (off pre-cutover).
+# This run forces the gate on so R10–R12 can assert the merge_queue rule shape the
+# provisioner would emit at the MQ-6 cutover.
+_dryrun_mq_out=$(mktemp "${TMPDIR:-/tmp}/dso-prov-dryrun-mq.XXXXXX"); _TRACKED_TMP_FILES+=("$_dryrun_mq_out")
+if ! DSO_DRY_RUN=1 DSO_DEFAULT_BRANCH=main DSO_RULESET_BYPASS_USER_ID=207596960 \
+        bash "$PROVISIONER" --repo "$GH_REPO" --non-interactive --enable-merge-queue >"$_dryrun_mq_out" 2>&1; then
+    echo "PRECONDITION_NOT_MET: provisioner --dry-run --enable-merge-queue exited non-zero" >&2
+    cat "$_dryrun_mq_out" >&2
+    exit 78
+fi
+MAIN_PAYLOAD_MQ_ON="$(_extract_payload "Main branch ruleset" "$_dryrun_mq_out")"
+if [[ -z "$MAIN_PAYLOAD_MQ_ON" ]]; then
+    echo "PRECONDITION_NOT_MET: could not extract gate-on main payload" >&2
     exit 78
 fi
 
@@ -201,6 +219,59 @@ else
     _fail "R6_bypass_actor_is_named_user" "sub-PR bypass_actors is not the named-User shape"
 fi
 
+# ── MQ-2: merge_queue gate coverage (offline) ────────────────────────────────
+
+# R9: with the gate OFF (default), the main payload has NO merge_queue rule — so
+#     running the provisioner today cannot prematurely enable the queue.
+if echo "$MAIN_PAYLOAD" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+sys.exit(1 if any(r.get('type')=='merge_queue' for r in d.get('rules',[])) else 0)
+"; then
+    _pass "R9_gate_off_no_merge_queue_rule"
+else
+    _fail "R9_gate_off_no_merge_queue_rule" "default provisioner payload emits a merge_queue rule (gate should be off pre-cutover)"
+fi
+
+# R10: with the gate ON, the main payload includes a merge_queue rule.
+if echo "$MAIN_PAYLOAD_MQ_ON" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+sys.exit(0 if any(r.get('type')=='merge_queue' for r in d.get('rules',[])) else 1)
+"; then
+    _pass "R10_gate_on_has_merge_queue_rule"
+else
+    _fail "R10_gate_on_has_merge_queue_rule" "gate-on provisioner payload lacks a merge_queue rule"
+fi
+
+# R11: gate-on merge_queue parameters match the ADR-0019 GO-scoped config exactly.
+if echo "$MAIN_PAYLOAD_MQ_ON" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+mq=next((r for r in d.get('rules',[]) if r.get('type')=='merge_queue'),None)
+want={'merge_method':'MERGE','max_entries_to_build':1,'max_entries_to_merge':1,
+      'min_entries_to_merge':1,'min_entries_to_merge_wait_minutes':5,
+      'check_response_timeout_minutes':60,'grouping_strategy':'ALLGREEN'}
+sys.exit(0 if mq and mq.get('parameters')==want else 1)
+"; then
+    _pass "R11_merge_queue_params_match_adr"
+else
+    _fail "R11_merge_queue_params_match_adr" "merge_queue parameters diverge from the ADR-0019 GO-scoped config"
+fi
+
+# R12: enabling the gate does not drop the base rules (additive only).
+if echo "$MAIN_PAYLOAD_MQ_ON" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+have={r.get('type') for r in d.get('rules',[])}
+base={'non_fast_forward','deletion','pull_request','required_status_checks'}
+sys.exit(0 if base.issubset(have) else 1)
+"; then
+    _pass "R12_gate_on_preserves_base_rules"
+else
+    _fail "R12_gate_on_preserves_base_rules" "gate-on payload dropped one or more base rules"
+fi
+
 # ── LIVE round-trip (token-gated; skip when no GH auth) ──────────────────────
 _live_round_trip() {
     if [[ -z "${GH_TOKEN:-}" ]] && ! gh auth status >/dev/null 2>&1; then
@@ -257,6 +328,29 @@ print(json.dumps(sorted(c['context'] for r in d.get('rules',[]) if r.get('type')
         _pass "R8_live_main_contexts_match_provisioner"
     else
         _fail "R8_live_main_contexts_match_provisioner" "live=$live_main provisioner=$prov_main"
+    fi
+
+    # R13 (MQ-2 drift lock): the live main ruleset's merge_queue rule must match
+    # what the DEFAULT (config-driven) provisioner emits. Pre-cutover both are
+    # absent → match. At MQ-6 the operator flips dso.merge_queue.enabled=true AND
+    # provisions live; if either side changes without the other, this fires.
+    local live_mq prov_mq
+    live_mq="$(echo "$main_live" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+mq=next((r.get('parameters') for r in d.get('rules',[]) if r.get('type')=='merge_queue'),None)
+print(json.dumps(mq,sort_keys=True))
+")"
+    prov_mq="$(echo "$MAIN_PAYLOAD" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+mq=next((r.get('parameters') for r in d.get('rules',[]) if r.get('type')=='merge_queue'),None)
+print(json.dumps(mq,sort_keys=True))
+")"
+    if [[ "$live_mq" == "$prov_mq" ]]; then
+        _pass "R13_live_merge_queue_matches_provisioner_default"
+    else
+        _fail "R13_live_merge_queue_matches_provisioner_default" "live merge_queue=$live_mq provisioner-default=$prov_mq (flip dso.merge_queue.enabled or re-provision)"
     fi
 }
 _live_round_trip
