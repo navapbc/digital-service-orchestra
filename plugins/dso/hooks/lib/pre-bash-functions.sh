@@ -994,6 +994,13 @@ hook_tickets_tracker_bash_guard() {
 # pass, accepting only that a bare MENTION of --admin alongside a gh merge is
 # over-blocked in this rare degraded path. This is the original substring
 # behaviour, scoped to --admin so it cannot break the everyday merge workflow.
+#
+# KNOWN SCOPE LIMIT (deliberate): with no python3, a command that merely mentions
+# `--admin` (e.g. `echo "note: --admin" && gh pr merge 5 --auto`) is over-blocked,
+# because distinguishing mention from invocation needs the structural parser. This
+# is fail-closed (safe direction) and effectively unreachable in practice —
+# python3 is a hard dependency of the DSO toolchain — so the precise detector runs
+# on every real host. The over-block is pinned by `fallback_overblocks_admin_mention_by_design`.
 _admin_merge_fallback() {
     [[ "$1" == *"--admin"* ]]
 }

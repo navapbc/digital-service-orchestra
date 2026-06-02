@@ -113,5 +113,45 @@ _expect_fallback block "gh pr merge 5 --admin --merge"   "fallback_blocks_admin"
 _expect_fallback allow "gh pr merge 5 --disable-auto"    "fallback_allows_disable_auto"
 _expect_fallback allow "gh pr merge 5 --auto --merge"    "fallback_allows_auto_merge"
 _expect_fallback allow "gh pr merge 5 --merge"           "fallback_allows_plain_merge"
+# Documented degradation (pinned by design): without python3, the substring
+# fallback over-blocks a bare --admin MENTION that co-occurs with a non-admin gh
+# merge. This is the accepted, fail-closed cost of the degraded path — python3 is
+# a hard dependency of the DSO toolchain, so this path is effectively never hit in
+# practice. Pinning it documents the known scope limit rather than masking it.
+_expect_fallback block 'echo "note: --admin is blocked" && gh pr merge 5 --auto' "fallback_overblocks_admin_mention_by_design"
+
+# --- Standalone detector unit coverage (drive detect-admin-merge.py directly) ---
+# The cases above exercise the detector through the bash wrapper. These assert the
+# python module's own error-recovery and recursion paths and its fail-closed
+# EXIT CODES directly (0 = block/invocation, 1 = allow/mention), so a regression
+# in the ValueError handler, eval/bash -c recursion, depth cap, or bare-exception
+# fallback is caught even when the wrapper path masks it.
+DETECT_PY="$REPO_ROOT/plugins/dso/hooks/lib/detect-admin-merge.py"
+# _expect_py <expected_exit:0|1> <command> <label>
+_expect_py() {
+    local expected="$1" cmd="$2" label="$3"
+    _snapshot_fail
+    printf '%s' "$cmd" | python3 "$DETECT_PY"
+    local rc=$?
+    assert_eq "$label" "$expected" "$rc"
+    assert_pass_if_clean "$label"
+}
+_expect_py 0 "gh pr merge 5 --admin --merge"               "py_block_basic"
+_expect_py 1 'git commit -m "see gh pr merge --admin doc"' "py_allow_mention"
+# Fail-closed: unbalanced quotes make shlex raise ValueError -> exit 0 (block).
+_expect_py 0 'gh pr merge 5 --admin "unterminated'         "py_failclosed_unbalanced_quotes"
+# Recursion paths: eval / bash -c payloads are recursed into and still detected.
+_expect_py 0 'eval "gh pr merge 5 --admin"'                "py_block_eval_recursion"
+_expect_py 0 'bash -c "gh pr merge 5 --admin --merge"'     "py_block_bashc_recursion"
+# Depth cap: nesting beyond _MAX_DEPTH fails closed (exit 0), never a traceback.
+_DEEP_NEST="gh pr merge 5 --admin"
+for _i in 1 2 3 4 5 6 7; do _DEEP_NEST="eval $(printf '%q' "$_DEEP_NEST")"; done
+_expect_py 0 "$_DEEP_NEST"                                  "py_failclosed_depth_cap"
+# Exit code is ALWAYS bounded to {0,1} — the bare-exception fallback must never
+# leak a non-zero traceback exit for a pathological input.
+_snapshot_fail
+printf '%s' 'gh pr merge 5 --admin `unbalanced backtick' | python3 "$DETECT_PY"; _BOUND_RC=$?
+assert_eq "py_exit_code_bounded" "true" "$([ "$_BOUND_RC" = "0" ] || [ "$_BOUND_RC" = "1" ] && echo true || echo false)"
+assert_pass_if_clean "py_exit_code_bounded"
 
 print_summary
