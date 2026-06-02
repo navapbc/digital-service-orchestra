@@ -84,6 +84,29 @@ A change is compliant with this ADR if:
 
 Any rule-11 candidate violation that fails any of (1)–(4) is NOT covered by this exception and must be evaluated against rule 11's full prohibition.
 
+## Amendment 2026-06-02: `code-reviewer-arbiter` cycle-end rulings
+
+- Amends: this ADR (extends the named exception to a second authority)
+- Deciders: @joeoakhart
+- Technical Story: b575-ac1c-f720-4839 (Cycle-end arbiter + workflow unification) — gap identified in ticket 7edb-c652-b675-41a4
+
+The `code-reviewer-arbiter` sub-agent (`plugins/dso/agents/code-reviewer-arbiter.md`) emits cycle-end rulings `BLOCK`, `DEFER`, and `DROP`, consumed at the documented dispatch surface inside `plugins/dso/scripts/dso_ci_review/runner.py` (`dispatch_cycle_end_arbiter` → `process_rulings`). As the "Negative consequences" of the original decision anticipated, a new severity-authority claim from a verifier-class agent requires an explicit amendment rather than inheriting the exception — this section is that amendment.
+
+Per-ruling Rule 11 analysis:
+
+- **`BLOCK`** — merge gate only; does NOT modify any finding's severity field. Rule 11 is not triggered; no exception needed.
+- **`DEFER`** — continuation signal; does NOT modify any finding's severity field. Rule 11 is not triggered; no exception needed.
+- **`DROP`** — removes a finding from consideration. This is severity authority structurally identical to the verifier's `drop`. It is **authorized** under this ADR.
+
+The arbiter's authorized exception scope mirrors the verifier's, with the arbiter's own identity and surface:
+
+1. **Sub-agent identity**: only `code-reviewer-arbiter` (`plugins/dso/agents/code-reviewer-arbiter.md`). No other agent inherits arbiter authority.
+2. **Ruling enum**: only `DROP` is a severity authority under this exception. `BLOCK` and `DEFER` are not severity rewrites and fall outside Rule 11 entirely. Any future arbiter ruling that modifies severity is NOT authorized until this ADR is further amended.
+3. **Dispatch surface**: only the cycle-end arbiter dispatch in `plugins/dso/scripts/dso_ci_review/runner.py` (`dispatch_cycle_end_arbiter` / `process_rulings`). Ad-hoc or third-party callers invoking the arbiter directly do NOT inherit the exception.
+4. **Dispatch gating**: the exception applies only when the arbiter is dispatched through the cycle-end path (`review.max_cycles` reached → `DISPATCH_ARBITER`). When the arbiter does not run, no ruling is produced and the question of severity authority does not arise.
+
+A change is compliant with the arbiter exception if it satisfies (1)–(4) above with `DROP` as the ruling. The Compliance Check criteria for `code-reviewer-verifier` are unchanged; the two authorities are evaluated independently.
+
 ## References
 
 - CLAUDE.md, "Critical Rules → Never Do These" rule 11 (after this ADR lands, includes the named-exception sentence pointing here).
