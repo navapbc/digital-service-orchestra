@@ -148,13 +148,13 @@ If all four hold, you are **cleared to force-merge**.
 
 ### Step 5: Confirm other required checks are green, then hand off a web-UI merge link
 
-**The autonomous agent does NOT merge.** Under the Goal-4 containment model the dev
-agent runs as a non-bypass identity (`current_user_can_bypass: never` on both rulesets),
-so `gh pr merge --admin` from the agent simply fails — and SHOULD. The override is a
-**human action via the GitHub web UI**, performed by the named bypass actor
-(`ruleset.bypass_user_id`). The agent's job here is to (a) prove every OTHER required
-check is green so the bypass covers ONLY the FP'd `llm-review`, then (b) emit a merge link
-plus the mandatory annotation for the human to paste.
+**The merge is a human action via the GitHub web UI**, performed by the named bypass actor
+(`ruleset.bypass_user_id`) — this is the Goal-4 containment model working as designed: the
+dev agent runs as a non-bypass identity (`current_user_can_bypass: never` on both rulesets),
+so the override stays a deliberate human step. The agent's job here is precisely two things:
+(a) prove every OTHER required check is green so the bypass covers ONLY the FP'd `llm-review`,
+then (b) emit a merge link plus the mandatory annotation for the human to paste — and stop
+there. That handoff is the successful completion of FP-recovery.
 
 **5a — confirm all other required checks are green.** The bypass must not be used to skip
 a genuinely-failing test. Verify that every required check context (from

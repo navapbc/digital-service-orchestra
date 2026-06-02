@@ -1022,8 +1022,10 @@ hook_no_force_merge() {
         echo "  2. Auto-merge when ready: gh pr merge <pr> --auto --merge" >&2
         echo "  3. FP-recovery (when CI review is a false positive): /dso:fp-recovery <pr>" >&2
         echo "" >&2
-        echo "To use FP-recovery: set DSO_FP_RECOVERY_ACTIVE=1 (set automatically" >&2
-        echo "by the /dso:fp-recovery workflow — do not set manually)." >&2
+        echo "Under /dso:fp-recovery the HUMAN completes the merge via the web UI once the" >&2
+        echo "manual opus review clears the PR — the skill emits a web-UI merge link +" >&2
+        echo "annotation for the human to use, then stops. The automating identity is a" >&2
+        echo "non-bypass actor by design and does not run the merge itself." >&2
         trap - ERR; return 2
     fi
 
