@@ -1060,12 +1060,32 @@ copy.artifact_dir=copy/
 | **Used by** | `scripts/review-complexity-classifier.sh`, `scripts/ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
+### `review.region_split.gate_loc`
+
+| | |
+|---|---|
+| **Description** | LOC threshold for the region-split **GATE** — the decision of *whether to chunk a diff at all* (component #3' of the chunked-review FP-reduction proposal). When a multi-file diff's added/removed LOC exceeds this value, the diff is routed to the chunked Strategy-E/F review path; otherwise it is reviewed single-pass. **Budget rationale:** Sonnet 4.6's real diff-content ceiling is ~30,000-38,000 LOC before context pressure (200K input − output reserve − ~15-25K system-prompt/schema/metadata overhead ≈ 155K tokens ≈ 30-38K LOC at ~4-5 tok/line). The default `20000` is a conservative ~55-65% of that ceiling: well clear of context pressure but leaving headroom for prior-defense growth across review cycles. The old shared `loc_threshold` default (3000) sat at only ~7-10% of budget and chunked routine medium PRs for no context reason — which is the dominant source of cross-chunk hallucinated-reference false positives (a reviewer flags a symbol/test as undefined because it lives in a different chunk it cannot see; M-1 measurement: 55% of chunked-review FPs). Raising the gate keeps medium-large PRs single-pass (zero cross-chunk blindness). **Invariant:** this value MUST be greater than `review.size_upgrade_lines` (the >=300-line force-upgrade-to-deep floor); a smaller configured value is clamped up to `size_upgrade_lines + 1` (with a stderr warning) so a region-split-eligible diff is always already deep-tier, preserving single-pass deep synthesis. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). |
+| **Accepted values** | Positive integer greater than `review.size_upgrade_lines` (else clamped up). Values `<= 0` fall back to default; non-numeric values fall back to default. |
+| **Default** | `20000` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
+### `review.region_split.gate_file_count`
+
+| | |
+|---|---|
+| **Description** | File-count threshold for the region-split **GATE** (component #3'). A diff trips the gate when it touches more than this many *reviewable* files (generated/binary files filtered by `file_filter` do not count — the gate is computed on the filtered set so a lock-file-heavy diff is not chunked for non-reviewable bulk). Distinct from `file_count_threshold`, which now governs only the per-cluster fan-out. The default `120` (raised from the old 40) captures genuine repo-wide changes while keeping ordinary multi-module PRs single-pass. Single-file diffs are NEVER region-split regardless of this value. |
+| **Accepted values** | Positive integer. Values `<= 0` fall back to default; non-numeric values fall back to default. |
+| **Default** | `120` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
 ### `review.region_split.loc_threshold`
 
 | | |
 |---|---|
-| **Description** | LOC threshold above which a multi-file diff is partitioned into per-directory clusters by the region-split fallback (Strategy E) in `dso_ci_review.region_split`. Below this threshold the diff is reviewed monolithically. The default targets ~7-10% of Sonnet 4.6's diff-content budget after system prompt + finding schema + PR metadata overhead, leaving ample headroom for prompt growth. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
-| **Accepted values** | Positive integer. Non-numeric values fall back to default. |
+| **Description** | **(Component #3' — role narrowed.)** Per-cluster **fan-out** LOC threshold for the region-split Strategy-F path: once a diff has already been chunked (per the GATE keys `gate_loc` / `gate_file_count`), any single directory cluster whose LOC exceeds this value is fanned out to one dispatch per file. This key NO LONGER governs the primary gate decision (whether to chunk at all) — that is `review.region_split.gate_loc`. It now serves two narrow roles: (1) the per-cluster fan-out granularity, and (2) the single-oversized-file pass-through detection in `split_cluster_by_file`. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
+| **Accepted values** | Positive integer. Non-numeric / `<= 0` values fall back to default. |
 | **Default** | `3000` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
@@ -1074,8 +1094,8 @@ copy.artifact_dir=copy/
 
 | | |
 |---|---|
-| **Description** | File-count threshold above which a diff is region-split. Triggers when the diff touches more than this many files. Distinct from `loc_threshold` — captures the case of many small files (e.g., a repo-wide rename) where per-cluster parallelism beats one monolithic review. Single-file diffs are NEVER region-split regardless of this value. |
-| **Accepted values** | Positive integer. Non-numeric values fall back to default. |
+| **Description** | **(Component #3' — role narrowed.)** This key NO LONGER governs the primary region-split gate (whether to chunk) — that is now `review.region_split.gate_file_count`. It is retained for the per-cluster fan-out path and as a secondary OR-guard within the Strategy-E/F clustering machinery. Captures the case of many small files (e.g., a repo-wide rename) at the cluster level once the GATE has already routed the diff to the chunked path. Single-file diffs are NEVER region-split regardless of this value. |
+| **Accepted values** | Positive integer. Non-numeric / `<= 0` values fall back to default. |
 | **Default** | `40` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---

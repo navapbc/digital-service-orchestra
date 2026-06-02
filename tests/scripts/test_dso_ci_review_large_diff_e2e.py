@@ -62,9 +62,13 @@ from dso_ci_review.region_split import (  # noqa: E402
 # Diff generator helpers
 # ---------------------------------------------------------------------------
 
-_LINES_PER_REVIEWABLE_FILE = 200  # 25 files × 200 lines = 5000 reviewable LOC
+# Component #3': the region-split GATE LOC threshold is review.region_split.gate_loc
+# (default 20000). The reviewable portion must exceed it for the gate to fire,
+# so this is sized to 25 × 850 = 21250 reviewable LOC (was 200/file = 5000 LOC
+# under the old 3000-LOC gate).
+_LINES_PER_REVIEWABLE_FILE = 850  # 25 files × 850 lines = 21250 reviewable LOC
 _LINES_PER_IGNORED_FILE = 100  # 5 files × 100 lines = 500 ignored LOC
-_TOTAL_DIFF_LOC = _LINES_PER_REVIEWABLE_FILE * 25 + _LINES_PER_IGNORED_FILE * 5  # 5500
+_TOTAL_DIFF_LOC = _LINES_PER_REVIEWABLE_FILE * 25 + _LINES_PER_IGNORED_FILE * 5  # 21750
 
 
 def _make_file_diff(path: str, n_added: int) -> str:
@@ -265,18 +269,19 @@ class TestLargeDiffPipeline:
     # ------------------------------------------------------------------
 
     def test_region_split_triggers_on_5000_loc_diff(self) -> None:
-        """DD2 — The 5000-LOC reviewable diff triggers _should_region_split.
+        """DD2 — A diff above the GATE LOC threshold triggers _should_region_split.
 
-        After file_filter excludes the 500 ignored LOC, the 5000 reviewable
-        LOC is still above the default 3000-LOC threshold.
+        Component #3': the GATE threshold is review.region_split.gate_loc
+        (default 20000). The reviewable portion (21250 LOC across 25 files)
+        clears it. After file_filter excludes the 500 ignored LOC, the
+        reviewable LOC is still above the gate.
         """
         diff, _, _ = _build_7000_line_diff()
-        # Count LOC in the REVIEWABLE portion only (excludes ignored lines).
-        # For the purposes of this assertion we verify that the full diff also
-        # triggers region-split — the runner will apply filter before region-split
-        # but the added LOC from ignored files doesn't change the gate outcome here.
+        # We verify the full diff triggers region-split — the runner applies
+        # filter before region-split but the added LOC from ignored files does
+        # not change the gate outcome here (reviewable LOC alone clears the gate).
         assert _should_region_split(diff), (
-            "DD2: a 5000+ LOC diff across 25+ files must trigger region-split"
+            "DD2: a 20000+ LOC diff across 25+ files must trigger the region-split gate"
         )
 
     def test_strategy_f_produces_multiple_clusters(self) -> None:
