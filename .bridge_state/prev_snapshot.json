@@ -99682,7 +99682,9 @@
     },
     "labels": [
       "brainstorm:complete",
-      "dso-id:99f1-153c"
+      "dso-id:99f1-153c",
+      "gap_analysis:complete",
+      "plan_review:pass"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -185909,5 +185911,5820 @@
       }
     },
     "summary": "Harness sensor-health observability: detect silent/dead gates and per-gate signal quality across the full gate+hook suite"
+  },
+  "DIG-5073": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Deferred PR Comment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### PR",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "[",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-100\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Please rename variable foo to bar for clarity.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-alice\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": true,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": \"plugins/dso/scripts/some-script.sh\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": 42,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#discussion_r100\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-200\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Why did you choose this approach over using jq directly?\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-bob\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-200\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"This feature seems out of scope for this PR.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-300\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-301\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Agreed, we should track this separately.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-301\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  }",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Comment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "[",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-100\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Please rename variable foo to bar for clarity.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-alice\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": true,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": \"plugins/dso/scripts/some-script.sh\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": 42,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#discussion_r100\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-200\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Why did you choose this approach over using jq directly?\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-bob\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-200\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"This feature seems out of scope for this PR.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-300\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-301\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Agreed, we should track this separately.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-301\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  }",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "]#discussion_rcomment-301",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Original Body",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Agreed, we should track this separately.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:1f90-8d4f-f565-44e8",
+      "pr-42-deferred"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[PR #42] Deferred review comment: Agreed, we should track this separately."
+  },
+  "DIG-5074": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-5: deterministic tests/ regression fixture freezes the four Pattern 3 chain files' root-cause excerpts and runs the first fix's extracted query asserting >=4 matches; no original environment required.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create tests/scripts/test-antipattern-chain-regression.sh: run the first fix's extracted antipattern query against the four frozen fixtures under tests/fixtures/antipattern-chain/ and assert >=4 matches, with no original environment required. The extracted query is the exact signature: a CLAUDE_PLUGIN_ROOT-style variable referenced under `set -u` WITHOUT a default guard (i.e. ${VAR} with no :- or :? ). Embed this signature constant directly in the test; do not re-derive it. The test is RED until task-6 has frozen all four fixtures. Set the executable bit on the new test file.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] New test file is executable \u2014 Verify: test -x tests/scripts/test-antipattern-chain-regression.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test passes GREEN against the frozen fixtures (asserts >=4 matches) \u2014 Verify: bash tests/scripts/test-antipattern-chain-regression.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test embeds the unguarded CLAUDE_PLUGIN_ROOT-style ${VAR}/set -u query signature constant (not re-derived) \u2014 Verify asserts the guard-absence predicate is named, not incidental boilerplate \u2014 Verify: grep -qE 'PLUGIN_ROOT' tests/scripts/test-antipattern-chain-regression.sh && grep -qiE '(unguarded|no[ _-]?default|without[ _-](:-|:\\?| a default))' tests/scripts/test-antipattern-chain-regression.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test asserts a >=4 match threshold \u2014 Verify: grep -qE '(-ge 4|>= *4|-gt 3)' tests/scripts/test-antipattern-chain-regression.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:2298-45c0-adf8-4f2f"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Regression test: fixture set produces >=4 query matches (GREEN after task-6 fixtures exist)"
+  },
+  "DIG-5075": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Model ID:** claude-opus-4-8",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Plugin/Tool Versions:** dso-dev 1.17.102",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Context Scope:** plugins/dso/skills/sprint/prompts/task-execution.md (sprint Phase E sub-agent dispatch template)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 9009aabf025fc3ae591a43c55d12007f0435f5bc",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** User-Flagged Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The sprint sub-agent dispatch template should tell sub-agents to validate using the **project-resolved commands**. The sprint skill already resolves these at activation via read-config.sh (`TEST_CMD=commands.test`, `LINT_CMD=commands.lint`, `FORMAT_CHECK_CMD=commands.format_check`) precisely so the workflow is stack-agnostic / polyglot. The dispatch prompt should interpolate those resolved commands (or instruct the sub-agent to read them via `.claude/scripts/dso read-config commands.*`), not assume a specific stack.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "`plugins/dso/skills/sprint/prompts/task-execution.md` Step 6 hardcodes a Python/Make/app-layout toolchain:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "79:6. Run `make format-check && make lint` from app/, then run unit tests via `.claude/scripts/dso test-batched.sh --runner=pytest --test-dir=app/tests` (CLAUDE.md `rule:no-broad-tests-bash` \u2014 raw `make test-unit-only` may exceed the ~73s Bash-tool ceiling and get killed with exit 144)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "84:     c. Determine: did your change break these tests, or were they pre-existing failures? Use `git stash && make test-unit-only && git stash pop` to compare \u2014 this diagnostic intentionally uses raw `make` so the stash/unstash boundary holds identical invocation semantics; if invoking from the Bash tool, substitute both sides with `.claude/scripts/dso test-batched.sh --runner=pytest --test-dir=app/tests` to stay under the ceiling.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "i.e. it instructs every sub-agent to run `make format-check && make lint` from `app/` and `.claude/scripts/dso test-batched.sh --runner=pytest --test-dir=app/tests`. In a project with no `app/` directory, no Makefile targets, and a non-pytest runner \u2014 e.g. the DSO plugin repo itself, where `commands.test=bash tests/run-all.sh` and `commands.lint=ruff check ...` \u2014 these commands do not exist and the validation step fails (`make: *** No rule`, `cd: app: No such file or directory`). The Step 6 / Step 8.4 `git stash && make test-unit-only` diagnostic has the same hardcoding.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 3. Action History and Workarounds",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Steps Taken:** During /dso:sprint execution of epic waxen-sigma (the DSO plugin repo), dispatched Layer-0 implementation sub-agents using task-execution.md.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Known Workarounds:** The dispatching orchestrator overrides the hardcoded commands in the dispatch prompt with the project commands resolved from read-config.sh (`bash tests/run-all.sh`, `ruff`), and the per-task Acceptance Criteria already carry the correct `Verify:` commands (`TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && $TEST_CMD`), so a sub-agent that follows its ticket ACs validates correctly despite the wrong Step 6 boilerplate. The template itself remains stack-specific.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Active Workflow:** /dso:sprint Phase E (Sub-Agent Launch) \u2192 task-execution.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Skills Invoked:** /dso:sprint",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 7. Additional Details",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Fix: replace the hardcoded Step 6 (and the Step 8.4 stash diagnostic) commands with placeholders interpolated from the sprint's resolved `{TEST_CMD}` / `{LINT_CMD}` / `{FORMAT_CHECK_CMD}`, or instruct the sub-agent to resolve them via `.claude/scripts/dso read-config commands.test_unit|lint|format_check`. Aligns with the polyglot test-gate direction (epic 87e9-0bc8) and the stack-agnostic config-resolution the sprint already performs.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Blast radius: every sprint sub-agent dispatch in any project that is not a Python/Make/app-layout repo \u2014 the boilerplate validation step is wrong; only the per-ticket ACs save it.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
+      "dso-id:30d8-46c6-6616-4ad0"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "task-execution.md: sprint sub-agent validation step hardcodes make/pytest/app -> fails in non-Python / polyglot projects"
+  },
+  "DIG-5076": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(None directly \u2014 infrastructure marker-lifecycle wiring. The .fix-bug-active marker is the gating predicate that all of dd-2/dd-3/dd-4 wiring depends on; each downstream SKILL task (5b/5c/5d) owns its respective DD. This task establishes the marker lifecycle and the per-session antipattern-ok counter they share.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Wire the .fix-bug-active marker lifecycle into plugins/dso/skills/fix-bug/SKILL.md: create the marker at skill activation (so the commit-msg HARD-GATE knows fix-bug is the active skill), remove it at clean skill close, and initialize a per-session counter for the '# antipattern-ok: <reason>' annotation capped at 3/session. Add .fix-bug-active to the repo-root .gitignore so the marker is never committed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] SKILL.md creates AND removes the .fix-bug-active marker (lifecycle, not just one half) \u2014 Verify: grep -c '.fix-bug-active' plugins/dso/skills/fix-bug/SKILL.md | awk '{exit ($1>=2)?0:1}'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] SKILL.md documents the 3/session antipattern-ok annotation cap \u2014 Verify: grep -qiE 'antipattern-ok.*(cap|3/session|3 per session)|(cap|3/session).*antipattern-ok' plugins/dso/skills/fix-bug/SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] .fix-bug-active is gitignored \u2014 Verify: grep -qx '.fix-bug-active' .gitignore || grep -q '^\\.fix-bug-active' .gitignore",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] TDD exemption: unit criterion 1 \u2014 SKILL.md marker lifecycle + .gitignore are instruction-file/config changes with no executable logic; structural grep assertions are the verification. Verify: grep -q 'fix-bug-active' plugins/dso/skills/fix-bug/SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:315a-77fb-13c5-4f0e"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Wire .fix-bug-active marker lifecycle + 3-annotation session counter + .gitignore in SKILL.md"
+  },
+  "DIG-5077": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-2: check-antipattern-scan-trailer.sh (HARD-GATE in fix-bug commit step) refuses commit when trailer absent, or matches>0 without per-match follow-up artifact (ticket id in trailer / match file in cached diff / \"# antipattern-ok: <reason>\" annotation in {different-context, dead-code, already-tracked:<id>}, capped 3/session); covers Phase G fix sub-agent commits; never gates other skills.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create plugins/dso/hooks/check-antipattern-scan-trailer.sh, mirroring the structure of plugins/dso/scripts/check-sprint-trailer.sh (set -euo pipefail; SCRIPT_DIR/REPO_ROOT resolution; commit-msg-file resolution order $1 \u2192 $GIT_DIR/COMMIT_EDITMSG \u2192 git log -1). Gate ONLY when the .fix-bug-active marker exists at repo root (never gates other skills). When active: refuse (exit non-zero) if the Antipattern-Scan trailer is absent; when matches>0, require a per-match follow-up artifact \u2014 a ticket id embedded in the trailer, a match file present in the cached diff, or a '# antipattern-ok: <reason>' annotation whose reason is in {different-context, dead-code, already-tracked:<id>} \u2014 capped at 3 antipattern-ok annotations per session; exit 0 otherwise. Implement until tests/hooks/test-check-antipattern-scan-trailer.sh (task-2a) passes. Set the executable bit on the new hook.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] New hook is executable \u2014 Verify: test -x plugins/dso/hooks/check-antipattern-scan-trailer.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Hook is bash -n clean \u2014 Verify: bash -n plugins/dso/hooks/check-antipattern-scan-trailer.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] task-2a test now passes GREEN \u2014 Verify: bash tests/hooks/test-check-antipattern-scan-trailer.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Hook gates only under the .fix-bug-active marker (never gates other skills) \u2014 Verify: grep -q '.fix-bug-active' plugins/dso/hooks/check-antipattern-scan-trailer.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:3da3-a959-b8ab-49a8"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Create check-antipattern-scan-trailer.sh hook until task-2a test passes (GREEN)"
+  },
+  "DIG-5078": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Plugin/Tool Versions:** dso-dev 1.17.102",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Context Scope:** plugins/dso/skills/preplanning/prompts/lightweight-mode.md (lightweight-mode bullet 5)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 9009aabf025fc3ae591a43c55d12007f0435f5bc",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** User-Flagged Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "`/dso:preplanning --lightweight` step 5 says: \"Update the epic description with: Done Definitions, Scope, Considerations.\" There should be a defined, append-safe mechanism for adding these sections to an already-rich epic description without clobbering the brainstorm-authored content (Context, Approach, Success Criteria, Scenario Analysis, etc.).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "lightweight-mode.md provides NO append-safe write mechanism for the epic description. The only concrete write it specifies is the `PREPLANNING_CONTEXT_LIGHTWEIGHT:` ticket comment (the durable handoff that /dso:implementation-plan actually consumes). There is no `ticket edit --description-append` (only a full `--description` replace, which would overwrite the existing rich description). So the orchestrator is told to \"update the epic description\" but the only safe path available is the comment \u2014 the in-description update is either a destructive rewrite or silently skipped. During the waxen-sigma sprint the lightweight pass wrote the PREPLANNING_CONTEXT_LIGHTWEIGHT comment and deliberately did NOT rewrite the epic description, to avoid clobbering the brainstorm spec.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 3. Action History and Workarounds",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Known Workarounds:** Treat the `PREPLANNING_CONTEXT_LIGHTWEIGHT:` comment (which carries doneDefinitions + considerations and is what implementation-plan reads) as the load-bearing output, and skip the in-description rewrite. Functionally correct but diverges from the literal step text.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Active Workflow:** /dso:preplanning --lightweight (invoked by /dso:sprint for MODERATE epics)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 7. Additional Details",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Fix options: (a) drop/soften the \"update the epic description\" bullet since the comment is the real handoff; or (b) provide an explicit append-safe mechanism (e.g. `ticket edit --description-append`, or a dedicated section-merge helper) and instruct the step to use it. Pick one so the step is unambiguous and non-destructive.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
+      "dso-id:3f00-90fa-3efc-4685"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "lightweight-mode.md: 'update epic description' step has no append-safe mechanism -> destructive-rewrite risk / silently skipped"
+  },
+  "DIG-5079": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "UPDATE",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(None directly \u2014 infrastructure wiring task. Registers the task-2b hook into the pre-commit framework at the commit-msg stage, mirroring the sprint-trailer-check entry, so the dd-2 HARD-GATE actually fires at commit-msg time. DD-2 behavior is owned by task-2b; this task wires its invocation.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Add a hook entry to the repo-root .pre-commit-config.yaml local repo, modeled on the existing `sprint-trailer-check` / `pre-commit-ticket-gate` entries: dispatch via pre-commit-wrapper.sh, language: system, pass_filenames: false, stages: [commit-msg]. The entry must invoke plugins/dso/hooks/check-antipattern-scan-trailer.sh. Pure YAML wiring \u2014 no conditional logic in the config file itself.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] .pre-commit-config.yaml is valid YAML \u2014 Verify: python3 -c 'import yaml,sys; yaml.safe_load(open(\".pre-commit-config.yaml\"))'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] The new hook entry references check-antipattern-scan-trailer.sh \u2014 Verify: grep -q 'check-antipattern-scan-trailer.sh' .pre-commit-config.yaml",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] The check-antipattern-scan-trailer hook is registered at the commit-msg stage \u2014 Verify: python3 -c \"import yaml; hooks=[h for r in yaml.safe_load(open('.pre-commit-config.yaml'))['repos'] for h in r['hooks'] if 'check-antipattern-scan-trailer.sh' in h.get('entry','')]; assert hooks and hooks[0].get('stages')==['commit-msg'], hooks\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] TDD exemption: unit criterion 1 \u2014 pure YAML wiring, no conditional logic; the structural python3 assert that stages==['commit-msg'] for the new hook entry is sufficient behavioral verification.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:4268-ac13-4917-45c8"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Register check-antipattern-scan-trailer.sh at commit-msg stage in .pre-commit-config.yaml"
+  },
+  "DIG-5080": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(None directly \u2014 infrastructure RED-test task. DD ownership for dd-2 is held by task-2b, which makes this test pass. This task establishes the failing behavioral contract first per RED-before-GREEN discipline.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create tests/hooks/test-check-antipattern-scan-trailer.sh asserting the not-yet-existing hook's contract: (1) trailer absent under .fix-bug-active marker \u2192 exit non-zero; (2) trailer present, matches=0 \u2192 exit 0; (3) matches>0 with NO follow-up artifact \u2192 exit non-zero; (4) matches>0 satisfied by ticket id in trailer OR a match file in the cached diff OR a '# antipattern-ok: <reason>' annotation in {different-context, dead-code, already-tracked:<id>} \u2192 exit 0; (5) the antipattern-ok annotation is capped at 3/session (4th \u2192 exit non-zero); (6) no .fix-bug-active marker \u2192 exit 0 (never gates other skills). The test MUST fail now because plugins/dso/hooks/check-antipattern-scan-trailer.sh does not yet exist. Set the executable bit on the new test file.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] New test file is executable \u2014 Verify: test -x tests/hooks/test-check-antipattern-scan-trailer.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test is RED now (fails because hook is absent) \u2014 Verify: ! bash tests/hooks/test-check-antipattern-scan-trailer.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test asserts trailer-absent refusal, matches>0 follow-up requirement, the 3 follow-up artifact forms, the 3/session annotation cap, and the no-marker pass-through \u2014 Verify: for t in trailer-absent matches follow-up antipattern-ok 'cap' fix-bug-active; do grep -q \"$t\" tests/hooks/test-check-antipattern-scan-trailer.sh || { echo MISSING:$t; exit 1; }; done",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Test Approach",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Given the .fix-bug-active marker is present and a commit message with no Antipattern-Scan trailer; When tests/hooks/test-check-antipattern-scan-trailer.sh invokes plugins/dso/hooks/check-antipattern-scan-trailer.sh against that message; Then the hook exits non-zero (trailer-absent refusal) \u2014 and the test currently FAILS because the hook script does not yet exist.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:55c7-f127-ba0d-4b2a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Write RED test for check-antipattern-scan-trailer.sh (fails because hook absent)"
+  },
+  "DIG-5081": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(None directly \u2014 test-data scaffolding for dd-5. The behavioral regression assertion that consumes these fixtures is owned by task-7.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create four deterministic fixture files under tests/fixtures/antipattern-chain/, each freezing the root-cause excerpt of one of the four Pattern 3 chain files. Each fixture MUST embody the exact antipattern query signature so the task-7 regression matches >=4: a CLAUDE_PLUGIN_ROOT-style variable referenced under `set -u` WITHOUT a default guard (i.e. ${VAR} with no :- or :? ). Use this exact signature when authoring the frozen excerpts; do not re-derive it. No original environment is required to exercise these fixtures.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Exactly four fixture files exist under tests/fixtures/antipattern-chain/ \u2014 Verify: test \"$(ls tests/fixtures/antipattern-chain/*.sh | wc -l | tr -d ' ')\" = 4",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Each fixture declares set -u \u2014 Verify: for f in tests/fixtures/antipattern-chain/*.sh; do grep -qE 'set -u|set -euo' \"$f\" || { echo NOSETU:$f; exit 1; }; done",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] All four fixtures collectively contain >=4 unguarded CLAUDE_PLUGIN_ROOT-style ${VAR} references (no :- or :? guard) \u2014 Verify: test \"$(grep -hoE '\\$\\{[A-Z_]*PLUGIN[A-Z_]*\\}' tests/fixtures/antipattern-chain/*.sh | grep -vE ':-|:\\?' | wc -l | tr -d ' ')\" -ge 4",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] TDD exemption: integration criterion 2 \u2014 these files are scaffolding/test-data; the behavioral assertion (extracted query yields >=4 matches) is owned by task-7's RED regression test.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:5e96-ea32-4238-4a3f"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Freeze four Pattern 3 chain root-cause excerpt fixtures under tests/fixtures/antipattern-chain/"
+  },
+  "DIG-5082": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-3: shell/bash RED test not reproducing under run-hermetic.sh triggers HARD-GATE full stop (impl halts, \"Hermetic reproduction failed\" comment, restart Phase C); non-shell emits \"HERMETIC_SKIP: runner=<runner> reason=non-shell\", never blocked. Shell iff .sh suffix OR resolved $TEST_CMD runner starts with bash|sh.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(Shared with task-4b, which owns the run-hermetic.sh helper. This task owns the Phase E SKILL.md wiring: after the RED test is confirmed failing (Phase E Step 2 RED-before-fix gate), invoke run-hermetic.sh; on shell non-reproduction, HARD-GATE full stop \u2014 halt impl, post a 'Hermetic reproduction failed' ticket comment, restart Phase C; on non-shell, record the HERMETIC_SKIP line and proceed.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Edit plugins/dso/skills/fix-bug/SKILL.md Phase E to insert the hermetic reproduction gate that invokes plugins/dso/scripts/run-hermetic.sh between the RED-before-fix gate and Fix Implementation. The 'Hermetic reproduction failed' comment text MUST be co-located after the run-hermetic.sh invocation within Phase E.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Phase E wires run-hermetic.sh \u2014 Verify: awk '/^## Phase E/{p=1} /^## Phase F/{p=0} p' plugins/dso/skills/fix-bug/SKILL.md | grep -q 'run-hermetic.sh'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Structural sequence: 'Hermetic reproduction failed' is co-located AFTER the run-hermetic.sh invocation within Phase E \u2014 Verify: awk '/^## Phase E/{p=1} /^## Phase F/{p=0} p' plugins/dso/skills/fix-bug/SKILL.md | grep -n -e 'run-hermetic.sh' -e 'Hermetic reproduction failed' | awk -F: 'NR==1&&/run-hermetic.sh/{seen=1} /Hermetic reproduction failed/{exit seen?0:1}'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Phase E documents the non-shell HERMETIC_SKIP never-blocked path \u2014 Verify: awk '/^## Phase E/{p=1} /^## Phase F/{p=0} p' plugins/dso/skills/fix-bug/SKILL.md | grep -qE 'HERMETIC_SKIP|non-shell'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Dangling-ref guard: every plugins/dso script/hook referenced in SKILL.md resolves to an executable file \u2014 Verify: grep -oE 'plugins/dso/(scripts|hooks)/[A-Za-z0-9_./-]+\\.sh' plugins/dso/skills/fix-bug/SKILL.md | sort -u | while read f; do test -x \"$f\" || { echo DANGLING:$f; exit 1; }; done",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] TDD exemption: Rule 5 (behavioral-testing-standard) \u2014 instruction-file SKILL.md wiring; structural sequence ACs are the accepted standard. Verify: test -f plugins/dso/skills/shared/prompts/behavioral-testing-standard.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:6f49-389b-a607-43fa"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Wire Phase E hermetic reproduction HARD-GATE into SKILL.md (dd-3 SKILL wiring)"
+  },
+  "DIG-5083": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-3: shell/bash RED test not reproducing under run-hermetic.sh triggers HARD-GATE full stop (impl halts, \"Hermetic reproduction failed\" comment, restart Phase C); non-shell emits \"HERMETIC_SKIP: runner=<runner> reason=non-shell\", never blocked. Shell iff .sh suffix OR resolved $TEST_CMD runner starts with bash|sh.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(Shared with task-5b, which owns the Phase E SKILL.md wiring of this gate. This task owns the run-hermetic.sh helper script behavior.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create plugins/dso/scripts/run-hermetic.sh: given a RED test path and the resolved $TEST_CMD, determine shell-ness (shell iff the test has a .sh suffix OR the resolved $TEST_CMD runner starts with bash|sh). For shell tests, run the test under hermetic isolation and exit 0 only if it reproduces; exit non-zero if it does not reproduce (the caller uses this to trigger the HARD-GATE full stop). For non-shell tests, emit exactly 'HERMETIC_SKIP: runner=<runner> reason=non-shell' and exit 0 (never blocked). Implement until tests/scripts/test-run-hermetic.sh (task-4a) passes. Set the executable bit on the new script.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] New script is executable \u2014 Verify: test -x plugins/dso/scripts/run-hermetic.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Script is bash -n clean \u2014 Verify: bash -n plugins/dso/scripts/run-hermetic.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] task-4a test now passes GREEN \u2014 Verify: bash tests/scripts/test-run-hermetic.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Non-shell path emits the exact HERMETIC_SKIP line \u2014 Verify: grep -qE 'HERMETIC_SKIP: runner=.* reason=non-shell' plugins/dso/scripts/run-hermetic.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:71bb-83b5-b668-48e6"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Create run-hermetic.sh until task-4a test passes (GREEN)"
+  },
+  "DIG-5084": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Deferred PR Comment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### PR",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "[",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-100\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Please rename variable foo to bar for clarity.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-alice\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": true,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": \"plugins/dso/scripts/some-script.sh\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": 42,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#discussion_r100\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-200\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Why did you choose this approach over using jq directly?\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-bob\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-200\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"This feature seems out of scope for this PR.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-300\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-301\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Agreed, we should track this separately.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-301\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  }",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Comment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "[",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-100\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Please rename variable foo to bar for clarity.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-alice\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": true,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": \"plugins/dso/scripts/some-script.sh\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": 42,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#discussion_r100\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-200\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Why did you choose this approach over using jq directly?\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-bob\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-200\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"This feature seems out of scope for this PR.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-300\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-301\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Agreed, we should track this separately.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-301\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  }",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "]#discussion_rcomment-301",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Original Body",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Agreed, we should track this separately.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:7b14-2ee1-b1fd-4dbc",
+      "pr-42-deferred"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[PR #42] Deferred review comment: Agreed, we should track this separately."
+  },
+  "DIG-5085": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(None directly \u2014 infrastructure wiring. The HARD-GATE behavior is owned by task-2b's hook; this task wires the Phase H Step 1 commit step to invoke it so the gate fires on fix-bug commits \u2014 including Phase G fix sub-agent commits \u2014 per dd-2.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Edit plugins/dso/skills/fix-bug/SKILL.md Phase H Step 1 (Commit and Close) to invoke the check-antipattern-scan-trailer.sh HARD-GATE as part of the commit step, so a fix-bug commit is refused when the Antipattern-Scan trailer is absent or a matches>0 scan lacks its per-match follow-up artifact. Reference the hook by its plugins/dso/hooks/check-antipattern-scan-trailer.sh path so the dangling-ref guard resolves it.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Phase H Step 1 wires the HARD-GATE hook by path \u2014 Verify: awk '/^## Phase H/{p=1} p' plugins/dso/skills/fix-bug/SKILL.md | grep -q 'check-antipattern-scan-trailer.sh'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Phase H names the gate as a HARD-GATE on the commit step \u2014 Verify: awk '/^## Phase H/{p=1} p' plugins/dso/skills/fix-bug/SKILL.md | grep -qiE 'HARD-GATE|Antipattern-Scan trailer'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Dangling-ref guard: every plugins/dso script/hook referenced in SKILL.md resolves to an executable file \u2014 Verify: grep -oE 'plugins/dso/(scripts|hooks)/[A-Za-z0-9_./-]+\\.sh' plugins/dso/skills/fix-bug/SKILL.md | sort -u | while read f; do test -x \"$f\" || { echo DANGLING:$f; exit 1; }; done",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] TDD exemption: Rule 5 (behavioral-testing-standard) \u2014 instruction-file SKILL.md wiring; structural sequence ACs are the accepted standard. Verify: test -f plugins/dso/skills/shared/prompts/behavioral-testing-standard.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:84ca-0016-4dc7-4294"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Wire Phase H Step 1 commit HARD-GATE invoking check-antipattern-scan-trailer.sh in SKILL.md"
+  },
+  "DIG-5086": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-1: fix-bug shell-script fix emits \"Antipattern-Scan: <query> root=<scan-root> matches=<n>\" commit trailer from anti-pattern-scan.md SCAN_RESULT trailer_line, copied verbatim into the commit message.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(Shared with task-5c, which owns the verbatim-copy evidence in SKILL.md. This task owns the source-field half: the SCAN_RESULT schema must define the two new fields so the trailer payload exists for task-5c to copy.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Extend the SCAN_RESULT output schema in plugins/dso/skills/fix-bug/prompts/anti-pattern-scan.md with two new fields: `query_used` (the exact antipattern query/regex the scanner ran) and `trailer_line` (the rendered \"Antipattern-Scan: <query> root=<scan-root> matches=<n>\" string ready to copy verbatim into the commit message). Add both to the schema block, the Field Definitions table, and the rendering instructions so the scan sub-agent emits them deterministically. Instruction-file change only; no executable logic.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] SCAN_RESULT schema block declares query_used \u2014 Verify: grep -A40 'SCAN_RESULT:' plugins/dso/skills/fix-bug/prompts/anti-pattern-scan.md | grep -q 'query_used'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] SCAN_RESULT schema block declares trailer_line \u2014 Verify: grep -A40 'SCAN_RESULT:' plugins/dso/skills/fix-bug/prompts/anti-pattern-scan.md | grep -q 'trailer_line'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] trailer_line rendering instruction shows the exact 'Antipattern-Scan: <query> root=<scan-root> matches=<n>' format \u2014 Verify: grep -qE 'Antipattern-Scan: <query> root=<scan-root> matches=<n>' plugins/dso/skills/fix-bug/prompts/anti-pattern-scan.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Field Definitions table documents both new fields \u2014 Verify: grep -c -E '\\| .query_used.|\\| .trailer_line.' plugins/dso/skills/fix-bug/prompts/anti-pattern-scan.md | awk '{exit ($1>=2)?0:1}'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] TDD exemption: unit criterion 1 \u2014 instruction-file (.md prompt) change with no executable logic; structural grep assertions on the schema block and field table are the behavioral verification. No RED unit test applies to a prompt-template edit.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:9d70-54f9-aa3e-409a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Extend anti-pattern-scan.md SCAN_RESULT with query_used + trailer_line fields"
+  },
+  "DIG-5087": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Model ID:** claude-opus-4-8",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Plugin/Tool Versions:** dso-dev 1.17.102",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Context Scope:** worktree session worktree-20260601-183103; repo navapbc/digital-service-orchestra",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 392d89c8bf366a8e59b702d59debbd46fad1f7ad",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** User-Flagged Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "`.claude/scripts/dso ticket create <type> <title> --parent=<id>` should resolve `--parent` by alias as well as by canonical ticket_id. CLAUDE.md states aliases / jira-* IDs are first-class and must be \"Accept[ed] anywhere a native ID is accepted.\" `.claude/scripts/dso ticket show <alias>` already resolves aliases (e.g. `ticket show waxen-sigma` returns ticket_id 99f1-153c), so `--parent=<alias>` should likewise resolve to the canonical parent and create the child ticket.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "`--parent=waxen-sigma` (the alias of epic 99f1-153c) fails for every create:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "$ .claude/scripts/dso ticket create task \"<title>\" --parent=waxen-sigma --priority 2 -d \"<body>\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Error: parent ticket 'waxen-sigma' has no CREATE or SNAPSHOT event",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(exit non-zero; ticket NOT created)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The same command with the canonical ticket_id succeeds:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "$ .claude/scripts/dso ticket create task \"TEMP probe\" --parent=99f1-153c --priority 4 -d \"probe\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Created ticket pave-brine-eclat (d99b-749d-70cf-4427): TEMP probe",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "```",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "So `--parent` alias resolution is inconsistent with `ticket show` alias resolution: `show` resolves the alias, `create --parent` does not (it appears to look the parent up by the literal alias string in the event store, finds no CREATE/SNAPSHOT event under that key, and errors).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 3. Action History and Workarounds",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Steps Taken:**",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * In /dso:implementation-plan Step 5, created 12 child tasks with `--parent=waxen-sigma` (the epic alias).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * All 12 creates failed with \"parent ticket 'waxen-sigma' has no CREATE or SNAPSHOT event\"; zero tickets created.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * Verified `.claude/scripts/dso ticket exists 99f1-153c` \u2192 exit 0, and a probe create with `--parent=99f1-153c` succeeded.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * Re-ran all 12 creates with `--parent=99f1-153c` (canonical) \u2014 all succeeded.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Raw Results:**",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * Alias parent: `Error: parent ticket 'waxen-sigma' has no CREATE or SNAPSHOT event` (\u00d712), exit non-zero.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  * Canonical parent: `Created ticket <alias> (<uuid>): <title>`, exit 0.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Known Workarounds:** Resolve the alias to the canonical ticket_id first (`ticket show <alias>` \u2192 read `ticket_id`) and pass `--parent=<canonical-id>`. Orchestrators/skills that pass an epic alias to `--parent` (e.g. implementation-plan epic-direct mode invoked by /dso:sprint with an alias) must canonicalize first.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Active Workflow:** /dso:implementation-plan Step 5 (Task Creation), invoked from /dso:sprint epic-direct mode for epic waxen-sigma.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Skills Invoked:** /dso:sprint, /dso:implementation-plan",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 7. Additional Details",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Likely fix location: the parent-resolution path in the ticket CLI create handler (canonicalize the `--parent` value through the same alias-resolution used by `ticket show` before checking for the CREATE/SNAPSHOT event).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Blast radius: any skill or user passing an epic/story alias to `--parent` \u2014 silently breaks child creation (hard error, not a fallback). Sprint epic-direct planning passes whatever id the sprint resolved (often the alias the user selected).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
+      "dso-id:a9da-69b0-9220-4341"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "dso ticket create --parent=<alias>: resolve parent by alias -> Error: parent ticket has no CREATE or SNAPSHOT event"
+  },
+  "DIG-5088": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(None directly \u2014 infrastructure RED-test task. DD-3 script behavior is owned by task-4b, which makes this test pass; SKILL wiring half of dd-3 is owned by task-5b.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create tests/scripts/test-run-hermetic.sh asserting the not-yet-existing helper's contract: (1) a shell test (.sh suffix) that reproduces under hermetic isolation \u2192 exit 0 with reproduction confirmed; (2) a shell test that does NOT reproduce \u2192 exit non-zero so the caller can trigger the HARD-GATE full stop; (3) a non-shell test (resolved $TEST_CMD runner is not bash|sh and no .sh suffix) \u2192 emits 'HERMETIC_SKIP: runner=<runner> reason=non-shell' and exits 0 (never blocked); (4) shell-ness is determined iff .sh suffix OR the resolved $TEST_CMD runner starts with bash|sh. The test MUST fail now because plugins/dso/scripts/run-hermetic.sh does not yet exist. Set the executable bit on the new test file.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] New test file is executable \u2014 Verify: test -x tests/scripts/test-run-hermetic.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test is RED now (fails because helper is absent) \u2014 Verify: ! bash tests/scripts/test-run-hermetic.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test asserts the reproduce/non-reproduce shell branches, the HERMETIC_SKIP non-shell path, and the .sh-suffix-OR-bash|sh-runner shell determination \u2014 Verify: for t in HERMETIC_SKIP non-shell reproduce 'bash|sh'; do grep -qE \"$t\" tests/scripts/test-run-hermetic.sh || { echo MISSING:$t; exit 1; }; done",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Test Approach",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Given a non-reproducing shell (.sh) RED test passed to the helper; When tests/scripts/test-run-hermetic.sh invokes plugins/dso/scripts/run-hermetic.sh on it; Then the helper exits non-zero (signalling the caller to HARD-GATE full stop) \u2014 and the test currently FAILS because run-hermetic.sh does not yet exist.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:b5fd-7682-53e0-4c55"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Write RED test for run-hermetic.sh (fails because helper absent)"
+  },
+  "DIG-5089": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Symptom:** In the non-sprint two-tier merge path, `_phase_staged_intermediate` creates PR1 (feature -> staged-*) with a plain `gh pr create` (no auto-merge), then calls `wait-for-pr.sh $_pr1_number` to wait for checks. But `wait-for-pr.sh` only exits 0 on terminal state MERGED (it classifies all-checks-green-but-OPEN as PENDING and keeps polling). The script's own merge step (`gh pr merge --merge`) runs AFTER that wait returns. So nothing ever merges PR1: wait-for-pr.sh polls until its 30-min timeout, exits 1, and the script aborts ('refusing to advance to PR2').",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Contrast:** PR2's `_phase_merge` does NOT have this bug \u2014 it queues `gh pr merge $_pr_number --auto --merge` (line ~1275) right after PR creation, so GitHub auto-merges when checks pass and wait-for-pr.sh observes MERGED.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Observed:** Live on PR1 #536 during the fp3-only -> main integration on 2026-06-02. PR1 reached all-checks-green + mergeStateStatus=CLEAN + autoMergeRequest=null, and the merge script sat in 'waiting for PR1 #536 required checks to complete...' indefinitely. Manually running `gh pr merge 536 --merge` unblocked it (wait-for-pr.sh then saw MERGED and the script advanced to PR2).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**code_version:** 7f406df621",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Proposed fix:** Queue auto-merge on PR1 immediately after creation in `_phase_staged_intermediate`, mirroring `_phase_merge` (`gh pr merge $_pr1_number --auto --merge`). Step 5's existing 'if state != MERGED then merge' guard remains as a fallback for repos without auto-merge enabled.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "dso-id:c9fe-8b6c-9421-4faf"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "merge-to-main-pr.sh: PR1 staged-intermediate lacks auto-merge while wait-for-pr awaits MERGED -> deadlock to 30min timeout"
+  },
+  "DIG-5090": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Plugin/Tool Versions:** dso-dev 1.17.102",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Context Scope:** ticket-scratch CLI (ticket-scratch.sh) writing to the .claude scratch path; host-project gitignore",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 9009aabf025fc3ae591a43c55d12007f0435f5bc",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** User-Flagged Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The ticket-scratch store is an ephemeral handoff buffer (sub-agents write JSON payloads there; the orchestrator reads them back). Its on-disk location (the per-ticket scratch path under the .claude dir) should NOT appear as untracked working-tree drift during a sprint, and should not risk being swept into a commit. Either the path should be gitignored by the plugin default, or the scratch store should live outside the working tree entirely.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The .claude scratch directory is NOT in gitignore. During the waxen-sigma sprint, the planning sub-agents (story-decomposer / approach-proposer / task-decomposer remediation cycles) wrote scratch payloads under the per-ticket scratch path, which then surfaced as an untracked directory in git status. This contributed to a GIT_CLEAN=false precondition at the first sprint batch, and risks the scratch payloads being staged by a git add -A if not explicitly excluded.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 3. Action History and Workarounds",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Steps Taken:** Observed the untracked scratch dir in git status --short after the implementation-plan planning phase wrote remediation-cycle scratch.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Known Workarounds:** Manually appended the scratch path to gitignore mid-sprint (committed in this session) to clean the tree before batch dispatch.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 7. Additional Details",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Fix: add the .claude scratch path to the plugin-shipped default gitignore (and/or the onboarding-generated gitignore).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Investigation note (per user):** evaluate whether the scratch directory should instead be created/managed in the tickets orphan branch (the event-store tree) rather than the working tree \u2014 the scratch store is ticket-scoped ephemeral state, conceptually closer to ticket data than to source. Placing it under the tickets orphan branch (or a tmp / non-tracked location like the TMPDIR) would keep it entirely out of the working-tree git status and remove the gitignore dependency. Decide between: (a) gitignore in working tree (simplest), (b) move to TMPDIR / non-tracked, (c) manage under the tickets orphan branch.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Blast radius: every DSO session that uses ticket-scratch (preplanning story-decomposition, implementation-plan remediation cycles, sprint Step 18 cycle recorder) leaves untracked drift in the .claude scratch dir.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "CLI_user",
+      "detected_by:internal-dogfood",
+      "dso-id:e8b5-5eae-2a5f-4b68"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "ticket-scratch store dot-claude-scratch not gitignored -> surfaces as untracked sprint drift (investigate tickets-branch placement)"
+  },
+  "DIG-5091": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-1: fix-bug shell-script fix emits \"Antipattern-Scan: <query> root=<scan-root> matches=<n>\" commit trailer from anti-pattern-scan.md SCAN_RESULT trailer_line, copied verbatim into the commit message. (verbatim-copy evidence half; source-field half owned by task-1.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-4: Phase G promote-query sub-step appends query to known-antipatterns.yaml per 7575-5a90 schema when file exists, else writes durable \"ANTIPATTERN_PROMOTE_DEFERRED: <query>\" ticket comment. (Registry NOT shipped \u2192 deferred path active.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Edit plugins/dso/skills/fix-bug/SKILL.md Phase G to (a) copy the SCAN_RESULT trailer_line VERBATIM into the commit message (the dd-1 emission path), and (b) add the promote-query sub-step: when known-antipatterns.yaml exists, append the query per the 7575-5a90 schema; otherwise write a durable 'ANTIPATTERN_PROMOTE_DEFERRED: <query>' ticket comment (the registry is not shipped, so the deferred path is the active path). SKILL.md MUST instruct VERBATIM copy of trailer_line.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0) \u2014 Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0) \u2014 Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0) \u2014 Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-1 evidence: Phase G instructs VERBATIM copy of trailer_line into the commit message \u2014 Verify: awk '/^## Phase G/{p=1} /^## Phase H/{p=0} p' plugins/dso/skills/fix-bug/SKILL.md | grep -A2 'trailer_line' | grep -qi verbatim",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-4: promote-query appends to known-antipatterns.yaml when present \u2014 Verify: awk '/^## Phase G/{p=1} /^## Phase H/{p=0} p' plugins/dso/skills/fix-bug/SKILL.md | grep -q 'known-antipatterns.yaml'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-4: deferred path writes the exact ANTIPATTERN_PROMOTE_DEFERRED comment \u2014 Verify: awk '/^## Phase G/{p=1} /^## Phase H/{p=0} p' plugins/dso/skills/fix-bug/SKILL.md | grep -qE 'ANTIPATTERN_PROMOTE_DEFERRED: <query>'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-4: the 7575-5a90 schema is referenced for the append \u2014 Verify: awk '/^## Phase G/{p=1} /^## Phase H/{p=0} p' plugins/dso/skills/fix-bug/SKILL.md | grep -q '7575-5a90'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] TDD exemption: Rule 5 (behavioral-testing-standard) \u2014 instruction-file SKILL.md wiring; structural sequence ACs are the accepted standard. Verify: test -f plugins/dso/skills/shared/prompts/behavioral-testing-standard.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Phase G instructs the trailer_line copy as a git trailer in the commit-message footer (key: value, blank-line-separated). Verify: awk '/^#+ *Phase G/{p=1} /^#+ *Phase H/{p=0} p' plugins/dso/skills/fix-bug/SKILL.md | grep -iqE 'trailer.*(footer|key.*value|git[ -]trailer)'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:ef64-c2bb-d4f5-46af"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Wire Phase G trailer-verbatim-copy + promote-query into SKILL.md (dd-4 + dd-1 evidence)"
   }
 }
