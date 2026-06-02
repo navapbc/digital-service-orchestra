@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"SC coverage audit (red team): 9 fully covered, 2 partial (sc-5, sc-9), 0 uncovered, 0 out-of-scope. Full summary in adversarial review artifact."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780435952002058000,"uuid":"5b4fd5bc-7bb3-4777-9fcf-bc0de3f3d779"}
