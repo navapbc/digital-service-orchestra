@@ -640,5 +640,5 @@ plugins/dso/scripts/ci/review-convergence-check.sh:tests/scripts/test-review-con
 plugins/dso/scripts/lib/review-finding-identity.sh:tests/scripts/test-review-convergence-check.sh
 plugins/dso/scripts/ci/assert-review-liveness.sh:tests/scripts/test-assert-review-liveness.sh
 
-plugins/dso/hooks/check-antipattern-scan-trailer.sh: tests/hooks/test-check-antipattern-scan-trailer.sh [test_trailer_absent_under_fix_bug_active_exits_nonzero]
+plugins/dso/hooks/check-antipattern-scan-trailer.sh: tests/hooks/test-check-antipattern-scan-trailer.sh
 plugins/dso/scripts/run-hermetic.sh: tests/scripts/test-run-hermetic.sh
