@@ -1398,6 +1398,14 @@ Retry tag writes once on failure. On second tag-write failure: post a comment re
 
 > **CRITICAL — Review invocation**: COMMIT-WORKFLOW.md Step 5 handles the DSO review gate internally. NEVER invoke `Skill("review")` or the bare `/review` command — these trigger the built-in Claude Code PR-review skill, NOT the DSO code reviewer (`/dso:review`). The only valid review invocation is to read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (which calls REVIEW-WORKFLOW.md at Step 5). Do NOT call `Skill("review")`, `/review`, or `/dso:review` directly from fix-bug.
 
+<HARD-GATE>
+**Antipattern-Scan trailer HARD-GATE** — Run `${CLAUDE_PLUGIN_ROOT}/hooks/check-antipattern-scan-trailer.sh` BEFORE invoking the commit workflow. The hook exits non-zero (blocking the commit) when either:
+- The `Antipattern-Scan` trailer is absent from the staged commit message, OR
+- The scan recorded `matches>0` but the required per-match follow-up artifact is missing.
+
+Do NOT proceed to the commit workflow until this gate exits 0. If it exits non-zero, resolve the missing trailer or follow-up artifact first, then re-run the gate.
+</HARD-GATE>
+
 1. Complete the commit workflow per `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
 2. Close the bug ticket only after a successful code fix:
    ```bash
