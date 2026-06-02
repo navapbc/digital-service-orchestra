@@ -37,6 +37,9 @@ TARGET_AGENTS=(
     "completion-verifier"
     "red-test-writer"
     "red-test-evaluator"
+    "gov-copy-writer"
+    "doc-writer"
+    "ui-designer"
 )
 
 _assert_has_startup_section() {

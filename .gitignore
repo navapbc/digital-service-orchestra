@@ -69,3 +69,6 @@ plugins/dso/.audit-output/
 
 # ref-query session deduplication cache (runtime artifact, never committed)
 .ref-query-seen.json
+
+# DSO ticket-scratch store (ephemeral planning payloads)
+.claude/scratch/

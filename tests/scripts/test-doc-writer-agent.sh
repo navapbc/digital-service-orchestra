@@ -71,11 +71,16 @@ _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
     content=$(cat "$AGENT_FILE")
 
-    # Extract line numbers for each required gate label
-    noop_line=$(grep -ni "no.op" "$AGENT_FILE" | head -1 | cut -d: -f1)
-    user_impact_line=$(grep -ni "user impact" "$AGENT_FILE" | head -1 | cut -d: -f1)
-    architectural_line=$(grep -ni "architectural" "$AGENT_FILE" | head -1 | cut -d: -f1)
-    constraint_line=$(grep -ni "constraint" "$AGENT_FILE" | head -1 | cut -d: -f1)
+    # Extract line numbers for each gate's heading (e.g. "### Gate 4: Constraint
+    # Gate"). Anchor on the gate HEADING line — not a bare keyword anywhere in
+    # the file — so incidental mentions elsewhere (e.g. a "No-Commit Constraint"
+    # reference in an unrelated section) don't mis-locate a gate. This asserts
+    # the documented intent: the four decision-engine gate headings appear in
+    # order No-Op → User Impact → Architectural → Constraint.
+    noop_line=$(grep -niE '^#+ gate [0-9]+:.*no.?op' "$AGENT_FILE" | head -1 | cut -d: -f1)
+    user_impact_line=$(grep -niE '^#+ gate [0-9]+:.*user impact' "$AGENT_FILE" | head -1 | cut -d: -f1)
+    architectural_line=$(grep -niE '^#+ gate [0-9]+:.*architectural' "$AGENT_FILE" | head -1 | cut -d: -f1)
+    constraint_line=$(grep -niE '^#+ gate [0-9]+:.*constraint' "$AGENT_FILE" | head -1 | cut -d: -f1)
 
     # All four must be present
     if [[ -n "$noop_line" && -n "$user_impact_line" && -n "$architectural_line" && -n "$constraint_line" ]]; then

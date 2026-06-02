@@ -37,7 +37,7 @@ plugins/dso/agents/code-reviewer-verifier.md:tests/agents/test-code-reviewer-ver
 plugins/dso/agents/completion-verifier.md:tests/scripts/test-completion-verifier-story-trust.sh,tests/scripts/test-completion-verifier-preconditions.sh,tests/skills/test-preconditions-epic-closure-validator.sh,tests/scripts/test-epic-closure-sc-report.sh,tests/agents/test-closure-checks-s2.sh
 plugins/dso/docs/contracts/end-state-item-validator.md:tests/agents/test-closure-checks-s2.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
-plugins/dso/agents/doc-writer.md:tests/scripts/test-doc-writer-agent.sh
+plugins/dso/agents/doc-writer.md:tests/scripts/test-doc-writer-agent.sh,tests/agents/test-file-writing-agents-have-retention.sh
 plugins/dso/agents/huge-diff-refactor-anomaly.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-reviewer-light.md:tests/workflows/test-review-workflow-huge.sh
 plugins/dso/agents/huge-diff-reviewer-standard.md:tests/workflows/test-review-workflow-huge.sh
@@ -46,11 +46,11 @@ plugins/dso/agents/intent-search.md:tests/scripts/test-intent-search-agent.sh
 plugins/dso/agents/plan-review.md:tests/hooks/test-plan-review-gate.sh,tests/skills/test-preplanning-design-review-loop.sh
 plugins/dso/agents/red-team-reviewer.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh,tests/scripts/test-red-team-inference-challenge.sh,tests/scripts/test-red-team-inference-comment-emission.sh
 plugins/dso/agents/red-test-evaluator.md:tests/hooks/test-agent-standard-reference.sh
-plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh
+plugins/dso/agents/red-test-writer.md:tests/hooks/test-agent-standard-reference.sh,tests/agents/test-file-writing-agents-have-retention.sh
 plugins/dso/agents/scope-drift-reviewer.md:tests/scripts/test-scope-drift-reviewer.sh
 plugins/dso/agents/story-decomposer.md:tests/scripts/test-story-decomposer-remediation.sh,tests/agents/test-story-decomposer-copy-needed.sh,tests/skills/test-copy-story-integration.sh
 plugins/dso/agents/task-decomposer.md:tests/scripts/test-task-decomposer-remediation.sh
-plugins/dso/agents/ui-designer.md:tests/scripts/test-ui-designer-agent.sh,tests/skills/test-preplanning-ui-designer-dispatch.sh
+plugins/dso/agents/ui-designer.md:tests/scripts/test-ui-designer-agent.sh,tests/skills/test-preplanning-ui-designer-dispatch.sh,tests/agents/test-file-writing-agents-have-retention.sh
 plugins/dso/agents/verification-remediation-planner.md:tests/scripts/test-verification-remediation-planner.sh
 plugins/dso/commands/commit.md:tests/plugin/test-commit-step1-5-skip.sh,tests/workflows/test-commit-breadcrumbs.sh,tests/hooks/test-pre-commit-review-gate.sh,tests/hooks/test-pre-commit-ticket-gate.sh,tests/hooks/test-pre-commit-test-gate-resource-exhaustion.sh,tests/hooks/test-pre-commit-test-quality-gate.sh,tests/hooks/test-commit-tracker.sh,tests/hooks/test-pre-commit-test-gate.sh,tests/scripts/test-precommit-format-fix-config-paths.sh,tests/scripts/test-commit-workflow-step-1-5.sh,tests/scripts/test-ticket-write-commit-event.sh,tests/scripts/test-commit-failure-tracker.sh,tests/scripts/test-pre-commit-wrapper.sh,tests/scripts/test-ensure-precommit-config-paths.sh,tests/scripts/test-emit-commit-workflow-event.sh,tests/skills/test-preconditions-commit-validator.sh
 plugins/dso/commands/end.md:tests/hooks/test-mechanical-amend-bypass.sh,tests/scripts/test-claude-safe-post-merge-amend.sh,tests/scripts/test-dependency-check.sh,tests/scripts/test-ticket-list-descendants-dispatcher.sh,tests/scripts/test-end-session-cleanup.sh,tests/scripts/test-ticket-dependency-e2e.sh,tests/skills/test-project-setup-dependencies.sh,tests/skills/test-scrutiny-pending-gate.sh,tests/skills/test-sprint-phase8-end-session-gate.sh,tests/skills/test-end-session-error-sweep.sh,tests/skills/test-end-session-rationalized-failures.sh,tests/scripts/test-error-sweep-config-gate.sh
@@ -611,7 +611,7 @@ plugins/dso/data/ui-reference/canon/federal-plain-language.yaml:tests/scripts/te
 plugins/dso/data/ui-reference/canon/cdc-reading-level.yaml:tests/scripts/test-canon-source-yamls.sh,tests/scripts/test-ref-query-canon-e2e.sh
 plugins/dso/docs/contracts/ref-query-json-output.md:tests/scripts/test-ref-query-namespace.sh
 plugins/dso/docs/contracts/copy-needs-section.md:tests/skills/test-brainstorm-phase-1-5-detector.sh,tests/skills/test-brainstorm-copy-needs-writer.sh,tests/agents/test-gov-copy-writer-agent.sh,tests/agents/test-story-decomposer-copy-needed.sh
-plugins/dso/agents/gov-copy-writer.md:tests/agents/test-gov-copy-writer-agent.sh,tests/agents/test-gov-copy-writer-checks-isolation.sh,tests/agents/test-gov-copy-writer-coordination-pass.sh
+plugins/dso/agents/gov-copy-writer.md:tests/agents/test-gov-copy-writer-agent.sh,tests/agents/test-gov-copy-writer-checks-isolation.sh,tests/agents/test-gov-copy-writer-coordination-pass.sh,tests/agents/test-file-writing-agents-have-retention.sh
 plugins/dso/docs/contracts/gov-copy-artifact.md:tests/agents/test-gov-copy-writer-agent.sh
 plugins/dso/scripts/check-coordination-pass-immutability.sh:tests/scripts/test-check-coordination-pass-immutability.sh
 plugins/dso/scripts/dso_reconciler/applier.py:tests/unit/dso_reconciler/test_dso_id_label_writers.py,tests/unit/dso_reconciler/test_apply_list_of_mutations.py
