@@ -171,6 +171,33 @@ if [[ -n "${CFG_UNIT_SNAPSHOT_PATH:-}" ]]; then
     EXCLUDE_PATHSPECS+=(":!${CFG_UNIT_SNAPSHOT_PATH}*.html")
 fi
 
+# Add host-declared non-LLM-instruction doc dirs (review.non_reviewable_doc_dirs) — ADDITIVE.
+# Mirrors skip-review-check.sh so the review hash and the skip decision stay
+# consistent (otherwise the pre-commit hash gate would reject doc-only changes
+# that the skip check exempted). dso_sanitized_doc_dirs filters protected dirs,
+# so a misconfigured entry (e.g. skills) cannot silently drop an agent-guidance
+# dir from the hash — compute-diff-hash.sh has no force-review block of its own.
+#
+# Deliberately NO force-review case block here (unlike skip-review-check.sh): ALL
+# protected-dir enforcement is delegated to dso_sanitized_doc_dirs (the single
+# shared filter in config-paths.sh) so the two consumers cannot diverge. If a new
+# protected dir is needed, add it to DSO_PROTECTED_REVIEW_DIRS in config-paths.sh
+# — do NOT add a force-review block only to one consumer.
+if declare -f dso_sanitized_doc_dirs >/dev/null 2>&1; then
+    # config-paths.sh is sourced above (so dso_sanitized_doc_dirs and
+    # DSO_PROTECTED_REVIEW_DIRS are defined here). Capture the filtered dirs in
+    # the parent shell, then iterate over a here-string so the population of
+    # EXCLUDE_PATHSPECS cannot silently no-op on a reader-subshell technicality.
+    _sanitized_doc_dirs="$(dso_sanitized_doc_dirs)"
+    while IFS= read -r _doc_dir; do
+        if [[ -z "$_doc_dir" ]]; then
+            continue
+        fi
+        EXCLUDE_PATHSPECS+=(":!${_doc_dir}/**")
+    done <<< "$_sanitized_doc_dirs"
+    unset _sanitized_doc_dirs
+fi
+
 # Hash staged and tracked working-tree changes only.
 # Untracked files are excluded to prevent temp test fixtures from causing hash
 # mismatches between review time and pre-commit time (dso-fqxu).
