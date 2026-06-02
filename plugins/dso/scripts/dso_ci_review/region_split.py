@@ -78,10 +78,54 @@ class RegionSplitInvariantError(Exception):
 #
 # Projects on smaller-context models should lower these via config keys.
 _LOC_THRESHOLD_DEFAULT = 3000
-_FILE_COUNT_THRESHOLD_DEFAULT = 40
 _MAX_CLUSTERS_DEFAULT = 5
 _CLUSTER_CONCURRENCY_DEFAULT = 2
 _CLUSTER_CONCURRENCY_HARD_CAP = 3
+
+# Region-split GATE thresholds — decoupled from the per-cluster Strategy-F
+# FAN-OUT thresholds above (component #3' of the chunked-review FP-reduction
+# proposal).
+#
+# Why decouple (M-1 measurement): cross-chunk hallucinated-reference FPs are
+# 55% of chunked-review false positives — a reviewer flags a symbol/test as
+# "undefined" because it lives in a *different* chunk it cannot see. Single-pass
+# review has zero cross-chunk blindness. #3' therefore raises the GATE that
+# decides *whether to chunk at all* (independently of the FAN-OUT thresholds
+# that decide how finely an already-chunked diff is partitioned per cluster),
+# so most medium-large PRs review single-pass.
+#
+# Sizing: the sizing note above computes a real Sonnet 4.6 ceiling of
+# 30,000-38,000 diff-content LOC before context pressure. The OLD shared
+# default (3000) sat at only ~7-10% of budget and chunked routine medium PRs
+# for no context reason. The gate default (20000) is a conservative ~55-65% of
+# the ceiling — well clear of context pressure but leaving headroom for system
+# prompt + finding schema + PR metadata + prior-defense growth. The fan-out
+# fan-out threshold (_LOC_THRESHOLD_DEFAULT) is left UNCHANGED: once a diff is
+# large enough to chunk, the per-cluster partition granularity is a separate
+# concern.
+#
+# Config keys:
+#   review.region_split.gate_loc         (default 20000) — primary GATE LOC.
+#   review.region_split.gate_file_count  (default 120)   — GATE file-count OR-guard.
+_GATE_LOC_THRESHOLD_DEFAULT = 20000
+_GATE_FILE_COUNT_THRESHOLD_DEFAULT = 120
+
+# Floor coupling the gate to the size-tier upgrade. review.size_upgrade_lines
+# force-upgrades any diff at/above its value to the deep tier, which uses
+# single-pass deep-arch synthesis. The region-split GATE must never fire on a
+# diff that has NOT already been size-upgraded to deep — otherwise a
+# region-split-eligible diff could be reviewed by a non-deep single-pass path,
+# losing the deep synthesis. So gate_loc MUST be strictly greater than the
+# active size_upgrade_lines value; _gate_loc_threshold() clamps any smaller
+# configured value up.
+#
+# IMPORTANT — SYNCHRONIZED CONSTANT: 300 MUST stay in lockstep with the DEFAULT
+# of `review.size_upgrade_lines`. It is the SAFE floor used when that config key
+# is absent or LOWERED below 300. The clamp also reads the *configured*
+# size_upgrade_lines at call time (see _gate_loc_threshold) so a RAISED value is
+# respected dynamically: the effective floor is max(300, configured) + 1. If the
+# size_upgrade_lines default ever changes, update this constant to match.
+_SIZE_UPGRADE_LINES_FLOOR = 300
 
 
 def _loc_threshold() -> int:
@@ -96,16 +140,67 @@ def _loc_threshold() -> int:
     return value if value > 0 else _LOC_THRESHOLD_DEFAULT
 
 
-def _file_count_threshold() -> int:
-    """Resolved file-count threshold for region-split (default 40).
+def _gate_loc_threshold() -> int:
+    """Resolved LOC threshold for the region-split GATE (default 20000).
 
-    Values ≤ 0 from config fall back to the default — same rationale as
-    _loc_threshold.
+    Component #3': this is the threshold that decides *whether to chunk at all*
+    — distinct from ``_loc_threshold()`` which governs the per-cluster
+    Strategy-F fan-out. See the _GATE_LOC_THRESHOLD_DEFAULT block for the
+    decoupling rationale.
+
+    Two correctness rules are enforced here:
+
+    1. Values <= 0 from config (which would disable LOC gating entirely or
+       invert the comparison) fall back to the default.
+    2. The invariant ``gate_loc > review.size_upgrade_lines`` (the
+       force-upgrade-to-deep floor) is enforced by clamping any smaller
+       configured value UP to ``effective_floor + 1``. The effective floor is
+       computed DYNAMICALLY as ``max(_SIZE_UPGRADE_LINES_FLOOR, configured
+       review.size_upgrade_lines)``:
+         - A RAISED size_upgrade_lines (e.g. 500) raises the floor so the
+           invariant still holds (clamp to 501, not the stale 301).
+         - A LOWERED size_upgrade_lines (e.g. 100) cannot drag the floor below
+           the safe synchronized default (_SIZE_UPGRADE_LINES_FLOOR=300).
+       This keeps a region-split-eligible diff always already deep-tier,
+       preserving single-pass deep synthesis. A clamp emits a warning to stderr.
     """
     value = read_config_int(
-        "review.region_split.file_count_threshold", _FILE_COUNT_THRESHOLD_DEFAULT
+        "review.region_split.gate_loc", _GATE_LOC_THRESHOLD_DEFAULT
     )
-    return value if value > 0 else _FILE_COUNT_THRESHOLD_DEFAULT
+    if value <= 0:
+        return _GATE_LOC_THRESHOLD_DEFAULT
+    # Effective floor: never below the safe synchronized default, but track a
+    # raised size_upgrade_lines so the gate_loc > size_upgrade_lines invariant
+    # holds dynamically.
+    configured_size_upgrade = read_config_int(
+        "review.size_upgrade_lines", _SIZE_UPGRADE_LINES_FLOOR
+    )
+    effective_floor = max(_SIZE_UPGRADE_LINES_FLOOR, configured_size_upgrade)
+    if value <= effective_floor:
+        clamped = effective_floor + 1
+        print(
+            f"WARNING: review.region_split.gate_loc={value} is <= the "
+            f"size_upgrade_lines floor ({effective_floor}); clamping up to "
+            f"{clamped} so region-split-eligible diffs stay deep-tier "
+            "(single-pass synthesis).",
+            file=sys.stderr,
+        )
+        return clamped
+    return value
+
+
+def _gate_file_count_threshold() -> int:
+    """Resolved file-count threshold for the region-split GATE (default 120).
+
+    Component #3' secondary OR-guard: a diff trips the gate when it exceeds
+    EITHER gate_loc OR this file count. There is no file-count-based per-cluster
+    fan-out counterpart — the fan-out keys off LOC only (``_loc_threshold()``).
+    Values <= 0 from config fall back to the default.
+    """
+    value = read_config_int(
+        "review.region_split.gate_file_count", _GATE_FILE_COUNT_THRESHOLD_DEFAULT
+    )
+    return value if value > 0 else _GATE_FILE_COUNT_THRESHOLD_DEFAULT
 
 
 def _max_clusters() -> int:
@@ -178,7 +273,15 @@ def _extract_filenames(diff_text: str) -> list[str]:
 
 
 def _should_region_split(diff_text: str) -> bool:
-    """Return True when diff exceeds LOC or file-count thresholds.
+    """Return True when diff exceeds the region-split GATE thresholds.
+
+    Component #3': this GATE decides *whether to chunk at all*. It uses the
+    dedicated ``_gate_loc_threshold()`` (default 20000) and
+    ``_gate_file_count_threshold()`` (default 120) — NOT the per-cluster
+    Strategy-F fan-out threshold (``_loc_threshold``, default 3000) which only
+    partitions an already-chunked diff. The raised gate keeps medium-large PRs
+    single-pass, eliminating cross-chunk hallucinated-reference false positives
+    (55% of chunked-review FPs per M-1).
 
     LOC gate: count lines starting with + or - but NOT +++ or --- (diff headers).
     File gate: count distinct filenames using ``_extract_filenames`` — the
@@ -208,14 +311,15 @@ def _should_region_split(diff_text: str) -> bool:
     if len(file_set) <= 1:
         return False
 
-    # Resolve config thresholds into locals so the LOC and file-count
-    # comparisons don't each re-invoke the reader (PR #169 perf — the gain
-    # is eliminating per-comparison re-reads, not eliminating all reads:
-    # ``_loc_threshold`` and ``_file_count_threshold`` are still called once
-    # each per invocation, and ``_max_clusters`` is read separately during
-    # clustering if region-split fires).
-    loc_t = _loc_threshold()
-    file_t = _file_count_threshold()
+    # Component #3': the GATE (whether to chunk at all) uses the dedicated,
+    # raised gate thresholds — NOT the per-cluster fan-out threshold
+    # (_loc_threshold). Decoupling these is the core
+    # of #3': it keeps medium-large PRs single-pass (zero cross-chunk
+    # hallucinated-reference FPs) while leaving the fan-out granularity of an
+    # already-chunked diff unchanged. Resolve into locals so each comparison
+    # doesn't re-invoke the reader.
+    loc_t = _gate_loc_threshold()
+    file_t = _gate_file_count_threshold()
 
     if loc_count > loc_t:
         return True

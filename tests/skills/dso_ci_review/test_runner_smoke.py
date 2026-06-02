@@ -2986,11 +2986,13 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _make_large_diff(loc: int = 3500, files: int = 2) -> str:
-    """Return a synthetic diff exceeding the region-split LOC threshold.
+def _make_large_diff(loc: int = 21000, files: int = 2) -> str:
+    """Return a synthetic diff exceeding the region-split GATE LOC threshold.
 
-    Defaults (bug 532e-6ab7):
-    - ``loc=3500`` clears the new 3000-LOC default (was 400).
+    Defaults:
+    - ``loc=21000`` clears the component #3' GATE default of 20000 (the GATE
+      threshold review.region_split.gate_loc; the per-cluster fan-out
+      threshold remains 3000 but no longer governs the gate decision).
     - ``files=2`` ensures a multi-file diff; the file-atomicity invariant
       makes single-file diffs ineligible for region-split regardless of LOC.
     """
@@ -3022,17 +3024,17 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
     Strategy F (S7.T7): large diffs bypass the standard tier path and route
     through the filter → Strategy F chunk → dispatch → aggregate pipeline.
 
-    Threshold history (bug 532e-6ab7): default raised 400 → 3000 to match
-    Sonnet's actual context budget. The diff used here clears the new default
-    AND spans 2+ files so the file-atomicity invariant doesn't short-circuit
-    region-split to False.
+    Threshold history (component #3'): the GATE default is review.region_split.gate_loc
+    = 20000 (decoupled from the per-cluster fan-out loc_threshold, still 3000).
+    The diff used here clears the new GATE default AND spans 2+ files so the
+    file-atomicity invariant doesn't short-circuit region-split to False.
     """
     import io
     from contextlib import redirect_stderr
 
     import dso_ci_review.runner as runner_mod
 
-    diff_text = _make_large_diff(loc=3500, files=2)
+    diff_text = _make_large_diff(loc=21000, files=2)
     diff_file = tmp_path / "input.diff"
     diff_file.write_text(diff_text)
     output_file = tmp_path / "out.json"
@@ -4425,7 +4427,7 @@ def test_strategy_f_oversized_single_file_skips_llm_dispatch(tmp_path):
 
     import dso_ci_review.runner as runner_mod
 
-    diff_text = _make_large_diff(loc=3500, files=2)
+    diff_text = _make_large_diff(loc=21000, files=2)
     diff_file = tmp_path / "input.diff"
     diff_file.write_text(diff_text)
     output_file = tmp_path / "out.json"

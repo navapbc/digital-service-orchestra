@@ -52,7 +52,6 @@ from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_r
 from dso_ci_review.dispatch_ratelimit import DispatchContext
 from dso_ci_review.region_split import (
     _cluster_concurrency,
-    _should_region_split,
     run_region_split_strategy_f,
 )
 from dso_ci_review import cycle_ledger
@@ -426,6 +425,27 @@ def _validate_large_diff_config(config: dict) -> None:
         )
 
 
+def _resolve_large_diff_config(config_path: str | None) -> dict:
+    """Resolve the large-diff / file-filter config, honoring operator overrides.
+
+    ``_load_filter_config`` returns an ALL-DEFAULT config when given ``None`` —
+    unlike ``read_config_int`` it does NOT auto-resolve the repo's
+    dso-config.conf. The dispatch path historically called it with
+    ``config_path=None``, so every operator ``review.file_filter.*`` override
+    (``max_files`` / ``max_calls`` / ``ignore.glob`` / ``ignore.regex``) was
+    silently ignored for BOTH the region-split gate decision and the chunked
+    dispatch budget.
+
+    This helper resolves the canonical repo config path when the caller passes
+    ``None`` (mirroring ``_read_tier_model``'s ``default_config_path()``
+    fallback), then loads the filter config from it — so operator overrides
+    take effect. An explicit, non-None path is honored verbatim.
+    """
+    if config_path is None:
+        config_path = default_config_path()
+    return _load_filter_config(config_path)
+
+
 def _real_blocking_findings(findings: list[dict]) -> list[dict]:
     """Return the subset of findings that should block merge.
 
@@ -448,6 +468,290 @@ def _real_blocking_findings(findings: list[dict]) -> list[dict]:
         if sev in _BLOCKING_SEVERITIES:
             out.append(f)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Component #3' — filter-before-split (R-1) and fallback re-chunk (R-2) helpers
+# ---------------------------------------------------------------------------
+
+
+def _partition_reviewable_files(
+    diff_text: str, config: dict
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """Compute the reviewable / skipped file sets for a diff ONCE, upstream of
+    the should_split decision (component #3' R-1).
+
+    The same partition feeds BOTH the gate decision (via
+    ``_should_region_split_on_files`` — so generated/binary files do not push a
+    diff over the file-count gate) and, when the chunked path runs, the dispatch
+    filtering (all-skipped specs dropped, mixed specs pruned to their reviewable
+    files). It does NOT alter the single-pass (non-chunked) dispatch, which
+    reviews the full diff text and does not consult these sets. Previously the
+    file-filter only ran inside the chunked branch; computing the partition
+    upstream makes the GATE file-count input filter-aware (its primary purpose),
+    not the single-pass dispatch payload.
+
+    The diff TEXT is NOT mutated: only the file path sets are derived. This
+    preserves the OVER_BOUND budget math and the visibility trailer's
+    skipped-file list, which depend on the unmodified diff.
+
+    Returns the (reviewable, skipped_with_reasons) tuple from
+    ``file_filter.filter_files``.
+    """
+    from dso_ci_review.region_split import (
+        _extract_filenames as _rs_extract_filenames,
+    )  # noqa: PLC0415
+
+    all_files = _rs_extract_filenames(diff_text)
+    reviewable, skipped = _filter_files(all_files, config=config)
+    return reviewable, skipped
+
+
+def _should_region_split_on_files(
+    diff_text: str, reviewable_files: list[str]
+) -> bool:
+    """Region-split GATE decision computed against the FILTERED reviewable set
+    (component #3' R-1).
+
+    The LOC component still uses the full diff text (LOC accounting is
+    text-derived and the diff is not mutated), but the file-count component is
+    measured on the reviewable set so generated/binary files that will be
+    filtered out of scope do not push a diff over the file-count gate.
+
+    The single-file atomicity floor (bug 532e-6ab7) is honored: a reviewable
+    set of <= 1 file never region-splits.
+    """
+    from dso_ci_review.region_split import (
+        _gate_file_count_threshold,
+        _gate_loc_threshold,
+    )  # noqa: PLC0415
+
+    # File-atomicity floor on the reviewable set (bug 532e-6ab7): never
+    # region-split when one or zero reviewable files remain after filtering.
+    if len(set(reviewable_files)) <= 1:
+        return False
+
+    # File-count gate measured on the FILTERED reviewable set, so generated /
+    # binary files (which will be filtered out of dispatch scope) cannot push
+    # the diff over the file-count gate.
+    if len(set(reviewable_files)) > _gate_file_count_threshold():
+        return True
+
+    # LOC gate: text-derived from the (unmutated) diff. The diff is not
+    # rewritten — filtered files still contribute to the raw LOC count, which is
+    # acceptable because the LOC gate is a context-pressure proxy and the
+    # threshold (~20000) is far above any realistic generated-file inflation;
+    # mutating the diff to exclude them would drift the OVER_BOUND budget math
+    # (R-1 constraint). The single-reviewable-file floor above already prevents
+    # a single huge real file from chunking.
+    loc_count = 0
+    for line in diff_text.splitlines():
+        if line.startswith("+") and not line.startswith("+++"):
+            loc_count += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            loc_count += 1
+    return loc_count > _gate_loc_threshold()
+
+
+def _result_has_fallback_exhausted(result: dict) -> bool:
+    """Return True when a single-pass review result carries a
+    ``fallback_exhausted`` synthetic finding (component #3' R-2).
+
+    ``fallback_exhausted`` is the surfaced form of a swallowed
+    ``ContextWindowExceededError`` (dispatch.py): the exception is caught inside
+    the dispatch fallback chain and only re-emerges as this sentinel finding, so
+    a try/except at the dispatch call site would catch nothing. Detecting the
+    sentinel in the result is the only reliable signal that a token-dense diff
+    slipped the LOC gate and exhausted the single-pass context chain.
+    """
+    for f in result.get("findings") or []:
+        if isinstance(f, dict) and f.get("type") == "fallback_exhausted":
+            return True
+    return False
+
+
+def _rechunk_on_fallback_exhausted(
+    result: dict, diff_text: str
+) -> list[dict] | None:
+    """If a single-pass result is a context-exhaustion sentinel, re-route the
+    diff to the chunked path (component #3' R-2).
+
+    Returns the Strategy-F dispatch specs when a re-chunk is triggered, or
+    ``None`` when no re-chunk should occur. The caller is responsible for
+    dispatching/aggregating the returned specs in place of emitting the
+    synthetic ``fallback_exhausted`` finding.
+
+    A re-chunk is triggered only when BOTH hold:
+      1. the result carries a ``fallback_exhausted`` sentinel, AND
+      2. Strategy F actually partitions the diff into MORE than one cluster.
+
+    Condition (2) is the discriminator between the two failure modes a
+    ``fallback_exhausted`` sentinel can represent:
+      - A token-dense diff that slipped the LOC gate — chunking yields >1
+        cluster, so re-chunking genuinely reduces per-call context. RE-CHUNK.
+      - A single-file (or otherwise un-partitionable) diff that exhausted
+        context — Strategy F returns one cluster covering the same file, so
+        re-dispatching it is identical to the failed single-pass review and
+        would loop. This is a true infrastructure failure; leave the sentinel
+        in place so the all-synthetic infra-failure gate fires. NO re-chunk.
+    """
+    if not _result_has_fallback_exhausted(result):
+        return None
+    specs = run_region_split_strategy_f(diff_text=diff_text)
+    if len(specs) <= 1:
+        return None
+    return specs
+
+
+def _apply_large_diff_budget_gate(
+    dispatch_specs: list[dict],
+    large_diff_config: dict,
+    skipped_set: set[str],
+) -> tuple[list[dict], dict | None]:
+    """Apply the large-diff config validation + OVER_BOUND budget gate to a set
+    of Strategy-F dispatch specs.
+
+    This is the single gate shared by BOTH chunked-dispatch entry points:
+      - the primary region-split path (gate-driven chunking of an oversized
+        diff), and
+      - the component #3' R-2 fallback re-chunk path (a token-dense diff that
+        slipped the LOC gate, exhausted single-pass context, and is being
+        re-routed to the chunked path).
+
+    Centralizing it guarantees an R-2 re-chunk respects the operator's budget
+    and the ``max_calls >= max_files + 1`` config constraint EXACTLY as the
+    primary path does — emitting the same OVER_BOUND outcome rather than fanning
+    out unbounded.
+
+    Two INDEPENDENT caps are enforced (after pruning skipped files from each
+    spec — all-skipped specs are dropped, mixed specs are trimmed to their
+    reviewable files):
+      - ``max_files`` — the cluster-count cap: number of reviewable cluster
+        dispatches must not exceed it.
+      - ``max_calls`` — the call budget: the TOTAL LLM call count, counting one
+        call per dispatch PLUS one aggregation/synthesis call (the DD4
+        single-ledger-entry aggregation), must not exceed it. (Previously a
+        redundant ``> max_files * max_calls`` product check stood in for this
+        and ignored the +1 aggregation.)
+
+    Args:
+        dispatch_specs: raw Strategy-F cluster specs (pre skip-filter).
+        large_diff_config: config dict from ``_resolve_large_diff_config`` /
+            ``_load_filter_config``.
+        skipped_set: set of file paths filtered out of review scope (R-1).
+
+    Returns:
+        A ``(filtered_specs, over_bound_output)`` tuple. On success,
+        ``over_bound_output`` is ``None`` and ``filtered_specs`` is the
+        skip-filtered spec list ready for dispatch. On a config error or a
+        budget breach, ``filtered_specs`` is empty and ``over_bound_output`` is
+        the OVER_BOUND result dict the caller must ``_write_output`` before
+        returning a non-zero exit code.
+    """
+    # Validate large-diff config (DD1 / F6 AC amendment). A config error is an
+    # OVER_BOUND-class outcome: the diff is too large to review and the operator
+    # config cannot accommodate the chunked pass.
+    try:
+        _validate_large_diff_config(large_diff_config)
+    except ValueError as _cfg_exc:
+        print(f"ERROR: large-diff config: {_cfg_exc}", file=sys.stderr)
+        return [], {
+            "findings": [],
+            "status": OVER_BOUND,
+            "over_bound_reason": str(_cfg_exc),
+        }
+
+    # Filter specs against the skipped set. Two cases:
+    #   - ALL of a spec's files are skipped → drop the spec entirely.
+    #   - SOME of a spec's files are skipped (MIXED spec) → prune the skipped
+    #     files from spec["files"] AND trim their hunks from spec["diff"] so
+    #     out-of-scope (generated/ignored) files are never sent to the LLM. A
+    #     directory-level (Strategy-E) spec can carry multiple files; the prior
+    #     all-or-nothing drop left generated files inside a mixed cluster.
+    _filtered_specs: list[dict] = []
+    for spec in dispatch_specs:
+        _spec_files = spec.get("files", [])
+        _kept = [f for f in _spec_files if f not in skipped_set]
+        if not _kept:
+            # Every file in this spec is skipped — drop it.
+            continue
+        if len(_kept) == len(_spec_files):
+            # Nothing to prune — pass through unchanged.
+            _filtered_specs.append(spec)
+        else:
+            # Mixed spec — prune skipped files from files + diff.
+            _filtered_specs.append(_prune_skipped_from_spec(spec, _kept))
+
+    # OVER_BOUND check — two INDEPENDENT caps (component #3' fix):
+    #   1. Cluster-count cap (max_files): the number of reviewable cluster
+    #      dispatches must not exceed max_files.
+    #   2. Call budget (max_calls): the TOTAL LLM call count — one call per
+    #      cluster dispatch PLUS one aggregation/synthesis call — must not
+    #      exceed max_calls. The aggregation pass counts as ONE call against
+    #      the budget regardless of cluster count (DD4 single-ledger-entry
+    #      invariant; _validate_large_diff_config documents max_calls >=
+    #      max_files + 1 for exactly this reason).
+    # The previous `> max_files * max_calls` product check was redundant with
+    # the cluster cap (since max_calls >= 1) and ignored the +1 aggregation.
+    _max_files_cfg = large_diff_config.get("max_files") or 0
+    _max_calls_cfg = large_diff_config.get("max_calls") or 0
+    _total_dispatches = len(_filtered_specs)
+    # Total LLM calls: one per dispatch + one aggregation synthesis call.
+    _total_calls = _total_dispatches + 1
+
+    if _max_files_cfg > 0 and _total_dispatches > _max_files_cfg:
+        _over_bound_msg = (
+            f"{OVER_BOUND}: cluster-count cap — {_total_dispatches} reviewable "
+            f"clusters exceeds max_files ({_max_files_cfg}). "
+            "Routed to admin/FP-recovery."
+        )
+        print(f"INFO: {_over_bound_msg}", file=sys.stderr)
+        return [], {
+            "findings": [],
+            "status": OVER_BOUND,
+            "over_bound_reason": _over_bound_msg,
+        }
+
+    if _max_calls_cfg > 0 and _total_calls > _max_calls_cfg:
+        _over_bound_msg = (
+            f"{OVER_BOUND}: call budget — {_total_dispatches} dispatch(es) + 1 "
+            f"aggregation = {_total_calls} LLM calls exceeds max_calls "
+            f"({_max_calls_cfg}). Routed to admin/FP-recovery."
+        )
+        print(f"INFO: {_over_bound_msg}", file=sys.stderr)
+        return [], {
+            "findings": [],
+            "status": OVER_BOUND,
+            "over_bound_reason": _over_bound_msg,
+        }
+
+    return _filtered_specs, None
+
+
+def _prune_skipped_from_spec(spec: dict, kept_files: list[str]) -> dict:
+    """Return a copy of ``spec`` with skipped files pruned from BOTH ``files``
+    and ``diff`` (component #3' mixed-cluster fix).
+
+    ``kept_files`` is the subset of ``spec['files']`` that survived the
+    skip-filter (full paths). The diff is re-extracted to contain only the
+    hunks for the kept files, reusing ``region_split._extract_cluster_diff``
+    with the ``"."`` pseudo-cluster (which matches full paths verbatim) so the
+    hunk-delimiter parsing stays in one place.
+
+    Other spec keys (cluster_dir, oversized_single_file, symbol_injection
+    context, …) are preserved unchanged. The original spec is not mutated.
+    """
+    from dso_ci_review.region_split import (
+        _extract_cluster_diff as _rs_extract_cluster_diff,
+    )  # noqa: PLC0415
+
+    _pruned = dict(spec)
+    _pruned["files"] = list(kept_files)
+    _orig_diff = spec.get("diff", "")
+    if _orig_diff:
+        # "." pseudo-cluster → _extract_cluster_diff matches full paths verbatim.
+        _pruned["diff"] = _rs_extract_cluster_diff(_orig_diff, ".", list(kept_files))
+    return _pruned
 
 
 # ---------------------------------------------------------------------------
@@ -2539,97 +2843,65 @@ def main() -> int:
         #
         # This gate runs BEFORE the two-call and standard dispatch paths so the
         # huge-diff path is a first-class route, not an afterthought.
-        if _should_region_split(diff_text):
-            print(
-                "INFO: diff exceeds region-split threshold — activating Strategy F "
-                "file-filter + chunked + aggregated review",
-                file=sys.stderr,
-            )
+        #
+        # Component #3' R-1: the generated/binary file-filter runs BEFORE the
+        # should_split decision. We compute the reviewable/skipped file SET once,
+        # upstream, and feed BOTH the gate decision (_should_region_split_on_files)
+        # AND the chunked dispatch from it. The diff TEXT is never mutated — only
+        # the file path sets are derived — preserving the OVER_BOUND budget math
+        # and the visibility trailer's skipped-file list.
+        #
+        # Scope of the filter (important): the reviewable/skipped partition
+        # affects (a) the GATE's file-count input — generated files do not push
+        # a diff over the file-count gate — and (b) the CHUNKED path, where
+        # all-skipped specs are dropped and mixed specs are pruned to their
+        # reviewable files before dispatch. It does NOT affect the single-pass
+        # (non-chunked) dispatch below: that branch reviews the full diff_text
+        # and does not consult _reviewable_files / _skipped_files. A
+        # generated-heavy diff that reviews single-pass therefore still sends
+        # the full diff to the reviewer (the gate file-count input is filtered;
+        # the single-pass dispatch payload is not).
+        # Resolve via _resolve_large_diff_config (NOT _load_filter_config
+        # directly): config_path is None here, and _load_filter_config(None)
+        # returns all-defaults — silently dropping operator
+        # review.file_filter.* overrides for the gate decision AND the chunked
+        # dispatch budget. The helper resolves the repo config path so overrides
+        # take effect.
+        _large_diff_config = _resolve_large_diff_config(config_path)
+        _reviewable_files, _skipped_files = _partition_reviewable_files(
+            diff_text, config=_large_diff_config
+        )
+        _skipped_set = {path for path, _ in _skipped_files}
 
-            # Load large-diff config and validate (DD1 / F6 AC amendment).
-            _large_diff_config = _load_filter_config(config_path)
-            try:
-                _validate_large_diff_config(_large_diff_config)
-            except ValueError as _cfg_exc:
-                print(f"ERROR: large-diff config: {_cfg_exc}", file=sys.stderr)
-                _write_output(
-                    {
-                        "findings": [],
-                        "status": OVER_BOUND,
-                        "over_bound_reason": str(_cfg_exc),
-                    }
-                )
-                return 1
+        # SCOPE NOTE: this closure is defined UNCONDITIONALLY here, BEFORE the
+        # `if _should_region_split_on_files(...)` branch below. It is therefore
+        # bound in both the `if` (primary region-split) branch and the `else`
+        # (single-pass) branch's component-#3' R-2 re-chunk call site — no
+        # NameError can occur in either path. (Confirmed end-to-end by
+        # test_r2_rechunk_merge_path_end_to_end.) Do not move this def inside
+        # the `if` branch.
+        def _dispatch_and_aggregate_clusters(filtered_specs: list[dict]) -> dict:
+            """Dispatch the given (already skip-filtered) cluster specs in
+            parallel and aggregate into a merged result with visibility trailer.
 
-            # Step 1: pre-filter files via file_filter (linguist tags + ignore.glob).
-            from dso_ci_review.region_split import (
-                _extract_filenames as _rs_extract_filenames,
-            )  # noqa: PLC0415
-
-            _all_diff_files = _rs_extract_filenames(diff_text)
-            _reviewable_files, _skipped_files = _filter_files(
-                _all_diff_files,
-                config=_large_diff_config,
-            )
-
-            # Step 2: chunk via Strategy F (per-file fan-out for oversized clusters).
-            _dispatch_specs = run_region_split_strategy_f(diff_text=diff_text)
-
-            # Filter specs to only include reviewable files (remove skipped files).
-            _skipped_set = {path for path, _ in _skipped_files}
-            _filtered_specs = [
-                spec
-                for spec in _dispatch_specs
-                if not all(f in _skipped_set for f in spec.get("files", []))
-            ]
-
-            # Step 3: OVER_BOUND check — clusters × calls exceeds budget.
-            _max_files_cfg = _large_diff_config.get("max_files") or 0
-            _max_calls_cfg = _large_diff_config.get("max_calls") or 0
-            _total_dispatches = len(_filtered_specs)
-            _budget_exceeded = False
-            if _max_files_cfg > 0 and _total_dispatches > _max_files_cfg:
-                _budget_exceeded = True
-            if (
-                _max_calls_cfg > 0
-                and _total_dispatches > _max_files_cfg * _max_calls_cfg
-            ):
-                _budget_exceeded = True
-
-            if _budget_exceeded:
-                _over_bound_msg = (
-                    f"{OVER_BOUND}: {_total_dispatches} clusters exceeds "
-                    f"max_files ({_max_files_cfg}) × max_calls ({_max_calls_cfg}). "
-                    "Routed to admin/FP-recovery."
-                )
-                print(f"INFO: {_over_bound_msg}", file=sys.stderr)
-                _write_output(
-                    {
-                        "findings": [],
-                        "status": OVER_BOUND,
-                        "over_bound_reason": _over_bound_msg,
-                    }
-                )
-                return 1
-
-            # Step 4: dispatch clusters in parallel via asyncio.gather, bounded
-            # by review.region_split.cluster_concurrency (default 2). Each
-            # cluster's specialists fan out under async_dispatch_specialists
-            # using a shared DispatchContext so cooldowns coordinate across
-            # clusters within this single asyncio.run.
+            Shared by the primary region-split gate path and the component #3'
+            R-2 fallback re-chunk path so the chunked dispatch+aggregate logic
+            lives in one place. Captures the surrounding main() locals
+            (tier_agents, cycle_number, artifacts_dir, pr_number, reviewed_sha,
+            diff_text, _reviewable_files, _skipped_files).
+            """
             _dispatch_ctx = DispatchContext.create()
             _max_in_flight = _cluster_concurrency()
             _cluster_sem = asyncio.Semaphore(_max_in_flight)
             print(
-                f"INFO: dispatching {len(_filtered_specs)} cluster(s) with "
+                f"INFO: dispatching {len(filtered_specs)} cluster(s) with "
                 f"cluster_concurrency={_max_in_flight}",
                 file=sys.stderr,
             )
-
             try:
                 _raw_results = asyncio.run(
                     _gather_clusters(
-                        specs=_filtered_specs,
+                        specs=filtered_specs,
                         tier_agents=tier_agents,
                         sem=_cluster_sem,
                         dispatch_ctx=_dispatch_ctx,
@@ -2648,7 +2920,7 @@ def main() -> int:
                     # _run_cluster guards every escape, so this branch is a
                     # belt-and-suspenders fallback for genuinely unexpected
                     # exceptions (e.g. asyncio internal errors).
-                    _spec = _filtered_specs[_idx]
+                    _spec = filtered_specs[_idx]
                     print(
                         f"WARNING: cluster {_spec.get('cluster_dir', '.')!r} "
                         f"escaped _run_cluster guard: "
@@ -2664,8 +2936,6 @@ def main() -> int:
                         }
                     )
 
-            # Step 5: aggregate via aggregate_cluster_findings (cross-file synthesis
-            # + visibility trailer + single ledger entry).
             _pr_num_int = pr_number if isinstance(pr_number, int) else None
             _ledger_path_for_agg = os.path.join(artifacts_dir, "cycle-ledger.json")
             _agg_result = _aggregate_cluster_findings(
@@ -2677,17 +2947,41 @@ def main() -> int:
                 cycle_num=cycle_number,
                 ledger_path=_ledger_path_for_agg,
             )
-
-            # Build merged result from aggregator output with visibility trailer.
             _agg_findings = _agg_result.get("findings", [])
             _visibility_trailer = _agg_result.get("visibility_trailer", "")
-            merged = {
+            _merged = {
                 "findings": _agg_findings,
                 "visibility_trailer": _visibility_trailer,
                 "aggregation_status": _agg_result.get("aggregation_status", "ok"),
             }
             if _visibility_trailer:
                 print(f"INFO: {_visibility_trailer}", file=sys.stderr)
+            return _merged
+
+        if _should_region_split_on_files(diff_text, _reviewable_files):
+            print(
+                "INFO: diff exceeds region-split threshold — activating Strategy F "
+                "file-filter + chunked + aggregated review",
+                file=sys.stderr,
+            )
+
+            # Step 2: chunk via Strategy F (per-file fan-out for oversized clusters).
+            # _reviewable_files / _skipped_files were computed upstream (R-1).
+            _dispatch_specs = run_region_split_strategy_f(diff_text=diff_text)
+
+            # Step 3: config validation + skip-filter + OVER_BOUND budget gate.
+            # Shared with the R-2 re-chunk path via _apply_large_diff_budget_gate
+            # so both routes enforce the operator's max_files/max_calls budget and
+            # the max_calls >= max_files + 1 constraint identically.
+            _filtered_specs, _over_bound_output = _apply_large_diff_budget_gate(
+                _dispatch_specs, _large_diff_config, _skipped_set
+            )
+            if _over_bound_output is not None:
+                _write_output(_over_bound_output)
+                return 1
+
+            # Steps 4-5: dispatch clusters in parallel + aggregate (shared closure).
+            merged = _dispatch_and_aggregate_clusters(_filtered_specs)
 
         else:
             # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel).
@@ -2790,6 +3084,60 @@ def main() -> int:
                 )
                 if not arch_all_synthetic:
                     merged = arch_result
+
+            # Step 6b: component #3' R-2 — fallback re-chunk. A token-dense diff
+            # can slip the LOC gate and exhaust the single-pass context chain;
+            # the swallowed ContextWindowExceededError only surfaces as a
+            # `fallback_exhausted` sentinel finding (dispatch.py), so a
+            # try/except at the dispatch call site would catch nothing. When the
+            # single-pass result carries that sentinel, re-route the diff to the
+            # chunked Strategy-F path (the real fail-safe) instead of emitting
+            # the synthetic finding.
+            _rechunk_specs = _rechunk_on_fallback_exhausted(merged, diff_text)
+            if _rechunk_specs is not None:
+                print(
+                    "INFO: single-pass review exhausted context (fallback_exhausted "
+                    "sentinel) — re-routing to Strategy F chunked review",
+                    file=sys.stderr,
+                )
+                # Route the re-chunked specs through the SAME validation +
+                # OVER_BOUND budget gate as the primary region-split path so a
+                # context-slipping diff that re-chunks respects the operator's
+                # max_files/max_calls budget (emitting OVER_BOUND) rather than
+                # fanning out unbounded.
+                _rechunk_filtered, _rechunk_over_bound = _apply_large_diff_budget_gate(
+                    _rechunk_specs, _large_diff_config, _skipped_set
+                )
+                if _rechunk_over_bound is not None:
+                    _write_output(_rechunk_over_bound)
+                    return 1
+                if _rechunk_filtered:
+                    # Preserve any REAL (non-synthetic) findings the single pass
+                    # produced before context exhaustion surfaced the sentinel.
+                    # The re-chunk re-reviews the same diff (so coverage is not
+                    # lost by replacing), but the single pass may have emitted
+                    # genuine findings alongside the fallback_exhausted sentinel;
+                    # carrying them forward avoids discarding real signal.
+                    _pre_rechunk_real = [
+                        f
+                        for f in (merged.get("findings") or [])
+                        if isinstance(f, dict)
+                        and f.get("type") not in _SYNTHETIC_TYPES
+                    ]
+                    _rechunk_merged = _dispatch_and_aggregate_clusters(
+                        _rechunk_filtered
+                    )
+                    if _pre_rechunk_real:
+                        merged = merge_findings(
+                            {"findings": _pre_rechunk_real}, _rechunk_merged
+                        )
+                        # merge_findings drops the aggregation trailer/status;
+                        # restore them from the re-chunk result.
+                        for _k in ("visibility_trailer", "aggregation_status"):
+                            if _k in _rechunk_merged:
+                                merged[_k] = _rechunk_merged[_k]
+                    else:
+                        merged = _rechunk_merged
 
             # Step 7: apply dismissal-memory filter on cycle N≥2.
             # This is a defence-of-last-resort: if the LLM still re-emits a verbatim
