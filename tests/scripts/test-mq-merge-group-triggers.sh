@@ -66,4 +66,13 @@ assert_ne "review-sub-pr job stays pull_request-only (off merge_group)" "0" "$_s
 assert_ne "llm-review job stays pull_request-only (off merge_group)" "0" "$_llm"
 assert_pass_if_clean "llm_review_jobs_stay_pull_request_only"
 
+# 5. cancel-in-progress must NOT cancel merge_group runs — a cancellation evicts
+#    the queue entry. The required workflows guard it on the event being non-merge_group.
+for f in ci.yml ticket-platform-matrix.yml; do
+    _snapshot_fail
+    _cip=$(grep -cE "cancel-in-progress:[[:space:]]*\\\$\{\{[[:space:]]*github\.event_name != 'merge_group'" "$WF/$f" 2>/dev/null || true)
+    assert_ne "$f does not cancel in-flight merge_group runs" "0" "$_cip"
+    assert_pass_if_clean "cancel_in_progress_guards_merge_group_${f%.yml}"
+done
+
 print_summary
