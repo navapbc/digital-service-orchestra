@@ -1074,7 +1074,7 @@ copy.artifact_dir=copy/
 
 | | |
 |---|---|
-| **Description** | File-count threshold for the region-split **GATE** (component #3'). A diff trips the gate when it touches more than this many *reviewable* files (generated/binary files filtered by `file_filter` do not count — the gate is computed on the filtered set so a lock-file-heavy diff is not chunked for non-reviewable bulk). Distinct from `file_count_threshold`, which now governs only the per-cluster fan-out. The default `120` (raised from the old 40) captures genuine repo-wide changes while keeping ordinary multi-module PRs single-pass. Single-file diffs are NEVER region-split regardless of this value. |
+| **Description** | File-count threshold for the region-split **GATE** (component #3'). A diff trips the gate when it touches more than this many *reviewable* files (generated/binary files filtered by `file_filter` do not count — the gate is computed on the filtered set so a lock-file-heavy diff is not chunked for non-reviewable bulk). There is no file-count-based per-cluster fan-out counterpart — once a diff is chunked, fan-out granularity keys off LOC (`loc_threshold`) only. The default `120` (raised from the old 40) captures genuine repo-wide changes while keeping ordinary multi-module PRs single-pass. Single-file diffs are NEVER region-split regardless of this value. |
 | **Accepted values** | Positive integer. Values `<= 0` fall back to default; non-numeric values fall back to default. |
 | **Default** | `120` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
@@ -1087,16 +1087,6 @@ copy.artifact_dir=copy/
 | **Description** | **(Component #3' — role narrowed.)** Per-cluster **fan-out** LOC threshold for the region-split Strategy-F path: once a diff has already been chunked (per the GATE keys `gate_loc` / `gate_file_count`), any single directory cluster whose LOC exceeds this value is fanned out to one dispatch per file. This key NO LONGER governs the primary gate decision (whether to chunk at all) — that is `review.region_split.gate_loc`. It now serves two narrow roles: (1) the per-cluster fan-out granularity, and (2) the single-oversized-file pass-through detection in `split_cluster_by_file`. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
 | **Accepted values** | Positive integer. Non-numeric / `<= 0` values fall back to default. |
 | **Default** | `3000` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
----
-
-### `review.region_split.file_count_threshold`
-
-| | |
-|---|---|
-| **Description** | **(Component #3' — role narrowed.)** This key NO LONGER governs the primary region-split gate (whether to chunk) — that is now `review.region_split.gate_file_count`. It is retained for the per-cluster fan-out path and as a secondary OR-guard within the Strategy-E/F clustering machinery. Captures the case of many small files (e.g., a repo-wide rename) at the cluster level once the GATE has already routed the diff to the chunked path. Single-file diffs are NEVER region-split regardless of this value. |
-| **Accepted values** | Positive integer. Non-numeric / `<= 0` values fall back to default. |
-| **Default** | `40` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 

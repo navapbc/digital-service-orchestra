@@ -78,7 +78,6 @@ class RegionSplitInvariantError(Exception):
 #
 # Projects on smaller-context models should lower these via config keys.
 _LOC_THRESHOLD_DEFAULT = 3000
-_FILE_COUNT_THRESHOLD_DEFAULT = 40
 _MAX_CLUSTERS_DEFAULT = 5
 _CLUSTER_CONCURRENCY_DEFAULT = 2
 _CLUSTER_CONCURRENCY_HARD_CAP = 3
@@ -101,9 +100,9 @@ _CLUSTER_CONCURRENCY_HARD_CAP = 3
 # for no context reason. The gate default (20000) is a conservative ~55-65% of
 # the ceiling — well clear of context pressure but leaving headroom for system
 # prompt + finding schema + PR metadata + prior-defense growth. The fan-out
-# thresholds (_LOC_THRESHOLD_DEFAULT / _FILE_COUNT_THRESHOLD_DEFAULT) are left
-# UNCHANGED: once a diff is large enough to chunk, the per-cluster partition
-# granularity is a separate concern.
+# fan-out threshold (_LOC_THRESHOLD_DEFAULT) is left UNCHANGED: once a diff is
+# large enough to chunk, the per-cluster partition granularity is a separate
+# concern.
 #
 # Config keys:
 #   review.region_split.gate_loc         (default 20000) — primary GATE LOC.
@@ -131,18 +130,6 @@ def _loc_threshold() -> int:
         "review.region_split.loc_threshold", _LOC_THRESHOLD_DEFAULT
     )
     return value if value > 0 else _LOC_THRESHOLD_DEFAULT
-
-
-def _file_count_threshold() -> int:
-    """Resolved file-count threshold for region-split (default 40).
-
-    Values ≤ 0 from config fall back to the default — same rationale as
-    _loc_threshold.
-    """
-    value = read_config_int(
-        "review.region_split.file_count_threshold", _FILE_COUNT_THRESHOLD_DEFAULT
-    )
-    return value if value > 0 else _FILE_COUNT_THRESHOLD_DEFAULT
 
 
 def _gate_loc_threshold() -> int:
@@ -185,9 +172,9 @@ def _gate_file_count_threshold() -> int:
     """Resolved file-count threshold for the region-split GATE (default 120).
 
     Component #3' secondary OR-guard: a diff trips the gate when it exceeds
-    EITHER gate_loc OR this file count. Distinct from
-    ``_file_count_threshold()`` which governs the per-cluster fan-out. Values
-    <= 0 from config fall back to the default.
+    EITHER gate_loc OR this file count. There is no file-count-based per-cluster
+    fan-out counterpart — the fan-out keys off LOC only (``_loc_threshold()``).
+    Values <= 0 from config fall back to the default.
     """
     value = read_config_int(
         "review.region_split.gate_file_count", _GATE_FILE_COUNT_THRESHOLD_DEFAULT
@@ -270,10 +257,10 @@ def _should_region_split(diff_text: str) -> bool:
     Component #3': this GATE decides *whether to chunk at all*. It uses the
     dedicated ``_gate_loc_threshold()`` (default 20000) and
     ``_gate_file_count_threshold()`` (default 120) — NOT the per-cluster
-    Strategy-F fan-out thresholds (``_loc_threshold`` / ``_file_count_threshold``,
-    defaults 3000 / 40) which only partition an already-chunked diff. The raised
-    gate keeps medium-large PRs single-pass, eliminating cross-chunk
-    hallucinated-reference false positives (55% of chunked-review FPs per M-1).
+    Strategy-F fan-out threshold (``_loc_threshold``, default 3000) which only
+    partitions an already-chunked diff. The raised gate keeps medium-large PRs
+    single-pass, eliminating cross-chunk hallucinated-reference false positives
+    (55% of chunked-review FPs per M-1).
 
     LOC gate: count lines starting with + or - but NOT +++ or --- (diff headers).
     File gate: count distinct filenames using ``_extract_filenames`` — the
@@ -304,8 +291,8 @@ def _should_region_split(diff_text: str) -> bool:
         return False
 
     # Component #3': the GATE (whether to chunk at all) uses the dedicated,
-    # raised gate thresholds — NOT the per-cluster fan-out thresholds
-    # (_loc_threshold / _file_count_threshold). Decoupling these is the core
+    # raised gate thresholds — NOT the per-cluster fan-out threshold
+    # (_loc_threshold). Decoupling these is the core
     # of #3': it keeps medium-large PRs single-pass (zero cross-chunk
     # hallucinated-reference FPs) while leaving the fan-out granularity of an
     # already-chunked diff unchanged. Resolve into locals so each comparison

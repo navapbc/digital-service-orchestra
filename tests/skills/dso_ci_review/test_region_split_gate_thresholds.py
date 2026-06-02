@@ -229,6 +229,34 @@ def test_gate_loc_clamped_above_size_upgrade_lines(tmp_path, monkeypatch) -> Non
     )
 
 
+def test_gate_loc_clamped_at_floor_boundary_emits_warning(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """Boundary: gate_loc == size_upgrade_lines floor (300) clamps to exactly
+    floor + 1 (301) AND emits the stderr clamp warning.
+
+    The existing clamp test uses 200 (well below the floor) and only asserts
+    `> floor`. This pins the exact boundary value (the clamp predicate is
+    `value <= floor`, so 300 must clamp) and the observable warning side effect.
+    """
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text(
+        f"review.region_split.gate_loc={rs._SIZE_UPGRADE_LINES_FLOOR}\n"
+    )
+    monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(config_file))
+
+    resolved = rs._gate_loc_threshold()
+    assert resolved == rs._SIZE_UPGRADE_LINES_FLOOR + 1, (
+        f"gate_loc=={rs._SIZE_UPGRADE_LINES_FLOOR} (the floor) must clamp to "
+        f"exactly {rs._SIZE_UPGRADE_LINES_FLOOR + 1}; got {resolved}"
+    )
+    captured = capsys.readouterr()
+    assert "clamping up to" in captured.err, (
+        "a clamp at the floor boundary must emit the stderr clamp warning"
+    )
+    assert "review.region_split.gate_loc" in captured.err
+
+
 def test_gate_loc_invalid_zero_falls_back_to_default(tmp_path, monkeypatch) -> None:
     """A gate_loc of 0 (would disable gating) falls back to the default."""
     config_file = tmp_path / "dso-config.conf"

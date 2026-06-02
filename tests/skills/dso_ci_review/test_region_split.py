@@ -234,7 +234,6 @@ def test_threshold_readers_clamp_invalid_config_to_default(
     config_file = tmp_path / "bad-config.conf"
     config_file.write_text(
         "review.region_split.loc_threshold=0\n"
-        "review.region_split.file_count_threshold=-5\n"
         "review.region_split.max_clusters=0\n"
     )
     # Patch the shared config resolver where it lives — region_split's
@@ -246,9 +245,6 @@ def test_threshold_readers_clamp_invalid_config_to_default(
 
     assert rs._loc_threshold() == rs._LOC_THRESHOLD_DEFAULT, (
         "loc_threshold must fall back to default when config value is 0"
-    )
-    assert rs._file_count_threshold() == rs._FILE_COUNT_THRESHOLD_DEFAULT, (
-        "file_count_threshold must fall back to default when config value is negative"
     )
     assert rs._max_clusters() == rs._MAX_CLUSTERS_DEFAULT, (
         "max_clusters must fall back to default when config value is < 1"

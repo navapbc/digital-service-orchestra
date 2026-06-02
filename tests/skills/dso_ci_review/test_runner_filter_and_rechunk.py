@@ -244,3 +244,108 @@ def test_no_rechunk_when_no_fallback(monkeypatch) -> None:
     monkeypatch.setattr(runner, "run_region_split_strategy_f", _boom)
     specs = runner._rechunk_on_fallback_exhausted(normal_result, diff)
     assert specs is None, "No re-chunk should occur when there is no fallback_exhausted"
+
+
+# ---------------------------------------------------------------------------
+# Fix 1 — shared large-diff budget/validation gate (_apply_large_diff_budget_gate)
+#
+# The R-2 re-chunk path previously dispatched re-chunked specs WITHOUT the
+# OVER_BOUND budget cap (max_files/max_calls) and config validation that the
+# primary region-split path applies. Fix 1 routes BOTH paths through this one
+# shared gate so an R-2 re-chunk of a many-file diff hits OVER_BOUND exactly as
+# the primary path would, rather than fanning out unbounded.
+# ---------------------------------------------------------------------------
+
+
+def _specs(n: int) -> list[dict]:
+    """Build n single-file Strategy-F cluster specs."""
+    return [
+        {"cluster_dir": f"src/m{i}", "files": [f"src/m{i}.py"], "diff": "x"}
+        for i in range(n)
+    ]
+
+
+def test_budget_gate_passes_specs_within_budget() -> None:
+    """Within budget: the gate returns the (skip-filtered) specs and no OVER_BOUND."""
+    specs = _specs(3)
+    config = {"max_files": 10, "max_calls": 11, "ignore_globs": ["*.lock"]}
+    filtered, over_bound = runner._apply_large_diff_budget_gate(
+        specs, config, skipped_set=set()
+    )
+    assert over_bound is None, "within-budget specs must not produce an OVER_BOUND"
+    assert len(filtered) == 3
+
+
+def test_budget_gate_over_bound_when_specs_exceed_max_files() -> None:
+    """Fix 1 core: when the number of re-chunked clusters exceeds the operator's
+    max_files budget, the SHARED gate emits OVER_BOUND — the same outcome the
+    primary region-split path produces — rather than fanning out unbounded.
+
+    This is exactly the gate the R-2 re-chunk path now routes through, so an
+    R-2 re-chunk of a many-file diff hits OVER_BOUND, not an unbounded per-file
+    fan-out.
+    """
+    # max_files=2, max_calls=3 → low product; 5 clusters exceeds max_files.
+    config = {"max_files": 2, "max_calls": 3, "ignore_globs": ["*.lock"]}
+    filtered, over_bound = runner._apply_large_diff_budget_gate(
+        _specs(5), config, skipped_set=set()
+    )
+    assert over_bound is not None, (
+        "a re-chunk exceeding max_files must emit OVER_BOUND (same as the "
+        "primary path), not fan out unbounded"
+    )
+    assert over_bound["status"] == runner.OVER_BOUND
+    assert filtered == []
+    assert "max_files" in over_bound["over_bound_reason"]
+
+
+def test_budget_gate_over_bound_on_invalid_config() -> None:
+    """Fix 1: the shared gate enforces _validate_large_diff_config — a config
+    where max_calls < max_files + 1 yields an OVER_BOUND output, identically for
+    the primary path and the R-2 re-chunk path.
+    """
+    config = {"max_files": 5, "max_calls": 3, "ignore_globs": ["*.lock"]}
+    filtered, over_bound = runner._apply_large_diff_budget_gate(
+        _specs(2), config, skipped_set=set()
+    )
+    assert over_bound is not None
+    assert over_bound["status"] == runner.OVER_BOUND
+    assert filtered == []
+    assert "max_calls" in over_bound["over_bound_reason"]
+
+
+def test_budget_gate_skip_filters_generated_only_specs() -> None:
+    """The shared gate drops specs whose files are ALL in the skipped set, then
+    applies the budget check to the surviving (reviewable) spec count.
+    """
+    specs = [
+        {"cluster_dir": "gen", "files": ["gen/package-lock.json"], "diff": "x"},
+        {"cluster_dir": "src", "files": ["src/a.py"], "diff": "x"},
+        {"cluster_dir": "src", "files": ["src/b.py"], "diff": "x"},
+    ]
+    config = {"max_files": 10, "max_calls": 11, "ignore_globs": ["*.lock"]}
+    filtered, over_bound = runner._apply_large_diff_budget_gate(
+        specs, config, skipped_set={"gen/package-lock.json"}
+    )
+    assert over_bound is None
+    filtered_dirs = [s["cluster_dir"] for s in filtered]
+    assert "gen" not in filtered_dirs, "generated-only spec must be skip-filtered"
+    assert len(filtered) == 2
+
+
+def test_primary_and_rechunk_share_one_budget_gate() -> None:
+    """Fix 1 anti-regression: the runner must call _apply_large_diff_budget_gate
+    from BOTH the primary region-split dispatch and the R-2 re-chunk dispatch.
+
+    Guards against a future edit that reintroduces an unguarded inline budget
+    check on one path. We assert the shared helper is invoked at least twice in
+    the runner source (once per path).
+    """
+    import inspect
+
+    src = inspect.getsource(runner.main)
+    call_count = src.count("_apply_large_diff_budget_gate(")
+    assert call_count >= 2, (
+        "both the primary region-split path and the R-2 re-chunk path must route "
+        f"through _apply_large_diff_budget_gate; found {call_count} call site(s)"
+    )
