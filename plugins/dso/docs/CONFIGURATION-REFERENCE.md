@@ -1040,6 +1040,16 @@ copy.artifact_dir=copy/
 | **Used by** | `scripts/should-create-minor-finding-tickets.sh` (the gate consulted by `REVIEW-WORKFLOW.md` post-pass inspection) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
+### `review.non_reviewable_doc_dirs`
+
+| | |
+|---|---|
+| **Description** | Comma-separated list of host-project directory prefixes holding **non-LLM-instruction documentation** (prose docs, ADRs, runbooks) that the review gate may skip — for projects whose docs live outside the shipped `docs/**` exemption (e.g. `documentation/`, `project-docs/`, `adr/`). Each entry is matched as a directory prefix; edits whose files all fall under a configured dir (and the other shipped allowlist patterns) classify as non-reviewable, so a minor Markdown change does not trigger full code review. **Safety:** LLM-instruction directories are protected and can NEVER be exempted via this key — entries that name (or sit under) `skills`, `hooks`, `agents`, `prompts`, `docs/workflows`, `.claude/skills`, `.claude/hooks`, `.claude/hookify`, or `CLAUDE.md` are ignored with a stderr warning. This protection is enforced in **both** the skip decision (`skip-review-check.sh`) and the review-hash computation (`compute-diff-hash.sh`) so the two never diverge. Do NOT use this to broadly exempt `*.md` — skills, agents, and prompts are Markdown and must remain reviewed. |
+| **Accepted values** | Comma-separated directory prefixes, e.g. `documentation,project-docs,adr`. Leading `./` and trailing `/` are stripped; surrounding whitespace and empty entries are ignored. |
+| **Default** | Absent — only the shipped `review-gate-allowlist.conf` patterns (including `docs/**`) are exempt; no host directories are added. |
+| **Used by** | `hooks/lib/config-paths.sh` (`dso_sanitized_doc_dirs` helper), `scripts/skip-review-check.sh`, `hooks/compute-diff-hash.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
 ### `review.behavioral_patterns`
 
 | | |
