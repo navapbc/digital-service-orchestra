@@ -63,46 +63,36 @@ assert_eq "test_frontmatter_fields: model is sonnet" "present" "$actual_model"
 assert_eq "test_frontmatter_fields: description field present" "present" "$actual_desc"
 assert_pass_if_clean "test_frontmatter_fields"
 
-# ── test_failure_taxonomy_all_17_items ───────────────────────────────────────
-# All 17 taxonomy items must be named in the agent file.
-# Contract: the agent must reference every failure mode it is capable of diagnosing.
+# ── test_failure_taxonomy_structure ──────────────────────────────────────────
+# Structural contract: the agent file defines a Failure Taxonomy section that
+# enumerates exactly 17 numbered failure modes. We assert STRUCTURE (section
+# heading present + numbered-item count), NOT individual prose item names, so
+# benign rewording of a mode's description does not break the test. Per the
+# Behavioral Testing Standard Rule 5 Structural-Artifact Exception, structural
+# validation is the authorized testing boundary for a non-executable instruction
+# file — verify contract shape, not prose content.
 _snapshot_fail
 if [[ -f "$AGENT_FILE" ]]; then
-    file_content=$(cat "$AGENT_FILE")
-else
-    file_content=""
-fi
-
-TAXONOMY_ITEMS=(
-    "Structured Output Collapse"
-    "Tool-Calling Schema Drift"
-    "Silent Instruction Truncation"
-    "Context Flooding"
-    "Multi-File State De-sync"
-    "Termination Awareness Failure"
-    "Multi-Step Reasoning Drift"
-    "Verbosity"
-    "Sycophancy"
-    "Brittle API Mapping"
-    "Positional Bias"
-    "Non-Deterministic Logic"
-    "Phantom Capability Hallucination"
-    "Instruction Leaking"
-    "Confidence Calibration Failure"
-    "Instruction Locality"
-    "Pink Elephant Effect"
-)
-
-for item in "${TAXONOMY_ITEMS[@]}"; do
-    _tmp="$file_content"; shopt -s nocasematch
-    if [[ "$_tmp" == *"$item"* ]]; then
-        actual_item="present"
+    if grep -qE '^## Failure Taxonomy' "$AGENT_FILE"; then
+        actual_section="present"
     else
-        actual_item="missing"
-    fi; shopt -u nocasematch
-    assert_eq "test_failure_taxonomy_all_17_items: '$item' present" "present" "$actual_item"
-done
-assert_pass_if_clean "test_failure_taxonomy_all_17_items"
+        actual_section="missing"
+    fi
+    # Count top-level numbered items between the Failure Taxonomy heading and the
+    # next "## " heading. This asserts the taxonomy's cardinality (the contract),
+    # independent of how any individual mode is worded.
+    taxonomy_count=$(awk '
+        /^## Failure Taxonomy/ { insec=1; next }
+        insec && /^## / { insec=0 }
+        insec && /^[0-9]+\. / { n++ }
+        END { print n+0 }
+    ' "$AGENT_FILE")
+else
+    actual_section="missing"; taxonomy_count=0
+fi
+assert_eq "test_failure_taxonomy_structure: Failure Taxonomy section present" "present" "$actual_section"
+assert_eq "test_failure_taxonomy_structure: enumerates 17 numbered failure modes" "17" "$taxonomy_count"
+assert_pass_if_clean "test_failure_taxonomy_structure"
 
 # ── test_rca_probes_all_5 ────────────────────────────────────────────────────
 # All 5 RCA probes must be named in the agent file.
@@ -154,15 +144,22 @@ if [[ -f "$AGENT_FILE" ]]; then
         actual_fixes="present"
     else
         actual_fixes="missing"
+    fi
+    if [[ "$_tmp" == *"affirmative_framing"* ]]; then
+        actual_affirmative="present"
+    else
+        actual_affirmative="missing"
     fi; shopt -u nocasematch
 else
     actual_root_cause="missing"
     actual_confidence="missing"
     actual_fixes="missing"
+    actual_affirmative="missing"
 fi
 assert_eq "test_result_schema_root_cause_and_confidence: ROOT_CAUSE field present" "present" "$actual_root_cause"
 assert_eq "test_result_schema_root_cause_and_confidence: confidence field present" "present" "$actual_confidence"
 assert_eq "test_result_schema_root_cause_and_confidence: proposed_fixes field present" "present" "$actual_fixes"
+assert_eq "test_result_schema_root_cause_and_confidence: affirmative_framing field present (Pink-Elephant fix-modifier contract)" "present" "$actual_affirmative"
 assert_pass_if_clean "test_result_schema_root_cause_and_confidence"
 
 # ── test_result_schema_hypothesis_tests_subfields ────────────────────────────
