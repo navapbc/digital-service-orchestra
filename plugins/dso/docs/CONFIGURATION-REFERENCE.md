@@ -1100,6 +1100,26 @@ copy.artifact_dir=copy/
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
+### `review.region_split.symbol_injection`
+
+| | |
+|---|---|
+| **Description** | **(Component #2 — deterministic cross-chunk symbol injection.)** When `true`, the chunked-review path (region-split Strategy-F) runs a deterministic, pre-dispatch preprocessing step: for each chunk it extracts the identifiers the chunk *references* but does not *define*, locates a single unambiguous definition of each in the SIBLING chunks, and appends a read-only **"Definitions referenced in other chunks of this PR"** section to that chunk's reviewer context. This eliminates the cross-chunk hallucinated-reference false positive (the reviewer flagging a symbol/test/script as "not visible in diff" / "HAS NO TEST COVERAGE" when it provably exists in a chunk the reviewer can't see) — 55% of chunked-review FPs per the M-1 measurement. The injection is ADDITIVE and read-only: it NEVER mutates the diff under review, the finding schema, the gate, or the OVER_BOUND/budget math (the budget is computed on the diff, not the appendix). NO LLM is used in this step. Guards: a definition is injected only when its symbol has a single unambiguous cross-chunk definition (≥2 candidate defs → inject nothing) and the language is one the extractor parses precisely (`.py` `def`/`class`, `.sh` function defs; all other languages → inject nothing); the appendix is bounded by `review.region_split.symbol_injection_budget` with truncate-toward-omission (whole definitions are dropped, never split). |
+| **Accepted values** | `true` / `false` (also `1/0`, `yes/no`, `on/off`, case-insensitive). Unrecognized values fall back to the default. |
+| **Default** | `true` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/symbol_injection.py` <!-- # shim-exempt: internal implementation reference in config documentation -->, `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
+### `review.region_split.symbol_injection_budget`
+
+| | |
+|---|---|
+| **Description** | **(Component #2 — G-2 bounded appendix.)** Maximum byte size of the cross-chunk symbol-injection appendix (see `review.region_split.symbol_injection`) attached to a single chunk's reviewer context. The appendix accumulates whole rendered definitions until the next one would exceed this budget, then stops (truncate-toward-omission — a definition is never split mid-block). Deliberately small relative to the model context window: #2 only runs on chunks that exist *because* the diff was already large, so the appendix must never be the straw that overflows the chunk. |
+| **Accepted values** | Positive integer (bytes). Values `≤ 0` fall back to the default. Non-numeric values fall back to the default. |
+| **Default** | `8000` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/symbol_injection.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
 ### `review.size_warn_lines`
 
 | | |

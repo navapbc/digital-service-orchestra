@@ -93,6 +93,10 @@ def _ensure_plugin_package() -> None:
     _load_from_plugin("findings")
     _load_from_plugin("proximity")
     _load_from_plugin("speculation_markers")
+    # symbol_injection is a leaf module (imports only _config) that region_split
+    # now depends on for component #2 cross-chunk symbol injection. Load before
+    # region_split so the import resolves.
+    _load_from_plugin("symbol_injection")
     _load_from_plugin("region_split")
     # cycle_ledger, stability, and cycle_dispatcher must load before runner
     # because runner now imports them at module level (task ba75-1ba2).
