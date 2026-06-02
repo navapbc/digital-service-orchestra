@@ -327,6 +327,7 @@ Phases: `sync → merge → version_bump → validate → push → archive → c
 - State file: `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
 - `--resume` PR discovery (bug 5ff0): when the state file's `pr_url` is empty (e.g. file auto-deleted on prior successful run, or stale and clobbered by `_state_init`), `--resume` queries `gh pr list --head "$BRANCH" --state open` and populates `_RESUME_STATE_PR_URL` from any open non-draft PR1 it finds. This prevents two failure modes: (a) the `_check_duplicate_pr` guard wedging the branch with `"non-draft PR already exists"`, and (b) `_phase_staged_intermediate` creating a duplicate `staged-*` ref + duplicate PR1.
 - See `CONFIGURATION-REFERENCE.md` for the `dso.workflow` key (`ci-pr` or `local`). Legacy keys `merge.strategy` and `enforcement.strategy` are deprecated — use `dso.workflow` instead.
+- **Recovery when the two-tier flow is stuck** (cross-strategy `--resume` abort, empty-staged advance, umbrella-PR `check-staged-head` contamination, repeated review FPs): see **INC-015** in `.claude/docs/KNOWN-ISSUES.md` for the mid-flight (complete PR2) vs. start-fresh (fall back to **direct mode** `dso.workflow=local`) recovery paths and the review-model caveat (direct mode reviews the full diff, not sub-PRs).
 
 ### Source-branch version-bump phase (PR mode only)
 

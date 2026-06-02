@@ -303,3 +303,27 @@ Each leaf maps one `(direction, action)` combination to a bound applier method. 
 **Pattern B — Duplicate defer tickets**: `/dso:respond-to-pr-comments` Step 4 processes each deferred comment by calling `pr-comment-response.sh --classify-as <id>:defer` in a loop. If the LLM parallelizes these calls (Bash tool `run_in_background`), the defer handler's consolidation lookup races — all calls query `ticket list` before any ticket is created, so each creates a separate ticket instead of consolidating into one. Fixed by adding an explicit **CRITICAL — Sequential processing required for defer actions** note in Step 4 of the SKILL.md.
 
 **Prevention**: When adding new ticket auto-creation paths, enforce deduplication at the creation site and ensure the guidance explicitly prohibits parallel dispatch when shared state (ticket list, shared JSON file) is involved.
+
+---
+
+## INC-015: Two-tier staged merge-to-main flow stuck → recovery (and direct-mode fallback)
+
+**Symptoms** (under `dso.workflow=ci-pr`, the two-tier `source → staged-* → main` flow):
+- `merge-to-main.sh --resume` aborts with `cross-strategy mismatch: state file was written with strategy='direct', but current config resolves to strategy='pr'` (a `pr`-mode run mis-recorded `merge_strategy=direct`; bug `3d23-becc`).
+- `--resume` advances to an **empty** `staged-*` branch sitting at `main` HEAD and "loses" the work (bug `b7bf-c3b9`; fixed in `merge-to-main-pr.sh` — the advance predicate now requires the staged branch to carry work).
+- A bare re-invocation mints a **duplicate** `staged-*` ref + PR1 (bug `73b5`; fixed — advance detection now runs unconditionally).
+- PR1 (`source → staged-*`) is blocked by `check-staged-head` even though it targets `staged-*`, because a `base=main` **umbrella draft PR** (sprint Phase A `GitHubPRDefenseStore` substrate) fails `check-staged-head` on the shared head SHA and contaminates PR1 (bug `1f5f`; fixed — `check-staged-head` passes draft PRs).
+- Repeated `review-sub-pr` false positives on the same diff across cycles.
+
+**Recovery — pick by where you are in the flow:**
+
+1. **Mid-flight (PR1 has already merged into `staged-*`)** — do NOT start over or switch strategy (switching to direct mid-flight is what triggers the cross-strategy abort). Complete **PR2** (`staged-* → main`):
+   - Re-run `merge-to-main.sh --resume`. If it aborts on cross-strategy mismatch, patch the `/tmp` state file: set `merge_strategy` (NOT `strategy` — the guard at `merge-to-main.sh:86` reads `merge_strategy`) to `pr`, then re-resume. Keep `staged_branch` intact — deleting the state file loses it and `--resume` can no longer advance.
+   - If PR2's `llm-review` false-positives (PR1's `review-sub-pr` was FP-recovered, so the commits aren't provenanced and the full-diff review re-runs), clear it via `/dso:fp-recovery <PR2>` or a human admin-merge.
+
+2. **Starting fresh (no PRs opened yet)** — if the two-tier flow is fighting you, fall back to **direct mode** for the session: set `dso.workflow=local` (resolves `MERGE_STRATEGY=direct`). This opens a single `source → main` PR instead of the staged tiers.
+   - **Caveat (important):** direct mode reviews the **full feature diff at once**, NOT the smaller sub-PR diffs the two-tier model is built around (reviewing small sub-PRs is the two-tier's primary goal). Use direct mode as a recovery / small-change path, not the default. The change still gets a full LLM review — it is coarser, not skipped.
+
+**Direction of travel:** the MQ migration (epic `1a6c`, MQ-4) retires the `staged-*`/PR1/PR2 two-tier entirely in favor of `session → main` direct through the GitHub Merge Queue — direct-mode-shaped, but with required checks re-run on the queue's combined candidate. This INC is a bridge until then.
+
+**Config reference:** `dso.workflow` (`ci-pr` | `local`) — see `plugins/dso/docs/CONFIGURATION-REFERENCE.md` and the two-channel semantics in `plugins/dso/docs/CI-INTEGRATION.md`.
