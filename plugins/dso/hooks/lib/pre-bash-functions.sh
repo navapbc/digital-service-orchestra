@@ -973,6 +973,39 @@ hook_tickets_tracker_bash_guard() {
 # ---------------------------------------------------------------------------
 # hook_no_force_merge
 # ---------------------------------------------------------------------------
+# Returns 0 (true) iff COMMAND actually INVOKES `gh pr merge ... --admin` — an
+# admin override — rather than merely MENTIONING the literal inside a quoted
+# argument (a grep pattern), a commit message, or a heredoc body. The prior
+# substring test (`*"gh pr merge"*"--admin"*`) fired on all of those, blocking
+# legitimate commands that only referenced the string.
+#
+# Approach: strip quoted spans (single/double/backtick) and heredoc bodies, then
+# re-check the surviving "live" command text — a real invocation survives, a
+# mention does not. Fails CLOSED (treats the input as an invocation) if python3
+# is unavailable or errors, so a stripper failure can never produce a false
+# negative on a genuine override.
+_is_admin_merge_invocation() {
+    local cmd="$1"
+    # Cheap pre-filter: the literal must be present at all.
+    [[ "$cmd" == *"gh pr merge"*"--admin"* ]] || return 1
+    if command -v python3 >/dev/null 2>&1; then
+        local stripped
+        # shellcheck disable=SC2016  # python script is intentionally single-quoted (no bash expansion)
+        stripped=$(printf '%s' "$cmd" | python3 -c 'import sys,re
+s=sys.stdin.read()
+s=re.sub(r"<<-?\s*[\x27\x22]?(\w+)[\x27\x22]?.*?\n\1"," ",s,flags=re.S)
+s=re.sub(r"[\x27][^\x27]*[\x27]"," ",s)
+s=re.sub(r"[\x22][^\x22]*[\x22]"," ",s)
+s=re.sub(r"[`][^`]*[`]"," ",s)
+sys.stdout.write(s)' 2>/dev/null) && {
+            [[ "$stripped" == *"gh pr merge"*"--admin"* ]]
+            return
+        }
+    fi
+    # Fail closed: cannot strip → treat the mention as an invocation (block).
+    return 0
+}
+
 # PreToolUse hook: block `gh pr merge --admin` outside /dso:fp-recovery.
 #
 # The --admin flag overrides ALL branch protection rules (required status
@@ -1005,8 +1038,9 @@ hook_no_force_merge() {
         return 0
     fi
 
-    # Detect: gh pr merge ... --admin (in any position)
-    if [[ "$COMMAND" == *"gh pr merge"*"--admin"* ]] || [[ "$COMMAND" == *"gh pr merge"*"--admin" ]]; then
+    # Detect an actual `gh pr merge ... --admin` INVOCATION — not a mere mention
+    # of the literal inside a quoted argument, commit message, or heredoc body.
+    if _is_admin_merge_invocation "$COMMAND"; then
         # Check for FP-recovery bypass env var
         if [[ "${DSO_FP_RECOVERY_ACTIVE:-}" == "1" ]]; then
             return 0
