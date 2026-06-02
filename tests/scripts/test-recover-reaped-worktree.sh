@@ -53,6 +53,21 @@ assert_contains "Tier2 stdout token" "RECOVERED_FROM_SESSION" "$OUT"
 STAGED=$(git -C "$T2" diff --cached --name-only)
 assert_contains "Tier2 file staged" "src/leaked.py" "$STAGED"
 
+# ── Tier 2b: leaked path containing regex metacharacters (PR #534 regression) ─
+# A path like 'src/mod.v2[beta].py' contains '.', '[' — under the old
+# `grep -qE "$f"` these were treated as regex (over-match or grep error → silent
+# recovery failure). The literal string match must recover it correctly.
+echo "--- Tier 2b: metacharacter path matched literally ---"
+T2B=$(mktemp -d "${TMPDIR:-/tmp}/recover.XXXXXX")
+mk_repo "$T2B"
+mkdir -p "$T2B/src"
+echo "leaked work" > "$T2B/src/mod.v2[beta].py"   # untracked, non-empty, regex metachars
+OUT=$(cd "$T2B" && bash "$SCRIPT" "wt/no-such-branch" "$T2B" "src/mod.v2[beta].py"); RC=$?
+assert_eq "Tier2b exit code 0" "0" "$RC"
+assert_contains "Tier2b stdout token" "RECOVERED_FROM_SESSION" "$OUT"
+STAGED2B=$(git -C "$T2B" diff --cached --name-only)
+assert_contains "Tier2b metachar file staged" "src/mod.v2[beta].py" "$STAGED2B"
+
 # ── Tier 3: unrecoverable (no branch, no recoverable files) ──────────────────
 echo "--- Tier 3: unrecoverable ---"
 T3=$(mktemp -d "${TMPDIR:-/tmp}/recover.XXXXXX")
@@ -62,6 +77,6 @@ assert_eq "Tier3 exit code 3" "3" "$RC"
 assert_contains "Tier3 stdout token" "UNRECOVERABLE_REDISPATCH" "$OUT"
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
-rm -rf "$T1" "$T2" "$T3"
+rm -rf "$T1" "$T2" "$T2B" "$T3"
 
 print_summary

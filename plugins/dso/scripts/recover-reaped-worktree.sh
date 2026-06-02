@@ -75,8 +75,24 @@ if git -C "$SESSION_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         # File must exist and be non-empty under session_root.
         [ -s "$SESSION_ROOT/$f" ] || continue
         # File must show as untracked ('??') or modified/added in porcelain.
-        # Porcelain lines look like 'XY <path>' (space-separated, path at col 4).
-        if printf '%s\n' "$STATUS" | grep -qE "^.{2} \"?${f}\"?$"; then
+        # Porcelain lines look like 'XY <path>' (2 status chars + space + path,
+        # path at col 4). Match the path field LITERALLY (string equality) — a
+        # file path is NOT a regex, and paths routinely contain regex
+        # metacharacters ('.', '+', '[', '(') that would mis-match under
+        # `grep -E` (e.g. 'src/app.py' would match 'src/appXpy', and '[' could
+        # error). Reported on PR #534 review (recover-reaped-worktree.sh:79).
+        _match=""
+        while IFS= read -r _line; do
+            [ -n "$_line" ] || continue
+            _p="${_line#???}"          # strip 'XY ' (2 status chars + 1 space)
+            case "$_p" in              # git quotes paths containing special chars
+                \"*\") _p="${_p#\"}"; _p="${_p%\"}" ;;
+            esac
+            if [ "$_p" = "$f" ]; then _match=1; break; fi
+        done <<INNER_EOF
+$STATUS
+INNER_EOF
+        if [ -n "$_match" ]; then
             if [ -z "$RECOVERED" ]; then
                 RECOVERED="$f"
             else
