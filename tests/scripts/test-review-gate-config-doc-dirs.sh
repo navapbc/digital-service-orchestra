@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2030,SC2031
+#   SC2030/SC2031: each helper/case exports WORKFLOW_CONFIG_FILE inside a $(...)
+#   subshell intentionally, to scope per-case config for test isolation. The
+#   value is never read back in the parent, so the "modification might be lost"
+#   warnings are not applicable here (same convention as test-config-paths.sh).
 # tests/scripts/test-review-gate-config-doc-dirs.sh
 # Behavioral tests for the `review.non_reviewable_doc_dirs` config key.
 #
@@ -51,6 +56,11 @@ mk_conf() {
 # Run skip-review-check.sh with a config + a single candidate file; echo exit code.
 # DSO_FORCE_LOCAL_REVIEW=1 disables the dso.workflow=ci-pr short-circuit so the
 # classification logic is exercised regardless of ambient config.
+#
+# Test isolation: each call runs in a FRESH `bash "$SKIP_REVIEW"` subprocess, which
+# re-sources config-paths.sh and re-initializes the _ALLOWLIST_PATTERNS array from
+# scratch — so per-call config (WORKFLOW_CONFIG_FILE) never leaks across cases. Do
+# NOT consolidate these into one bash invocation; that would break the isolation.
 skip_exit() {
     printf '%s\n' "$2" | WORKFLOW_CONFIG_FILE="$1" DSO_FORCE_LOCAL_REVIEW=1 bash "$SKIP_REVIEW" >/dev/null 2>&1
     echo $?
@@ -140,8 +150,14 @@ echo "=== Part E: compute-diff-hash.sh exclusion + protection ==="
 # E1: a configured doc dir is excluded from the review hash.
 REPO_E1=$(new_repo)
 CONF_E1=$(mk_conf "review.non_reviewable_doc_dirs=documentation")
+# Control: a pristine repo (no staged changes) must hash differently from one with
+# a staged code change. This proves compute-diff-hash.sh reads the git INDEX
+# (git diff --cached), not just HEAD — otherwise E1 below could false-pass by
+# silently ignoring all staged changes and comparing two identical baselines.
+H_PRISTINE=$(compute_hash "$REPO_E1" "$CONF_E1")
 ( cd "$REPO_E1" && printf 'change\n' >> src/code.py && git add -A )
 H_CODE_ONLY=$(compute_hash "$REPO_E1" "$CONF_E1")
+assert_ne "E1-control: staged code change alters the hash (index is read, not HEAD)" "$H_PRISTINE" "$H_CODE_ONLY"
 ( cd "$REPO_E1" && printf 'docchange\n' >> documentation/guide.md && git add -A )
 H_CODE_PLUS_DOC=$(compute_hash "$REPO_E1" "$CONF_E1")
 assert_eq "E1: documentation change does not alter the review hash" "$H_CODE_ONLY" "$H_CODE_PLUS_DOC"
@@ -154,5 +170,25 @@ H_BASE=$(compute_hash "$REPO_E2" "$CONF_E2")
 ( cd "$REPO_E2" && printf 'skillchange\n' >> skills/s.md && git add -A )
 H_SKILL=$(compute_hash "$REPO_E2" "$CONF_E2")
 assert_ne "E2: skills change alters the hash despite being listed (protected)" "$H_BASE" "$H_SKILL"
+
+# ============================================================================
+# Part F — a PARENT of a protected dir must also be filtered (no .claude bypass)
+# ============================================================================
+# Configuring ".claude" (parent of protected ".claude/skills" etc.) must be
+# rejected: otherwise ":!.claude/**" would drop protected ".claude/skills/**"
+# from the review hash while skip-review-check.sh still force-reviews it —
+# reintroducing the asymmetry the filter exists to close.
+echo "=== Part F: parent-of-protected dir filtered ==="
+CONF_F=$(mk_conf "review.non_reviewable_doc_dirs=.claude")
+
+SAN_F=$(
+    unset _CONFIG_PATHS_LOADED CLAUDE_PLUGIN_ROOT
+    export WORKFLOW_CONFIG_FILE="$CONF_F"
+    # shellcheck disable=SC1090
+    source "$CONFIG_PATHS"
+    dso_sanitized_doc_dirs 2>/dev/null
+)
+assert_eq "F1: helper filters out '.claude' (parent of protected .claude/skills)" "" "$SAN_F"
+assert_eq "F2: .claude/skills/ file still force-reviewed when .claude is configured (exit 1)" "1" "$(skip_exit "$CONF_F" ".claude/skills/my-skill.md")"
 
 print_summary

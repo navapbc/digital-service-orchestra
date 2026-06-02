@@ -177,6 +177,12 @@ fi
 # that the skip check exempted). dso_sanitized_doc_dirs filters protected dirs,
 # so a misconfigured entry (e.g. skills) cannot silently drop an agent-guidance
 # dir from the hash — compute-diff-hash.sh has no force-review block of its own.
+#
+# Deliberately NO force-review case block here (unlike skip-review-check.sh): ALL
+# protected-dir enforcement is delegated to dso_sanitized_doc_dirs (the single
+# shared filter in config-paths.sh) so the two consumers cannot diverge. If a new
+# protected dir is needed, add it to DSO_PROTECTED_REVIEW_DIRS in config-paths.sh
+# — do NOT add a force-review block only to one consumer.
 if declare -f dso_sanitized_doc_dirs >/dev/null 2>&1; then
     while IFS= read -r _doc_dir; do
         if [[ -z "$_doc_dir" ]]; then

@@ -133,7 +133,12 @@ dso_sanitized_doc_dirs() {
         fi
         _blocked=0
         for _p in "${DSO_PROTECTED_REVIEW_DIRS[@]}"; do
-            if [[ "$_d" == "$_p" || "$_d" == "$_p"/* ]]; then
+            # Block when the configured dir IS a protected dir, sits UNDER one, OR
+            # is a PARENT of one. The parent case matters because excluding a
+            # parent (e.g. ".claude") would drop a protected child (".claude/skills")
+            # from the hash — compute-diff-hash.sh has no force-review fallback, so
+            # this filter is the sole guard there.
+            if [[ "$_d" == "$_p" || "$_d" == "$_p"/* || "$_p" == "$_d"/* ]]; then
                 _blocked=1
                 break
             fi
