@@ -54,6 +54,22 @@ _snapshot_fail
 assert_eq "non-draft empty head fails closed" "1" "$(_run false '')"
 assert_pass_if_clean "nondraft_empty_failclosed"
 
+# Structural: the step's env: block must wire IS_DRAFT / HEAD_REF to the GitHub
+# Actions context. The behavioral cases above set these as bash vars; this asserts
+# the workflow actually sources them from github.event.pull_request.draft and
+# github.head_ref (so the draft pass-through reads the real draft flag at runtime).
+_snapshot_fail
+_envmap=$(python3 -c "
+import yaml
+wf = yaml.safe_load(open('$WF'))
+env = next(s['env'] for s in wf['jobs']['check-staged-head']['steps'] if 'env' in s)
+ok = ('github.event.pull_request.draft' in str(env.get('IS_DRAFT', '')) and
+      'github.head_ref' in str(env.get('HEAD_REF', '')))
+print('1' if ok else '0')
+")
+assert_eq "step env wires IS_DRAFT<-pull_request.draft and HEAD_REF<-head_ref" "1" "$_envmap"
+assert_pass_if_clean "env_block_wiring"
+
 # Structural: ready_for_review must be a trigger type (closes the draft→ready bypass).
 _snapshot_fail
 _rfr=$(python3 -c "
