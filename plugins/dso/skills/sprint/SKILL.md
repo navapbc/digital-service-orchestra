@@ -1469,6 +1469,8 @@ For each task, look up the parent story's tags (already fetched during COMPLEX d
 
 ### Sub-Agent Prompt Template
 
+> **Named-agent dispatch invariant**: Attempt dispatch via `subagent_type: "dso:<agent-name>"` first. Read the agent file (e.g., `agents/<agent-name>.md`) and pass its content inline **only** when the dispatch returns an "Unknown agent" or "agent type not registered" error in the current session. Reading the agent file before the dispatch attempt wastes context tokens, leaks agent internals into the orchestrator window, and inverts the fallback contract. Exception: agents documented as "NOT a valid `subagent_type` value" (e.g., `dso:complexity-evaluator`) always use `general-purpose` + inline read — no named dispatch to attempt.
+
 For each task, launch a Task with the appropriate `subagent_type`.
 
 **Quality gate (ticket-as-prompt)**: Before dispatch, run the quality check:
@@ -2255,7 +2257,7 @@ for DD-level verification. The script executes each DD's Verify command and
 produces a structured execution trace.
 
 ```bash
-VERIFY_TRACE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/pre-verifier-execute.sh" <story-id>)
+VERIFY_TRACE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/pre-verifier-execute.sh" <story-id>)  # shim-exempt: sub-agent instruction block
 ```
 
 Pass `VERIFY_TRACE_PATH=$VERIFY_TRACE` in the completion-verifier prompt.
@@ -2336,7 +2338,7 @@ If neither form is achievable (e.g., Agent tool unavailable), STOP and surface t
 </HARD-GATE>
 - `P1: PASS` → compute verdict hash and proceed with closure:
   ```bash
-  VERDICT_HASH=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/compute-verdict-hash.sh" <story-id> PASS)
+  VERDICT_HASH=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/compute-verdict-hash.sh" <story-id> PASS)  # shim-exempt: sub-agent instruction block
   ```
   Pass `--verdict-hash=$VERDICT_HASH` to the `ticket transition ... closed` command.
 - `P1: EVIDENCE_PENDING` → see **EVIDENCE_PENDING escalation protocol** below.
@@ -2349,7 +2351,7 @@ When the verifier returns `P1: EVIDENCE_PENDING`:
 
 1. Re-run `pre-verifier-execute.sh` once (transient timeout may have resolved):
    ```bash
-   VERIFY_TRACE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/pre-verifier-execute.sh" <story-id>)
+   VERIFY_TRACE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/pre-verifier-execute.sh" <story-id>)  # shim-exempt: sub-agent instruction block
    ```
 2. Re-dispatch the completion-verifier with the new trace.
 3. If `P1` is still `EVIDENCE_PENDING` after retry, **escalate to user**:
@@ -2836,7 +2838,7 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
 
 #### Sprint-bypass redistribute check (bug 85f3) — runs after the batch loop terminates, before Phase G
 
-When sub-agents commit directly to the session branch under the `DSO_SPRINT_ACTIVE=0` escape hatch (instead of dispatching into per-story sub-branches), the resulting session→main PR receives a single monolithic LLM review on the full sprint diff. This is the failure mode reported in bug 85f3 (PR #140 hit a 1095-line diff with 4/4 critical false positives). The `${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh` script splits such commits into per-story branches so each gets a scoped review. This check detects the condition at the natural choke point: after all batches have processed, before validation begins.
+When sub-agents commit directly to the session branch under the `DSO_SPRINT_ACTIVE=0` escape hatch (instead of dispatching into per-story sub-branches), the resulting session→main PR receives a single monolithic LLM review on the full sprint diff. This is the failure mode reported in bug 85f3 (PR #140 hit a 1095-line diff with 4/4 critical false positives). The `redistribute-session-commits.sh` script splits such commits into per-story branches so each gets a scoped review. This check detects the condition at the natural choke point: after all batches have processed, before validation begins.
 
 **Orchestrator substitution**: before executing the block below, substitute `<epic-id>` with the primary-ticket ID currently being processed. This mirrors the convention used elsewhere in this skill (e.g., `ticket ready --epic=<epic-id>` at line 2811) — placeholders in literal angle-brackets are LLM-substituted at execution time, not bash-expanded.
 
@@ -2850,7 +2852,7 @@ if [[ "$WORKFLOW" == "ci-pr" ]]; then
     # the resolver used by every DSO merge script and silently skip detection
     # on projects whose default branch is master/develop/trunk when origin/HEAD
     # isn't configured.
-    _default_branch=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-default-branch.sh" --no-warn 2>/dev/null)
+    _default_branch=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-default-branch.sh" --no-warn 2>/dev/null)  # shim-exempt: sub-agent instruction block
     [[ -z "$_default_branch" ]] && _default_branch="main"
 
     # Count direct (non-merge) commits on the session branch's FIRST-PARENT history
@@ -2870,7 +2872,7 @@ if [[ "$WORKFLOW" == "ci-pr" ]]; then
         echo "REDISTRIBUTE-RECOMMENDED: detected ${_bypass_count} direct-to-session commit(s) with DSO-Story trailers (sprint bypass via DSO_SPRINT_ACTIVE=0)."
         echo "  In ci-pr workflow these produce a monolithic LLM review on the full sprint diff (bug 85f3)."
         echo "  Recommended action (run BEFORE Phase G's completion-verifier dispatches, to avoid attesting against soon-rewritten SHAs):"
-        echo "    bash \${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh --epic <epic-id> --dry-run"
+        echo "    bash \${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh --epic <epic-id> --dry-run"  # shim-exempt: sub-agent instruction block
         echo "  Run with --dry-run first to preview the per-story PR split, then re-run without --dry-run to publish."
         # Pause for interactive abort only when running attached to a TTY. In
         # nested-orchestrator / sub-agent contexts (no terminal), the Ctrl-C
@@ -3247,7 +3249,7 @@ Activates when:
 - At least one task in the completed batch modified UI files (via `detect-ui-files.sh`), AND
 - The shared preconditions pass (via `visual-eval-preconditions.sh --route-map-required`) <!-- # precondition-emit-ok -->
 
-Implementation: `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/visual-eval-post-batch.sh` (called at Phase F Step 12a).
+Implementation: `.claude/scripts/dso sprint/visual-eval-post-batch.sh` (called at Phase F Step 12a).
 
 ### Token-Budget Guard
 

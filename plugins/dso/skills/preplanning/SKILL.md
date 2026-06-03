@@ -350,6 +350,8 @@ Skip this phase entirely when running under `--lightweight` (lightweight mode do
 
 ### Dispatch
 
+> **Named-agent dispatch invariant**: Attempt dispatch via `subagent_type: "dso:<agent-name>"` first. Read the agent file (e.g., `agents/<agent-name>.md`) and pass its content inline **only** when the dispatch returns an "Unknown agent" or "agent type not registered" error in the current session. Reading the agent file before the dispatch attempt wastes context tokens, leaks agent internals into the orchestrator window, and inverts the fallback contract. Exception: agents documented as "NOT a valid `subagent_type` value" (e.g., `dso:complexity-evaluator`) always use `general-purpose` + inline read — no named dispatch to attempt.
+
 <!-- EMIT-PRECONDITIONS: gate_name=preplanning_story_decomposer_dispatch degradation_type=inferred_decision -->
 Dispatch via `subagent_type: "dso:story-decomposer"` with `model: "opus"` passed explicitly (do not rely on the agent frontmatter default — vertical slicing, INVEST-checking, and SC-coverage decomposition require opus, and the explicit param defends against future routing changes that might silently downgrade). If the named type is unregistered in this session, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/story-decomposer.md` content read inline as the prompt.
 
@@ -384,7 +386,7 @@ You MUST write your full JSON output (sc_coverage_plan, story_drafts, decomposit
 the ticket scratch store before returning, using the SCRATCH_TICKET_ID and SCRATCH_KEY values
 provided:
 
-  bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" set "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" "<your-json-output>"
+  bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" set "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" "<your-json-output>"  # shim-exempt: sub-agent instruction block
 
 After writing, return ONLY a 3-field receipt JSON — do NOT embed the draft body in your return block:
 
@@ -412,12 +414,12 @@ After the sub-agent returns, validate its receipt via `receipt-parse.sh` before 
 ```bash
 # Prompt Alignment Finding 1: receipt validation co-located with the read site
 PARSE_RESULT=$(printf '%s' "<sub-agent-return-block>" | \
-    bash "$PLUGIN_SCRIPTS/receipt-parse.sh" preplanning:step4 dso:story-decomposer)
+    bash "$PLUGIN_SCRIPTS/receipt-parse.sh" preplanning:step4 dso:story-decomposer)  # shim-exempt: sub-agent instruction block
 PARSE_EXIT=$?
 if [ "$PARSE_EXIT" -ne 0 ]; then
     # RECEIPT_PARSE_ERROR — halt workflow; structured error already logged to stderr by receipt-parse.sh
     # Inline cleanup: remove any partial scratch written before the failure
-    bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "preplanning:step4:story-decomp-draft" 2>/dev/null || true
+    bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "preplanning:step4:story-decomp-draft" 2>/dev/null || true  # shim-exempt: sub-agent instruction block
     echo "HALT: story decomposer returned a malformed receipt — see RECEIPT_PARSE_ERROR above. Re-dispatch the sub-agent to fix the return contract before continuing." >&2
     exit 1
 fi
@@ -426,14 +428,14 @@ SCRATCH_TICKET_ID_OUT=$(echo "$PARSE_RESULT" | awk '{print $1}')
 SCRATCH_KEY_OUT=$(echo "$PARSE_RESULT" | awk '{print $2}')
 
 # Retrieve the payload from scratch
-SCRATCH_RESULT=$(bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" get "$SCRATCH_TICKET_ID_OUT" "$SCRATCH_KEY_OUT")
+SCRATCH_RESULT=$(bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" get "$SCRATCH_TICKET_ID_OUT" "$SCRATCH_KEY_OUT")  # shim-exempt: sub-agent instruction block
 SCRATCH_STATUS=$(echo "$SCRATCH_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
 
 # Prompt Alignment Finding 1: SCRATCH_MISS guard co-located with the get call
 if [ "$SCRATCH_STATUS" != "hit" ]; then
     # SCRATCH_MISS — hard error; do NOT fall back to accepting inline payload  # precondition-emit-ok: negation, no degradation event
     # Inline cleanup: no payload to remove, but clear any stale key
-    bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID_OUT" "$SCRATCH_KEY_OUT" 2>/dev/null || true
+    bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID_OUT" "$SCRATCH_KEY_OUT" 2>/dev/null || true  # shim-exempt: sub-agent instruction block
     echo "HALT: scratch key '$SCRATCH_KEY_OUT' not found for ticket '$SCRATCH_TICKET_ID_OUT' (status=$SCRATCH_STATUS). A SCRATCH_MISS is not a signal to accept an inline payload — re-dispatch the sub-agent." >&2
     exit 1
 fi
@@ -466,7 +468,7 @@ The full decomposition JSON is already stored in scratch under key `preplanning:
 After Phase H creates the story tickets from the drafts, clear the scratch key:
 
 ```bash
-bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "preplanning:step4:story-decomp-draft"
+bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "preplanning:step4:story-decomp-draft"  # shim-exempt: sub-agent instruction block
 ```
 
 ### Feed Downstream Phases
@@ -587,7 +589,7 @@ See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md
 After each cycle's re-dispatch and review, atomically append a `cycles[]` entry to the adversarial-review artifact using the writer:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py" \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py" \  # shim-exempt: sub-agent instruction block
   --artifact "$ARTIFACTS_DIR/adversarial-review-<epic-id>.json" \
   --n <cycle-number> \
   --draft-hash <sha256 of DELTA OUTPUT block> \
