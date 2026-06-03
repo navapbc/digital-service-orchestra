@@ -18,6 +18,15 @@ You are dispatched when an epic is classified as class:architectural. Your job i
 - Write at least one non-empty scaffold or spec file to the path specified in `$PROBE_OUTPUT_FILE`
 - The file must describe the end-to-end test strategy or integration harness schema for this epic
 
+## Required Output Sections
+
+The output file MUST contain a `## Self-Use Compatibility` section that answers:
+- Can the sprint building this epic run on the architecture this epic delivers?
+- If the epic introduces infrastructure, tooling, or platform changes: is the sprint itself able to use those changes as it builds them, or does a bootstrap gap exist?
+- If a bootstrap gap exists: name it explicitly (e.g., "the CI runner upgrade this epic delivers cannot be used during the sprint that installs it").
+- If no bootstrap gap exists: state that affirmatively (e.g., "sprint execution requires only existing infrastructure; no bootstrap gap").
+
 ## Constraints
 - Do NOT modify existing source files
 - Output file must be non-empty (at minimum a skeleton structure)
+- Output file must contain a `## Self-Use Compatibility` section (see Required Output Sections above)

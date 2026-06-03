@@ -103,7 +103,10 @@ INNER_EOF
         # space-joined `$RECOVERED` word-split broke such paths (e.g. a recovered
         # 'src/my file.py' would be split into 'src/my' and 'file.py', leaving the
         # real file unstaged). Reported on PR #548 review (recover-reaped-worktree.sh:109).
-        git -C "$SESSION_ROOT" add -- "${RECOVERED_ARR[@]}"
+        if ! git -C "$SESSION_ROOT" add -- "${RECOVERED_ARR[@]}"; then
+            echo "UNRECOVERABLE_REDISPATCH"
+            exit 3
+        fi
         echo "RECOVERED_FROM_SESSION: ${RECOVERED_ARR[*]}"
         exit 0
     fi

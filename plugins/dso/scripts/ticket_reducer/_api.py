@@ -211,9 +211,15 @@ def reduce_ticket(
     if not event_files:
         return None
 
+    # Derive tracker_dir so process_link can resolve alias-form target IDs to
+    # canonical UUIDs.  ticket_dir is <tracker>/<ticket_id>, so the parent is
+    # the tracker root.  When ticket_dir has no parent (unlikely but defensive),
+    # we pass None and alias resolution degrades gracefully to verbatim storage.
+    tracker_dir: str | None = os.path.dirname(ticket_dir) or None
+
     state = make_initial_state()
     valid_event_count, early_result = replay_events(
-        state, event_files, ticket_id, cache_path, dir_hash
+        state, event_files, ticket_id, cache_path, dir_hash, tracker_dir=tracker_dir
     )
     if early_result is not None:
         return early_result

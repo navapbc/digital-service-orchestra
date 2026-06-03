@@ -227,6 +227,11 @@ if [[ "$use_new_interface" -eq 1 ]]; then
         exit 1
     fi
 
+    if [[ -n "$pr_number_arg" ]] && ! [[ "$pr_number_arg" =~ ^[1-9][0-9]*$ ]]; then
+        echo "error: --pr-number must be a positive integer (PR numbers start at 1); got '$pr_number_arg'" >&2
+        exit 1
+    fi
+
     if [[ "$reconstruct_from_pr" -eq 1 ]]; then
         # PR number resolution: --pr-number CLI flag wins; fall back to env var.
         # Matches the resolution order at line 321 (PR_NUMBER assignment).
