@@ -212,6 +212,57 @@ else
 fi
 rm -rf "$TEST_DIR6"
 
+# Test 10: --pr-number abc → exit non-zero, stderr mentions pr-number, no ledger file
+TEST_DIR7=$(mktemp -d "${TMPDIR:-/tmp}/test-write-cycle-ledger-prnumabc.XXXXXX")
+unset DSO_CI_REVIEW_PR
+stderr_out=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR7" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
+    --epic-id test-pr-invalid \
+    --cycle-num 1 \
+    --findings-hash dummy7 \
+    --pr-number abc 2>&1 >/dev/null)
+exit_code=$?
+LEDGER7="$TEST_DIR7/cycle-ledger.json"
+if [[ $exit_code -ne 0 ]] && echo "$stderr_out" | grep -qi "pr-number" && [[ ! -f "$LEDGER7" ]]; then
+    run_test "--pr-number abc → exit non-zero, stderr mentions pr-number, no ledger" "PASS"
+else
+    run_test "--pr-number abc → exit non-zero, stderr mentions pr-number, no ledger" "exit=$exit_code stderr='$stderr_out' ledger_exists=$(test -f "$LEDGER7" && echo yes || echo no)"
+fi
+rm -rf "$TEST_DIR7"
+
+# Test 11: --pr-number -5 → exit non-zero, stderr mentions pr-number, no ledger file
+TEST_DIR8=$(mktemp -d "${TMPDIR:-/tmp}/test-write-cycle-ledger-prnumneg.XXXXXX")
+unset DSO_CI_REVIEW_PR
+stderr_out=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR8" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
+    --epic-id test-pr-negative \
+    --cycle-num 1 \
+    --findings-hash dummy8 \
+    --pr-number -5 2>&1 >/dev/null)
+exit_code=$?
+LEDGER8="$TEST_DIR8/cycle-ledger.json"
+if [[ $exit_code -ne 0 ]] && echo "$stderr_out" | grep -qi "pr-number" && [[ ! -f "$LEDGER8" ]]; then
+    run_test "--pr-number -5 → exit non-zero, stderr mentions pr-number, no ledger" "PASS"
+else
+    run_test "--pr-number -5 → exit non-zero, stderr mentions pr-number, no ledger" "exit=$exit_code stderr='$stderr_out' ledger_exists=$(test -f "$LEDGER8" && echo yes || echo no)"
+fi
+rm -rf "$TEST_DIR8"
+
+# Test 12: --pr-number 0 → exit non-zero, stderr mentions pr-number, no ledger file
+TEST_DIR9=$(mktemp -d "${TMPDIR:-/tmp}/test-write-cycle-ledger-prnumzero.XXXXXX")
+unset DSO_CI_REVIEW_PR
+stderr_out=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR9" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
+    --epic-id test-pr-zero \
+    --cycle-num 1 \
+    --findings-hash dummy9 \
+    --pr-number 0 2>&1 >/dev/null)
+exit_code=$?
+LEDGER9="$TEST_DIR9/cycle-ledger.json"
+if [[ $exit_code -ne 0 ]] && echo "$stderr_out" | grep -qi "pr-number" && [[ ! -f "$LEDGER9" ]]; then
+    run_test "--pr-number 0 → exit non-zero, stderr mentions pr-number, no ledger" "PASS"
+else
+    run_test "--pr-number 0 → exit non-zero, stderr mentions pr-number, no ledger" "exit=$exit_code stderr='$stderr_out' ledger_exists=$(test -f "$LEDGER9" && echo yes || echo no)"
+fi
+rm -rf "$TEST_DIR9"
+
 echo ""
 echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed, $SKIP_COUNT skipped"
 [[ $FAIL_COUNT -eq 0 ]]

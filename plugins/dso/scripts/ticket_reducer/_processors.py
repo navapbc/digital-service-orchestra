@@ -170,11 +170,30 @@ def process_comment(state: dict, event: dict, data: dict) -> None:
     state["comments"].append(_entry)
 
 
-def process_link(state: dict, event: dict, data: dict) -> None:
-    """Apply a LINK event: append a dep entry to state.deps."""
+def process_link(
+    state: dict, event: dict, data: dict, tracker_dir: str | None = None
+) -> None:
+    """Apply a LINK event: append a dep entry to state.deps.
+
+    When tracker_dir is provided, attempt to resolve an alias-form or short-hex
+    target_id to its canonical UUID via resolve_ticket_id.  On failure (alias
+    unresolvable, resolver unavailable, or no tracker_dir) the verbatim value
+    is stored as a graceful fallback so no data is lost.
+    """
+    raw_target = data.get("target_id", data.get("target", ""))
+    resolved_target = raw_target
+    if tracker_dir and raw_target:
+        try:
+            from ticket_resolver import resolve_ticket_id  # local import avoids circular dep
+
+            canonical = resolve_ticket_id(raw_target, tracker_dir)
+            if canonical:
+                resolved_target = canonical
+        except Exception:  # noqa: BLE001 — resolver is best-effort; never crash the reducer
+            pass
     state["deps"].append(
         {
-            "target_id": data.get("target_id", data.get("target", "")),
+            "target_id": resolved_target,
             "relation": data.get("relation", ""),
             "link_uuid": event["uuid"],
         }
@@ -318,6 +337,7 @@ def replay_events(
     ticket_id: str,
     cache_path: str,
     dir_hash: str,
+    tracker_dir: str | None = None,
 ) -> tuple[int, dict | None]:
     """Pass 2: replay events onto state, applying each processor in order.
 
@@ -361,7 +381,7 @@ def replay_events(
         elif event_type == "COMMENT":
             process_comment(state, event, data)
         elif event_type == "LINK":
-            process_link(state, event, data)
+            process_link(state, event, data, tracker_dir=tracker_dir)
         elif event_type == "UNLINK":
             process_unlink(state, data)
         elif event_type == "BRIDGE_ALERT":

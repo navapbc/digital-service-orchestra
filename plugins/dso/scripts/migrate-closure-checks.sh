@@ -85,6 +85,12 @@ _MIGRATION_RUN_ID=""
 _CLASSIFIER_BUDGET=25  # DD5: 25-item batch cap (cumulative across the session)
 _CLASSIFIER_CONSUMED=0
 _CLASSIFIER_HELPER=""
+# Epic-count cap for --classify mode: prevents unbounded loops under auto-approve.
+# Override via DSO_CLASSIFY_MAX_EPICS env var.
+_CLASSIFY_MAX_EPICS="${DSO_CLASSIFY_MAX_EPICS:-20}"
+# Wall-time guard for --classify mode: breaks cleanly if elapsed time exceeds limit.
+# Override via DSO_CLASSIFY_WALL_TIME_SECS env var.
+_CLASSIFY_WALL_TIME_SECS="${DSO_CLASSIFY_WALL_TIME_SECS:-3600}"
 if [ "$_CLASSIFY" = "1" ]; then
     _MIGRATION_RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4())' 2>/dev/null)"
     if [ -z "$_MIGRATION_RUN_ID" ]; then
@@ -200,6 +206,16 @@ fi
 if [ "${#_TICKET_LINES[@]}" -eq 0 ]; then
     echo "INFO: No tickets to migrate."
     exit 0
+fi
+
+# ── Epic-count cap (--classify mode only) ────────────────────────────────────
+# Applies after all input modes so it works for both scan and stdin-piped runs.
+# Prevents unbounded single-run execution under auto-approve. Truncate to
+# _CLASSIFY_MAX_EPICS and emit a clear re-run message naming the deferred count.
+if [ "$_CLASSIFY" = "1" ] && [ "${#_TICKET_LINES[@]}" -gt "$_CLASSIFY_MAX_EPICS" ]; then
+    _deferred=$(( ${#_TICKET_LINES[@]} - _CLASSIFY_MAX_EPICS ))
+    echo "INFO: Epic-count cap reached (DSO_CLASSIFY_MAX_EPICS=$_CLASSIFY_MAX_EPICS). Processing first $_CLASSIFY_MAX_EPICS epic(s); $_deferred deferred — re-run to continue."
+    _TICKET_LINES=("${_TICKET_LINES[@]:0:$_CLASSIFY_MAX_EPICS}")
 fi
 
 # ── Load previously-processed tickets (resume semantics) ─────────────────────
@@ -569,6 +585,9 @@ _failed=0
 _batch_failed=0
 _batch_migrated=0
 _batch_skipped=0
+# Wall-time guard start timestamp (--classify mode only; harmless in other modes)
+_CLASSIFY_START_SECONDS=$SECONDS
+_WALL_TIME_EXCEEDED=0
 
 _i=0
 while [ "$_i" -lt "$_total" ]; do
@@ -592,6 +611,13 @@ while [ "$_i" -lt "$_total" ]; do
         _j=$(( _j + 1 ))
 
         [[ -z "$_ticket_id" ]] && continue
+
+        # Wall-time guard (--classify mode): break cleanly if elapsed time exceeds limit.
+        if [ "$_CLASSIFY" = "1" ] && (( SECONDS - _CLASSIFY_START_SECONDS >= _CLASSIFY_WALL_TIME_SECS )); then
+            echo "WALL_TIME_EXCEEDED: elapsed $((SECONDS - _CLASSIFY_START_SECONDS))s >= limit ${_CLASSIFY_WALL_TIME_SECS}s — stopping cleanly; re-run to continue."
+            _WALL_TIME_EXCEEDED=1
+            break 2
+        fi
 
         # Check progress file (resume semantics) — only for the structural
         # migration pass. The --classify pass uses snapshot-based idempotency

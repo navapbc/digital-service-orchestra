@@ -1965,7 +1965,7 @@ except Exception:
             while IFS= read -r -d '' _e_a; do
                 local _bn_a; _bn_a=$(basename "$_e_a"); _bn_a="${_bn_a//-/}"
                 _all_dirs_a+=("$_bn_a")
-            done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+            done < <(find -L "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
             local _prefix_len_a=4
             while [ "$_prefix_len_a" -le "${#_nodash_a}" ]; do
                 local _candidate_a="${_nodash_a:0:$_prefix_len_a}"
@@ -2036,7 +2036,7 @@ except Exception:
                     if [[ "$_base_nodash" == "$_candidate"* ]]; then
                         _match_count=$((_match_count + 1))
                     fi
-                done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+                done < <(find -L "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
                     ! -name '.*' -print0 2>/dev/null)
                 if [ "$_match_count" -eq 1 ]; then
                     _found_prefix="$_candidate"

@@ -51,10 +51,14 @@ on:
   merge_group:
 
 concurrency:
-  # NOTE (ADR-0019): cancel-in-progress can cancel an in-flight merge_group
-  # check. If queue-check cancellation becomes a problem under MQ, scope a
-  # separate non-cancelling concurrency group keyed on github.ref for
-  # merge_group events.
+  # ADR-0019 (MQ live-validation finding N1, 2026-06-03): cancel-in-progress is
+  # SAFE for merge_group with this group key. On a merge_group event github.ref
+  # is the unique gh-readonly-queue/<branch>/pr-N-<sha> candidate ref, so each
+  # queue candidate gets its own concurrency group — a PR push (different ref)
+  # cannot cancel an in-flight queue check. Verified live: the merge_group checks
+  # (incl. the ~11-min Script Tests) ran to completion with no cancellation, then
+  # the queue fast-forwarded. If multi-PR batching (max-entries-to-merge > 1) is
+  # ever enabled, re-verify this isolation (candidate refs would still be unique).
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
@@ -959,10 +963,19 @@ jobs:
       - name: Capture PR SHAs
         id: capture-shas
         run: |
-          echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
-          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_ENV"
-          echo "Captured BASE_SHA=${{ github.event.pull_request.base.sha }}"
-          echo "Captured HEAD_SHA=${{ github.event.pull_request.head.sha }}"
+          # Event-aware (ADR-0019, MQ live-validation finding C2, 2026-06-03):
+          # on a `merge_group` event the github.event.pull_request.* fields are
+          # null, so without a fallback these env vars were captured EMPTY on the
+          # queue candidate (observed live: "Captured BASE_SHA=" / "HEAD_SHA="
+          # blank). Fall back to the merge_group SHAs so they are never empty.
+          # Today the red-test-blocker step below is an intentional no-op on
+          # merge_group (its `if` requires base==main + a session-style head_ref,
+          # both empty on merge_group), so nothing consumes these on the queue —
+          # this fallback is defensive against any future merge_group-active step.
+          echo "BASE_SHA=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}" >> "$GITHUB_ENV"
+          echo "Captured BASE_SHA=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+          echo "Captured HEAD_SHA=${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}"
 
       # red-test-blocker: scan the merged .test-index for RED markers.
       # Only fires when PR base == main AND head matches a session or bug-batch pattern.

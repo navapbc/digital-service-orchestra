@@ -94,6 +94,27 @@ else
   fail "Marker 8: post-scrutiny-handlers.md missing 'Premise to confirm'"
 fi
 
+# Marker 9a: architectural-probe.md contains "## Self-Use Compatibility" required section
+if grep -q "## Self-Use Compatibility" "$REPO_ROOT/plugins/dso/agents/architectural-probe.md"; then
+  pass "Marker 9a: architectural-probe.md contains '## Self-Use Compatibility' required section"
+else
+  fail "Marker 9a: architectural-probe.md missing '## Self-Use Compatibility' required section"
+fi
+
+# Marker 9b: run-architectural-probe.sh scaffold contains "## Self-Use Compatibility"
+if grep -q "## Self-Use Compatibility" "$REPO_ROOT/plugins/dso/scripts/run-architectural-probe.sh"; then
+  pass "Marker 9b: run-architectural-probe.sh scaffold contains '## Self-Use Compatibility'"
+else
+  fail "Marker 9b: run-architectural-probe.sh scaffold missing '## Self-Use Compatibility'"
+fi
+
+# Marker 9c: brainstorm SKILL.md gate validates "## Self-Use Compatibility" section
+if grep -q "Self-Use Compatibility" "$REPO_ROOT/plugins/dso/skills/brainstorm/SKILL.md"; then
+  pass "Marker 9c: brainstorm SKILL.md gate validates '## Self-Use Compatibility' section"
+else
+  fail "Marker 9c: brainstorm SKILL.md gate missing '## Self-Use Compatibility' validation"
+fi
+
 echo ""
 echo "=== Results ==="
 echo "Passed: $PASS"
