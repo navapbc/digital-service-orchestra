@@ -13,10 +13,7 @@ files only; this is .py behavior).
 """
 from __future__ import annotations
 
-import io
 import json
-import os
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -248,6 +245,77 @@ class TestR5AnthropicProviderRescue:
         import litellm
 
         from dso_ci_review.providers.anthropic import review_diff
+
+        clean = json.dumps({"findings": [{"severity": "minor", "description": "ok"}]})
+        with patch.object(litellm, "completion", return_value=_mock_response(clean)):
+            result = review_diff("dummy diff")
+        assert result == {"findings": [{"severity": "minor", "description": "ok"}]}
+
+
+# ─── R5: providers/openai.py applies rescue (parity with anthropic.py) ────────
+
+
+class TestR5OpenAIProviderRescue:
+    """The legacy providers/openai.py adapter MUST apply the same
+    _extract_json_from_text rescue that dispatch._parse_response uses, so
+    markdown-fenced and empty-findings responses succeed instead of
+    failing.  Mirrors TestR5AnthropicProviderRescue exactly but targets
+    the openai provider path."""
+
+    def test_markdown_fenced_response_is_rescued(self):
+        import litellm
+
+        from dso_ci_review.providers.openai import review_diff
+
+        fenced = _load_fixture("markdown-fenced.txt")
+        with patch.object(litellm, "completion", return_value=_mock_response(fenced)):
+            result = review_diff("dummy diff")
+        assert isinstance(result, dict)
+        assert "findings" in result
+        assert isinstance(result["findings"], list)
+        assert len(result["findings"]) >= 1
+
+    def test_empty_findings_fenced_response_is_rescued(self):
+        """CI-failure shape: fenced JSON with empty findings list."""
+        import litellm
+
+        from dso_ci_review.providers.openai import review_diff
+
+        fenced = _load_fixture("markdown-fenced-empty-findings.txt")
+        with patch.object(litellm, "completion", return_value=_mock_response(fenced)):
+            result = review_diff("dummy diff")
+        assert isinstance(result, dict)
+        assert "findings" in result
+        assert result["findings"] == []
+        assert result.get("summary") == "No issues found."
+
+    def test_friendly_preamble_response_is_rescued(self):
+        import litellm
+
+        from dso_ci_review.providers.openai import review_diff
+
+        preamble = _load_fixture("friendly-preamble.txt")
+        with patch.object(litellm, "completion", return_value=_mock_response(preamble)):
+            result = review_diff("dummy diff")
+        assert isinstance(result, dict)
+        assert "findings" in result
+
+    def test_genuine_refusal_still_raises(self):
+        """Rescue must NOT mask a genuine non-JSON refusal."""
+        import litellm
+
+        from dso_ci_review.providers.openai import review_diff
+
+        refusal = _load_fixture("refusal.txt")
+        with patch.object(litellm, "completion", return_value=_mock_response(refusal)):
+            with pytest.raises(ValueError, match="non-JSON"):
+                review_diff("dummy diff")
+
+    def test_clean_json_unchanged_happy_path(self):
+        """No regression: clean JSON response still parses normally."""
+        import litellm
+
+        from dso_ci_review.providers.openai import review_diff
 
         clean = json.dumps({"findings": [{"severity": "minor", "description": "ok"}]})
         with patch.object(litellm, "completion", return_value=_mock_response(clean)):

@@ -173,6 +173,10 @@ tag_filter = os.environ.get('_TAG_FILTER', '')
 priority_filter = os.environ.get('_PRIORITY_FILTER', '')
 without_tag_filter = os.environ.get('_WITHOUT_TAG_FILTER', '')
 
+if parent_filter:
+    from ticket_resolver import resolve_ticket_id as _res_parent
+    parent_filter = _res_parent(parent_filter, tracker_dir) or parent_filter
+
 results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived, exclude_deleted=exclude_deleted)
 results = apply_ticket_filters(
     results,
@@ -204,6 +208,10 @@ parent_filter = os.environ.get('_PARENT_FILTER', '')
 tag_filter = os.environ.get('_TAG_FILTER', '')
 priority_filter = os.environ.get('_PRIORITY_FILTER', '')
 without_tag_filter = os.environ.get('_WITHOUT_TAG_FILTER', '')
+
+if parent_filter:
+    from ticket_resolver import resolve_ticket_id as _res_parent
+    parent_filter = _res_parent(parent_filter, tracker_dir) or parent_filter
 
 results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived, exclude_deleted=exclude_deleted)
 results = apply_ticket_filters(

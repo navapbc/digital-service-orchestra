@@ -312,7 +312,7 @@ test_unmatched_printed_for_non_pil_epic
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test 5: Marker file .claude/.brainstorm-tag-migration-v2 written at repo root
 # ═══════════════════════════════════════════════════════════════════════════════
-echo "Test 5: marker file written at repo root after migration"
+echo "Test 5: marker file written in shared tracker .migrations/ after migration"
 test_marker_file_written() {
     _snapshot_fail
 
@@ -328,10 +328,11 @@ test_marker_file_written() {
 
     (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
 
-    if [ -f "$repo/.claude/.brainstorm-tag-migration-v2" ]; then
-        assert_eq "marker file written" "exists" "exists"
+    # Primary marker (shared, tickets-branch): must exist after migration
+    if [ -f "$repo/.tickets-tracker/.migrations/brainstorm-tag-migration-v2" ]; then
+        assert_eq "shared marker file written in tracker .migrations/" "exists" "exists"
     else
-        assert_eq "marker file written" "exists" "missing"
+        assert_eq "shared marker file written in tracker .migrations/" "exists" "missing"
     fi
 
     assert_pass_if_clean "test_marker_file_written"
@@ -420,11 +421,11 @@ test_plugin_source_repo_guard() {
         assert_eq "plugin-source-repo guard: emits a notice" "notice-emitted" "silent-exit"
     fi
 
-    # Marker file must NOT be written (guard bailed before making changes)
-    if [ -f "$repo/.claude/.brainstorm-tag-migration-v2" ]; then
-        assert_eq "plugin-source-repo guard: marker NOT written" "not-written" "written"
+    # Shared marker file must NOT be written (guard bailed before making changes)
+    if [ -f "$repo/.tickets-tracker/.migrations/brainstorm-tag-migration-v2" ]; then
+        assert_eq "plugin-source-repo guard: shared marker NOT written" "not-written" "written"
     else
-        assert_eq "plugin-source-repo guard: marker NOT written" "not-written" "not-written"
+        assert_eq "plugin-source-repo guard: shared marker NOT written" "not-written" "not-written"
     fi
 
     # No brainstorm:complete tags must have been added to any epic
@@ -617,7 +618,7 @@ test_pil_in_edit_fields_description
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test 11: Marker file written is v2 (not v1) after successful migration
 # ═══════════════════════════════════════════════════════════════════════════════
-echo "Test 11: marker file path is .brainstorm-tag-migration-v2 (not v1)"
+echo "Test 11: marker file is brainstorm-tag-migration-v2 in tracker .migrations/ (not v1, not old .claude/ path)"
 test_marker_file_is_v2_not_v1() {
     _snapshot_fail
 
@@ -633,18 +634,25 @@ test_marker_file_is_v2_not_v1() {
 
     (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
 
-    # v2 marker must exist
-    if [ -f "$repo/.claude/.brainstorm-tag-migration-v2" ]; then
-        assert_eq "v2 marker file exists" "exists" "exists"
+    # v2 shared marker must exist at tracker .migrations/ path
+    if [ -f "$repo/.tickets-tracker/.migrations/brainstorm-tag-migration-v2" ]; then
+        assert_eq "v2 shared marker exists at tracker .migrations/" "exists" "exists"
     else
-        assert_eq "v2 marker file exists" "exists" "missing"
+        assert_eq "v2 shared marker exists at tracker .migrations/" "exists" "missing"
     fi
 
     # v1 marker must NOT exist (script was bumped to v2)
-    if [ -f "$repo/.claude/.brainstorm-tag-migration-v1" ]; then
-        assert_eq "v1 marker file must not be created" "absent" "present"
+    if [ -f "$repo/.tickets-tracker/.migrations/brainstorm-tag-migration-v1" ]; then
+        assert_eq "v1 tracker marker must not be created" "absent" "present"
     else
-        assert_eq "v1 marker file must not be created" "absent" "absent"
+        assert_eq "v1 tracker marker must not be created" "absent" "absent"
+    fi
+
+    # Old per-worktree .claude/ marker must NOT be written by the new script
+    if [ -f "$repo/.claude/.brainstorm-tag-migration-v2" ]; then
+        assert_eq "old per-worktree .claude/ marker must not be written" "absent" "present"
+    else
+        assert_eq "old per-worktree .claude/ marker must not be written" "absent" "absent"
     fi
 
     assert_pass_if_clean "test_marker_file_is_v2_not_v1"
@@ -974,11 +982,11 @@ test_dryrun_gate_no_changes() {
     commit_count_after=$(git -C "$tracker_dir" log --oneline 2>/dev/null | wc -l | tr -d ' ')
     assert_eq "dry-run: no new git commits in tracker" "$commit_count_before" "$commit_count_after"
 
-    # Marker file must NOT be written
-    if [ -f "$repo/.claude/.brainstorm-tag-migration-v2" ]; then
-        assert_eq "dry-run: marker file NOT written" "not-written" "written"
+    # Shared marker file must NOT be written (dry-run must not commit to tracker)
+    if [ -f "$tracker_dir/.migrations/brainstorm-tag-migration-v2" ]; then
+        assert_eq "dry-run: shared marker file NOT written" "not-written" "written"
     else
-        assert_eq "dry-run: marker file NOT written" "not-written" "not-written"
+        assert_eq "dry-run: shared marker file NOT written" "not-written" "not-written"
     fi
 
     # A subsequent normal run must still perform the migration (marker absent = not idempotent-blocked)
@@ -995,6 +1003,99 @@ test_dryrun_gate_no_changes() {
     assert_pass_if_clean "test_dryrun_gate_no_changes"
 }
 test_dryrun_gate_no_changes
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 17: untag-then-remigrate does NOT re-apply brainstorm:complete tag
+# ═══════════════════════════════════════════════════════════════════════════════
+# Regression guard for bug 01b9-3359-7df3-45cf: the migration marker was stored
+# per-worktree in .claude/.brainstorm-tag-migration-v2 (gitignored). Fresh
+# worktrees lack the marker, so migration re-runs and re-applies a deliberately-
+# removed brainstorm:complete tag. Fix: move marker to the shared tickets tracker
+# branch at $TRACKER_DIR/.migrations/brainstorm-tag-migration-v2.
+#
+# Steps:
+#   1. Fresh fixture repo with PIL epic, run migration → tag applied, shared
+#      marker written at $TRACKER_DIR/.migrations/brainstorm-tag-migration-v2
+#   2. Untag brainstorm:complete (via EDIT event with tags=[])
+#   3. Remove the OLD local .claude/.brainstorm-tag-migration-v2 if present
+#      (simulates a fresh worktree that never had the per-worktree marker)
+#   4. Re-run migration → assert tag NOT re-applied (shared marker blocks re-run)
+echo "Test 17: untag-then-remigrate does not re-apply brainstorm:complete tag"
+test_untag_then_remigrate_does_not_retag() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migration script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local epic_id="epic-untag-remigrate-17"
+    local ticket_dir="$tracker_dir/$epic_id"
+    mkdir -p "$ticket_dir"
+
+    # Epic with a full PIL so migration will tag it on first run
+    local create_data
+    create_data='{"ticket_type": "epic", "title": "Epic for untag-remigrate test", "parent_id": null, "description": "## Background\n\n### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered"}'
+    _write_event "$ticket_dir" "1743000100" "00000000-0000-4000-8000-untagremi001" "CREATE" "$create_data"
+
+    # Step 1: First migration run — tag must be applied
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
+
+    if _ticket_has_tag "$tracker_dir" "$epic_id" "brainstorm:complete"; then
+        assert_eq "step1: brainstorm:complete tag applied after first migration" "tagged" "tagged"
+    else
+        assert_eq "step1: brainstorm:complete tag applied after first migration" "tagged" "not-tagged"
+        # Cannot proceed if step 1 failed
+        assert_pass_if_clean "test_untag_then_remigrate_does_not_retag"
+        return
+    fi
+
+    # Step 1b: assert shared marker exists at tracker path (not just local .claude/)
+    local shared_marker="$tracker_dir/.migrations/brainstorm-tag-migration-v2"
+    if [ -f "$shared_marker" ]; then
+        assert_eq "step1b: shared marker written at tracker .migrations/ path" "exists" "exists"
+    else
+        assert_eq "step1b: shared marker written at tracker .migrations/ path" "exists" "missing"
+    fi
+
+    # Step 2: Simulate deliberate untag — write an EDIT event setting tags=[]
+    # and commit it to the tracker.
+    local untag_data
+    untag_data='{"fields": {"tags": []}}'
+    _write_event "$ticket_dir" "1743000200" "00000000-0000-4000-8000-untagremi002" "EDIT" "$untag_data"
+    git -C "$tracker_dir" add "$epic_id/" >/dev/null 2>&1
+    git -C "$tracker_dir" commit -m "untag brainstorm:complete for test" >/dev/null 2>&1 || true
+
+    # Record EDIT count with brainstorm:complete tag after untag (baseline).
+    # Note: _ticket_has_tag scans all historical events so will see the
+    # migration EDIT; we use _count_brainstorm_tag_edits instead to detect
+    # re-application (count would increase if re-migration wrote a new EDIT).
+    local edits_before
+    edits_before=$(_count_brainstorm_tag_edits "$tracker_dir" "$epic_id")
+    assert_eq "step2: at least 1 brainstorm:complete EDIT exists from initial migration" \
+        "1" "$edits_before"
+
+    # Step 3: Remove the OLD local per-worktree marker (simulates fresh worktree)
+    rm -f "$repo/.claude/.brainstorm-tag-migration-v2" 2>/dev/null || true
+
+    # Step 4: Re-run migration — must be a no-op because shared marker exists
+    local exit_code=0
+    (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || exit_code=$?
+    assert_eq "step4: migration re-run exits 0" "0" "$exit_code"
+
+    # Assert no new EDIT events with brainstorm:complete tag were written
+    # (re-migration must not re-apply the tag; shared marker gates the run)
+    local edits_after
+    edits_after=$(_count_brainstorm_tag_edits "$tracker_dir" "$epic_id")
+    assert_eq "step4: no new brainstorm:complete EDIT events after re-migration" "$edits_before" "$edits_after"
+
+    assert_pass_if_clean "test_untag_then_remigrate_does_not_retag"
+}
+test_untag_then_remigrate_does_not_retag
 
 # ═══════════════════════════════════════════════════════════════════════════════
 print_summary
