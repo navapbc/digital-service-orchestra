@@ -200662,15 +200662,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[sprint auto-resume]: epic with 11 open tasks counted as ACTIVE=0 -> resume skips unfinished work"
@@ -202821,15 +202821,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[ci-llm-review/runner]: LLM wraps valid findings JSON in markdown code fences -> 'non-JSON response, cannot parse as findings' + spurious blocking-findings fallback"
@@ -207837,7 +207837,7 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot sile [truncated]"
+    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot silently regress."
   },
   "DIG-5147": {
     "assignee": null,
@@ -222014,15 +222014,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "ticket-migrate-brainstorm-tags.sh: re-run on skill invocation -> re-applies deliberately-removed brainstorm:complete tag"
@@ -228547,15 +228547,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[test-migrate-closure-checks.sh]: _install_stub_classifier trap clobbers git-fixtures.sh _cleanup EXIT trap -> fixture temp-dirs leak"
@@ -233254,15 +233254,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[test-format-ticket-id-symlink.sh]: assert_equals (undefined) on unreachable setup-failure branches -> 'command not found' instead of diagnostic"
@@ -236245,7 +236245,8 @@
     },
     "labels": [
       "detected_by:other",
-      "dso-id:4ba5-9211-3f1e-49c7"
+      "dso-id:4ba5-9211-3f1e-49c7",
+      "option-a"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -237723,7 +237724,7 @@
         {
           "content": [
             {
-              "text": "Plan refs: A-4.5; \u00a72.6 (REDESIGN); \u00a72.9/\u00a72.10 (shared ticket-exemption helper). THE ARCHITECTURAL CORE. Ship in warn/advisory first and shadow-observe on live PR2 traffic.",
+              "text": "Plan refs: A-4.5; \u00a72.6 (REDESIGN); \u00a72.9/\u00a72.10 (shared exemption helper). THE ARCHITECTURAL CORE. Ship in warn/advisory first and shadow-observe on live PR2 traffic.",
               "type": "text"
             }
           ],
@@ -237753,7 +237754,7 @@
         {
           "content": [
             {
-              "text": "- DD2: it fails-closed unless every SHA in origin/main..head is proven reviewed by the per-SHA review-coverage-invariant, EXCEPT SHAs whose diff is entirely within the event-sourced ticket store (.tickets-tracker tree) via a shared rc_diff_is_tickets_only helper. The exemption is diff-scoped tree evidence ONLY (git diff-tree non-empty AND every entry anchored to the ticket-store prefix) \u2014 never a trailer/marker (v4 fabricated-trailer lesson); empty file list = NOT exempt. (SC1/SC4)",
+              "text": "- DD2: it fails-closed unless every SHA in origin/main..head is proven reviewed by the per-SHA review-coverage-invariant, EXCEPT SHAs whose diff is entirely within an EXEMPT path. The exemption is diff-scoped tree evidence ONLY (git diff-tree non-empty AND every entry under an exempt prefix) \u2014 never a trailer/marker (v4 fabricated-trailer lesson); empty file list = NOT exempt. (SC1/SC4)",
               "type": "text"
             }
           ],
@@ -237762,7 +237763,52 @@
         {
           "content": [
             {
-              "text": "- DD3: the shared rc_diff_is_tickets_only helper lives in one place (review-coverage-lib.sh, sourced by all three consumers) and is wired into review-coverage-invariant.sh, verify-session-provenance.sh, AND fp-recovery-audit-sweep.sh (the last has no clean-merge scaffolding today \u2014 build it). Each consumer honors its own error posture; the predicate is identical. (SC4)",
+              "text": "- DD3: ONE shared helper `rc_diff_is_exempt_only <sha>` (in review-coverage-lib.sh, sourced by all three consumers) computes the exemption. It is wired into review-coverage-invariant.sh, verify-session-provenance.sh, AND fp-recovery-audit-sweep.sh (the last has no clean-merge scaffolding today \u2014 build it). Each consumer honors its own error posture; the predicate is identical. (SC4)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3a (CONFIG-DRIVEN EXEMPT SET \u2014 host-inheritable): the exempt prefixes are NOT hardcoded. They are:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    (i) the event-sourced ticket store (.tickets-tracker tree), and",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    (ii) the configured VERSION FILE \u2014 read from dso config key `version.file_path` via read-config.sh (the same key bump-version.sh uses; supports .json/.toml/plaintext). A commit whose diff is entirely the version file is exempt.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Because the version path comes from config, HOST PROJECTS inherit this behavior with their OWN version file (pyproject.toml, package.json, plaintext VERSION, etc.) \u2014 no dso-specific hardcoding. When `version.file_path` is unset, only the ticket-store exemption applies.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  RATIONALE: a version bump (or a rebase-resolved version-conflict commit) is an inert mechanical change; without this exemption an un-provenanced version-only commit reaching the staged branch would trip the per-SHA coverage walk and trigger an llm-review re-review (or fail-close), re-introducing review churn for a non-reviewable change. Mixed version+code in one commit is NOT exempt (diff-scoped \u2014 prevents laundering code through a version bump).",
               "type": "text"
             }
           ],
@@ -237789,7 +237835,16 @@
         {
           "content": [
             {
-              "text": "- DD6: a single shared-fixture EQUIVALENCE TEST asserts all three ticket-exemption consumers return identical exempt/not-exempt verdicts (the trailer-shortcut survived in one path after removal from another \u2014 prevent the same divergence).",
+              "text": "- DD6: a single shared-fixture EQUIVALENCE TEST asserts all three exemption consumers return identical exempt/not-exempt verdicts (the trailer-shortcut survived in one path after removal from another \u2014 prevent the same divergence).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD7: coordinate with story 6 (allowlist tightening) so the PR-level allowlist's version-file handling uses the SAME config-driven `version.file_path` (remove the hardcoded `**/.claude-plugin/plugin.json` allowlist entry) \u2014 the per-SHA exemption (this story) and the PR-level allowlist must agree on what \"version file\" means, sourced from one config key.",
               "type": "text"
             }
           ],
@@ -237837,7 +237892,16 @@
         {
           "content": [
             {
-              "text": "- E14/E15 across all three consumers: ticket-only -> exempt; mixed ticket+code -> NOT exempt (no launder); clean merge -> exempt. Identical verdicts.",
+              "text": "- E14/E15 across all three consumers: ticket-only -> exempt; version-file-only -> exempt; mixed exempt+code -> NOT exempt (no launder); clean merge -> exempt. Identical verdicts.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E-version (NEW): a version-file-only commit that did NOT ride a sub-PR (e.g. a rebase-resolved or staged-level bump) -> PR2 does NOT trigger llm-review/coverage against it; a commit mixing a version bump with a code change -> NOT exempt (re-reviewed). Run with both the dso version.file_path (plugin.json) and a simulated host config (e.g. pyproject.toml) to prove host-inheritance.",
               "type": "text"
             }
           ],
@@ -237867,7 +237931,7 @@
         {
           "content": [
             {
-              "text": "COURSE-CORRECTION TRIGGER: if review-gate in warn mode would FALSE-BLOCK any legitimate PR2 (clean, fully-reviewed, or ticket-only), STOP and fix before story 6/7 \u2014 a false-wedge under enforce blocks the team. If the three consumers ever disagree on an exemption verdict, STOP (launder/wedge risk).",
+              "text": "COURSE-CORRECTION TRIGGER: if review-gate in warn mode would FALSE-BLOCK any legitimate PR2 (clean, fully-reviewed, ticket-only, or version-only), STOP and fix before story 6/7 \u2014 a false-wedge under enforce blocks the team. If the three consumers ever disagree on an exemption verdict, STOP (launder/wedge risk).",
               "type": "text"
             }
           ],
@@ -239380,15 +239444,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Fail-closed the silent-pass review gates (exit-78 x3 carriers + R8 live-arm)"
@@ -239476,5 +239540,284 @@
       }
     },
     "summary": "mktemp-tmpdir-check pre-commit hook times out (exit 124) at 30s wrapper budget on multi-script commits"
+  },
+  "DIG-5268": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 8a5d6ed4b2905640c910e39df7a297c079414404",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Sub-Agent Blocker (test-infrastructure leak, sibling to dae6-3db9-9eea-4009)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "All EXIT traps in test scripts must chain on top of git-fixtures.sh's `_cleanup` EXIT trap (registered at git-fixtures.sh line 50 when sourced), so that `_CLEANUP_DIRS` fixture temp-dirs and any local sidecar temp-files are removed on process exit. The established fix idiom is in tests/run-all.sh lines 72-96 (capture prior trap via `trap -p EXIT | sed ...`, then register a chained trap that appends to it).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Two sibling files have the same EXIT-trap clobber pattern fixed in dae6-3db9-9eea-4009:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**1. tests/scripts/test-retro-gather-suggestions.sh**",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Line 28: `source \"$REPO_ROOT/tests/lib/git-fixtures.sh\"` \u2014 registers `trap _cleanup EXIT`",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Line 75: `trap 'rm -f \"$_tmpout\"' EXIT` \u2014 overwrites `_cleanup`",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Line 102: `trap 'rm -f \"$_empty_tmp\"' EXIT` \u2014 overwrites line-75 trap",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Line 128: `trap 'rm -f \"$_nodir_tmp\"' EXIT` \u2014 overwrites line-102 trap",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Result: only the last trap (line 128) survives; `_CLEANUP_DIRS` entries registered via `_CLEANUP_DIRS+=(\"$_REPO_WITH\")` (line 34) are never cleaned. `_tmpout` and `_empty_tmp` temp files (from lines 74 and 101) also leak because their traps were overwritten.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**2. tests/scripts/test-audit-source-consumers.sh**",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Line 37: `_AUDIT_EXIT_FILE=\"$(mktemp ...)\"` \u2014 creates sidecar temp file",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Line 39: `trap 'rm -f \"$_AUDIT_EXIT_FILE\"' EXIT` \u2014 registers cleanup for it",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Line 42: `source \"$REPO_ROOT/tests/lib/git-fixtures.sh\"` \u2014 overwrites line-39 trap with `trap _cleanup EXIT`",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Result: `_AUDIT_EXIT_FILE` is never removed on exit (its cleanup trap was overwritten by git-fixtures.sh).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Fix direction",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Same as dae6-3db9-9eea-4009: use the `trap -p EXIT | sed ...` capture idiom before each `trap ... EXIT` call, then register a chained trap that calls both the new handler and the prior body. Or refactor each sidecar to use `_CLEANUP_DIRS+=(\"$file\")` so git-fixtures' `_cleanup` covers it, and remove the raw `trap ... EXIT` calls.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "detected_by:other",
+      "dso-id:61d6-2d02-86c1-49ae"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[test-retro-gather-suggestions.sh|test-audit-source-consumers.sh]: trap ... EXIT clobbers git-fixtures.sh _cleanup -> _CLEANUP_DIRS and sidecar temp-files leak"
   }
 }
