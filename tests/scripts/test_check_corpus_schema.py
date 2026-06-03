@@ -422,3 +422,269 @@ def test_validate_index_flag_passes_when_index_absent(tmp_path: Path) -> None:
         f"Expected exit 0 when --validate-index and _index.yaml is absent, "
         f"got {result.returncode}.\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 12: Per-subdir _schema.yaml enforced over top-level schema
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_subdir_schema_enforced_over_toplevel_schema(tmp_path: Path) -> None:
+    """Given a corpus where the top-level schema allows domain [a, b] but a
+    subdir _schema.yaml only allows domain [a], when an entry in that subdir
+    has domain b, then the validator exits non-zero (subdir schema is enforced).
+
+    This test covers the direct _schema.yaml placement in the subdir.
+    """
+    corpus_dir = tmp_path / "corpus"
+    corpus_dir.mkdir()
+
+    # Top-level schema: domain allows 'a' and 'b'
+    top_schema = corpus_dir / "_schema.yaml"
+    top_schema.write_text(
+        "required_fields:\n  - title\ntag_vocabulary:\n  domain:\n    - a\n    - b\n"
+    )
+
+    subdir = corpus_dir / "narrow"
+    subdir.mkdir()
+
+    # Subdir schema: domain only allows 'a'
+    sub_schema = subdir / "_schema.yaml"
+    sub_schema.write_text(
+        "required_fields:\n  - title\ntag_vocabulary:\n  domain:\n    - a\n"
+    )
+
+    # Entry in subdir with domain 'b' — valid top-level but invalid subdir schema
+    entry = subdir / "entry.yaml"
+    entry.write_text("title: Subdir entry\ndomain: b\n")
+
+    result = _run_validator(corpus_dir)
+    assert result.returncode != 0, (
+        f"Expected non-zero exit: subdir schema restricts domain to [a], "
+        f"but entry has domain 'b'. The top-level schema (which allows 'b') "
+        f"must NOT override the subdir schema.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 13: _is_skip_file() helper skips expected filenames and prefixes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_is_skip_file_matches_skip_names_and_prefix(tmp_path: Path) -> None:
+    """_is_skip_file() must return True for _SKIP_NAMES entries and _schema-*.yaml
+    prefix files, and False for normal corpus entry files.
+
+    Imports the helper directly to verify its logic without running the full
+    validator subprocess.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "check_corpus_schema", str(SCRIPT_PATH)
+    )
+    assert spec is not None and spec.loader is not None, (
+        "Could not load check-corpus-schema.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    is_skip = mod._is_skip_file
+
+    # Should be skipped — _SKIP_NAMES
+    for name in (
+        "_schema.yaml",
+        "_schema-anti-patterns.yaml",
+        "_index.yaml",
+        "_overview.yaml",
+    ):
+        assert is_skip(Path(tmp_path / name)), (
+            f"_is_skip_file() should return True for {name!r} (in _SKIP_NAMES)"
+        )
+
+    # Should be skipped — _schema-*.yaml prefix
+    for name in ("_schema-foo.yaml", "_schema-special.yaml", "_schema-narrow.yaml"):
+        assert is_skip(Path(tmp_path / name)), (
+            f"_is_skip_file() should return True for {name!r} (matches _schema-* prefix)"
+        )
+
+    # Should NOT be skipped — normal entry files
+    for name in ("entry.yaml", "my-rule.yaml", "schema.yaml", "index.yaml"):
+        assert not is_skip(Path(tmp_path / name)), (
+            f"_is_skip_file() should return False for {name!r} (normal corpus entry)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Test 14: resolve_schema() priority — subdir _schema.yaml wins over sibling
+#          _schema-<name>.yaml, which wins over top-level schema
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_resolve_schema_priority_subdir_over_sibling_over_toplevel(
+    tmp_path: Path,
+) -> None:
+    """resolve_schema() must apply the documented priority order:
+      1. entry.parent/_schema.yaml  (subdir-local)
+      2. corpus_dir/_schema-{subdir}.yaml  (sibling naming)
+      3. top-level corpus schema (fallback)
+
+    Verified by using vocabularies that differ at each tier: the tightest
+    vocabulary belongs to the highest-priority schema. A corpus entry that is
+    valid under the top-level schema but invalid under the subdir schema must
+    cause a non-zero exit when the subdir schema is present — confirming that
+    priority 1 is honoured over priorities 2 and 3.
+    """
+    corpus_dir = tmp_path / "corpus"
+    corpus_dir.mkdir()
+
+    # Top-level (priority 3): domain allows a, b, c
+    (corpus_dir / "_schema.yaml").write_text(
+        "required_fields:\n  - title\ntag_vocabulary:\n  domain:\n    - a\n    - b\n    - c\n"
+    )
+
+    subdir = corpus_dir / "sub"
+    subdir.mkdir()
+
+    # Sibling schema (priority 2): domain allows a, b — NOT c
+    (corpus_dir / "_schema-sub.yaml").write_text(
+        "required_fields:\n  - title\ntag_vocabulary:\n  domain:\n    - a\n    - b\n"
+    )
+
+    # Subdir-local schema (priority 1): domain allows ONLY a
+    (subdir / "_schema.yaml").write_text(
+        "required_fields:\n  - title\ntag_vocabulary:\n  domain:\n    - a\n"
+    )
+
+    # Entry with domain 'b' — valid under top-level and sibling, INVALID under subdir
+    (subdir / "entry.yaml").write_text("title: Entry\ndomain: b\n")
+
+    result = _run_validator(corpus_dir)
+    assert result.returncode != 0, (
+        "Expected non-zero exit: subdir _schema.yaml (priority 1) restricts domain to [a] "
+        "but entry has domain 'b'. The sibling _schema-sub.yaml (which allows 'b') and "
+        "the top-level schema (which allows 'b') must NOT override the subdir schema.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+    # Now remove the subdir _schema.yaml — priority 2 (sibling) should apply.
+    # Entry domain 'b' is valid under sibling (a, b) so it should pass.
+    (subdir / "_schema.yaml").unlink()
+    result2 = _run_validator(corpus_dir)
+    assert result2.returncode == 0, (
+        "Expected exit 0 after removing subdir _schema.yaml: sibling _schema-sub.yaml "
+        "(priority 2) allows domain 'b', so entry should be valid.\n"
+        f"stdout: {result2.stdout}\nstderr: {result2.stderr}"
+    )
+
+    # Now remove the sibling schema — top-level (priority 3) should apply.
+    # Entry domain 'b' is valid under top-level (a, b, c) so it should pass.
+    (corpus_dir / "_schema-sub.yaml").unlink()
+    result3 = _run_validator(corpus_dir)
+    assert result3.returncode == 0, (
+        "Expected exit 0 after removing sibling schema: top-level schema (priority 3) "
+        "allows domain 'b', so entry should be valid.\n"
+        f"stdout: {result3.stdout}\nstderr: {result3.stderr}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_sibling_schema_naming_convention_enforced(tmp_path: Path) -> None:
+    """Given a corpus where a sibling _schema-{subdir}.yaml exists next to
+    corpus_dir, when an entry in that subdir violates the sibling schema's
+    narrower vocabulary, then the validator exits non-zero.
+
+    This tests the _schema-{subdir_name}.yaml sibling-naming convention.
+    """
+    corpus_dir = tmp_path / "corpus"
+    corpus_dir.mkdir()
+
+    # Top-level schema: domain allows 'a' and 'b'
+    top_schema = corpus_dir / "_schema.yaml"
+    top_schema.write_text(
+        "required_fields:\n  - title\ntag_vocabulary:\n  domain:\n    - a\n    - b\n"
+    )
+
+    subdir = corpus_dir / "special"
+    subdir.mkdir()
+
+    # Sibling schema for 'special' subdir: domain only allows 'a'
+    sibling_schema = corpus_dir / "_schema-special.yaml"
+    sibling_schema.write_text(
+        "required_fields:\n  - title\ntag_vocabulary:\n  domain:\n    - a\n"
+    )
+
+    # Entry in subdir with domain 'b' — valid top-level, invalid sibling schema
+    entry = subdir / "entry.yaml"
+    entry.write_text("title: Special subdir entry\ndomain: b\n")
+
+    result = _run_validator(corpus_dir)
+    assert result.returncode != 0, (
+        f"Expected non-zero exit: sibling schema _schema-special.yaml restricts "
+        f"domain to [a], but entry has domain 'b'. The top-level schema "
+        f"(which allows 'b') must NOT be used for this subdir.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 16: Malformed subdir _schema.yaml (missing required keys) is handled
+#          deterministically — falls back to top-level schema with a warning,
+#          not silently used as-is.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_malformed_subdir_schema_falls_back_to_toplevel_with_warning(
+    tmp_path: Path,
+) -> None:
+    """Given a subdir whose _schema.yaml is malformed (has neither
+    'required_fields' nor 'tag_vocabulary'), when the validator processes an
+    entry in that subdir, then it emits a warning to stderr and falls back to
+    the top-level schema rather than silently using the malformed schema.
+
+    The entry is valid under the top-level schema, so the validator must exit 0
+    (confirming the fallback is the top-level schema, not the broken one).
+    """
+    corpus_dir = tmp_path / "corpus"
+    corpus_dir.mkdir()
+
+    # Top-level schema: domain allows 'a' and 'b'
+    (corpus_dir / "_schema.yaml").write_text(
+        "required_fields:\n  - title\ntag_vocabulary:\n  domain:\n    - a\n    - b\n"
+    )
+
+    subdir = corpus_dir / "broken"
+    subdir.mkdir()
+
+    # Malformed subdir schema: contains neither 'required_fields' nor 'tag_vocabulary'
+    (subdir / "_schema.yaml").write_text(
+        "some_unrelated_key: not_a_schema\nanother_key: also_not_a_schema\n"
+    )
+
+    # Entry valid under top-level schema
+    (subdir / "entry.yaml").write_text(
+        "title: Entry in broken-schema subdir\ndomain: a\n"
+    )
+
+    result = _run_validator(corpus_dir)
+
+    # Should not silently use the malformed schema — must emit a warning
+    assert "malformed" in result.stderr.lower() or "WARNING" in result.stderr, (
+        f"Expected a malformed-schema WARNING in stderr.\nstderr: {result.stderr}"
+    )
+
+    # Should fall back to top-level schema and pass (entry is valid under top-level)
+    assert result.returncode == 0, (
+        f"Expected exit 0 after falling back to top-level schema for malformed subdir "
+        f"_schema.yaml. The entry is valid under the top-level schema.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )

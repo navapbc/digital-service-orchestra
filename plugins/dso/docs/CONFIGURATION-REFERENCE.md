@@ -1803,6 +1803,17 @@ ticket.display_mode=alias
 
 ---
 
+### `end_session.bypass_alert_threshold`
+
+| | |
+|---|---|
+| **Description** | Number of session-merge-only bypass-hatch invocations (DSO_SPRINT_ACTIVE=0 or DSO_DEBUG_ACTIVE=0) that triggers an integrity-check warning and a follow-up bug ticket during `/dso:end-session` Step 8b. Each invocation writes one log file under `.claude/artifacts/sprint-merge-only-bypass-*.log` or `.claude/artifacts/debug-merge-only-bypass-*.log`; this threshold is compared against that count. |
+| **Accepted values** | Positive integer (e.g., `3`) |
+| **Default** | `3` |
+| **Used by** | `scripts/end-session/bypass-surveillance.sh`, `/dso:end-session` Step 8b |
+
+---
+
 ### `dso.default_branch`
 
 | | |
