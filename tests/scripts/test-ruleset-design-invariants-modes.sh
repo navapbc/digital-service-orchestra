@@ -204,6 +204,14 @@ else
     _fail "fail_closed_lost_check_staged_head_no_mq" \
         "expected exit 1 (drift), got $rc3 — discriminator is NOT fail-closed; out=$(cat "$S3/out.txt")"
 fi
+# Assert it failed for the RIGHT reason (two-tier I6), not some incidental error.
+if grep -q "^MODE: two_tier" "$S3/out.txt" 2>/dev/null \
+    && grep -q "^FAIL: I6_main_ruleset_requires_check_staged_head" "$S3/out.txt" 2>/dev/null; then
+    _pass "fail_closed_reason_is_two_tier_I6"
+else
+    _fail "fail_closed_reason_is_two_tier_I6" \
+        "expected MODE=two_tier + I6 failure (proves fail-closed discriminator); out=$(cat "$S3/out.txt")"
+fi
 
 # ── Scenario 4 (MQ drift): merge_queue present BUT check-staged-head still
 #    required on main → must FAIL (M2 violated). ──────────────────────────────
@@ -238,6 +246,15 @@ else
     _fail "mq_drift_check_staged_head_still_present_fails" \
         "expected exit 1 (M2 drift), got $rc4; out=$(cat "$S4/out.txt")"
 fi
+# Assert MQ mode was selected AND the failure is specifically M2 (not some
+# unrelated error that would make the exit-1 spurious).
+if grep -q "^MODE: mq" "$S4/out.txt" 2>/dev/null \
+    && grep -q "^FAIL: M2_main_no_check_staged_head" "$S4/out.txt" 2>/dev/null; then
+    _pass "mq_drift_reason_is_M2"
+else
+    _fail "mq_drift_reason_is_M2" \
+        "expected MODE=mq + M2 failure; out=$(cat "$S4/out.txt")"
+fi
 
 # ── Scenario 5 (MQ drift): merge_queue present but params diverge from ADR →
 #    must FAIL (M1 params violated). ───────────────────────────────────────────
@@ -270,6 +287,14 @@ if [[ "$rc5" == "1" ]]; then
 else
     _fail "mq_drift_params_diverge_fails" \
         "expected exit 1 (M1 params drift), got $rc5; out=$(cat "$S5/out.txt")"
+fi
+# Assert MQ mode + the failure is specifically M1 (param drift), not incidental.
+if grep -q "^MODE: mq" "$S5/out.txt" 2>/dev/null \
+    && grep -q "^FAIL: M1_main_has_merge_queue_rule" "$S5/out.txt" 2>/dev/null; then
+    _pass "mq_params_drift_reason_is_M1"
+else
+    _fail "mq_params_drift_reason_is_M1" \
+        "expected MODE=mq + M1 failure; out=$(cat "$S5/out.txt")"
 fi
 
 echo ""

@@ -222,12 +222,15 @@ sys.exit(3)
 }
 
 # ── Fetch a full ruleset payload by id+kind (fixture-aware) ──────────────────
-# kind ∈ {main, subpr} → fixture file name. Echoes the payload; rc from source.
+# kind ∈ {main, subpr} → fixture file name. Echoes the payload on stdout; rc
+# from source. On a live gh failure the captured gh stderr is surfaced to the
+# script's stderr (fd 2) BEFORE returning, so callers' PRECONDITION_NOT_MET
+# messages don't lose the underlying diagnostic (403 / network / malformed body).
 _fetch_ruleset_payload() {
     local id="$1" kind="$2"
     if _in_fixture_mode; then
         local f="$FIXTURE_DIR/${kind}.json"
-        [[ -f "$f" ]] || return 1
+        [[ -f "$f" ]] || { echo "fixture mode: $f missing" >&2; return 1; }
         cat "$f"
         return 0
     fi
@@ -235,9 +238,23 @@ _fetch_ruleset_payload() {
     _stderr=$(mktemp "${TMPDIR:-/tmp}/dso-ruleset-${kind}.XXXXXX"); _track_tmp "$_stderr"
     local _payload _rc
     _payload="$(gh api "repos/${GH_REPO}/rulesets/${id}" 2>"$_stderr")"; _rc=$?
+    if [[ $_rc -ne 0 ]]; then
+        echo "gh api repos/${GH_REPO}/rulesets/${id} failed (rc=${_rc}): $(cat "$_stderr")" >&2
+        rm -f "$_stderr"
+        return "$_rc"
+    fi
     rm -f "$_stderr"
-    [[ $_rc -ne 0 ]] && return "$_rc"
     echo "$_payload"
+}
+
+# Validate a fetched ruleset payload is parseable JSON; PRECONDITION on failure.
+# Guards against a non-JSON gh error page silently flowing into the mode
+# discriminator / assertions as confusing empty-field failures.
+_require_json() {
+    local payload="$1" label="$2" hint="$3"
+    if ! echo "$payload" | python3 -c "import sys,json; json.load(sys.stdin)" >/dev/null 2>&1; then
+        _precondition_not_met "${label} payload is not valid JSON" "$hint"
+    fi
 }
 
 # ── Resolve + fetch the MAIN ruleset (required in BOTH models) ───────────────
@@ -262,6 +279,8 @@ if [[ $_main_fetch_rc -ne 0 ]] || [[ -z "$MAIN_FULL" ]]; then
     _precondition_not_met "fetching main ruleset payload failed (id=${MAIN_ID})" \
         "Verify the ruleset ID ${MAIN_ID} is accessible (or fixture main.json present)."
 fi
+_require_json "$MAIN_FULL" "main ruleset" \
+    "Inspect: gh api repos/${GH_REPO}/rulesets/${MAIN_ID}"
 
 # ── Mode discriminator: MQ iff MAIN ruleset has a merge_queue rule ───────────
 if echo "$MAIN_FULL" | python3 -c "
@@ -301,10 +320,14 @@ if [[ "$MODE" == "mq" ]]; then
 import json,sys
 d = json.load(sys.stdin)
 mq = next((r for r in d.get('rules', []) if r.get('type')=='merge_queue'), None)
+params = mq.get('parameters') if mq else None
 want = {'merge_method':'MERGE','max_entries_to_build':1,'max_entries_to_merge':1,
         'min_entries_to_merge':1,'min_entries_to_merge_wait_minutes':5,
         'check_response_timeout_minutes':60,'grouping_strategy':'ALLGREEN'}
-sys.exit(0 if mq and mq.get('parameters')==want else 1)
+# Explicit malformed-guard: a present-but-malformed merge_queue rule (params
+# missing / not a dict) must FAIL, never silently compare-equal. isinstance
+# makes the None/non-dict case unambiguous rather than relying on None!=want.
+sys.exit(0 if isinstance(params, dict) and params == want else 1)
 "; then
         _pass "M1_main_has_merge_queue_rule"
     else
@@ -353,6 +376,8 @@ else
         _precondition_not_met "fetching sub-PR ruleset payload failed (id=${SUB_PR_ID})" \
             "Verify the ruleset ID ${SUB_PR_ID} is accessible (or fixture subpr.json present)."
     fi
+    _require_json "$SUB_PR_FULL" "sub-PR ruleset" \
+        "Inspect: gh api repos/${GH_REPO}/rulesets/${SUB_PR_ID}"
 
     # I1: sub-PR include
     include="$(echo "$SUB_PR_FULL" | python3 -c "
