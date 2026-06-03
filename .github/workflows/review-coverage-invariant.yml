@@ -60,9 +60,12 @@ jobs:
           set +e
           bash plugins/dso/scripts/ci/review-coverage-invariant.sh
           rc=$?
-          # 78 = precondition not met (no gh/token) — pass during rollout.
-          if [ "$rc" -eq 78 ]; then
-            echo "::warning::review-coverage-invariant precondition not met — not enforced this run"
-            exit 0
-          fi
-          exit $rc
+          # 78 = precondition not met (no gh/token / unresolvable repo). In WARN
+          # mode (today's default) this maps to exit 0 with a ::warning so the
+          # advisory check stays green during rollout. In ENFORCE mode the
+          # precondition is fail-closed: a missing/under-scoped token or a
+          # transient API blip MUST block — never silently green-stamp an
+          # un-reviewed candidate (the silent-pass class we pivoted away from MQ
+          # to avoid). Default is warn so live CI behavior is unchanged.
+          bash plugins/dso/scripts/ci/precondition-gate.sh \
+            "$rc" "${DSO_COVERAGE_INVARIANT_MODE:-warn}" "review-coverage-invariant"

@@ -38,8 +38,11 @@ jobs:
           set +e
           bash plugins/dso/scripts/ci/check-dangling-references.sh
           rc=$?
-          if [ "$rc" -eq 78 ]; then
-            echo "::warning::dangling-references precondition not met — not enforced this run"
-            exit 0
-          fi
-          exit $rc
+          # 78 = precondition not met (shallow clone / missing tooling). In WARN
+          # mode (today's default) this maps to exit 0 with a ::warning so the
+          # advisory check stays green. In ENFORCE mode the precondition is
+          # fail-closed: a precondition failure MUST block rather than silently
+          # green-stamp a candidate with an unresolved symbol reference. Default
+          # is warn so live CI behavior is unchanged.
+          bash plugins/dso/scripts/ci/precondition-gate.sh \
+            "$rc" "${DSO_DANGLING_MODE:-warn}" "dangling-references"
