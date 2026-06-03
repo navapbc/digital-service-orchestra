@@ -232,9 +232,23 @@ When the parsed `migration-class` is `sweep`, emit a PAIR of tasks under the two
 - **Clause (b) — un_automatable_sites:** any site the automated sweep could not safely rewrite MUST be recorded as an inline `TODO(migration)` marker at the site AND enumerated in an `un_automatable_sites` field on the task. The `un_automatable_sites` field lists every site that carries a `TODO(migration)` marker; an empty list means the sweep fully covered all sites.
 - **Clause (c) — test gate passes:** the test gate MUST pass over the modified files. This clause is DISTINCT from clauses (a) and (b): a zero `detection_query` count (clause a) WITHOUT a passing test gate is NOT complete. Zero remaining sites plus a green test gate together define done; neither alone suffices.
 
-### Case: `db` (RESERVED)
+### Case: `db` (ACTIVE)
 
-`db` is a **RESERVED** header — reserved for sibling story `ef21`, which fills in the active db-migration pair emission (rollback / rollback-verification roles). For THIS story, `db` is reserved and emits NO active pair. Do not implement active db emission here; the sibling story adds the active case under this header. Because the dispatch evaluates conditionals independently, the `db` case composes with `sweep` and with the flag-tag case once active.
+<!-- CHECKPOINT(ffec): ACTIVE db case filled per story ef21 DDs — three-task co-authored unit (forward migration + rollback + rollback-verification), safe-revert/compensating-forward classification with DATA LOSS RISK ambiguity default, post-rollback schema-state assertion, migration-role pairing tags. -->
+
+When the parsed `migration-class` (read from the PASSED-IN `{migration-marker}` input block — never self-fetched; this agent has no tracker access) is `db`, co-author — in the SAME plan as the forward migration — a **THREE-task unit** emitted together as one cohesive, co-authored triple: the **forward-migration** task, a **rollback-migration** task, and a **rollback-verification** task. This is NOT "add rollback tasks alongside an existing forward migration": the forward migration is itself part of the co-authored triple — all three tasks are designed and emitted together in the same plan. Each of the three task drafts carries its `migration-role:` pairing tag (`migration-role:forward-migration`, `migration-role:rollback`, `migration-role:rollback-verification`) so the sprint two-pass consumer can deterministically pair the halves.
+
+**Single-value precedence (db wins, no double-emit).** When the marker value is `db`, emit ONLY this three-task db unit; do NOT additionally emit a `sweep` pair. `migration-class-detect.sh` short-circuits to `db` BEFORE the sweep call-site count, so `db` is single-valued and authoritative — a db change with many call sites must NOT double-emit. The db case subsumes the sweep case: db precedence means only the db unit is emitted (the `db` value still composes with the INDEPENDENT flag-tag axis — a flag-approved db story also emits the flag pair).
+
+**Forward-migration task** (`migration-role:forward-migration`): the schema change itself (the forward DDL / ORM migration). Co-authored as the first member of the triple.
+
+**Rollback-migration task** (`migration-role:rollback`). Classify the rollback by INFERRING destructiveness from the change DESCRIPTION / file-impact content — the marker does NOT carry destructiveness (`migration-class-detect.sh` classifies db purely by file pattern and emits only the literal `db`), so you MUST infer it here:
+
+- **Additive forward change** (add column / add table / add nullable column / add index) → the rollback is reversible → classify `safe-revert`.
+- **Destructive forward change** (DROP COLUMN, DROP TABLE, rename, type narrowing, NOT NULL backfill) → the rollback cannot losslessly restore prior data → classify `compensating-forward`.
+- **AMBIGUOUS / unmatched** (the description does not clearly resolve to additive vs destructive) → default to `compensating-forward` AND lead the rollback task description with a literal `DATA LOSS RISK` note stating that the rollback may not losslessly restore data and requires human review before execution.
+
+**Rollback-verification task** (`migration-role:rollback-verification`): ALWAYS agent-driven (`task_type: "code"`). Its done-definition MUST assert on the post-rollback **schema state** — i.e., that the resulting schema reached the intended post-rollback shape (e.g., the expected column/table is present or absent after the rollback runs) — NOT merely that the rollback command exited 0. A rollback can exit 0 while leaving the schema in an incorrect intermediate state; the verification asserts the resulting schema state directly (expected schema after rollback), so a schema-state assertion is the completion signal — exit-0 alone is insufficient.
 
 ### Case: `flag-tag` (RESERVED)
 

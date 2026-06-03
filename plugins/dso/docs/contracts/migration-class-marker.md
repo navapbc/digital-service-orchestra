@@ -34,8 +34,8 @@ MIGRATION_CLASS: {"migration-class":"sweep","detection_query":"$A($$$B)","thresh
 
 | Value | Meaning |
 |---|---|
-| `sweep` | Call site count is **at or above** `threshold_used`; a sweeping migration task pair is warranted. |
-| `db` | Symbol is database-coupled; requires a coordinated DB migration task pair regardless of call site count. |
+| `sweep` | Call site count is **at or above** `threshold_used`; a sweeping migration `automated-sweep` + `manual-verification` task duo is warranted. |
+| `db` | Symbol is database-coupled; requires a coordinated three-task DB migration unit (forward-migration + rollback + rollback-verification) regardless of call site count. `db` short-circuits BEFORE the sweep call-site count, so it is single-valued and authoritative — a db symbol emits ONLY the three-task db unit, never an additional sweep duo. |
 | `inconclusive` | ast-grep (`sg`) was unavailable; detection could not run. |
 
 ### Key Spelling Note
@@ -100,7 +100,7 @@ These exact values (`default=3`, `floor=1`) are the canonical reference. The `ge
 
 Three consumers read the `MIGRATION_CLASS:` marker:
 
-1. **Task-decomposer story** — an **ACTIVE consumer** that reads the marker to decide which migration task pairs to emit. It does **not** self-fetch the marker (the `dso:task-decomposer` agent is read-only with respect to the tracker and has no tracker access). The marker is delivered to it as the `{migration-marker}` dispatch argument constructed by `implementation-plan` Step 3, which sources the **LAST** `MIGRATION_CLASS:` comment (last-wins) and passes the verbatim JSON payload. For the current story scope, only the `sweep` branch emits an active task pair (an `automated-sweep` + `manual-verification` pair); `db` is **reserved** to sibling story `ef21` and `flag-tag` is **reserved** to sibling story `c5fa` (independent, composable axes — not a mutually-exclusive switch). For `inconclusive`: emits no pair and surfaces a `decomposition_notes` entry that detection was unavailable.
+1. **Task-decomposer story** — an **ACTIVE consumer** for both `sweep` and `db`: on `sweep` it co-authors an `automated-sweep` + `manual-verification` duo; on `db` it co-authors a three-task unit (forward-migration + rollback + rollback-verification co-authored as one unit in the same plan). It does **not** self-fetch the marker (the `dso:task-decomposer` agent is read-only with respect to the tracker and has no tracker access). The marker is delivered to it as the `{migration-marker}` dispatch argument constructed by `implementation-plan` Step 3, which sources the **LAST** `MIGRATION_CLASS:` comment (last-wins) and passes the verbatim JSON payload. The `db` branch classifies the rollback (`safe-revert` for additive changes, `compensating-forward` for destructive ones, ambiguous → `compensating-forward` with a `DATA LOSS RISK` note inferred from the change description, since the marker carries only the literal `db` value), and the rollback-verification task asserts post-rollback schema state. `db` short-circuits before the sweep count, so a `db` marker emits ONLY the three-task db unit (never an additional sweep duo); `flag-tag` is **reserved** to sibling story `c5fa` (an independent, composable axis — not a mutually-exclusive switch). For `inconclusive`: emits no migration tasks and surfaces a `decomposition_notes` entry that detection was unavailable.
 2. **Sprint two-pass-ordering story** — reads the marker to determine ordering of migration tasks within the sprint batch. Does **not** recompute the classification; it is a read-only consumer of the last `MIGRATION_CLASS:` comment.
 3. **E2E fixture story** — asserts that a `MIGRATION_CLASS:` comment exists on the story ticket after Step 1 runs, and that the JSON payload has the correct shape (all four fields present, `migration-class` is one of the three valid values, `threshold_used` is an integer ≥ 1).
 
@@ -114,7 +114,7 @@ After Step 1 runs for a story targeting `get_legacy_user` with a threshold of `3
 MIGRATION_CLASS: {"migration-class":"sweep","detection_query":"$A.get_legacy_user($$$B)","threshold_used":3,"target_symbol":"get_legacy_user"}
 ```
 
-If the target symbol is database-coupled:
+If the target symbol is database-coupled, the marker carries the literal `db` value (the marker does NOT carry destructiveness — the task-decomposer infers `safe-revert` vs `compensating-forward` from the change description) and the task-decomposer co-authors the three-task db unit (forward-migration + rollback + rollback-verification):
 
 ```
 MIGRATION_CLASS: {"migration-class":"db","detection_query":"$A.get_legacy_user($$$B)","threshold_used":3,"target_symbol":"get_legacy_user"}
