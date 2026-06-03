@@ -198872,15 +198872,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "MQ-4: merge-to-main-pr.sh MQ promotion path (retire staged-*; session->main direct)"
@@ -199429,15 +199429,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21059",
-      "name": "Done",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
       "statusCategory": {
-        "colorName": "green",
-        "id": 3,
-        "key": "done",
-        "name": "Done",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
     "summary": "migrate-design-notes-to-design-md.sh: migrates files but leaves them uncommitted -> swept into unrelated commits"
@@ -207833,7 +207833,7 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot silently regress."
+    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot sile [truncated]"
   },
   "DIG-5147": {
     "assignee": null,
@@ -214442,7 +214442,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:982a-0283-e356-49a7"
+      "dso-id:982a-0283-e356-49a7",
+      "gap_analysis:complete",
+      "plan_review:pass"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -217415,7 +217417,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:c5fa-0705-1b0d-49c0"
+      "dso-id:c5fa-0705-1b0d-49c0",
+      "gap_analysis:complete",
+      "plan_review:pass"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
@@ -220561,7 +220565,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:ef21-690f-1181-4110"
+      "dso-id:ef21-690f-1181-4110",
+      "gap_analysis:complete",
+      "plan_review:pass"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -227145,15 +227151,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[tests/onboarding]: test_design_notes_output greps stale design-notes.md -> fails (SKILL.md migrated to DESIGN.md)"
@@ -228547,5 +228553,3668 @@
       }
     },
     "summary": "[test-migrate-closure-checks.sh]: _install_stub_classifier trap clobbers git-fixtures.sh _cleanup EXIT trap -> fixture temp-dirs leak"
+  },
+  "DIG-5237": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-4: Unit tests written and passing for all new or modified logic.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Write tests/scripts/test-resolve-feature-flag-approval.sh \u2014 a BEHAVIORAL bash suite driving the (not-yet-existent) helper plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh with STUBBED `ticket show` fixtures (PATH-shimmed stub `dso`/`ticket show`), exercising the helper as real code under test \u2014 deterministic, no live ticket access. Assert the single-line JSON marker emitted on stdout for each permutation:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. tag on story -> {\"feature-flags\":\"approved\",...,\"source\":\"story\"}",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. tag on parent epic -> {\"feature-flags\":\"approved\",...,\"source\":\"parent\"}",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. tag on neither -> {\"feature-flags\":\"prohibited\", reason set, \"source\":\"none\"}",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "4. no parent exists -> safe-default {\"feature-flags\":\"prohibited\", reason set}",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "5. lookup failure (ticket show non-zero/unparseable) -> safe-default {\"feature-flags\":\"prohibited\", reason set}",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Each prohibited case asserts the reason field is NON-EMPTY (dd-2 contract). Fixtures use the literal tag rollout:feature-flags-approved. Use tests/lib/assert.sh; gate on exit code / FAILED: 0. chmod +x. Register in repo-root .test-index keyed on the helper source path.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Test Spec",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Given a stubbed `ticket show` returning the story with rollout:feature-flags-approved (and separately: tag on parent / neither / no parent / lookup failure); When resolve-feature-flag-approval.sh <story-id> is invoked; Then it prints a single-line JSON marker whose feature-flags field is 'approved' for the two tagged cases and 'prohibited' with a non-empty reason for the three untagged/failure cases, and exits 0.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test file exists and is executable",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: test -x tests/scripts/test-resolve-feature-flag-approval.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite defines at least five test functions (one per permutation + safe-default)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -c '^test_' tests/scripts/test-resolve-feature-flag-approval.sh | awk '{exit ($1 < 5)}'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts a NON-EMPTY reason for the prohibited/safe-default cases",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qE 'reason' tests/scripts/test-resolve-feature-flag-approval.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite drives the helper as real code via a stubbed ticket show (not a source grep)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qE 'resolve-feature-flag-approval\\.sh' tests/scripts/test-resolve-feature-flag-approval.sh && grep -qiE 'ticket show|stub|PATH=' tests/scripts/test-resolve-feature-flag-approval.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite registered in repo-root .test-index keyed on the helper source path",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qF 'plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh:tests/scripts/test-resolve-feature-flag-approval.sh' .test-index",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] RED gate: suite fails before the helper exists",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: { ! test -f plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh; } && { bash tests/scripts/test-resolve-feature-flag-approval.sh; test $? -ne 0; }",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:212d-db2e-4201-45ab"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "RED behavioral suite for resolve-feature-flag-approval.sh (two-hop permutations + safe-default-prohibited)"
+  },
+  "DIG-5238": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-4: A structural-boundary test suite asserts the db-case markers exist in the actual producer file (task-decomposer.md), with awk section-scoping and a section-missing guard, registered in the repo-root .test-index.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create tests/scripts/test-task-decomposer-db-case.sh \u2014 a structural-boundary suite asserting the reserved `db` case in plugins/dso/agents/task-decomposer.md contains every required db-case marker. Model on tests/scripts/test-task-decomposer-remediation.sh: use awk to scope assertions to the `db` case section only (markers elsewhere must not satisfy a clause), and include a section-missing guard that FAILS with a clear diagnostic if the db-case section header is absent (no vacuous pass on an empty awk range).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The suite MUST assert all FOUR clauses of the db-case prose, each a separately named assertion:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- clause a: BOTH task-types present \u2014 rollback migration AND rollback-verification.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- clause b: classification tokens `safe-revert` and `compensating-forward` present, plus the `DATA LOSS RISK` ambiguity-default annotation.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- clause c: the rollback-verification done-definition asserts on SCHEMA STATE (post-rollback schema assertion wording), not merely command exit 0.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- clause d (dd-1 three-task): the db-case prose describes emitting the THREE tasks (forward migration + rollback + rollback-verification) as a CO-AUTHORED unit. Assert (within the awk-scoped db section) forward-migration co-authoring wording \u2014 so a prose edit that only adds rollback tasks \"alongside existing forward migrations\" FAILS this clause.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Register the suite in the REPO-ROOT .test-index by APPENDING it to the existing plugins/dso/agents/task-decomposer.md line (so the line maps the producer to BOTH test-task-decomposer-remediation.sh and the new test-task-decomposer-db-case.sh). chmod +x the new file. The suite is RED now (db-case markers absent) and goes GREEN once task-2 lands; RED again on revert.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Test Spec",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Given the reserved db case in plugins/dso/agents/task-decomposer.md before its prose is filled; When tests/scripts/test-task-decomposer-db-case.sh runs (awk-scoped + section-missing guard); Then it FAILS on each of the four named clauses (a/b/c/d) because the markers are absent, and PASSES on all four only after task-2 fills the db-case prose.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] New suite exists and is executable",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: test -x tests/scripts/test-task-decomposer-db-case.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite is awk section-scoped and carries a section-missing guard",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'awk' tests/scripts/test-task-decomposer-db-case.sh && grep -qiE 'section.*(missing|absent|not found)' tests/scripts/test-task-decomposer-db-case.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite registered in repo-root .test-index on the task-decomposer.md line alongside the remediation suite",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -F 'plugins/dso/agents/task-decomposer.md' .test-index | grep -F 'tests/scripts/test-task-decomposer-db-case.sh'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts clause d (forward-migration three-task co-authoring) as a distinct named assertion",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -iE 'forward' tests/scripts/test-task-decomposer-db-case.sh | grep -iE 'co-author|three-task|triple|same plan'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite is RED against the current (unfilled) task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash tests/scripts/test-task-decomposer-db-case.sh; test $? -ne 0",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:3b14-f703-4c8b-4e26"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Add structural-boundary suite asserting db-case markers in task-decomposer.md"
+  },
+  "DIG-5239": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(None \u2014 Rule-5 structural-boundary test that pins the instruction-file contract for task-4's flag-tag case; dd-1/dd-2/dd-3 owned by task-4 where the behavior lives; dd-4 unit-test ownership held by the helper RED test. This task makes task-4's instruction edits verifiable.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Write tests/scripts/test-task-decomposer-flag-case.sh \u2014 a RED structural-boundary suite modeled on tests/scripts/test-task-decomposer-remediation.sh (awk-scoped section extraction + section-missing guard, RED-on-revert). Cite behavioral-testing-standard Rule 5 by name in the header. awk-scope the flag-tag case region of plugins/dso/agents/task-decomposer.md and assert:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(a) the reserved flag-tag case exists and references the passed-in {feature-flags-marker} dispatch arg;",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(b) APPROVED branch instructs emitting a flag-cutover task PAIRED WITH a flag-cleanup task (dd-1);",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(c) PROHIBITED branch instructs emitting NO feature-flag task AND recording feature_flags:prohibited WITH the marker's reason (dd-2);",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(d) prose instructs reading ONLY the passed-in marker, NEVER story prose / never self-fetching the two-hop lookup (dd-3/boundary);",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(e) section-missing guard: empty awk extraction emits a FAIL (no vacuous pass).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "chmod +x. Register in repo-root .test-index keyed on the task-decomposer.md source path.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED requirement: MUST fail against the current task-decomposer.md (no flag-tag case yet) until task-4 lands.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Test Spec",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Given the current task-decomposer.md without a flag-tag case; When test-task-decomposer-flag-case.sh awk-scopes the flag-tag section and asserts the approved/prohibited/read-only-marker directives; Then the suite exits non-zero now and exits zero once task-4 adds the section, with the section-missing guard firing a FAIL on empty extraction.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test file exists and is executable",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: test -x tests/scripts/test-task-decomposer-flag-case.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite is awk-scoped + section-missing guard (no vacuous pass)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qE 'awk' tests/scripts/test-task-decomposer-flag-case.sh && grep -qiE 'section missing' tests/scripts/test-task-decomposer-flag-case.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts read-only-marker boundary (reads passed-in marker, never prose/self-fetch)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qiE 'feature-flags-marker|passed-in|story prose|self-fetch|two-hop' tests/scripts/test-task-decomposer-flag-case.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts the prohibited branch records feature_flags:prohibited with a reason",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qF 'feature_flags:prohibited' tests/scripts/test-task-decomposer-flag-case.sh && grep -qiE 'reason' tests/scripts/test-task-decomposer-flag-case.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite cites behavioral-testing-standard Rule 5 by name",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qiE 'Rule 5|behavioral-testing-standard' tests/scripts/test-task-decomposer-flag-case.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite registered in repo-root .test-index keyed on task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qE 'task-decomposer\\.md:.*test-task-decomposer-flag-case\\.sh' .test-index",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] RED gate: suite fails against the current task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash tests/scripts/test-task-decomposer-flag-case.sh; test $? -ne 0",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:3c7d-5ec9-d76d-4f14"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "RED structural-boundary suite for the flag-tag case in task-decomposer.md"
+  },
+  "DIG-5240": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(None directly \u2014 this task implements the deterministic resolution helper + tag constant; the user-facing emission DDs dd-1/dd-2/dd-3 are owned by task-4 which consumes this helper's marker via SKILL.md wiring. dd-4 unit tests are owned by the RED helper-test task, whose suite this turns GREEN.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Make the RED helper suite pass by implementing:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. plugins/dso/skills/shared/constants/planning-tags.conf: add `TAG_FEATURE_FLAGS_APPROVED=rollout:feature-flags-approved` alongside the existing TAG_MANUAL_AWAITING_USER.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh: NEW deterministic helper. Runs `.claude/scripts/dso ticket show <story-id>` (READ-ONLY), parses the parent epic id, runs `ticket show <parent-id>`, greps BOTH outputs for the tag value sourced from planning-tags.conf (TAG_FEATURE_FLAGS_APPROVED). Emits a single-line JSON marker on stdout: {\"feature-flags\":\"approved|prohibited\",\"reason\":\"...\",\"source\":\"story|parent|none\"}. SAFE-DEFAULT PROHIBITED on no-parent or any lookup failure, always with a populated reason. chmod +x.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This helper lives OUTSIDE the LLM agent (task-decomposer is prohibited from ticket/shell access).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Helper exists and is executable",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: test -x plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Constant added to planning-tags.conf",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qF 'TAG_FEATURE_FLAGS_APPROVED=rollout:feature-flags-approved' plugins/dso/skills/shared/constants/planning-tags.conf",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Helper sources the tag value from planning-tags.conf",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qE 'TAG_FEATURE_FLAGS_APPROVED|planning-tags.conf' plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] GREEN gate: the helper behavioral suite now passes (all five permutations + safe-default)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash tests/scripts/test-resolve-feature-flag-approval.sh 2>&1 | tail -1 | grep -qE 'FAILED: 0\\b'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Safe-default PROHIBITED carries a non-empty reason on lookup failure",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qiE 'prohibited' plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh && grep -qiE 'reason' plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:778d-d310-fa5b-4ae5"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "GREEN: implement resolve-feature-flag-approval.sh two-hop helper + TAG_FEATURE_FLAGS_APPROVED constant"
+  },
+  "DIG-5241": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-7: Unit tests written and passing for all new or modified logic.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create plugins/dso/skills/sprint/tests/test-migration-pair-order.sh (the ticket's pre-registered verify_commands target path; create the tests/ dir if needed) \u2014 a BEHAVIORAL suite driving the (not-yet-existent) helper plugins/dso/scripts/sprint/apply-two-pass-ordering.sh with stubbed `dso ticket show` / `ticket link` fixtures (and a stubbed detector on PATH for the no-recompute case). Per-case via `--case <name>`:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- no-recompute: stub a migration-class detector / ast-grep on PATH; assert the helper NEVER invokes it (reads the persisted marker only) \u2014 dd-1.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- sweep: marker migration-class=sweep + an automated-sweep/manual-verification pair \u2192 assert helper wires `ticket link <manual-verification> <automated-sweep> depends_on`.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- db-rollback: marker migration-class=db + forward-migration/rollback-verification pair \u2192 assert rollback-verification depends_on the forward migration.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- flag: a feature-flag pair (flag-cutover/flag-cleanup) present \u2192 assert flag-cleanup depends_on flag-cutover (only when the pair exists).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- absent-marker: no MIGRATION_CLASS comment and no feature-flag pair \u2192 assert no edges written, exit 0.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- inconclusive: marker migration-class=inconclusive (no flag pair) \u2192 assert no edges written.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- idempotent: re-run with the depends_on edge already present \u2192 assert no duplicate edge.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Marker fixtures use the hyphenated key `migration-class` (NOT migration_class) per migration-class-marker.md. Use tests/lib/assert.sh (silent on success); gate on exit code. chmod +x. Register in the REPO-ROOT .test-index keyed on the helper source path plugins/dso/scripts/sprint/apply-two-pass-ordering.sh.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED requirement: the suite must exist and FAIL (helper absent) before task-2 makes it pass.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Test Spec",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Given stubbed ticket fixtures encoding the LAST MIGRATION_CLASS comment (hyphenated migration-class key) and a stubbed detector on PATH; When apply-two-pass-ordering.sh runs per --case (no-recompute | sweep | db-rollback | flag | absent-marker | inconclusive | idempotent); Then the suite asserts the helper never invokes the detector (no-recompute), wires the correct depends_on edge for each pair type, writes no edges + exits 0 for absent-marker/inconclusive, and writes no duplicate on idempotent re-run.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test file exists at the exact pre-registered path and is executable",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: test -x plugins/dso/skills/sprint/tests/test-migration-pair-order.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite handles all seven cases (incl flag)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: for c in no-recompute sweep db-rollback flag absent-marker inconclusive idempotent; do grep -q -- \"$c\" plugins/dso/skills/sprint/tests/test-migration-pair-order.sh || { echo \"MISSING CASE: $c\"; exit 1; }; done",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite is behavioral (invokes the helper, not a grep of its source)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'apply-two-pass-ordering.sh' plugins/dso/skills/sprint/tests/test-migration-pair-order.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] no-recompute case stubs a detector to assert it is never called",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -Eq 'ast-grep|migration-class-detect|sg ' plugins/dso/skills/sprint/tests/test-migration-pair-order.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite registered in repo-root .test-index keyed on the helper source path",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'plugins/dso/scripts/sprint/apply-two-pass-ordering.sh:.*test-migration-pair-order.sh' .test-index",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:c388-a005-0ffd-4554"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "RED: behavioral suite test-migration-pair-order.sh for two-pass ordering helper"
+  },
+  "DIG-5242": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-1: /dso:sprint reads the migration-class marker from the plan header and does not recompute detection.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-2: For each automated-sweep / manual-verification pair, sprint sets the verification task's depends_on to the sweep task and schedules the sweep in an earlier batch.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-3: For db-class markers, sprint wires the rollback-verification task to depend_on the forward migration task so the forward migration is scheduled earlier.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-4: For feature-flag pairs, sprint wires the flag-removal cleanup task to depend_on the flag-guarded cutover task so the cutover is scheduled earlier.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-5: When no migration-class marker is present in the plan header, standard batch ordering applies unchanged.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create plugins/dso/scripts/sprint/apply-two-pass-ordering.sh \u2014 the substantive logic the RED suite (task-1) drives to GREEN. Per-story, the helper:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Reads the LAST MIGRATION_CLASS ticket comment (and the LAST FEATURE_FLAGS comment if present) via the ticket CLI, using the hyphenated key `migration-class` per migration-class-marker.md. READS the persisted marker; NEVER recomputes ast-grep detection (dd-1) \u2014 do NOT shell out to any ast-grep / migration-class-detect helper.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Enumerates the story's child tasks; for each reserved task-type pair present, wires `ticket link <dependent> <earlier> depends_on` IDEMPOTENTLY (check existing depends_on; skip if already present \u2014 handles emitter siblings 1c2b/ef21/c5fa already setting it): manual-verification depends_on automated-sweep (dd-2); rollback-verification depends_on the forward migration for db markers (dd-3); flag-cleanup depends_on flag-cutover ONLY when a feature-flag pair exists (dd-4) \u2014 NEVER block on FEATURE_FLAGS absence.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- No MIGRATION_CLASS marker (or inconclusive) AND no FEATURE_FLAGS pair \u2192 emit NO_MARKER status, write no edges \u2192 standard ordering unchanged (dd-5).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Does NOT modify ticket-next-batch.sh (it already defers tasks with open depends_on to a later batch, achieving \"schedule earlier\" for free once the edge exists). chmod +x.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Helper file exists and is executable",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: test -x plugins/dso/scripts/sprint/apply-two-pass-ordering.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Behavioral suite passes against the helper",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash plugins/dso/skills/sprint/tests/test-migration-pair-order.sh 2>&1; test $? -eq 0",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-1: helper reads the hyphenated migration-class key (not the underscore form)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'migration-class' plugins/dso/scripts/sprint/apply-two-pass-ordering.sh && ! grep -q 'migration_class' plugins/dso/scripts/sprint/apply-two-pass-ordering.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-1: helper never recomputes detection (no ast-grep / migration-class-detect invocation)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: ! grep -Eq 'ast-grep|migration-class-detect|\\bsg ' plugins/dso/scripts/sprint/apply-two-pass-ordering.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Helper does not modify/reference ticket-next-batch.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: ! grep -q 'ticket-next-batch' plugins/dso/scripts/sprint/apply-two-pass-ordering.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-2: sweep pair \u2014 helper wires manual-verification depends_on automated-sweep",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash plugins/dso/skills/sprint/tests/test-migration-pair-order.sh --case sweep 2>&1; test $? -eq 0",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-3: db pair \u2014 helper wires rollback-verification depends_on the forward migration",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash plugins/dso/skills/sprint/tests/test-migration-pair-order.sh --case db-rollback 2>&1; test $? -eq 0",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-4: feature-flag pair \u2014 helper wires flag-cleanup depends_on flag-cutover (only when pair exists)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash plugins/dso/skills/sprint/tests/test-migration-pair-order.sh --case flag 2>&1; test $? -eq 0",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-5: absent-marker case writes no edges and exits 0",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash plugins/dso/skills/sprint/tests/test-migration-pair-order.sh --case absent-marker 2>&1; test $? -eq 0",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:c7fd-49c5-a08e-4ba0"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "GREEN: apply-two-pass-ordering.sh helper (marker read + idempotent depends_on wiring)"
+  },
+  "DIG-5243": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-1: When rollout:feature-flags-approved is present on the story or its parent epic (two-hop), task-decomposer emits a flag-guarded cutover task paired with a flag-removal cleanup task.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-2: When the tag is absent on both (including no parent), no feature-flag task is emitted and the plan header records feature_flags:prohibited with a (non-empty) reason.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-3: The presence of feature-flag wording in the story text does not by itself trigger a feature-flag task when the approval tag is absent.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Exemption",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "behavioral-testing-standard Rule 5 (non-executable LLM instruction/contract artifacts): task-decomposer.md, SKILL.md, and feature-flags-marker.md are prose files; verification is task-3's structural-boundary suite (test-task-decomposer-flag-case.sh), which goes RED when this prose is reverted. testing_mode GREEN.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. plugins/dso/agents/task-decomposer.md \u2014 fill the reserved flag-tag case in the migration-class/rollout dispatch point (established by sibling 1c2b; defensively add the reserved flag-tag header at the dispatch point if absent). The agent reads ONLY the passed-in {feature-flags-marker} (NEVER story prose; never the two-hop lookup \u2014 prohibited from ticket/shell access). APPROVED -> emit a flag-cutover task (reserved flag-cutover namespace) PAIRED WITH a flag-cleanup task (reserved flag-cleanup namespace) [dd-1]. PROHIBITED -> emit NO feature-flag task AND record feature_flags:prohibited in the plan header accompanied by the marker's reason (non-empty, not a bare token) [dd-2]. Emission keys off the resolved marker verdict, never prose -> feature-flag wording without the tag yields prohibited [dd-3].",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. plugins/dso/skills/implementation-plan/SKILL.md \u2014 Step 1: after migration-class detection, invoke resolve-feature-flag-approval.sh and persist a last-wins FEATURE_FLAGS: ticket comment (mirror MIGRATION_CLASS persistence ~lines 250-263). Step 3: pass the last FEATURE_FLAGS marker to the decomposer as a {feature-flags-marker} dispatch arg.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. plugins/dso/docs/contracts/feature-flags-marker.md \u2014 NEW contract doc, parity with migration-class-marker.md (JSON shape, fields, source-of-truth helper, safe-default, consumer protocol); cross-reference from task-decomposer.md.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Keep additive/backward-compatible: stories without a FEATURE_FLAGS marker decompose as before.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] GREEN gate: task-3 structural suite now passes",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash tests/scripts/test-task-decomposer-flag-case.sh 2>&1 | tail -1 | grep -qE 'FAILED: 0\\b'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-1: APPROVED branch emits flag-cutover PAIRED WITH flag-cleanup",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qF 'flag-cutover' plugins/dso/agents/task-decomposer.md && grep -qF 'flag-cleanup' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-3: emission keys off the passed-in {feature-flags-marker}, never story prose",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qF 'feature-flags-marker' plugins/dso/agents/task-decomposer.md && grep -qiE 'never .*(story prose|prose)|only the passed-in marker' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-2: PROHIBITED branch records feature_flags:prohibited WITH the marker reason (non-empty), not a bare token",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qF 'feature_flags:prohibited' plugins/dso/agents/task-decomposer.md && grep -qiE 'feature_flags:prohibited.{0,80}reason|reason.{0,80}feature_flags:prohibited|with (the |its )?reason' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] SKILL.md Step 1 invokes the helper and persists a last-wins FEATURE_FLAGS: comment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qF 'resolve-feature-flag-approval.sh' plugins/dso/skills/implementation-plan/SKILL.md && grep -qF 'FEATURE_FLAGS:' plugins/dso/skills/implementation-plan/SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] SKILL.md Step 3 passes {feature-flags-marker}",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qF 'feature-flags-marker' plugins/dso/skills/implementation-plan/SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Contract doc exists and is cross-referenced",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: test -f plugins/dso/docs/contracts/feature-flags-marker.md && grep -qF 'feature-flags-marker.md' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:d666-c6c9-2f96-4990"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "GREEN: fill flag-tag case in task-decomposer.md + wire SKILL.md marker persistence/dispatch + feature-flags-marker contract doc"
+  },
+  "DIG-5244": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-6: sprint/SKILL.md documents the two-pass flow with a self-contained instruction and an explicit absent-marker fallback.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Exemption",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "behavioral-testing-standard Rule 5 (non-executable LLM instruction file): plugins/dso/skills/sprint/SKILL.md is a prose instruction file; verification is by presence of the documented subsection and required elements. The substantive helper logic is tested by task-1/task-2.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Add a \"Two-Pass Migration Ordering\" subsection to Phase C (batch-prep, positioned BEFORE the ticket next-batch step) of plugins/dso/skills/sprint/SKILL.md. Self-contained instruction documenting:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- The helper invocation plugins/dso/scripts/sprint/apply-two-pass-ordering.sh, run ONCE per story, idempotently.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- The three reserved pair types: automated-sweep/manual-verification, db forward-migration/rollback-verification, feature-flag cutover/flag-cleanup.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- The EXPLICIT absent-marker fallback: no MIGRATION_CLASS marker (or inconclusive) and no feature-flag pair \u2192 helper emits NO_MARKER, writes no edges, standard batch ordering applies unchanged.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Two-Pass Migration Ordering subsection exists in SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qi 'Two-Pass Migration Ordering' plugins/dso/skills/sprint/SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Subsection references the helper invocation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'apply-two-pass-ordering.sh' plugins/dso/skills/sprint/SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Subsection documents the explicit absent-marker fallback",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -Eqi 'NO_MARKER|absent.?marker|standard.*ordering.*unchanged' plugins/dso/skills/sprint/SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:ed30-3675-cbf7-40bc"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Document Two-Pass Migration Ordering subsection in sprint/SKILL.md Phase C"
+  },
+  "DIG-5245": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-1: When the migration-class marker resolves to `db`, the decomposer co-authors \u2014 in the same plan as the forward migration \u2014 a three-task unit: the forward migration, a rollback migration, and a rollback-verification task (THREE-task co-authored unit).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-2: The decomposer classifies the rollback as one of safe-revert / compensating-forward / ambiguous, defaulting ambiguous cases to compensating-forward and flagging them with a DATA LOSS RISK annotation.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-3: The rollback-verification task's done-definition asserts on post-rollback schema state (not merely that the rollback command exits 0).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Exemption",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "behavioral-testing-standard Rule 5 (non-executable LLM instruction / contract artifact): plugins/dso/agents/task-decomposer.md and plugins/dso/docs/contracts/migration-class-marker.md are English-prose instruction/contract files with no executable code path of their own. This task authors no separate RED unit test; its behavior is validated by task-1's structural-boundary suite (test-task-decomposer-db-case.sh), which transitions RED\u2192GREEN when this prose lands. testing_mode GREEN.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Fill the reserved `db` case in plugins/dso/agents/task-decomposer.md (inline prose) and reconcile the consumer description in plugins/dso/docs/contracts/migration-class-marker.md so the contract's db-value behavior and the decomposer db-case prose stay in lockstep.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The db-case prose MUST instruct the decomposer to:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Read the PASSED-IN migration-class marker (last MIGRATION_CLASS: comment; hyphenated `migration-class` key per the contract) and branch on the `db` value. task-decomposer is prohibited from ticket/shell access \u2014 it reads the passed-in {migration-marker}, never self-fetches.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- (clause d / dd-1) Co-author, in the SAME plan, a THREE-task unit: the FORWARD MIGRATION task, a ROLLBACK MIGRATION task (reserved `rollback` task-type namespace), and a ROLLBACK-VERIFICATION task (reserved `rollback-verification` namespace). State explicitly that the forward migration is part of the co-authored triple \u2014 NOT merely \"add rollback tasks alongside an existing forward migration\". All three emitted together as one cohesive unit.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- (clause b / dd-2) Classify the rollback: additive \u2192 `safe-revert`; destructive (drop column/table, rename, type narrowing) \u2192 `compensating-forward`; AMBIGUOUS/unmatched \u2192 default `compensating-forward` AND lead the rollback task description with a literal `DATA LOSS RISK` note.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- (clause c / dd-3) Give the rollback-verification task a done-definition that asserts on post-rollback SCHEMA STATE (e.g. column/table presence or absence after rollback), not merely that the rollback command exits 0.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DETERMINISTIC dispatch-point precondition: ef21 has a story-level depends_on edge to sibling 1c2b, which establishes the migration-class dispatch point + reserved `db` case header. EXPECT them to already exist; fill the prose into the existing reserved header. DEFENSIVE fallback (single deterministic instruction, no OR): if \u2014 and only if \u2014 the dispatch point or reserved db header is absent at run time, add the reserved db case header at the dispatch point as part of this edit rather than failing. Expected path = it already exists.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "CO-COMMIT RATIONALE: task-decomposer.md and migration-class-marker.md MUST be edited and committed together because they are a producer/consumer contract pair. The contract doc's db-value description and the decomposer db-case prose describe the same behavior from two sides; splitting across commits would let them DRIFT and mislead the other contract consumers \u2014 sibling story c5fa and E2E story 2bd4 \u2014 that read migration-class-marker.md as the normative source of truth.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] task-1's db-case structural suite now passes (RED\u2192GREEN)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash tests/scripts/test-task-decomposer-db-case.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Clause a \u2014 db case prescribes both rollback task-types",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -iE 'rollback' plugins/dso/agents/task-decomposer.md | grep -qiE 'verification'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Clause b \u2014 classification tokens + DATA LOSS RISK ambiguity default present",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -F 'safe-revert' plugins/dso/agents/task-decomposer.md && grep -F 'compensating-forward' plugins/dso/agents/task-decomposer.md && grep -F 'DATA LOSS RISK' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Clause c \u2014 rollback-verification done-def asserts schema state",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -iE 'schema state|post-rollback schema|resulting schema' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Clause d (dd-1) \u2014 db case describes the THREE-task co-authored unit including the forward migration",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -iE 'forward migration' plugins/dso/agents/task-decomposer.md | grep -iE 'co-author|three-task|triple|same plan'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] db-case prose instructs reading the PASSED-IN marker (no self-fetch)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qiE 'passed.in|migration-marker' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Contract doc reconciled \u2014 migration-class-marker.md db-value description matches the decomposer db-case behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qiE 'rollback' plugins/dso/docs/contracts/migration-class-marker.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:ffec-707b-b84b-478c"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Fill reserved db case in task-decomposer.md and reconcile migration-class-marker contract"
   }
 }
