@@ -9,7 +9,7 @@
 
 (c) **If `ACTIVE == 0`**: Check for historical (including closed) children:
    ```bash
-   ALL=$(.claude/scripts/dso ticket list --parent=<primary_ticket_id> --include-archived --exclude-deleted 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+   ALL=$(.claude/scripts/dso ticket list --parent=<primary_ticket_id> --include-archived --exclude-deleted 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo 0)
    ```
    - **`ALL > 0`**: All children are closed (since clause (b) found zero active). Log `"All children closed — skipping to Phase 6."` Skip to Phase 6 Step 0.75. Do NOT continue to Preplanning Gate.
 <!-- EMIT-PRECONDITIONS: gate_name=sprint_auto_resume degradation_type=inferred_decision -->
