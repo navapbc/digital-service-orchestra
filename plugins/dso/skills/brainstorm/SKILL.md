@@ -615,8 +615,10 @@ Read and execute `skills/brainstorm/prompts/cross-epic-scan.md` with the current
 
 Route signals by severity:
 - **benign**: log; proceed directly to Step 2.5
-- **consideration**: read `phases/cross-epic-handlers.md` and execute Step 2.26 (AC injection) → check for ambiguity/conflict → Step 2.5
+- **consideration**: read `phases/cross-epic-handlers.md` and execute Step 2.26 (AC injection) → Step 2.26b (workflow-trigger filter audit, when epic introduces a new git ref pattern) → check for ambiguity/conflict → Step 2.5
 - **ambiguity** or **conflict**: read `phases/cross-epic-handlers.md` and execute Step 2.27 (halt/resolution) before Step 2.5
+
+**Workflow-trigger filter audit**: When the epic's deliverables include a new git ref pattern (new branch namespace, new merge path, or modified CI trigger), also execute Step 2.26b from `phases/cross-epic-handlers.md` — it enumerates `.github/workflows/*.yml` trigger filters and confirms coverage of the new pattern. See also: remediate-arch-evidence Probe 2 for the reference enumeration template.
 
 ### Steps 2.5, 2.6, 2.75, Step 3: Epic Scrutiny Pipeline
 
