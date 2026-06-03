@@ -44,16 +44,22 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$CASE_NAME" ]]; then
-    echo "ERROR: --case <name> is required" >&2
-    echo "Valid cases: no-recompute sweep db-rollback flag absent-marker inconclusive idempotent" >&2
-    exit 1
+    # No --case given (e.g. the test gate invokes suites bare): run every case
+    # in an isolated subprocess so per-case PATH stubs and fixtures don't leak,
+    # then aggregate exit codes. Any failing case fails the suite.
+    _ALL_CASES="no-recompute sweep db-rollback flag absent-marker inconclusive idempotent"
+    _AGG_RC=0
+    for _c in $_ALL_CASES; do
+        bash "${BASH_SOURCE[0]}" --case "$_c" || _AGG_RC=1
+    done
+    exit "$_AGG_RC"
 fi
 
 # ── Path setup ────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # This test lives at tests/sprint/; resolve the repo root via git for robustness,
 # falling back to two-levels-up from the test directory.
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 ASSERT_LIB="$REPO_ROOT/tests/lib/assert.sh"
 HELPER="$REPO_ROOT/plugins/dso/scripts/sprint/apply-two-pass-ordering.sh"
@@ -223,7 +229,7 @@ JSON
 
     # Observable: detector was never invoked
     local detector_calls
-    detector_calls=$(wc -l < "$detector_log" 2>/dev/null || echo "0")
+    detector_calls=$(wc -l < "$detector_log" 2>/dev/null | tr -d ' ' || echo "0")
     assert_eq "no-recompute: sg detector not invoked" "0" "$detector_calls"
 
     # Observable: helper exits 0 (marker read successfully)
