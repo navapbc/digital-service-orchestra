@@ -975,6 +975,11 @@ test_zero_orphaned_annotations_after_migration
 # Caller should still call _restore_real_classifier explicitly on the normal
 # path to clear the trap early, but it is not required for safety.
 _CLASSIFIER_REAL_BACKUP=""
+# Holds the prior EXIT trap body captured before _install_stub_classifier
+# overrides it, so _restore_real_classifier can chain back to it instead of
+# clearing all traps (which would drop git-fixtures.sh's _cleanup trap and leak
+# _CLEANUP_DIRS fixture temp-dirs). Idiom from tests/run-all.sh lines 72-96.
+_PRIOR_EXIT_TRAP_BEFORE_CLASSIFIER=""
 _install_stub_classifier() {
     local stub_src="$1"
     local script_dir
@@ -984,6 +989,10 @@ _install_stub_classifier() {
     cp "$real" "$_CLASSIFIER_REAL_BACKUP"
     cp "$stub_src" "$real"
     chmod +x "$real"
+    # Capture the prior EXIT trap before overriding, so we can chain back to it
+    # in _restore_real_classifier instead of clearing all traps (which would
+    # clobber git-fixtures.sh's _cleanup and leak _CLEANUP_DIRS temp-dirs).
+    _PRIOR_EXIT_TRAP_BEFORE_CLASSIFIER=$(trap -p EXIT | sed "s/^trap -- '//;s/' EXIT$//")
     # Guarantee restoration on any exit — covers assertion failures, ERR, signals.
     # The trap is cleared by _restore_real_classifier once the stub region ends.
     trap '_restore_real_classifier' EXIT ERR INT TERM
@@ -997,8 +1006,19 @@ _restore_real_classifier() {
         rm -f "$_CLASSIFIER_REAL_BACKUP"
         _CLASSIFIER_REAL_BACKUP=""
     fi
-    # Remove the restoration trap now that the real file is back.
-    trap - EXIT ERR INT TERM
+    # Restore the prior EXIT trap (chains back to git-fixtures.sh _cleanup) instead
+    # of clearing all traps, which would leak _CLEANUP_DIRS fixture temp-dirs.
+    # Use eval to re-register the saved trap body (expanded at _install_stub_classifier
+    # time via trap -p capture; this is the same pattern as tests/run-all.sh lines 72-76).
+    if [ -n "$_PRIOR_EXIT_TRAP_BEFORE_CLASSIFIER" ]; then
+        # shellcheck disable=SC2064  # intentional: body captured at install time, expand now
+        trap "$_PRIOR_EXIT_TRAP_BEFORE_CLASSIFIER" EXIT
+    else
+        trap - EXIT
+    fi
+    # ERR/INT/TERM were only added by _install_stub_classifier; clear them safely.
+    trap - ERR INT TERM
+    _PRIOR_EXIT_TRAP_BEFORE_CLASSIFIER=""
 }
 
 # ── Helper: make a fast stub classifier ──────────────────────────────────────

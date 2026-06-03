@@ -401,7 +401,7 @@ When `SPRINT_MODE=ci-pr`: per-story PR mechanisms are active. Proceed with norma
 
 ```bash
 OPEN=$(.claude/scripts/dso ticket list --parent=<epic-id> --status=open,in_progress 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo 0)
-ALL=$(.claude/scripts/dso ticket list --parent=<epic-id> --include-archived --exclude-deleted 2>/dev/null | grep -c '"ticket_id"' || echo 0)
+ALL=$(.claude/scripts/dso ticket list --parent=<epic-id> --include-archived --exclude-deleted 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo 0)
 ```
 
 - **`OPEN > 0`**: → Step 2 (Existing Children Readiness Check)
@@ -1089,7 +1089,7 @@ Before composing the batch, wire migration task pair ordering so that the verifi
 #   under the story for `migration-role:<role>` tags.
 # Valid roles: automated-sweep, manual-verification, forward-migration,
 #              rollback-verification, flag-cutover, flag-cleanup
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/sprint/apply-two-pass-ordering.sh" \
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/sprint/apply-two-pass-ordering.sh" \  # shim-exempt: skill documentation example; not an executable script invocation
   --story-id <story-id> \
   --tasks "<task-id>:<role> <task-id>:<role>"
 ```
