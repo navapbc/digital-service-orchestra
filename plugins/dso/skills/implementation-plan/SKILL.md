@@ -245,6 +245,25 @@ Record the output as **available recipe capabilities**. Run without `--language`
 
 Recipe-eligible transforms are mechanical and deterministic: function-signature changes, import normalization. Business logic additions, feature decisions, and architectural changes are NOT recipe-eligible regardless of the registry contents.
 
+### Migration-Class Detection
+
+Run the migration-class detector against the story's primary target symbol to classify the migration scope before task drafting begins. This step is **unconditional and non-interactive** — it runs on every Step 1 execution, writes the marker regardless of outcome, and never prompts before persisting.
+
+Determine `TARGET_SYMBOL` from the story description or ticket title (the function, method, or class being changed). If no symbol is determinable, pass an empty string — the script emits `migration-class=inconclusive` cleanly and the marker is still written.
+
+```bash
+MIGRATION_MARKER=$(bash "$PLUGIN_SCRIPTS/implementation-plan/migration-class-detect.sh" "<target_symbol>" 2>/dev/null)
+.claude/scripts/dso ticket comment <story-id> "MIGRATION_CLASS: $MIGRATION_MARKER"
+```
+
+**Even when `migration-class=inconclusive`** (ast-grep unavailable or no symbol provided), write the marker. Never silently omit it — inconclusive is a first-class result, not an error state.
+
+**Last-wins idiom**: re-running Step 1 appends a new `MIGRATION_CLASS:` comment. Consumers MUST read the **last** matching `MIGRATION_CLASS:` comment on the story ticket, ignoring any earlier ones. This mirrors the `COMPLEXITY_CLASSIFICATION:` scan-for-last-comment idiom.
+
+The full marker contract (JSON shape, field definitions, threshold configuration, `sg`-unavailable degradation, consumer protocol) is at `${CLAUDE_PLUGIN_ROOT}/docs/contracts/migration-class-marker.md`.
+
+Log a one-liner: `"Migration-class detection: <migration-class value> (symbol: <target_symbol>)"`.
+
 ### Ambiguity Scan
 
 **Curiosity before planning.** A plan built on assumptions is worse than no plan.
