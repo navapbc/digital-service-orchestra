@@ -113375,7 +113375,7 @@
         {
           "content": [
             {
-              "text": "Multi-skill HARD-GATEs in brainstorm, sprint, fix-bug, and implementation-plan SKILL.md files prohibit specific actions during specific phases \u2014 e.g., \"do not write code until brainstorm Phase 3\", \"do not dispatch new sprint batch without committing previous\", \"do not skip fix-bug phase ordering\". A bot-psychologist Probe B during the sibling epic's brainstorm confirmed this same psychology applies: gates reachable when challenged, not load-bearing during silent execution. The sibling epic's fix (post-hoc artifact verification) does not fit forbidden-action gates because they concern actions that haven't happened yet (or shouldn't). The fix shape is tool-use-time enforcement via PreToolUse hooks that block forbidden tool calls during specific phases, sourcing phase state from durable session metadata that the relevant skills already track.",
+              "text": "Forbidden-action HARD-GATEs in /dso:brainstorm, /dso:sprint, and /dso:fix-bug (e.g., \"do not edit code during the dialogue phase\", \"do not dispatch a new batch over uncommitted work\", \"do not edit source before a RED test\") are reachable when an agent is challenged but are NOT load-bearing during silent execution \u2014 nothing stops a violating tool call at tool-use time. This epic makes a curated seed of those gates load-bearing via a phase-aware PreToolUse hook that reads durable per-skill (skill, phase) state, fails open + observably when phase is uncertain, grows the gate set through a brainstorm-confirmed path, and provides a user-only audited override.",
               "type": "text"
             }
           ],
@@ -113387,7 +113387,7 @@
         {
           "content": [
             {
-              "text": "This is a stub epic created during the sibling epic's brainstorm session as an explicitly-named follow-on. It requires its own /dso:brainstorm session before implementation \u2014 the SCs below are stub-quality and will be refined, scrutinized via the full pipeline, and approved during that session.",
+              "text": "EPIC_CLASS: class:architectural",
               "type": "text"
             }
           ],
@@ -113411,7 +113411,7 @@
         {
           "content": [
             {
-              "text": "- A phase-aware PreToolUse hook intercepts tool calls and blocks them when the active phase (per durable session state) forbids that tool/action class. Test fixture: an agent attempting Edit during brainstorm Phase 1 is blocked.",
+              "text": "SC1: Each gated skill (brainstorm, sprint, fix-bug) writes a durable per-skill phase marker under a session-partitioned path within the artifacts dir (resolved via get_artifacts_dir()), e.g. `phase-state/<session_id>/<skill>`, recording {phase, session_id, timestamp}; the session_id is sourced from the canonical session identifier (the PreToolUse input `.session_id` on the hook side; the session-id file on the skill side). Each skill refreshes the timestamp at each named phase step (heartbeat) and removes the marker at skill exit. The marker freshness TTL is a documented config key with a default. A State Lifecycle Owner Block in this epic names CREATE/UPDATE/CONSUME/RETIRE for every marker. (implementation-plan is intentionally NOT instrumented in this epic \u2014 it has no seed gate; it is added via SC4 growth when a gate for it is confirmed.)",
               "type": "text"
             }
           ],
@@ -113420,7 +113420,19 @@
         {
           "content": [
             {
-              "text": "- Each existing forbidden-action HARD-GATE in brainstorm, sprint, fix-bug, and implementation-plan SKILL.md is enumerated and mapped to a (skill, phase, forbidden-tool-or-action) tuple consumed by the hook.",
+              "text": "Verify-intent: a fixture run of each gated skill writes its marker under the session-partitioned path carrying the current phase + session id; the marker is absent after the skill's exit/cleanup step; two simulated concurrent sessions do not overwrite each other's marker.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "SC2: A phase-aware PreToolUse hook reads every phase marker whose session_id matches the active session and whose timestamp is within the freshness TTL, and blocks an in-flight tool call (exit 2) when the call violates a seed-registry gate for any active (skill, phase); otherwise it allows the call (exit 0). When no fresh same-session marker resolves the phase, the hook allows the call and emits an observable warning, distinguishing \"phase indeterminate at session start\" (single informational warning) from \"a marker existed for this skill and then went stale mid-session\" (escalated warning naming the skill/phase, so silent enforcement rot is surfaced); warnings are rate-limited/deduped to avoid alarm fatigue. The hook supports a shadow/log-only mode that records would-have-blocked decisions without blocking, for baseline measurement. Block decisions evaluate the union of all active markers' gates.",
               "type": "text"
             }
           ],
@@ -113429,7 +113441,199 @@
         {
           "content": [
             {
-              "text": "- Override mirrors the sibling epic's pattern: user-invoked dso forbidden-action-override --reason=\"...\" (one-shot, audited; agent cannot self-authorize; respects dso-fbky autonomous mode).",
+              "text": "Verify-intent: synthetic PreToolUse JSON \u2014 a gate-violating call with a matching fresh same-session marker is blocked (exit 2); the same call with a missing/stale/other-session marker is allowed (exit 0) with the appropriate (start vs stale) warning; shadow mode logs the decision and returns exit 0.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "SC3: The seed registry enforces exactly three gates, each emitting a specific ordered remediation in its block message:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(a) brainstorm Phase 1\u20132 blocks Edit/Write whose target realpath is inside the repo working tree (temp-space paths allowed), AND blocks a Bash move/copy/patch-apply whose destination realpath lands inside the working tree (closing the temp-then-move evasion); the realpath containment check resolves symlinks (e.g., /tmp -> /private/tmp on macOS) before deciding.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(b) sprint blocks a new Agent/Task batch dispatch while the current session has uncommitted prior-batch results OR un-harvested/un-removed prior-batch agent worktrees (worktrees attributed to other sessions via WORKTREE_TRACKING are ignored); the block message names which condition tripped and the exact resolving command.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "(c) fix-bug blocks Edit/Write to a non-test source file unless a current-session RED signal exists for that source \u2014 a failing test mapped to it via the test-gate `test-gate-status` failed_tests record and the `.test-index` source\u2192test mapping, established by fix-bug RUNNING the RED test at Phase E Step 1 BEFORE source edits \u2014 OR fix-bug has recorded a positive \"behavioral / no-executable-RED\" classification for the bug. Absence of a failing test alone is NOT an exemption (that would invert TDD into edit-freely-if-no-test); the gate blocks when neither a RED signal nor a recorded behavioral classification is present. Test-file edits are always allowed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Verify-intent: a fixture exercises each gate \u2014 the violation is blocked, the happy-path call is allowed; for (a) a temp-then-move into the repo is blocked; for (c) the RED-confirmed source edit is allowed, the recorded-behavioral-bug edit is allowed, and an edit with neither signal is blocked.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "SC4: When an epic under /dso:brainstorm modifies one of the gated SKILL.md files and introduces a new forbidden-action gate, brainstorm surfaces the candidate (skill, phase, forbidden-tool-or-action) using a neutral fixed template (skill, phase, forbidden action, the SKILL.md line that introduced it) with no agent-authored recommendation to decline, and on user confirmation appends it to the seed registry; declined candidates are persistently logged so a pattern of declines is auditable. (Growth candidates are surfaced only during /dso:brainstorm; gates introduced by sprint/fix-bug skill edits outside a brainstorm are out of scope for auto-surfacing \u2014 see Out of Scope.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Verify-intent: a fixture brainstorm over an epic that adds a forbidden-action line to a gated SKILL.md surfaces the candidate via the neutral template; on confirm the registry gains the entry; on decline the registry is unchanged and a decline record is written.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "SC5: A user-invoked `dso forbidden-action-override --reason=\"...\"` grants a single override consumed by the next block (a subsequent forbidden call is blocked again); the grant requires an explicit current-turn user instruction authorizing the override (interactive/TTY presence alone is insufficient \u2014 an agent rationalizing \"on the user's behalf\" must not satisfy it), and the audit record captures the user-approval evidence alongside reason, timestamp, and attribution (reusing the commit-override audit-trail pattern). The token is session-scoped (a token whose session_id differs is never consumed). Under DSO_FBKY_AUTONOMOUS_MODE the override is not self-granted to the agent.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Verify-intent: a fixture shows one-shot consumption (next block re-applies), an audit record written with reason+timestamp+approval-evidence, an agent-context (no current-turn user instruction) invocation rejected, a token from another session not consumed, and the autonomous-mode path not self-granted.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Closure Checks",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Self-use dogfood: at af26's own sprint Phase I, the hook + seed registry are deployed and active; a representative happy-path session trace of each of the three gated skills (including an adversarial temp-then-move probe) runs with the hook active and produces zero spurious blocks, and at least one synthetic phase-violation attempt is observed blocked \u2014 all verified in-session.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- The seed registry file ships containing exactly the three seed gates, and the phase-aware PreToolUse hook is registered in the host repo's hook configuration.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- The State Lifecycle Owner Block is present and every gated skill's phase marker has an owned RETIRE.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## State Lifecycle",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| Variable | CREATE | UPDATE | CONSUME | RETIRE |",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "|----------|--------|--------|---------|--------|",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| `<artifacts>/phase-state/<session_id>/<skill>` ({phase, session_id, timestamp}) | the gated skill (brainstorm/sprint/fix-bug) at first phase entry | the gated skill at each phase transition + heartbeat-refresh at each named phase step | the phase-aware PreToolUse hook | the gated skill at skill exit (e.g., sprint Phase I removes it); hook ignores markers past the freshness TTL or with a non-matching session_id; a stale marker is swept at the next start of that skill |",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| seed registry file (`registry` path) | af26 sprint ships the 3-gate seed | the brainstorm-confirmed growth step (SC4) appends user-confirmed entries | the PreToolUse hook | never retired \u2014 persists as project config |",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| override token (`<artifacts>/forbidden-action-override.token`, carrying session_id) | `dso forbidden-action-override` (user-invoked, current-turn-authorized) | consumed (deleted) by the next block | the PreToolUse hook | one-shot: removed on consumption; a token whose session_id differs is never consumed |",
               "type": "text"
             }
           ],
@@ -113453,7 +113657,7 @@
         {
           "content": [
             {
-              "text": "Blocked by the sibling epic (wrapper-driven artifact verification for HARD-GATE per-step workflow compliance) \u2014 the override-path infrastructure (dso commit-override audit-trail pattern), the artifacts-dir / get_artifacts_dir() worktree-resolution logic, and the session-state-aware hook installation pattern are all reused.",
+              "text": "None hard. The reusable override/audit infra (commit-override.sh audit-trail pattern, get_artifacts_dir() resolver, DSO_FBKY_AUTONOMOUS_MODE knob) and the test-gate RED mechanism (record-test-status.sh test-gate-status failed_tests + .test-index RED-zone) already exist in the codebase. relates_to d076-d35e-55db-4843 for the shared session-state-aware hook-installation pattern. (The original stub asserted a hard block on d076; investigation found the reusable infra already shipped independently, so the block is downgraded to relates_to.)",
               "type": "text"
             }
           ],
@@ -113465,7 +113669,7 @@
         {
           "content": [
             {
-              "text": "## Approach",
+              "text": "## Out of Scope",
               "type": "text"
             }
           ],
@@ -113477,31 +113681,7 @@
         {
           "content": [
             {
-              "text": "To be designed in this epic's own /dso:brainstorm session. Indicative shape: PreToolUse hook reads phase state from skill session artifacts (the same durable state that brainstorm/sprint/fix-bug skills track today for resume), evaluates the in-flight tool call against a (skill, phase) -> forbidden-set table, blocks with a structured error directing the agent to either complete the prerequisite phase work or surface to the user for an explicit override.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "### Planning Intelligence Log",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- **Web research (Step 2.6)**: not triggered (stub \u2014 scrutiny skipped)",
+              "text": "- The behavioral-only HARD-GATEs that are not expressible as \"block tool X during phase Y\" (e.g., \"ask one question at a time\", \"do not speculate root cause\") \u2014 they remain SKILL.md prose.",
               "type": "text"
             }
           ],
@@ -113510,7 +113690,7 @@
         {
           "content": [
             {
-              "text": "- **Scenario analysis (Step 2.75)**: not triggered (stub \u2014 scrutiny skipped)",
+              "text": "- Gates already enforced by existing hooks: no-edit-on-main / no-edit-from-worktree (hook_no_edit_on_main, check-session-merge-only.sh) and no-raw-git-commit (review gate).",
               "type": "text"
             }
           ],
@@ -113519,7 +113699,7 @@
         {
           "content": [
             {
-              "text": "- **Practitioner-requested additional cycles**: none",
+              "text": "- A one-time enumeration of all forbidden-action HARD-GATEs (superseded by seed-and-grow).",
               "type": "text"
             }
           ],
@@ -113528,7 +113708,7 @@
         {
           "content": [
             {
-              "text": "- **Follow-on scrutiny (Step 0)**: triggered \u2014 depth: 0 (this is itself a follow-on, created as stub)",
+              "text": "- implementation-plan phase-state instrumentation and gates (no seed gate yet; added via SC4 when a concrete gate is confirmed).",
               "type": "text"
             }
           ],
@@ -113537,7 +113717,7 @@
         {
           "content": [
             {
-              "text": "- **Feasibility resolution (Step 2.5)**: not triggered",
+              "text": "- Auto-surfacing of new gates introduced by sprint/fix-bug skill edits made outside a /dso:brainstorm session (growth is brainstorm-scoped).",
               "type": "text"
             }
           ],
@@ -113546,7 +113726,7 @@
         {
           "content": [
             {
-              "text": "- **LLM-instruction signal (Step 5)**: not triggered (stub \u2014 scrutiny skipped)",
+              "text": "- Propagation of blocks into CI (the hook is a local tool-use-time gate).",
               "type": "text"
             }
           ],
@@ -113555,43 +113735,7 @@
         {
           "content": [
             {
-              "text": "- **Scale context (Step 0)**: not applicable (developer-tooling feature; no record/traffic axis)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- **Note**: This epic is a stub. The /dso:brainstorm orchestrator skipped the full scrutiny pipeline at the practitioner's direction during the sibling epic's brainstorm session. Run /dso:brainstorm <this-epic-id> before implementation to refine SCs and run scrutiny.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "## Closure Checks",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Zero false positives on representative session-level traces of brainstorm, sprint, fix-bug, and implementation-plan flows (each runs a happy-path session end-to-end with the new hook active and produces no spurious blocks).",
+              "text": "- Cross-platform portability of the exit-2 PreToolUse mechanism to non-POSIX shells (macOS/Linux assumed).",
               "type": "text"
             }
           ],
@@ -143150,15 +143294,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[end-session]: No surveillance of bypass-hatch use count -> Orchestrator silently bypasses architecture across the sprint"
@@ -157527,12 +157671,9 @@
           "type": "paragraph"
         },
         {
-          "type": "paragraph"
-        },
-        {
           "content": [
             {
-              "text": "Four test runners coexist in DSO: bash-runner.sh, suite-engine.sh, run-hook-tests.sh, and validate.sh. They have drifted on RED-marker tolerance, command_hash tracking, scope coverage, and timeout budget. Each drift was caught reactively post-merge \u2014 the bash-runner is updated after a CI failure, not as part of the same change that updated suite-engine. There is no convergence test asserting that all runners produce equivalent classification (pass/fail/skip) for the same input.",
+              "text": "Two test-classification engines \u2014 plugins/dso/scripts/runners/bash-runner.sh (sequential) and tests/lib/suite-engine.sh (parallel) \u2014 classify tests pass/fail/skip and have repeatedly drifted on RED-marker tolerance, command_hash tracking, scope coverage, and timeout budget; bash-runner.sh mirrors suite-engine's RED-zone logic by hand. Two wrappers delegate to them (plugins/dso/scripts/validate.sh -> bash-runner via test-batched.sh; tests/hooks/run-hook-tests.sh -> suite-engine). Each drift (7225-7708, bf39-4494, e2b6-1059, e8a9-136f) was caught reactively post-merge by validate.sh --ci or CI, never at authoring time (~15% of recent fixes). This epic adds a standing single-oracle equivalence contract.",
               "type": "text"
             }
           ],
@@ -157544,7 +157685,115 @@
         {
           "content": [
             {
-              "text": "This epic delivers the standing equivalence contract test that closes the drift class. Pairs with the ab57-b534 scope expansion (G2-M2), which mandates planner-level corpus updates whenever runner code is touched \u2014 this epic is the receiving home for those corpus contributions.",
+              "text": "## Success Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. Single-oracle corpus under tests/runners/fixtures/ covering passing/RED-marker/skipping axes. Each entry is a fixture file plus a metadata record with shape { id: string; verdict: one of {pass, fail, skip}; harnesses: list of harness names the case applies to (the scope annotation); description: string; drift_ticket: optional string }. The verdict vocabulary {pass, fail, skip} is schema-enforced (unknown tokens rejected loudly). The corpus and schema are documented in a README at tests/runners/fixtures/. This metadata schema is the public contract that downstream corpus contributors conform to (e.g., the planner-mandated runner-equivalence sub-tasks from ab57-b534). The corpus is a protected, hand-curated artifact (auto-remediation epics exclude it).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "   Verify-intent: Inspect tests/runners/fixtures/; confirm cases across all three axes each carry a schema-valid metadata record, and a malformed verdict token is rejected.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. The manifest plugins/dso/config/test-runners.yaml declares each participating harness with its invocation method and a per-harness verdict-extraction adapter; it distinguishes independent engines (bash-runner.sh, suite-engine.sh) from wrappers (validate.sh -> bash-runner via test-batched.sh; run-hook-tests.sh -> suite-engine). The equivalence contract is asserted between the engines; a wrapper is validated as producing its delegate engine's verdict, or scope-annotated out. (\"bash-runner engine\" in equivalence context = the test-batched.sh --runner=bash composite.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "   Verify-intent: Read the manifest; confirm each engine has an invocation method + adapter and the engine/wrapper distinction is explicit.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. The equivalence test tests/runners/test-runner-equivalence.sh runs each in-scope engine per corpus case via its declared invocation method (suite-engine direct file args; bash-runner via test-batched.sh --filter), applies the verdict-extraction adapter (mapping engine outcomes including interrupted/timeout to the canonical vocabulary, rejecting unknown tokens loudly), and asserts each in-scope engine produces the oracle verdict (out-of-scope cases report \"out of scope\"). It uses mktemp for all intermediate state and runs in validate.sh --ci. It completes under 30s local / 60s CI via parallel invocation; if the full corpus cannot meet the pre-commit budget, the pre-commit hook runs a fixed-count fast subset (selected by measured wall-clock) while validate.sh --ci runs the full corpus. The budget is a tested assertion.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "   Verify-intent: Run the test against the corpus; confirm each in-scope engine's normalized verdict matches the oracle and total wall-clock is within budget.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "4. Pre-commit hook runner-touch-check.sh runs the identical script and hard-blocks commits on divergence; its path filter is derived from the manifest and includes each engine's shared-library dependencies (e.g., tests/lib/) so a shared-lib change cannot bypass the gate; a manifest-declared harness whose path is missing/renamed makes the test FAIL LOUDLY.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "   Verify-intent: Stage a divergence-introducing harness edit; confirm the hook blocks the commit; rename a manifest path and confirm a loud failure (not a silent skip).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "5. A baseline-equivalence audit is performed before hook activation: the equivalence test is run against current main, every engine divergence is identified and its cause classified (sequential-vs-parallel/TMPDIR contention, RED-zone asymmetry, or genuine logic), and each is either resolved or scope-annotated with rationale, yielding a documented zero-divergence baseline. The authoritative classification semantics (RED-marker tolerance, etc.) are recorded in docs/runners/classification-semantics.md referenced from the manifest; the equivalence test FAILS if that doc is absent. The hard-block hook is activated only after the zero-divergence baseline exists.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "   Verify-intent: Confirm the audit and semantics docs exist, the equivalence test is green on main, and the hook is wired only post-baseline.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "6. Each cited drift ticket (7225-7708, bf39-4494, e2b6-1059, e8a9-136f) is a regression case whose oracle is the corrected verdict; the pre-fix behavior is captured as a self-contained fixture snapshot under tests/runners/fixtures/regression/ so the case reproduces the historical drift without checking out pre-fix code; all regression cases are green on current main.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "   Verify-intent: Run each regression case against its pre-fix snapshot (reproduces drift = red) and against current behavior (green).",
               "type": "text"
             }
           ],
@@ -157556,7 +157805,16 @@
         {
           "content": [
             {
-              "text": "See docs/observed-failure-patterns-4-26.md Pattern 2 and docs/process-gaps-4-26.md G2.",
+              "text": "## Dependencies",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "None hard upstream (foundational). ab57-b534 depends_on THIS epic \u2014 its G2-M2 planner mandate writes corpus contributions conforming to the SC1 metadata schema.",
               "type": "text"
             }
           ],
@@ -157568,7 +157826,16 @@
         {
           "content": [
             {
-              "text": "## Cited evidence",
+              "text": "## Approach",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Single-oracle model (chosen over pairwise comparison and per-harness golden snapshots; backed by CommonMark / test262 / SQLLogicTest practice in the recorded RESEARCH_FINDINGS). Each corpus case carries its own canonical verdict; each engine is validated independently against it (O(N), manifest-driven, auto-extends). Per-case scope annotations dissolve the partial-overlap problem (the engines cover different file sets). CI (validate.sh --ci) is the authoritative gate; the pre-commit hook reuses the identical script.",
               "type": "text"
             }
           ],
@@ -157580,7 +157847,7 @@
         {
           "content": [
             {
-              "text": "Pattern 2 \u2014 Test-runner / gate semantic divergence (~15% of recent fixes):",
+              "text": "## Scenario Analysis",
               "type": "text"
             }
           ],
@@ -157589,7 +157856,7 @@
         {
           "content": [
             {
-              "text": "- 7225-7708 (commit 48a84914e7): bash-runner.sh does not honor SUITE_TEST_INDEX RED markers that suite-engine tolerates; ~25 false-positive failures vs CI; blocks scripts/release.sh precondition #8",
+              "text": "- Hard-block hook lands before the green baseline exists (critical) \u2014 SC5 gates activation on the documented zero-divergence baseline.",
               "type": "text"
             }
           ],
@@ -157598,7 +157865,7 @@
         {
           "content": [
             {
-              "text": "- bf39-4494 (commit dc53a44c51): validate.sh --ci infinite PENDING loop because per-file timeout >45s under sequential runner",
+              "text": "- Timeout budget as corpus grows (high) \u2014 SC3 parallelism + fast-subset fallback.",
               "type": "text"
             }
           ],
@@ -157607,7 +157874,7 @@
         {
           "content": [
             {
-              "text": "- e2b6-1059 (commit d1f7877896): validate.sh test scope diverges from CI workflow (validate covers tests/skills, CI covers only tests/hooks + tests/scripts) \u2014 main stays green while skills tests fail",
+              "text": "- Concurrent tmp-state collision (high) \u2014 SC3 mktemp.",
               "type": "text"
             }
           ],
@@ -157616,7 +157883,7 @@
         {
           "content": [
             {
-              "text": "- e8a9-136f (commit 9b073eb686): figma-pullback test missing RED-marker registration",
+              "text": "- Path filter misses future/shared-lib files (high) \u2014 SC4 manifest-derived filter incl. tests/lib/.",
               "type": "text"
             }
           ],
@@ -157625,7 +157892,7 @@
         {
           "content": [
             {
-              "text": "- 8305-2091 (open/recent): test-status recording with source-file mode preserves stale failures \u2014 fixed tests not re-run",
+              "text": "- validate.sh integration not atomic on first merge (high) \u2014 SC3 integration is part of the deliverable.",
               "type": "text"
             }
           ],
@@ -157634,19 +157901,7 @@
         {
           "content": [
             {
-              "text": "- 610f-c021 (open): test-status recorder blocked by pre-bash-functions.sh guard within /dso:commit workflow",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "Structural evidence (G2):",
+              "text": "- Manifest path missing -> silent skip (high) \u2014 SC4 fail-loud.",
               "type": "text"
             }
           ],
@@ -157655,7 +157910,7 @@
         {
           "content": [
             {
-              "text": "- plugins/dso/scripts/runners/bash-runner.sh:131-133 \u2014 comments acknowledge mirroring suite-engine semantics, but the mirror is maintained by hand",
+              "text": "- Non-canonical verdict string -> permanent false divergence (high) \u2014 SC1 schema-enforced vocabulary + SC3 adapter.",
               "type": "text"
             }
           ],
@@ -157664,7 +157919,7 @@
         {
           "content": [
             {
-              "text": "- plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:54-116 \u2014 reviewer Step 1 runs validate.sh --ci only; does not also run the suite-engine path or compare outputs",
+              "text": "- Harnesses emit human-readable, not structured, verdicts (high) \u2014 SC2/SC3 per-harness verdict-extraction adapter.",
               "type": "text"
             }
           ],
@@ -157673,19 +157928,16 @@
         {
           "content": [
             {
-              "text": "- plugins/dso/skills/sprint/SKILL.md \u2014 sprint orchestrator dispatches test execution but has no step asserting \"if you touched bash-runner.sh, also run the suite-engine equivalence check\"",
+              "text": "- RED-marker authoritative-source undocumented (high) \u2014 SC5 classification-semantics.md.",
               "type": "text"
             }
           ],
           "type": "paragraph"
         },
         {
-          "type": "paragraph"
-        },
-        {
           "content": [
             {
-              "text": "Discovery channel pattern: all four cited Pattern 2 tickets were caught either by validate.sh --ci (release-time integration test) or by CI itself, never by pre-commit. Each fix was authored as a standalone change without a convergence test.",
+              "text": "- Shared-lib change bypasses path filter (high) \u2014 SC4 includes shared-lib deps.",
               "type": "text"
             }
           ],
@@ -157697,7 +157949,52 @@
         {
           "content": [
             {
-              "text": "## Mitigations included",
+              "text": "## Cross-Epic Interactions",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- cf7b-86a9 (platform-parity fixes to the same engines) \u2014 SEQUENCING: establish the green baseline AFTER it lands; if in-flight, declare a provisional baseline with platform-specific cases scope-annotated out until it merges.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- a524-fded (migrates/removes harnesses) \u2014 COORDINATE: re-validate the baseline if it changes the engines.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- w21-bsnz (legacy-code auto-remediation) \u2014 exclusion of tests/runners/fixtures/ is owned by that epic; SC1 marks the corpus protected to support it.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- 2239-1545 (cross-runtime adapter architecture) \u2014 coordinate if it matures.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- validate.sh / pre-commit registration peers (188c-47e4, 6add-c1fc, 986e-91c5, 7575-5a90, 1de7-50d4) \u2014 coordinate runner-touch-check.sh registration order so the block fires after harness-modifying hooks.",
               "type": "text"
             }
           ],
@@ -157709,7 +158006,25 @@
         {
           "content": [
             {
-              "text": "- G2-M1 \u2014 Create tests/runners/test-runner-equivalence.sh that takes a fixed corpus of test files (known-passing set, known-RED-marker set, known-skipping set) and runs each through every runner declared in plugins/dso/scripts/runners/. Asserts all runners produce the same pass/fail/skip classification for each file. Add the test to validate.sh --ci. Add new pre-commit hook runner-touch-check.sh that fires only when the diff touches a file under plugins/dso/scripts/runners/ and runs the equivalence test before the commit.",
+              "text": "## Implementation Notes",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- New files (plugins/dso/config/test-runners.yaml, tests/runners/**, plugins/dso/scripts/runner-touch-check.sh, docs/runners/classification-semantics.md) must be added to the plugin-boundary allowlist before first commit.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Set the executable bit on runner-touch-check.sh and test-runner-equivalence.sh.",
               "type": "text"
             }
           ],
@@ -157721,19 +158036,7 @@
         {
           "content": [
             {
-              "text": "## Proposed success criteria",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "1. A fixed corpus exists under tests/runners/fixtures/ covering the three classification axes (passing, RED-marker, skipping); corpus is documented and stable",
+              "text": "## State Lifecycle",
               "type": "text"
             }
           ],
@@ -157742,7 +158045,7 @@
         {
           "content": [
             {
-              "text": "2. Equivalence test asserts identical classification across all declared runners; runs in validate.sh --ci",
+              "text": "| Variable | CREATE | UPDATE | CONSUME | RETIRE |",
               "type": "text"
             }
           ],
@@ -157751,7 +158054,7 @@
         {
           "content": [
             {
-              "text": "3. Pre-commit hook runner-touch-check.sh runs the equivalence test only when the diff touches runner code; failure blocks the commit",
+              "text": "|---|---|---|---|---|",
               "type": "text"
             }
           ],
@@ -157760,7 +158063,7 @@
         {
           "content": [
             {
-              "text": "4. New runner additions are detected automatically (the test enumerates runners from a manifest at plugins/dso/config/test-runners.yaml, not a hardcoded list)",
+              "text": "| tests/runners/fixtures/ corpus | this epic | ab57-b534 G2-M2 planner contributions + maintainers | test-runner-equivalence.sh | persists for project lifetime |",
               "type": "text"
             }
           ],
@@ -157769,7 +158072,7 @@
         {
           "content": [
             {
-              "text": "5. Each cited drift ticket (7225-7708, bf39-4494, e2b6-1059, e8a9-136f) corresponds to a regression case in the corpus; re-running the equivalence test against pre-fix runner code reproduces the drift",
+              "text": "| plugins/dso/config/test-runners.yaml manifest | this epic | any contributor adding a harness | test-runner-equivalence.sh + runner-touch-check.sh path filter | persists |",
               "type": "text"
             }
           ],
@@ -157778,31 +158081,7 @@
         {
           "content": [
             {
-              "text": "6. Test runtime budget: equivalence test completes in under 30s on macOS local; under 60s in CI",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "## Coordination notes",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Pairs with ab57-b534's new sub-criterion (G2-M2 absorbed there): planner mandates a corpus update in any runner-touching task, and this epic delivers the corpus + test that the planner references",
+              "text": "| docs/runners/classification-semantics.md | this epic (SC5) | maintainers on a semantics change | equivalence test (fails if absent) + reviewers | persists |",
               "type": "text"
             }
           ],
@@ -157811,67 +158090,7 @@
         {
           "content": [
             {
-              "text": "- Pairs with New Epic B (G2-M3 reviewer rubric for runner changes): reviewer rubric and equivalence test both fire on the same diff trigger \u2014 independent rings of defense",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Coexists with cf7b-86a9's shellcheck/ruff parity work \u2014 different surface (test classification semantics vs static lint coverage)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "## References",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- docs/observed-failure-patterns-4-26.md Pattern 2",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- docs/process-gaps-4-26.md G2",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- docs/proposed-mitigations-4-26.md G2-M1",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- docs/new-epics-4-26.md \u00a7 New Epic D",
+              "text": "| runner-touch-check.sh (.pre-commit-config.yaml entry) | this epic | \u2014 | pre-commit framework | removed only if the hook is retired |",
               "type": "text"
             }
           ],
@@ -157893,10 +158112,9 @@
       "subtask": false
     },
     "labels": [
+      "brainstorm:complete",
       "dso-id:ed62-08cd",
-      "dso-id:jira-dig-4690",
-      "interaction:deferred",
-      "scrutiny:pending"
+      "dso-id:jira-dig-4690"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
@@ -161435,6 +161653,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:f4df-3e23-4a8d-4ff3",
       "dso-id:jira-dig-4701"
     ],
@@ -161447,15 +161666,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "check-corpus-schema.py ignores per-subdirectory _schema.yaml files during full-corpus validation"
@@ -164277,6 +164496,7 @@
     },
     "labels": [
       "CLI_user",
+      "bug-type-skill-guidance-gap",
       "dso-id:f713-996c-e837-4be6",
       "dso-id:jira-dig-4706"
     ],
@@ -164289,15 +164509,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[brainstorm]: New git-ref pattern introduced without workflow-trigger audit -> Existing CI workflows skip the new pattern silently"
@@ -184708,6 +184928,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "detected_by:tests",
       "dso-id:0344-51a0-1a54-4cc9"
     ],
@@ -184720,15 +184941,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "test-sprint-agent-dispatch-pattern.sh: flags valid dso:* subagent_type -> 2 failing assertions (test stale vs AGENTS.md named-agent policy)"
@@ -198704,15 +198925,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "MQ-3: atomic ruleset-invariant rewrite (I1/I2/I6) + required-checks.txt + delete check-staged-head + staged-* ruleset"
@@ -199208,15 +199429,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "migrate-design-notes-to-design-md.sh: migrates files but leaves them uncommitted -> swept into unrelated commits"
@@ -207612,7 +207833,7 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot sile [truncated]"
+    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot silently regress."
   },
   "DIG-5147": {
     "assignee": null,
@@ -209546,7 +209767,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:1c2b-33cb-270c-49a4"
+      "dso-id:1c2b-33cb-270c-49a4",
+      "gap_analysis:complete",
+      "plan_review:pass"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
@@ -213015,15 +213238,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "As a planner, I auto-classify migration-class stories and persist a durable marker"
@@ -222347,15 +222570,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Register task-1 & task-3 test suites and assert full-suite green"
@@ -222655,15 +222878,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Document migration.call_site_threshold in CONFIGURATION-REFERENCE.md"
@@ -223292,15 +223515,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Create migration-class-detect.sh (classification + config-override boundary crossing)"
@@ -224460,15 +224683,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Wire migration-class-detect.sh into implementation-plan SKILL.md Step 1"
@@ -225523,15 +225746,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Author migration-class-marker contract doc"
@@ -226736,6 +226959,192 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
+      "statusCategory": {
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
+      }
+    },
+    "summary": "Add get_call_site_threshold() helper to planning-config.sh (default + floor + non-silent rejection)"
+  },
+  "DIG-5232": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** 02a7023eb105a02ab87dd7fd3462f4a14d0625b8",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **File:** tests/skills/test-onboarding-skill.sh (test_design_notes_output, ~lines 389-398)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Source:** plugins/dso/skills/onboarding/SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Pre-existing failing test (discovered during /dso:sprint on epic dso-uvyl; blocks SKILL.md-touching tasks at the test gate)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "test_design_notes_output should assert that onboarding's SKILL.md references the design-system output artifact that the skill actually writes. The skill migrated design-notes.md -> DESIGN.md (path configurable via design.design_notes_path, default DESIGN.md). The test should grep for DESIGN.md (or the configurable path), and pass.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The test greps for the literal 'design-notes.md' and expects 'found', but onboarding/SKILL.md (on origin/main: 0 design-notes.md refs, 2 DESIGN.md refs) only references DESIGN.md, so the test reports 'missing' and FAILS (suite: 89 passed, 1 failed). This is pre-existing on origin/main (not introduced by this sprint). Because record-test-status fuzzy-associates any *SKILL.md* change with the broad skill-test set, this stale failure blocks the harvest of unrelated SKILL.md edits (observed blocking story 7913 task 811a in epic dso-uvyl: harvest-worktree.sh exits 2 'test-gate-status is failed').",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* The fuzzy basename association ('SKILL.md' matches all skill tests) is a secondary contributing factor \u2014 a change to implementation-plan/SKILL.md should not be gated by onboarding skill tests.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Suggested direction (non-binding)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Update test_design_notes_output to grep for 'DESIGN.md' (and/or read design.design_notes_path) instead of 'design-notes.md', and refresh the test comment. Optionally tighten test-source association so a single skill's SKILL.md change does not sweep in every other skill's tests.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "detected_by:internal-dogfood",
+      "dso-id:20bf-bf5f-c044-4112"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
       "id": "21057",
       "name": "To Do",
       "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
@@ -226747,6 +227156,1396 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "Add get_call_site_threshold() helper to planning-config.sh (default + floor + non-silent rejection)"
+    "summary": "[tests/onboarding]: test_design_notes_output greps stale design-notes.md -> fails (SKILL.md migrated to DESIGN.md)"
+  },
+  "DIG-5233": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-1: For a migration-class:sweep change, task-decomposer emits an automated-sweep task whose transform descriptor (recipe rule or sg rewrite) is distinct from the broad detection query, preferring the recipe engine with agent-sweep fallback.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-2: The emitted manual-verification task's done-definition requires re-running the detection query and asserting zero remaining sites, with un-automatable sites recorded as inline TODO(migration) markers enumerated in an un_automatable_sites field.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-3: The same manual-verification done-definition requires the test gate to pass over modified files, so a zero detection count without a passing test gate is not treated as complete (a distinct named clause, separate from the zero-remaining-sites and un_automatable_sites clauses).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Exemption",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "TDD exemption: behavioral-testing-standard Rule 5 (non-executable LLM instruction file / static-asset criterion) \u2014 plugins/dso/agents/task-decomposer.md and plugins/dso/skills/implementation-plan/SKILL.md are non-executable LLM instruction files whose behavioral correctness cannot be deterministically asserted by an executing test. Behavioral correctness is verified by task ae38-cd01-b69c-4952's structural boundary suite (tests/implementation-plan/test-sweep-pair-emission.sh), which asserts the contract markers against this artifact and goes RED when this prompt edit is reverted. testing_mode is GREEN: this task turns that RED suite GREEN.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Edit `plugins/dso/agents/task-decomposer.md` to add a \"Migration-Class Pair Emission\" section that:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. Adds a dispatch point keyed on migration-class (single shared dispatch point so sibling stories add CASES rather than overwrite).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. Defines the sweep case emitting a PAIR of tasks under the two reserved namespaces: automated-sweep and manual-verification.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. automated-sweep task: on recipe-registry match emit recipe task_type + recipe_id; else emit code task_type with the agent-sweep fallback. Final executor selection is deferred to sprint (translate-recipe-to-llm-task.sh) \u2014 do NOT re-decide executor selection in-prompt (consistent with the existing \"identify the transform, not select the executor\" guidance). Specify transform_descriptor DISTINCT from detection_query (detection_query is the broad symbol match; transform_descriptor is the precise rewrite \u2014 recipe rule id or sg rewrite find->replace pattern).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "4. manual-verification task (AGENT-DRIVEN, code task_type, never recipe) done-definition encodes THREE distinct named clauses: (a) re-run the detection query AND assert zero remaining sites; (b) record un-automatable sites as inline TODO(migration) markers enumerated in an un_automatable_sites field; (c) the test gate must pass over the modified files (a zero detection count WITHOUT a passing test gate is NOT complete).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "5. Mark db and flag-tag as RESERVED headers (reserved for sibling stories ef21 and c5fa respectively); do NOT emit them as active cases for this story.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Edit `plugins/dso/skills/implementation-plan/SKILL.md` Step 3 (task-decomposer dispatch) to pass the last-wins MIGRATION_CLASS marker as a new {migration-marker} task argument (Step 3 does not currently pass it) \u2014 add it to the dispatch's \"Pass the following as task arguments\" list.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Keep the change additive and backward-compatible: stories WITHOUT a MIGRATION_CLASS marker (the common case) must decompose exactly as before \u2014 the absent-marker path is inert.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] task ae38-cd01-b69c-4952's structural boundary suite goes GREEN with this edit present",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash tests/implementation-plan/test-sweep-pair-emission.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Migration-Class Pair Emission dispatch point keyed on migration-class exists",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'Migration-Class Pair Emission' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Sweep case names both reserved namespaces (automated-sweep, manual-verification)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'automated-sweep' plugins/dso/agents/task-decomposer.md && grep -q 'manual-verification' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] transform_descriptor specified distinct from detection_query",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'transform_descriptor' plugins/dso/agents/task-decomposer.md && grep -q 'detection_query' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] recipe-preferred / agent-sweep fallback encoded (recipe_id on match else agent-sweep)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'recipe_id' plugins/dso/agents/task-decomposer.md && grep -q 'agent-sweep' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] manual-verification clause (b) un_automatable_sites + TODO(migration) present",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'un_automatable_sites' plugins/dso/agents/task-decomposer.md && grep -q 'TODO(migration)' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] db and flag-tag marked reserved (not active cases)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'flag-tag' plugins/dso/agents/task-decomposer.md && grep -qiE 'reserved' plugins/dso/agents/task-decomposer.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] SKILL.md Step 3 wires {migration-marker}",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'migration-marker' plugins/dso/skills/implementation-plan/SKILL.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:71e4-a4f9-584e-4d9b"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Add Migration-Class Pair Emission dispatch + sweep case to task-decomposer.md and wire {migration-marker} in SKILL.md"
+  },
+  "DIG-5234": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "### 1. Technical Environment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **code_version:** feab385e17bf557c9a97fbf92fbb7def70c17ad2",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Files:** plugins/dso/scripts/implementation-plan/migration-class-detect.sh (lines ~174-177), plugins/dso/docs/contracts/migration-class-marker.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 2. Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* **Scenario Type:** Sub-Agent Blocker / latent design gap (discovered while implementing story 7913-abe2-de0e-45e3 task 46a0-6ce2-100a-4e55 in epic dso-uvyl)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The migration-class marker should let consumers distinguish three semantically different outcomes: (a) determined NOT a migration sweep (sg available, call-site count below threshold), (b) determined a sweep, (c) could-not-determine (sg unavailable or no target symbol). dd-7 mandates the could-not-determine case be an explicit 'inconclusive' that is 'never silently false'.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "migration-class-marker.md defines exactly three values: sweep | db | inconclusive \u2014 with no distinct 'not-a-migration / none' value. Consequently migration-class-detect.sh emits 'inconclusive' for BOTH (a) below-threshold-with-sg-available (a real determination) AND (c) sg-unavailable / empty target symbol (couldn't determine). A consumer (sprint two-pass ordering, task-decomposer) reading 'inconclusive' cannot tell 'this story needs no migration handling' from 'detection failed, needs attention'. This conflation weakens the dd-7 'never silently false' intent even though dd-7's narrow test (sg-unavailable -> inconclusive) still passes.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### 5. Skills and Workflows",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Contract: plugins/dso/docs/contracts/migration-class-marker.md (task d10e, closed).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "* Producer: migration-class-detect.sh (task 46a0).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "#### Suggested direction (non-binding)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Add a fourth marker value (e.g. 'none' or 'not-migration') to the contract for the 'sg available, determined below threshold and not db' case; reserve 'inconclusive' strictly for could-not-determine (sg-unavailable / no symbol). Update the detect script branch at lines ~174-177 to emit the new value, and update the contract doc + the detect test accordingly. Coordinate with the sibling consumer stories (task-decomposer emission, sprint two-pass) so they branch on the richer value set.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "detected_by:internal-dogfood",
+      "dso-id:a7d4-16dc-e863-4fee"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[implementation-plan/migration-class]: below-threshold result emits 'inconclusive' -> conflated with sg-unavailable determination"
+  },
+  "DIG-5235": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-4: Unit tests written and passing for all new or modified logic \u2014 realized here as a registered, executable structural-boundary test suite that drives assertions against the actual producer artifact plugins/dso/agents/task-decomposer.md, verifying the Migration-Class Pair Emission contract markers; reverting task-2's prompt edit makes the suite go RED.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create `tests/implementation-plan/test-sweep-pair-emission.sh` \u2014 a STRUCTURAL BOUNDARY TEST (behavioral-testing-standard Rule 5: the legitimate non-human-consumer / structural-boundary test for a non-executable LLM instruction file). The suite MUST execute its assertions against the ACTUAL producer artifact `plugins/dso/agents/task-decomposer.md` (resolve via `REPO_ROOT=$(git rev-parse --show-toplevel)`), NOT against self-authored fixtures. The suite parses/greps the \"Migration-Class Pair Emission\" section for the required contract markers.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LITMUS (regression contract): reverting task-2's prompt edit MUST make this suite RED; with task-2's edit present it goes GREEN. Because the section does not yet exist, the suite is RED on creation and turns GREEN only after task-2 lands \u2014 the intended RED-before-GREEN ordering.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Contract markers the suite MUST assert on plugins/dso/agents/task-decomposer.md (assert each as a named, individually-failing assertion):",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. A \"Migration-Class Pair Emission\" section heading exists (dispatch-point marker).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. The dispatch point is keyed on migration-class (a per-class dispatch case present).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. The sweep case names BOTH reserved task-type namespaces as distinct tokens: automated-sweep AND manual-verification.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "4. The sweep case specifies transform_descriptor as a token DISTINCT from detection_query (both present, named separately).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "5. recipe-preferred / agent-sweep fallback encoded: automated-sweep emits recipe task_type + recipe_id on registry match, else code task_type with the agent-sweep token (final executor selection deferred to sprint via translate-recipe-to-llm-task.sh).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "6. The manual-verification done-definition contains THREE distinct, individually-named clauses (a/b/c below).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "7. db / flag-tag reserved headers present (reserved for ef21/c5fa; named as reserved, NOT active cases).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The three manual-verification done-definition clauses (each a separate named assertion):",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- (a) re-run the detection query AND assert zero remaining sites;",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- (b) un-automatable sites recorded as inline TODO(migration) markers enumerated in an un_automatable_sites field;",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- (c) the test gate must pass over the modified files (a zero detection count WITHOUT a passing test gate is NOT complete).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Fixtures: the two JSON fixtures (tests/implementation-plan/fixtures/sweep-pair-recipe-hit.json, sweep-pair-agent-fallback.json) MAY be retained ONLY as schema-validated example inputs consumed by a parsing helper \u2014 NEVER the sole assertion subject. The authoritative assertion subject is task-decomposer.md. If the fixtures add no parsing-helper value, OMIT them rather than assert against them (avoids the tautological self-authored-fixture defect).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Registration: chmod +x the new .sh file and add a `.test-index` entry (at the REPO-ROOT .test-index) so the test gate discovers it \u2014 append the new test path to the existing task-decomposer.md / migration-class source mapping or add a new line mapping plugins/dso/agents/task-decomposer.md to tests/implementation-plan/test-sweep-pair-emission.sh.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Test Spec",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Given plugins/dso/agents/task-decomposer.md WITHOUT a Migration-Class Pair Emission section (task-2 not yet landed); When test-sweep-pair-emission.sh runs its structural-boundary assertions against that actual artifact; Then the suite exits non-zero (RED) \u2014 the dispatch-point, namespace, transform_descriptor-distinctness, the three named manual-verification clauses, and the db/flag-tag-reserved assertions each fail individually; once task-2 adds the section the same suite exits 0 (GREEN), and reverting task-2's edit returns it to RED.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test file exists and is executable",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: test -x tests/implementation-plan/test-sweep-pair-emission.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite is registered in the repo-root .test-index so the test gate discovers it",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'test-sweep-pair-emission.sh' \"$(git rev-parse --show-toplevel)/.test-index\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts against the ACTUAL producer artifact (task-decomposer.md), not fixtures as the sole subject",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'task-decomposer.md' tests/implementation-plan/test-sweep-pair-emission.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] RED-marker before task-2 lands: with the section absent, the suite exits non-zero",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: { ! grep -q 'Migration-Class Pair Emission' plugins/dso/agents/task-decomposer.md && { bash tests/implementation-plan/test-sweep-pair-emission.sh; test $? -ne 0; }; } || echo 'section present (task-2 landed) \u2014 verify GREEN instead'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts both reserved namespaces (automated-sweep AND manual-verification)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'automated-sweep' tests/implementation-plan/test-sweep-pair-emission.sh && grep -q 'manual-verification' tests/implementation-plan/test-sweep-pair-emission.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts transform_descriptor distinct from detection_query",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'transform_descriptor' tests/implementation-plan/test-sweep-pair-emission.sh && grep -q 'detection_query' tests/implementation-plan/test-sweep-pair-emission.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts clause (a) zero-remaining-sites as a distinct named assertion",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qiE 'zero.*remaining|remaining.*site' tests/implementation-plan/test-sweep-pair-emission.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts clause (b) un_automatable_sites with TODO(migration) markers",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'un_automatable_sites' tests/implementation-plan/test-sweep-pair-emission.sh && grep -q 'TODO(migration)' tests/implementation-plan/test-sweep-pair-emission.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts clause (c) test-gate-passes-over-modified-files as a distinct named assertion",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qiE 'test.gate' tests/implementation-plan/test-sweep-pair-emission.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Suite asserts db/flag-tag reserved headers present",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'flag-tag' tests/implementation-plan/test-sweep-pair-emission.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:ae38-cd01-b69c-4952"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Add structural-boundary suite asserting the Migration-Class Pair Emission contract in task-decomposer.md"
+  },
+  "DIG-5236": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Incident Overview",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Scenario Type: Deferred Review Nitpick (minor, contained)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Expected Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The test-hardening commit (PR #573, 6734986bd9) added `trap '_restore_real_classifier' EXIT ERR INT TERM` in _install_stub_classifier to guarantee the stub classifier is restored. It must not disturb other EXIT traps.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Actual Behavior",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "_install_stub_classifier (~line 989 of tests/scripts/test-migrate-closure-checks.sh) unconditionally registers its trap, OVERWRITING the `trap _cleanup EXIT` that git-fixtures.sh registers (~line 50, sourced at ~line 29). _restore_real_classifier (~line 1001) then runs `trap - EXIT ERR INT TERM`, clearing ALL EXIT traps including the original _cleanup, so _CLEANUP_DIRS fixture temp-dirs no longer fire on EXIT and leak. Confirmed by manual dso:code-reviewer-standard@opus during FP-recovery of PR #573 (reviewer hash d79d3f1b). Blast radius contained: under the suite runner each test runs in its own subprocess.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Fix direction",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Save the prior trap and chain/restore it (e.g., capture `trap -p EXIT` before overriding; in _restore_real_classifier re-install the saved trap rather than `trap - EXIT`). Fold into chunk 3 or a small cleanup PR.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Logs/Evidence",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "PR #573; manual reviewer hash d79d3f1b5dc3cf6c8840c7d31de6c81ab5793a8ddc891e2b28623e6990882348",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "detected_by:review-llm",
+      "dso-id:dae6-3db9-9eea-4009"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[test-migrate-closure-checks.sh]: _install_stub_classifier trap clobbers git-fixtures.sh _cleanup EXIT trap -> fixture temp-dirs leak"
   }
 }
