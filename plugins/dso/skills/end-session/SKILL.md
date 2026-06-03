@@ -184,11 +184,13 @@ bash "$PLUGIN_SCRIPTS/end-session/bypass-surveillance.sh"  # shim-exempt: intern
 `bypass-surveillance.sh` globs `.claude/artifacts/sprint-merge-only-bypass-*.log` and `.claude/artifacts/debug-merge-only-bypass-*.log` (written by `scripts/check-session-merge-only.sh` on every escape-hatch bypass invocation). It counts the entries (one per log file) and, when the count meets or exceeds `end_session.bypass_alert_threshold` (default: 3):
 
 1. Emits an integrity-check warning to stderr listing all bypass reasons.
-2. Files a follow-up bug ticket (priority 2) capturing the pattern and the bypass-reason list.
+2. Files exactly one follow-up bug ticket (priority 2) capturing the pattern and the bypass-reason list.
+
+After reporting (whether below threshold or at/above threshold, and whether ticket creation succeeds or fails), the script moves all processed logs to `.claude/artifacts/bypass-processed/` to preserve the audit trail while preventing re-counting on subsequent runs. The count therefore reflects bypasses since the last end-session run, not all-time.
 
 The warning and ticket are included in the session summary in Step 14 so the next orchestrator picks them up.
 
-If no bypass logs are found, or the count is below the threshold, the script exits 0 silently.
+If no bypass logs are found, the script exits 0 silently.
 
 ### 9. Commit Local Changes
 1. Run `git status`. If changes exist: read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md` inline (do NOT invoke `/dso:commit` via Skill tool — orchestrators execute the workflow directly).

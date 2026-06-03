@@ -169,18 +169,39 @@ assert_no_invalid_subagent_type "$SCRUTINY_FILE" "epic-scrutiny-pipeline.md: no 
 # Negative assertion: verify that an UNREGISTERED dso:* agent would still be flagged.
 # This ensures the allowlist only whitelists known registered agents and does not
 # create a blanket pass for all dso:* dispatches.
+#
+# Strategy: write a fixture file containing an unregistered dso:* dispatch, then
+# drive the ACTUAL assert_no_invalid_subagent_type function against it (using a
+# repo-relative path via a symlink in a temp dir).  The function must flag it,
+# i.e. the FAIL counter must increment.  We capture the pre/post FAIL delta
+# rather than running a parallel grep reimplementation.
 # ---------------------------------------------------------------------------
-_TMPFILE=$(mktemp "${TMPDIR:-/tmp}/test-dispatch-negative.XXXXXX")
-echo 'subagent_type: "dso:some-unregistered-agent"' > "$_TMPFILE"
-_NEG_RESULT=$(grep -n "subagent_type.*dso:" "$_TMPFILE" 2>/dev/null \
-    | grep -v "NOT a valid\|file identifier\|NOT valid\|not a valid\|only accepts" \
-    | grep -v "dso:gov-copy-writer\|dso:completion-verifier\|dso:verification-remediation-planner\|dso:feasibility-reviewer" \
-    || true)
-rm -f "$_TMPFILE"
-if [[ -n "$_NEG_RESULT" ]]; then
-    ok "allowlist: unregistered dso:* dispatch is still flagged by the filter"
+_FIXTURE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-dispatch-negative.XXXXXX")
+# Write the fixture as a file that looks like a skill file containing a bad dispatch.
+cat > "$_FIXTURE_DIR/bad-dispatch-fixture.md" <<'FIXTURE_EOF'
+subagent_type: "dso:some-unregistered-agent"
+FIXTURE_EOF
+
+# Symlink the fixture into the repo root so the function can resolve it via REPO_ROOT.
+_FIXTURE_REL="tests/skills/.negative-fixture-$$.md"
+ln -sf "$_FIXTURE_DIR/bad-dispatch-fixture.md" "$REPO_ROOT/$_FIXTURE_REL"
+
+_FAIL_BEFORE=$FAIL
+assert_no_invalid_subagent_type "$_FIXTURE_REL" "allowlist: unregistered dso:* dispatch"
+_FAIL_AFTER=$FAIL
+
+# Clean up
+rm -f "$REPO_ROOT/$_FIXTURE_REL"
+rm -rf "$_FIXTURE_DIR"
+
+if [[ $_FAIL_AFTER -gt $_FAIL_BEFORE ]]; then
+    # The function correctly flagged the bad dispatch — decrement FAIL (the negative
+    # test PASSED: the real detection logic fired as expected) and record a PASS.
+    FAIL=$_FAIL_BEFORE
+    ok "allowlist: unregistered dso:* dispatch is still flagged by assert_no_invalid_subagent_type"
 else
-    fail "allowlist: unregistered dso:* dispatch was NOT flagged — allowlist is too broad"
+    # The function did NOT flag it — the allowlist is too broad; leave FAIL incremented.
+    fail "allowlist: unregistered dso:* dispatch was NOT flagged by assert_no_invalid_subagent_type — allowlist is too broad"
 fi
 
 # ---------------------------------------------------------------------------
