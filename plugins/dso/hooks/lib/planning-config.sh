@@ -11,6 +11,9 @@
 #   get_max_remediation_cycles()
 #     → prints the integer value of planning.max_remediation_cycles (default: 3)
 #     → exits non-zero with stderr error if value < 2 (never silently clamps)
+#   get_call_site_threshold()
+#     → prints the integer value of migration.call_site_threshold (default: 3)
+#     → exits non-zero with stderr error if value < 1 (never silently clamps)
 #
 # Environment:
 #   WORKFLOW_CONFIG_FILE — override config file path (used for test isolation)
@@ -18,6 +21,7 @@
 # Config keys:
 #   planning.external_dependency_block_enabled — boolean (default: false)
 #   planning.max_remediation_cycles — integer >= 2 (default: 3)
+#   migration.call_site_threshold — integer >= 1 (default: 3)
 
 # Note: no `set` directives here — this is a sourced library; imposing shell
 # options would modify the caller's environment.  Callers manage their own
@@ -61,6 +65,33 @@ get_max_remediation_cycles() {
     # Validate: must be an integer >= 2
     if ! [[ "$_val" =~ ^[0-9]+$ ]] || [[ "$_val" -lt 2 ]]; then
         printf "planning.max_remediation_cycles must be >= 2 (got: %s)\n" "$_val" >&2
+        return 1
+    fi
+
+    echo "$_val"
+    return 0
+}
+
+# get_call_site_threshold
+# Prints the integer value of migration.call_site_threshold.
+# Default: 3 when key is absent or value is empty.
+# Floor: 1 (minimum accepted value).
+# Rejection: exits non-zero with a clear stderr message when value < 1.
+#            Never silently clamps — callers must catch the error.
+# Stderr error format: "migration.call_site_threshold must be >= 1 (got: <value>)"
+get_call_site_threshold() {
+    local _val
+    _val=$(WORKFLOW_CONFIG_FILE="${WORKFLOW_CONFIG_FILE:-}" "$_READ_CONFIG" "migration.call_site_threshold" 2>/dev/null) || true
+
+    # Treat absent or empty as default
+    if [[ -z "$_val" ]]; then
+        echo "3"
+        return 0
+    fi
+
+    # Validate: must be an integer >= 1
+    if ! [[ "$_val" =~ ^[0-9]+$ ]] || [[ "$_val" -lt 1 ]]; then
+        printf "migration.call_site_threshold must be >= 1 (got: %s)\n" "$_val" >&2
         return 1
     fi
 

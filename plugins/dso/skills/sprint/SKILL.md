@@ -1075,6 +1075,47 @@ git fetch origin main && git merge origin/main --no-edit
 
 This syncs the worktree branch with the latest main. Ticket branch syncing happens automatically during `merge-to-main.sh` at end-of-sprint (not during mid-sprint sync).
 
+### Step 3.5: Two-Pass Migration Ordering
+
+<!-- CHECKPOINT: Two-Pass Migration Ordering subsection added per task ed30-3675-cbf7-40bc (story 982a). -->
+
+Before composing the batch, wire migration task pair ordering so that the verification/cleanup half of each pair is scheduled after the half it validates. This step reads the persisted `MIGRATION_CLASS:` marker (written by `/dso:implementation-plan` Step 1) from each descendant story's ticket comments — it does **NOT** recompute detection.
+
+**Scope**: This step is epic-scoped. Enumerate all descendant story IDs for the current epic, then invoke the helper once per story that has migration-role-tagged tasks:
+
+```bash
+# Collect task pairs with migration-role tags for the story
+# TASKS_ARG format: "task-id:migration-role ..." — built by inspecting task tickets
+#   under the story for `migration-role:<role>` tags.
+# Valid roles: automated-sweep, manual-verification, forward-migration,
+#              rollback-verification, flag-cutover, flag-cleanup
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/sprint/apply-two-pass-ordering.sh" \
+  --story-id <story-id> \
+  --tasks "<task-id>:<role> <task-id>:<role>"
+```
+
+**Idempotency**: The helper checks for existing `depends_on` edges before writing. Repeated per-batch invocation is safe — no once-per-story guard is needed.
+
+**Three reserved pair types** (wired by the helper):
+
+| Migration class | Pair roles | Edge written |
+|-----------------|------------|--------------|
+| `sweep` | `automated-sweep` / `manual-verification` | `manual-verification` depends_on `automated-sweep` |
+| `db` | `forward-migration` / `rollback-verification` | `rollback-verification` depends_on `forward-migration` |
+| feature-flag (role presence only) | `flag-cutover` / `flag-cleanup` | `flag-cleanup` depends_on `flag-cutover` |
+
+Note: the feature-flag pair is detected by **role presence alone** — it does not require a `MIGRATION_CLASS:` marker value.
+
+**Absent-marker fallback**: When a story has no `MIGRATION_CLASS:` marker (or the marker value is `inconclusive`) **and** no feature-flag pair roles are present on its tasks, the helper emits `NO_MARKER` on stderr and writes no edges. Standard batch ordering from `ticket next-batch` applies unchanged. This is the expected path for stories with no migration task pairs; it is not an error.
+
+**Story enumeration**: Obtain descendant story IDs via:
+
+```bash
+.claude/scripts/dso ticket list-descendants <epic-id>
+```
+
+Filter the output to `story` type tickets. For each story, collect tasks tagged `migration-role:<role>` and pass them to the helper. Stories with no migration-role-tagged tasks are skipped (the helper call is unnecessary for them, but safe if inadvertently invoked with no `--tasks` argument).
+
 ### Step 4: Batch Composition
 
 #### Inject Prior Batch Discoveries (Batch 2+ only)

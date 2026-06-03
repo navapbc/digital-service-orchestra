@@ -245,6 +245,42 @@ Record the output as **available recipe capabilities**. Run without `--language`
 
 Recipe-eligible transforms are mechanical and deterministic: function-signature changes, import normalization. Business logic additions, feature decisions, and architectural changes are NOT recipe-eligible regardless of the registry contents.
 
+### Migration-Class Detection
+
+Run the migration-class detector against the story's primary target symbol to classify the migration scope before task drafting begins. This step is **unconditional and non-interactive** — it runs on every Step 1 execution, writes the marker regardless of outcome, and never prompts before persisting.
+
+Determine `TARGET_SYMBOL` from the story description or ticket title (the function, method, or class being changed). If no symbol is determinable, pass an empty string — the script emits `migration-class=inconclusive` cleanly and the marker is still written.
+
+```bash
+MIGRATION_MARKER=$(bash "$PLUGIN_SCRIPTS/implementation-plan/migration-class-detect.sh" "<target_symbol>" 2>/dev/null)
+.claude/scripts/dso ticket comment <story-id> "MIGRATION_CLASS: $MIGRATION_MARKER"
+```
+
+**Even when `migration-class=inconclusive`** (ast-grep unavailable or no symbol provided), write the marker. Never silently omit it — inconclusive is a first-class result, not an error state.
+
+**Last-wins idiom**: re-running Step 1 appends a new `MIGRATION_CLASS:` comment. Consumers MUST read the **last** matching `MIGRATION_CLASS:` comment on the story ticket, ignoring any earlier ones. This mirrors the `COMPLEXITY_CLASSIFICATION:` scan-for-last-comment idiom.
+
+The full marker contract (JSON shape, field definitions, threshold configuration, `sg`-unavailable degradation, consumer protocol) is at `${CLAUDE_PLUGIN_ROOT}/docs/contracts/migration-class-marker.md`.
+
+Log a one-liner: `"Migration-class detection: <migration-class value> (symbol: <target_symbol>)"`.
+
+### Feature-Flag Approval Detection
+
+Run the feature-flag approval lookup for this story immediately after migration-class detection. This step is **unconditional and non-interactive** — it runs on every Step 1 execution, writes the marker regardless of outcome, and never prompts before persisting.
+
+```bash
+FEATURE_FLAGS_MARKER=$(bash "$PLUGIN_SCRIPTS/implementation-plan/resolve-feature-flag-approval.sh" "<story-id>" 2>/dev/null)
+.claude/scripts/dso ticket comment <story-id> "FEATURE_FLAGS: $FEATURE_FLAGS_MARKER"
+```
+
+The helper performs the two-hop story→parent epic tag lookup and always exits 0 (see safe-default contract). When the `rollout:feature-flags-approved` tag is absent on both the story and its parent epic, the marker carries `"feature-flags":"prohibited"` with a non-empty `reason`.
+
+**Last-wins idiom**: re-running Step 1 appends a new `FEATURE_FLAGS:` comment. Consumers MUST read the **last** matching `FEATURE_FLAGS:` comment on the story ticket, ignoring any earlier ones. This mirrors the `MIGRATION_CLASS:` scan-for-last-comment idiom.
+
+The full marker contract (JSON shape, fields, source-of-truth helper, safe-default, consumer protocol) is at `${CLAUDE_PLUGIN_ROOT}/docs/contracts/feature-flags-marker.md`.
+
+Log a one-liner: `"Feature-flag approval detection: <feature-flags value> (source: <source>, reason: <reason>)"`.
+
 ### Ambiguity Scan
 
 **Curiosity before planning.** A plan built on assumptions is worse than no plan.
@@ -615,6 +651,8 @@ Pass the following as task arguments:
 - `{file-impact-table}` — the orchestrator's enumeration from "File Impact Enumeration" below (every file × action × test-classification)
 - `{project-commands}` — `commands.test_unit`, `commands.lint`, `commands.format_check` from `dso-config.conf` (verbatim)
 - `{testing-mode}` — the story's testing-mode classification (RED / GREEN / UPDATE; default RED)
+- `{migration-marker}` — the migration-class marker emitted by Step 1 (Migration-Class Detection). Source it by scanning the story ticket for the **LAST** `MIGRATION_CLASS:` comment (last-wins idiom) and passing the verbatim single-line JSON payload that follows the `MIGRATION_CLASS:` prefix. If no `MIGRATION_CLASS:` comment is present (older stories planned before this step existed), pass an empty block — the task-decomposer treats an absent/unparseable marker as an inert no-op (the absent-marker path emits no migration pair, preserving backward compatibility). The agent parses migration-class from THIS passed-in arg; it never fetches it from the ticket (the agent has no ticket access).
+- `{feature-flags-marker}` — the feature-flag approval marker emitted by Step 1 (Feature-Flag Approval Detection). Source it by scanning the story ticket for the **LAST** `FEATURE_FLAGS:` comment (last-wins idiom) and passing the verbatim single-line JSON payload that follows the `FEATURE_FLAGS:` prefix. If no `FEATURE_FLAGS:` comment is present (older stories planned before this step existed), pass an empty block — the task-decomposer treats an absent/unparseable marker as an inert no-op (backward-compatible default). The agent reads `feature-flags` from THIS passed-in arg; it never performs the two-hop story→parent lookup itself (the agent has no tracker access; the lookup is done by the orchestrator in Step 1 via `resolve-feature-flag-approval.sh`).
 
 The agent returns a JSON object with `dd_partition_map`, `task_drafts`, and `decomposition_notes`. Validate in this order — do NOT reorder:
 
