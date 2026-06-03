@@ -201,97 +201,40 @@ else
     printf "FAIL: transient_gh_error_waited: elapsed=%ds (expected >= 2)\n" "$ELAPSED" >&2
 fi
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MQ-4 (ADR-0019): GitHub Merge Queue terminal-state handling.
-# wait-for-pr.sh must reach the right terminal verdict for a PR promoted via the
-# merge queue (session→main + `gh pr merge --auto`). gh exposes mergeStateStatus
-# (BEHIND/BLOCKED/CLEAN/DIRTY/...) and autoMergeRequest, but NOT a queue-entry
-# field — so terminal detection rests on state + autoMergeRequest + checks, with
-# mergeStateStatus used to sharpen the eviction diagnostic. These cases lock in
-# that the existing terminal logic handles the queue lifecycle.
-# ─────────────────────────────────────────────────────────────────────────────
-
-# --- MQ queue success: auto-merge enabled, checks green, then fast-forwarded
-#     to main by the queue (state→MERGED) → exit 0 ---
-cat > "$TMPDIR_T/seq-counter" <<'EOF'
-0
-EOF
-cat > "$TMPDIR_T/gh-stub.sh" <<'EOF'
-#!/usr/bin/env bash
-N=$(cat "$TMPDIR_T/seq-counter")
-echo "$((N+1))" > "$TMPDIR_T/seq-counter"
-if [[ "$N" == "0" ]]; then
-    # in the queue: auto-merge enabled, merge state BLOCKED while queued, checks pending
-    echo '{"state":"OPEN","mergedAt":null,"mergeStateStatus":"BLOCKED","statusCheckRollup":[{"name":"Script Tests","conclusion":null,"status":"IN_PROGRESS"}],"autoMergeRequest":{"enabledAt":"2026-06-02T09:00:00Z"}}'
-else
-    # queue fast-forwarded the PR onto main
-    echo '{"state":"MERGED","mergedAt":"2026-06-02T09:05:00Z","mergeStateStatus":"CLEAN","statusCheckRollup":[],"autoMergeRequest":null}'
-fi
-EOF
-chmod +x "$TMPDIR_T/gh-stub.sh"
-EXIT=0
-bash "$WAIT" 123 --interval=1 --timeout=10 >/dev/null 2>&1 || EXIT=$?
-assert_eq "mq_queue_success_exits_0" "0" "$EXIT"
-
-# --- MQ eviction: auto-merge enabled then cleared (a required merge_group check
-#     failed → GitHub evicts the PR and clears auto-merge) with mergeStateStatus
-#     BLOCKED → exit 1 AND a merge-queue-specific diagnostic on stderr ---
-cat > "$TMPDIR_T/seq-counter" <<'EOF'
-0
-EOF
-cat > "$TMPDIR_T/gh-stub.sh" <<'EOF'
-#!/usr/bin/env bash
-N=$(cat "$TMPDIR_T/seq-counter")
-echo "$((N+1))" > "$TMPDIR_T/seq-counter"
-if [[ "$N" == "0" ]]; then
-    echo '{"state":"OPEN","mergedAt":null,"mergeStateStatus":"BLOCKED","statusCheckRollup":[{"name":"Script Tests","conclusion":null,"status":"IN_PROGRESS"}],"autoMergeRequest":{"enabledAt":"2026-06-02T09:00:00Z"}}'
-else
-    # evicted: auto-merge cleared, still OPEN, merge blocked
-    echo '{"state":"OPEN","mergedAt":null,"mergeStateStatus":"BLOCKED","statusCheckRollup":[{"name":"Script Tests","conclusion":null,"status":"IN_PROGRESS"}],"autoMergeRequest":null}'
-fi
-EOF
-chmod +x "$TMPDIR_T/gh-stub.sh"
-ERR_FILE="$TMPDIR_T/mq-evict-stderr.txt"
-EXIT=0
-bash "$WAIT" 123 --interval=1 --timeout=5 >/dev/null 2>"$ERR_FILE" || EXIT=$?
-assert_eq "mq_eviction_exits_1" "1" "$EXIT"
-assert_contains "mq_eviction_mentions_merge_queue" "merge queue" "$(cat "$ERR_FILE")"
-
-# --- MQ required-check failure surfaced on the PR → exit 1 ---
+# --- CONFLICTING (DIRTY) PR -> exit 1 FAST, not after timeout ---
+# A conflicting PR never gets required checks run by GitHub; wait-for-pr must
+# detect mergeable=CONFLICTING and bail immediately so the orchestrator can
+# rebase, instead of dead-waiting the full --timeout.
 cat > "$TMPDIR_T/gh-stub.sh" <<'EOF'
 #!/usr/bin/env bash
 if [[ -f "$TMPDIR_T/payload.json" ]]; then cat "$TMPDIR_T/payload.json"; fi
 EOF
 chmod +x "$TMPDIR_T/gh-stub.sh"
 cat > "$TMPDIR_T/payload.json" <<'EOF'
-{"state":"OPEN","mergedAt":null,"mergeStateStatus":"BLOCKED","statusCheckRollup":[{"name":"dangling-references","conclusion":"FAILURE","status":"COMPLETED"}],"autoMergeRequest":{"enabledAt":"2026-06-02T09:00:00Z"}}
-EOF
-EXIT=0
-bash "$WAIT" 123 --interval=1 --timeout=5 >/dev/null 2>&1 || EXIT=$?
-assert_eq "mq_failed_required_check_exits_1" "1" "$EXIT"
-
-# --- MQ queued-behind: sustained BLOCKED+queued (auto-merge held, checks
-#     pending) must read as PENDING and keep polling until timeout, NOT exit
-#     early — so a sprint queued behind another sprint isn't a false failure ---
-cat > "$TMPDIR_T/gh-stub.sh" <<'EOF'
-#!/usr/bin/env bash
-if [[ -f "$TMPDIR_T/payload.json" ]]; then cat "$TMPDIR_T/payload.json"; fi
-EOF
-chmod +x "$TMPDIR_T/gh-stub.sh"
-cat > "$TMPDIR_T/payload.json" <<'EOF'
-{"state":"OPEN","mergedAt":null,"mergeStateStatus":"BLOCKED","statusCheckRollup":[{"name":"Script Tests","conclusion":null,"status":"IN_PROGRESS"}],"autoMergeRequest":{"enabledAt":"2026-06-02T09:00:00Z"}}
+{"state":"OPEN","mergedAt":null,"mergeable":"CONFLICTING","statusCheckRollup":[{"name":"CI","conclusion":null,"status":"IN_PROGRESS"}],"autoMergeRequest":null}
 EOF
 START=$(date +%s)
 EXIT=0
-bash "$WAIT" 123 --interval=1 --timeout=2 >/dev/null 2>&1 || EXIT=$?
+CONFLICT_OUT="$(bash "$WAIT" 123 --interval=5 --timeout=60 2>&1)" || EXIT=$?
 END=$(date +%s)
 ELAPSED=$(( END - START ))
-assert_eq "mq_queued_behind_polls_until_timeout" "1" "$EXIT"
-if [[ $ELAPSED -ge 2 ]]; then
+assert_eq "conflicting_pr_exits_1" "1" "$EXIT"
+assert_contains "conflicting_pr_message" "CONFLICTING" "$CONFLICT_OUT"
+# Must NOT wait out the 60s timeout — should bail on the first poll (< 5s).
+if [[ $ELAPSED -lt 5 ]]; then
     (( ++PASS ))
 else
     (( ++FAIL ))
-    printf "FAIL: mq_queued_behind_kept_polling: elapsed=%ds (expected >= 2)\n" "$ELAPSED" >&2
+    printf "FAIL: conflicting_pr_fast_exit: elapsed=%ds (expected < 5)\n" "$ELAPSED" >&2
 fi
+
+# --- mergeable=UNKNOWN (computing) must NOT trigger the conflict bail ---
+cat > "$TMPDIR_T/payload.json" <<'EOF'
+{"state":"OPEN","mergedAt":null,"mergeable":"UNKNOWN","statusCheckRollup":[{"name":"CI","conclusion":null,"status":"IN_PROGRESS"}],"autoMergeRequest":null}
+EOF
+EXIT=0
+bash "$WAIT" 123 --interval=1 --timeout=2 >/dev/null 2>&1 || EXIT=$?
+# UNKNOWN -> keeps polling -> times out (exit 1), NOT an instant conflict bail.
+assert_eq "unknown_mergeable_does_not_false_conflict" "1" "$EXIT"
 
 print_summary
