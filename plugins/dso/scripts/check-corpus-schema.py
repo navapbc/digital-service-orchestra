@@ -31,6 +31,30 @@ except ImportError:
     sys.exit(2)
 
 
+# Top-level keys that must be present in any schema dict for it to be usable.
+# A schema missing both is not structurally valid — it cannot constrain anything.
+_SCHEMA_REQUIRED_KEYS = {"required_fields", "tag_vocabulary"}
+
+
+def _schema_structure_is_valid(schema: dict, schema_path: Path) -> bool:
+    """Return True if schema has at least one of the expected top-level keys.
+
+    Advisory check only: emits a warning to stderr and returns False when the
+    schema appears malformed.  Does NOT exit — the caller is responsible for
+    deciding whether to fall back to a higher-priority schema or abort.  This
+    warn-and-fallback contract is intentional: a missing sub-directory schema
+    should not abort the entire corpus validation run.
+    """
+    if not _SCHEMA_REQUIRED_KEYS.intersection(schema.keys()):
+        print(
+            f"WARNING: Schema file {schema_path} is missing both 'required_fields' "
+            f"and 'tag_vocabulary' keys — schema appears malformed.",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
 def load_schema(schema_path: Path) -> dict:
     """Load and return the schema definition from _schema.yaml."""
     if not schema_path.exists():
@@ -133,6 +157,68 @@ _SKIP_NAMES = {
     "_overview.yaml",
 }
 
+# Any file whose name matches "_schema-*.yaml" is a per-subdirectory schema
+# descriptor, not a corpus entry; skip it during validation.
+_SKIP_SCHEMA_PREFIX = "_schema-"
+
+
+def _is_skip_file(path: Path) -> bool:
+    """Return True if this path should be skipped during corpus validation."""
+    return path.name in _SKIP_NAMES or path.name.startswith(_SKIP_SCHEMA_PREFIX)
+
+
+def resolve_schema(
+    entry_path: Path,
+    corpus_dir: Path,
+    top_schema: dict,
+    schema_cache: dict[Path, dict],
+) -> dict:
+    """Return the most-specific schema for entry_path.
+
+    Resolution order (first match wins):
+      1. entry.parent / "_schema.yaml"            (subdir-local schema)
+      2. corpus_dir  / f"_schema-{entry.parent.name}.yaml"  (sibling naming)
+      3. top_schema                                (corpus-wide fallback)
+
+    Results are cached by directory to avoid repeated disk I/O.
+    """
+    parent = entry_path.parent
+    if parent in schema_cache:
+        return schema_cache[parent]
+
+    # Priority 1: <subdir>/_schema.yaml (but not the corpus root's own schema)
+    subdir_schema_path = parent / "_schema.yaml"
+    if subdir_schema_path.exists() and parent != corpus_dir:
+        resolved = load_schema(subdir_schema_path)
+        if _schema_structure_is_valid(resolved, subdir_schema_path):
+            schema_cache[parent] = resolved
+            return resolved
+        # Malformed subdir schema — emit warning (already done) and fall through
+        # to next priority rather than silently using an unusable schema.
+        print(
+            f"WARNING: Falling back to next-priority schema for {parent} "
+            f"due to malformed {subdir_schema_path}.",
+            file=sys.stderr,
+        )
+
+    # Priority 2: corpus_dir/_schema-{subdir_name}.yaml
+    sibling_schema_path = corpus_dir / f"_schema-{parent.name}.yaml"
+    if sibling_schema_path.exists():
+        resolved = load_schema(sibling_schema_path)
+        if _schema_structure_is_valid(resolved, sibling_schema_path):
+            schema_cache[parent] = resolved
+            return resolved
+        # Malformed sibling schema — fall through to top-level.
+        print(
+            f"WARNING: Falling back to top-level schema for {parent} "
+            f"due to malformed {sibling_schema_path}.",
+            file=sys.stderr,
+        )
+
+    # Priority 3: fall back to top-level schema
+    schema_cache[parent] = top_schema
+    return top_schema
+
 
 def validate_index(corpus_dir: Path, index_path: Path) -> list[str]:
     """Validate that every path: entry in _index.yaml resolves to an existing file.
@@ -226,17 +312,17 @@ def main() -> int:
                 if cand.exists():
                     schema_path = cand
                     break
-    schema = load_schema(schema_path)
+    top_schema = load_schema(schema_path)
 
     # Collect all .yaml files recursively, skipping schema and index files
-    entry_files = sorted(
-        f for f in corpus_dir.rglob("*.yaml") if f.name not in _SKIP_NAMES
-    )
+    entry_files = sorted(f for f in corpus_dir.rglob("*.yaml") if not _is_skip_file(f))
 
     total_errors = 0
+    schema_cache: dict[Path, dict] = {}
 
     if entry_files:
         for entry_path in entry_files:
+            schema = resolve_schema(entry_path, corpus_dir, top_schema, schema_cache)
             errors = validate_file(entry_path, schema)
             if errors:
                 total_errors += len(errors)

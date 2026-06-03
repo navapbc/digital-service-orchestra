@@ -28,6 +28,57 @@ If `CROSS_EPIC_SIGNALS` has no consideration-severity signals, skip this step an
 
 ---
 
+## Step 2.26b — Workflow-Trigger Filter Audit
+
+**Activation condition**: Run this step immediately after Step 2.26 AC injection (or in place of it when no consideration signals are present) whenever the epic's deliverables include a new git ref pattern. Activation signals:
+
+- Epic scope names a new branch namespace (e.g., `story/`, `bug-batch/`, `fix/`, `hotfix/`)
+- Epic introduces a new merge path (e.g., per-story PR flow, session-branch-to-main merge)
+- Epic modifies or adds CI workflow trigger conditions
+
+When none of these signals are present, skip this step and proceed to Step 2.27.
+
+**Audit procedure**:
+
+1. Enumerate every `.github/workflows/*.yml` file in the repository:
+   ```bash
+   find "$(git rev-parse --show-toplevel)/.github/workflows" -name "*.yml" | sort
+   ```
+
+2. For each workflow file, extract the trigger filter blocks — `branches:`, `branches-ignore:`, `tags:`, and `paths:` — under the `on:` key:
+   ```bash
+   grep -A 30 '^on:' <workflow-file> | grep -E '(branches|branches-ignore|tags|paths):|^\s+-\s'
+   ```
+
+3. For each workflow file, produce a checklist entry confirming the new ref pattern's coverage status:
+
+   ```
+   [ ] <workflow-filename>
+       Trigger type: <pull_request | push | pull_request_target | ...>
+       Current filters: branches: [<list>] | no branch filter
+       New pattern "<new-ref-pattern>" coverage: INCLUDED | EXCLUDED | NO_FILTER (all refs match)
+       Action required: <none | add pattern to branches list | document intentional exclusion>
+   ```
+
+4. **Affirmative coverage confirmation**: For each workflow, confirm one of these states is true:
+   - The new ref pattern is already included (e.g., no `branches:` filter, or filter uses a glob that matches the new pattern)
+   - The new ref pattern is intentionally excluded and the exclusion is documented in the epic spec
+   - The workflow is not relevant to this ref type (e.g., a `workflow_dispatch`-only workflow)
+
+5. **Flag gaps**: When a workflow's trigger filter would silently skip the new ref pattern — i.e., the workflow runs CI jobs that should apply to the new pattern but its `branches:` filter omits it — add a finding to the epic spec under `## Cross-Epic Interactions`:
+
+   ```
+   - Resource: .github/workflows/<filename>
+     Interaction: <workflow-name> trigger filter does not include "<new-ref-pattern>"; CI jobs in this workflow will be skipped for PRs/pushes on the new pattern.
+     Gate: Confirm whether <workflow-name> should run on <new-ref-pattern>. If yes, add the pattern to the branches filter before sprint close.
+   ```
+
+**Project convention reminder** (mirrors remediate-arch-evidence Probe 2): In this repo, `pull_request` workflows should OMIT base-branch `branches:` filters unless there is an explicit cost or security reason to restrict — restricting to `branches: [main]` skips per-story PRs (confirmed defect: bug 3914-0848-faad-4f6a).
+
+**Non-interactive mode** (`BRAINSTORM_INTERACTIVE=false`): Run the enumeration and checklist generation silently. Append any findings as structured `## Cross-Epic Interactions` entries without pausing for user input.
+
+---
+
 ## Step 2.27 — Halt and Resolution for Ambiguity/Conflict Signals
 
 If `CROSS_EPIC_SIGNALS` contains signals with `severity="ambiguity"` or `severity="conflict"`, halt and present them to the user for resolution before entering the scrutiny pipeline.
