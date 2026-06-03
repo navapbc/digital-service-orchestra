@@ -23,6 +23,6 @@ All bugs in the cluster are investigated as a single problem. A single investiga
 After the cluster investigation completes:
 
 - **Single root cause**: if one root cause explains all bugs, proceed as a single fix track from Phase C Step 2 onward.
-- **Multiple independent root causes**: if the investigation identifies multiple independent root causes, split into one per-root-cause track. Each track follows the standard single-bug workflow from Phase C Step 2 onward.
+- **Multiple independent root causes**: if the investigation identifies multiple independent root causes, split into one per-root-cause track. Each track follows the standard single-bug workflow from Phase C Step 2 onward. Each split track RESULT must carry `attribution_basis` (see `prompts/cluster-investigation.md` Step 3 and RESULTS schema). Tracks with `attribution_basis: speculative` require manual confirmation before investigation budget is spent — present the speculative claim to the user and obtain confirmation that the symptom was observed before dispatching BASIC-or-above investigation on that track.
 
 Split tracks are independent — they may be worked in parallel or sequentially depending on resource availability.
