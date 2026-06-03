@@ -545,4 +545,75 @@ except Exception as e:
 test_state_init_writes_merge_strategy_from_env
 
 # ---------------------------------------------------------------------------
+# Test 9: test_state_init_writes_merge_strategy_pr_on_direct_invocation
+# RED: when merge-to-main-pr.sh is invoked directly (bypassing the dispatcher),
+# MERGE_STRATEGY is derived as a plain bash variable but NOT exported.
+# _state_init spawns python3 which reads os.environ.get('MERGE_STRATEGY','direct')
+# — a non-exported bash var is invisible to os.environ, so the state file records
+# 'direct' instead of 'pr', causing --resume cross-strategy abort.
+#
+# Test seam: invoke merge-to-main-pr.sh directly (no dispatcher) in a temp git
+# repo with WORKFLOW_CONFIG_FILE pointing to dso.workflow=ci-pr and BRANCH
+# pre-set to a known unique name. The script will derive MERGE_STRATEGY=pr, run
+# _state_init (which writes the state file), then fail at later phases — but the
+# state file is written before any failure. Assert that merge_strategy in the
+# state file equals 'pr' (not 'direct').
+#
+# RED before fix: derivation block sets MERGE_STRATEGY='pr' without export;
+#   python3 in _state_init reads os.environ.get('MERGE_STRATEGY','direct') → 'direct'.
+# GREEN after fix: `export MERGE_STRATEGY` added → python3 reads 'pr' correctly.
+# ---------------------------------------------------------------------------
+test_state_init_writes_merge_strategy_pr_on_direct_invocation() {
+    local _T _branch_name _branch_safe _state_path _state_val _cfg_file
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    # Set up a minimal git repo so REPO_ROOT and BRANCH can be resolved.
+    (
+        cd "$_T" || exit 1
+        git init -q -b main >/dev/null 2>&1
+        git config user.email "test@test.local"
+        git config user.name "test"
+        git commit -q --allow-empty -m "init" >/dev/null 2>&1
+    )
+
+    _branch_name="dispatcher-test-direct-invoc-pr-$$"
+    _branch_safe="${_branch_name//\//-}"
+    _state_path="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_path"
+
+    # Write a config file that sets dso.workflow=ci-pr (→ MERGE_STRATEGY=pr).
+    _cfg_file="$_T/.claude/dso-config.conf"
+    mkdir -p "$(dirname "$_cfg_file")"
+    printf 'dso.workflow=ci-pr\n' > "$_cfg_file"
+
+    # Invoke merge-to-main-pr.sh directly (not via dispatcher).
+    # MERGE_STRATEGY is NOT pre-exported — must be derived from config.
+    # BRANCH is pre-set so _state_init writes to a predictable path.
+    # The script will fail after _state_init (no real remote/gh auth) — ignore exit code.
+    PROJECT_ROOT="$_T" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    WORKFLOW_CONFIG_FILE="$_cfg_file" \
+    BRANCH="$_branch_name" \
+    bash "$DSO_PLUGIN_DIR/scripts/merge-to-main-pr.sh" >/dev/null 2>&1 || true
+
+    _state_val="$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$_state_path'))
+    print(d.get('merge_strategy', 'MISSING'))
+except Exception as e:
+    print('ERR:' + str(e))
+" 2>/dev/null)"
+
+    rm -f "$_state_path"
+
+    # Pre-fix: MERGE_STRATEGY not exported → python3 sees default → 'direct' → FAIL
+    # Post-fix: `export MERGE_STRATEGY` in derivation block → python3 reads 'pr' → PASS
+    assert_eq "test_state_init_writes_merge_strategy_pr_on_direct_invocation" "pr" "$_state_val"
+}
+test_state_init_writes_merge_strategy_pr_on_direct_invocation
+
+# ---------------------------------------------------------------------------
 print_summary
