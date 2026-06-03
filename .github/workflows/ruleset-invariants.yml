@@ -64,15 +64,8 @@ jobs:
           # precondition is fail-closed: a missing/under-scoped token MUST block
           # so a PAT expiry/scope-strip cannot silently re-open the hole.
           # Drift (exit 1) and pass (exit 0) propagate normally regardless.
-          if [ "$rc" -eq 78 ]; then
-            if [ "${DSO_RULESET_INVARIANTS_MODE:-warn}" = "enforce" ]; then
-              echo "::error::ruleset-invariants precondition not met (likely missing/under-scoped DSO_RULESETS_READ_TOKEN secret) — fail-closed (enforce mode)"
-              exit "$rc"
-            fi
-            echo "::warning::ruleset-invariants precondition not met (likely missing DSO_RULESETS_READ_TOKEN secret) — drift detection not enforced this run (warn mode)"
-            exit 0
-          fi
-          exit $rc
+          bash plugins/dso/scripts/ci/precondition-gate.sh \
+            "$rc" "${DSO_RULESET_INVARIANTS_MODE:-warn}" "ruleset-invariants"
 
       - name: Run provisioner round-trip drift test
         # Single-source-of-truth drift lock: provisioner dry-run vs live ruleset
@@ -93,12 +86,5 @@ jobs:
           set +e
           bash tests/scripts/test-ruleset-provisioner-roundtrip.sh
           rc=$?
-          if [ "$rc" -eq 78 ]; then
-            if [ "${DSO_RULESET_INVARIANTS_MODE:-warn}" = "enforce" ]; then
-              echo "::error::provisioner round-trip precondition not met — fail-closed (enforce mode)"
-              exit "$rc"
-            fi
-            echo "::warning::provisioner round-trip precondition not met — drift detection not enforced this run (warn mode)"
-            exit 0
-          fi
-          exit $rc
+          bash plugins/dso/scripts/ci/precondition-gate.sh \
+            "$rc" "${DSO_RULESET_INVARIANTS_MODE:-warn}" "provisioner-round-trip"

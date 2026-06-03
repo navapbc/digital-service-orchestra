@@ -67,12 +67,5 @@ jobs:
           # transient API blip MUST block — never silently green-stamp an
           # un-reviewed candidate (the silent-pass class we pivoted away from MQ
           # to avoid). Default is warn so live CI behavior is unchanged.
-          if [ "$rc" -eq 78 ]; then
-            if [ "${DSO_COVERAGE_INVARIANT_MODE:-warn}" = "enforce" ]; then
-              echo "::error::review-coverage-invariant precondition not met — fail-closed (enforce mode)"
-              exit "$rc"
-            fi
-            echo "::warning::review-coverage-invariant precondition not met — not enforced this run (warn mode)"
-            exit 0
-          fi
-          exit $rc
+          bash plugins/dso/scripts/ci/precondition-gate.sh \
+            "$rc" "${DSO_COVERAGE_INVARIANT_MODE:-warn}" "review-coverage-invariant"
