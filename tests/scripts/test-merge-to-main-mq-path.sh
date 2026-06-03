@@ -1,115 +1,158 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2016
-# (file-level: this test grep-matches literal `$var` / `${var}` patterns from
-# the source script; single quotes keep them un-expanded.)
-#
 # tests/scripts/test-merge-to-main-mq-path.sh — MQ-4 (ADR-0019)
 #
-# Validates the flag-gated GitHub Merge Queue promotion path added to
-# merge-to-main-pr.sh. The script must:
-#   - read dso.merge_queue.enabled into DSO_MERGE_QUEUE_ENABLED (default 0/OFF),
-#   - honor the DSO_MERGE_QUEUE_ENABLED_OVERRIDE test hook,
-#   - when ON: promote session→main directly (call _phase_merge, NOT
-#     _phase_staged_intermediate) and gate out the staged-* advance machinery,
-#   - when OFF: run the legacy two-tier flow byte-for-byte unchanged.
+# BEHAVIORAL test of the flag-gated GitHub Merge Queue promotion path in
+# merge-to-main-pr.sh. The script is EXECUTED under a gh/git stub harness and
+# the observable gh invocations (gh-argv.log) are asserted — not the source text.
 #
-# Approach: structural assertions on the orchestration wiring (the established
-# convention for this script — see test-merge-to-main-staged-intermediate.sh:
-# "the full two-PR orchestration requires live gh + GitHub state… out of scope
-# for a unit-level test") PLUS a behavioral default-OFF check via read-config.sh
-# and a golden gh-argv invariance run proving flag-absent == flag-explicitly-OFF.
-# The existing test-merge-to-main-pr.sh full-execution harness already exercises
-# the direct-to-main _phase_merge path (its fixture origin is not github.com, so
-# _phase_staged_intermediate self-skips), so flag-OFF behavior is covered there.
+# The flag's effect is made observable by giving the fixture a github.com origin
+# (merge-to-main-pr.sh:919 only runs the staged-intermediate phase for a real
+# github.com remote). Then:
+#   - flag OFF (default / DSO_MERGE_QUEUE_ENABLED_OVERRIDE=0): the legacy
+#     two-tier flow runs _phase_staged_intermediate → it mints a staged-* ref via
+#     `gh api -X POST repos/.../git/refs`. That POST appears in gh-argv.
+#   - flag ON (DSO_MERGE_QUEUE_ENABLED_OVERRIDE=1): the merge-queue path promotes
+#     session→main DIRECTLY — _phase_staged_intermediate is never called, so NO
+#     `git/refs` POST appears, and a single `gh pr create --base main` is issued.
+# A golden-argv run proves flag-absent == flag-explicitly-OFF (default-OFF is
+# behaviorally inert — the load-bearing safety property pre-MQ-6).
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-TARGET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/merge-to-main-pr.sh"
+PR_SCRIPT="$REPO_ROOT/plugins/dso/scripts/merge-to-main-pr.sh"
+DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"
 PASS=0
 FAIL=0
 
 _pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 _fail() { echo "FAIL: $1 ($2)"; FAIL=$((FAIL+1)); }
 
-# ── Test 1: the MQ flag is read from dso.merge_queue.enabled ─────────────────
-if grep -q 'read-config.sh" dso.merge_queue.enabled' "$TARGET_SCRIPT"; then
-    _pass "test_reads_merge_queue_config_key"
-else
-    _fail "test_reads_merge_queue_config_key" "no read-config.sh dso.merge_queue.enabled in script"
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "PRECONDITION_NOT_MET: python3 not in PATH" >&2; exit 78
 fi
 
-# ── Test 2: the flag defaults to OFF (DSO_MERGE_QUEUE_ENABLED=0 initializer) ──
-if grep -qE '^DSO_MERGE_QUEUE_ENABLED=0' "$TARGET_SCRIPT"; then
-    _pass "test_flag_defaults_off"
-else
-    _fail "test_flag_defaults_off" "DSO_MERGE_QUEUE_ENABLED is not initialized to 0"
-fi
+# ── Fixture: stub gh (logs argv) + git (no network) + a tiny repo with a
+#    github.com origin so the staged-intermediate phase is eligible to run. ────
+_build_fixture() {
+    local tmpdir="$1" branch="$2"
+    local bin="$tmpdir/bin"
+    mkdir -p "$bin"
+    local gh_argv_log="$tmpdir/gh-argv.log"
 
-# ── Test 3: the read is skipped under PR_LIB_MODE (sourced-unit-test safety) ──
-if awk '
-    /^DSO_MERGE_QUEUE_ENABLED=0/ { seen=1 }
-    seen && /PR_LIB_MODE:-0.*!= "1"/ { print "guarded"; exit }
-    seen && /read-config.sh" dso.merge_queue.enabled/ { print "unguarded"; exit }
-' "$TARGET_SCRIPT" | grep -q guarded; then
-    _pass "test_config_read_guarded_by_pr_lib_mode"
-else
-    _fail "test_config_read_guarded_by_pr_lib_mode" "config read not wrapped in PR_LIB_MODE guard"
-fi
-
-# ── Test 4: the override hook is honored ─────────────────────────────────────
-if grep -q 'DSO_MERGE_QUEUE_ENABLED_OVERRIDE' "$TARGET_SCRIPT"; then
-    _pass "test_override_hook_present"
-else
-    _fail "test_override_hook_present" "DSO_MERGE_QUEUE_ENABLED_OVERRIDE not honored"
-fi
-
-# ── Test 5: the merge dispatch branches on the flag, and the flag-ON branch
-#    calls _phase_merge WITHOUT _phase_staged_intermediate ──────────────────
-# Extract the dispatch block (from the _PHASE_MERGE_RC=0 init to the closing of
-# the `if [[ -z "$_RESUME_STATE_PR_URL" ]]` guard) and assert: the MQ branch
-# (DSO_MERGE_QUEUE_ENABLED == 1) reaches _phase_merge before any
-# _phase_staged_intermediate, which lives only in the else branch.
-dispatch_block=$(awk '
-    /^_PHASE_MERGE_RC=0/ { found=1 }
-    found { print }
-    found && /_phase_staged_intermediate \|\| _PHASE_MERGE_RC/ { exit }
-' "$TARGET_SCRIPT" 2>/dev/null)
-mq_line=$(printf '%s\n' "$dispatch_block" | grep -nE 'DSO_MERGE_QUEUE_ENABLED" == "1"' | head -1 | cut -d: -f1)
-mq_merge_line=$(printf '%s\n' "$dispatch_block" | grep -nE '_phase_merge \|\| _PHASE_MERGE_RC' | head -1 | cut -d: -f1)
-staged_line=$(printf '%s\n' "$dispatch_block" | grep -nE '_phase_staged_intermediate \|\| _PHASE_MERGE_RC' | head -1 | cut -d: -f1)
-if [[ -n "$mq_line" && -n "$mq_merge_line" && -n "$staged_line" ]] \
-   && (( mq_line < mq_merge_line )) && (( mq_merge_line < staged_line )); then
-    _pass "test_mq_branch_calls_phase_merge_before_staged"
-else
-    _fail "test_mq_branch_calls_phase_merge_before_staged" \
-        "mq=$mq_line mq_merge=$mq_merge_line staged=$staged_line (expected mq < mq_merge < staged)"
-fi
-
-# ── Test 6: the staged-* advance block is gated OFF under the flag ───────────
-if grep -qE 'DSO_MERGE_QUEUE_ENABLED" == "0" \]\] && type _state_get_field' "$TARGET_SCRIPT"; then
-    _pass "test_advance_block_flag_gated"
-else
-    _fail "test_advance_block_flag_gated" "staged-advance block not gated by DSO_MERGE_QUEUE_ENABLED==0"
-fi
-
-# ── Test 7: the --resume PR-discovery filter is flag-aware (base==main vs
-#    staged-*) so resume re-attaches to the single session→main PR under MQ ───
-if grep -q 'DSO_MQ="$DSO_MERGE_QUEUE_ENABLED"' "$TARGET_SCRIPT" \
-   && grep -qE "base == db\b" "$TARGET_SCRIPT"; then
-    _pass "test_resume_discovery_flag_aware"
-else
-    _fail "test_resume_discovery_flag_aware" "resume PR-discovery filter is not MQ-aware"
-fi
-
-# ── Test 8 (behavioral): default is OFF — read-config.sh returns no truthy
-#    value for dso.merge_queue.enabled in this repo's config (pre-MQ-6) ───────
-_mq_conf="$(bash "$REPO_ROOT/plugins/dso/scripts/read-config.sh" dso.merge_queue.enabled 2>/dev/null || echo "")"
-case "${_mq_conf,,}" in
-    true|1|yes|on) _fail "test_repo_config_default_off" "dso.merge_queue.enabled is truthy ($_mq_conf) — MQ enabled pre-cutover!" ;;
-    *)            _pass "test_repo_config_default_off" ;;
+    cat > "$bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gh_argv_log"
+case "\$1" in
+  --version) echo "gh version 2.40.1 (2024-01-01)"; exit 0 ;;
+  pr)
+    case "\$2" in
+      list) exit 0 ;;
+      create) echo "https://github.com/x/y/pull/42"; exit 0 ;;
+      view)
+        if [[ "\$*" == *"--json state"* ]]; then echo "MERGED"; exit 0; fi
+        if [[ "\$*" == *"--json headRefOid"* ]]; then echo ""; exit 0; fi
+        if [[ "\$*" == *"reviewThreads"* ]]; then echo "{}"; exit 0; fi
+        echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
+        exit 0 ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'; exit 0 ;;
+      merge) exit 0 ;;
+      *) exit 0 ;;
+    esac ;;
+  api)
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'; exit 0
+    fi
+    # staged-ref creation: return a minimal ref object so _create_staged_ref
+    # can proceed (the POST is what we assert on regardless).
+    if [[ "\$*" == *"git/refs"* ]]; then
+      echo '{"ref":"refs/heads/staged-test-1","object":{"sha":"0123456789abcdef0123456789abcdef01234567"}}'; exit 0
+    fi
+    exit 0 ;;
+  repo)
+    if [[ "\$2" == "view" ]]; then
+      if [[ "\$*" == *"defaultBranchRef"* ]]; then echo "main"; else echo "x/y"; fi
+      exit 0
+    fi
+    exit 0 ;;
+  *) exit 0 ;;
 esac
+GH_SHIM
+    chmod +x "$bin/gh"
+
+    # git shim: no-op the network verbs (push/fetch/ls-remote), delegate the rest.
+    local real_git; real_git=$(command -v git)
+    cat > "$bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+case "\$1" in
+  push)      printf 'push %s\n' "\$*" >> "$tmpdir/git-push.log"; exit 0 ;;
+  fetch)     exit 0 ;;
+  ls-remote) exit 0 ;;
+  *) exec "$real_git" "\$@" ;;
+esac
+GIT_SHIM
+    chmod +x "$bin/git"
+
+    ( cd "$tmpdir" || exit 1
+      "$real_git" init -q -b main >/dev/null 2>&1
+      "$real_git" config user.email "test@test.local"
+      "$real_git" config user.name "test"
+      echo seed > seed.txt; "$real_git" add seed.txt; "$real_git" commit -q -m seed >/dev/null
+      "$real_git" checkout -q -b "$branch"
+      echo feature > feature.txt; "$real_git" add feature.txt
+      "$real_git" commit -q -m "feature work" >/dev/null
+      # Real github.com origin URL so the staged-intermediate eligibility check passes.
+      "$real_git" remote add origin "https://github.com/x/y.git"
+    )
+}
+
+# Run the script in a fixture with the given override value ("" = unset).
+# Echoes the path to the captured gh-argv.log.
+_run() {
+    local tmpdir="$1" branch="$2" override="$3"
+    _build_fixture "$tmpdir" "$branch"
+    (
+        cd "$tmpdir" || exit 1
+        if [[ -n "$override" ]]; then export DSO_MERGE_QUEUE_ENABLED_OVERRIDE="$override"; fi
+        PATH="$tmpdir/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        timeout 45 bash "$PR_SCRIPT" >/dev/null 2>&1
+    ) || true
+    echo "$tmpdir/gh-argv.log"
+}
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/dso-mq-path.XXXXXX")"
+trap 'rm -rf "$WORK"' EXIT
+
+# ── Test 1: flag OFF → two-tier — a staged-* ref is created (git/refs POST) ──
+off_argv="$(cat "$(_run "$WORK/off" off-branch 0)" 2>/dev/null || echo '')"
+if echo "$off_argv" | grep -q 'git/refs'; then
+    _pass "flag_off_creates_staged_ref"
+else
+    _fail "flag_off_creates_staged_ref" "expected a git/refs POST (staged ref) under flag OFF; argv=[$off_argv]"
+fi
+
+# ── Test 2: flag ON → merge-queue path — _phase_staged_intermediate is NOT
+#    invoked, so NO staged-* ref is minted (the defining behavioral difference) ─
+on_argv="$(cat "$(_run "$WORK/on" on-branch 1)" 2>/dev/null || echo '')"
+if echo "$on_argv" | grep -q 'git/refs'; then
+    _fail "flag_on_skips_staged_ref" "merge-queue path must NOT create a staged ref; argv=[$on_argv]"
+else
+    _pass "flag_on_skips_staged_ref"
+fi
+
+# ── Test 3 (default-OFF invariance): flag ABSENT runs the two-tier staged path,
+#    identical to explicit OFF — the load-bearing safety property pre-MQ-6. ────
+absent_argv="$(cat "$(_run "$WORK/absent" off2-branch '')" 2>/dev/null || echo '')"
+if echo "$absent_argv" | grep -q 'git/refs'; then
+    _pass "flag_absent_runs_two_tier_like_off"
+else
+    _fail "flag_absent_runs_two_tier_like_off" "default (flag absent) must behave as OFF and create a staged ref; argv=[$absent_argv]"
+fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""

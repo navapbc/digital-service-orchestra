@@ -82,10 +82,11 @@ test_phase_merge_skipped_on_resume_with_pr_url() {
     # MQ-4 (ADR-0019) added an inner `if DSO_MERGE_QUEUE_ENABLED` branch with an
     # explanatory comment block between the `_RESUME_STATE_PR_URL` guard and the
     # first `_phase_merge` call, so the proximity window is widened from 5 to 25.
-    # Both _phase_merge call sites (MQ path and two-tier else-branch) remain
-    # inside the `if [[ -z "$_RESUME_STATE_PR_URL" ]]` guard — the invariant.
+    # Match ONLY the real guard line `if [[ -z "$_RESUME_STATE_PR_URL" ]]` (not any
+    # comment that merely mentions _RESUME) so a comment can't spoof the marker;
+    # both _phase_merge call sites (MQ path + two-tier else) remain inside it.
     if awk '
-        /_RESUME_STATE_PR_URL|_RESUME/ { saw_resume = NR }
+        /^if \[\[ -z "\$_RESUME_STATE_PR_URL" \]\]; then$/ { saw_resume = NR }
         /_phase_merge[[:space:]]*\|\|[[:space:]]*_PHASE_MERGE_RC/ {
             if (saw_resume && (NR - saw_resume) <= 25) { print "guarded"; exit }
         }
