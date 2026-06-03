@@ -22,7 +22,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${REPO_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "")}"
+# Priority: 1) explicit env REPO_ROOT, 2) PROJECT_ROOT exported by dso shim, 3) git detection from script dir
+REPO_ROOT="${REPO_ROOT:-${PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "")}}"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 MODE=""          # "ticket_id" or "stdin"
