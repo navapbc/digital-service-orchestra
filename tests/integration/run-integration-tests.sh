@@ -12,8 +12,8 @@ _INTEGRATION_TEST_FILES=()
 for _f in "$SCRIPT_DIR"/test-*-integration.sh; do
     [[ -f "$_f" ]] && _INTEGRATION_TEST_FILES+=("$_f")
 done
-# Explicit additions: tests not matching test-*-integration.sh glob pattern
-for _f in "$SCRIPT_DIR"/test-ref-library.sh "$SCRIPT_DIR"/test-ref-*.sh; do
+# Explicit additions: test-ref-*.sh tests not matching test-*-integration.sh glob pattern
+for _f in "$SCRIPT_DIR"/test-ref-*.sh; do
     [[ -f "$_f" ]] && _INTEGRATION_TEST_FILES+=("$_f")
 done
 
