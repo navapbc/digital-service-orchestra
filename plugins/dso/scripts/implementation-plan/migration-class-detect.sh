@@ -37,7 +37,7 @@ set -uo pipefail
 # ── Locate plugin root relative to this script ───────────────────────────────
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Script lives at: <plugin_root>/scripts/implementation-plan/migration-class-detect.sh
-_PLUGIN_ROOT="$(cd "${_SCRIPT_DIR}/../.." && pwd)"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${_SCRIPT_DIR}/../.." && pwd)}"
 
 # ── Source helpers ────────────────────────────────────────────────────────────
 # shellcheck source=../../hooks/lib/centrality.sh

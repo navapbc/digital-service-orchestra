@@ -37,7 +37,7 @@ set -uo pipefail
 # ── Locate plugin root relative to this script ────────────────────────────────
 # Script lives at: <plugin_root>/scripts/implementation-plan/resolve-feature-flag-approval.sh
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT="$(cd "${_SCRIPT_DIR}/../.." && pwd)"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${_SCRIPT_DIR}/../.." && pwd)}"
 
 # ── Source the tag constants ──────────────────────────────────────────────────
 # shellcheck source=../../skills/shared/constants/planning-tags.conf
