@@ -2937,9 +2937,12 @@ fi
 # sitting at main HEAD — the empty-staged advance that lost a live session's work.
 #
 # MQ-4: this whole staged-advance machinery is two-tier-only. Under the merge
-# queue there is no staged-* ref or PR1, so the advance must not run — the gate
-# below makes it a strict no-op when the flag is ON. Flag OFF → identical to before.
-if [[ "$DSO_MERGE_QUEUE_ENABLED" == "0" ]] && type _state_get_field >/dev/null 2>&1; then
+# queue there is no staged-* ref or PR1, so the advance is a strict no-op — the
+# inner DSO_MERGE_QUEUE_ENABLED gate skips it when the flag is ON. The OUTER
+# guard stays `if type _state_get_field` so the block remains independent of
+# --resume (bug 73b5); flag OFF → identical to before.
+if type _state_get_field >/dev/null 2>&1; then
+ if [[ "$DSO_MERGE_QUEUE_ENABLED" == "0" ]]; then
     _saved_staged=$(_state_get_field "staged_branch" "" 2>/dev/null || true)
     if [[ -n "$_saved_staged" && "$BRANCH" != "$_saved_staged" ]]; then
         _pr1_open=$(gh pr list --head "$BRANCH" --base "$_saved_staged" --state open --json number --jq 'length' 2>/dev/null || echo "1")
@@ -2961,6 +2964,7 @@ if [[ "$DSO_MERGE_QUEUE_ENABLED" == "0" ]] && type _state_get_field >/dev/null 2
             type _state_init >/dev/null 2>&1 && _state_init 2>/dev/null || true
         fi
     fi
+ fi
 fi
 
 # --- Resume detection: when --resume is set and the state file already
@@ -3038,17 +3042,17 @@ fi
 # Skip _phase_merge entirely when --resume is set and a prior PR is recorded
 # (b0ad-69ee). Re-running would attempt push + gh pr create against an existing
 # branch/PR, hitting the duplicate-PR error.
+# MQ-4 (ADR-0019): when dso.merge_queue.enabled is ON, the merge-queue path
+# promotes the session branch to main DIRECTLY — no staged-* intermediate, no
+# PR1. _phase_merge opens ONE session→main PR (base resolves to $_DEFAULT_BRANCH
+# since STORY_PR_BASE is unset) and bumps the version pre-push (the staged-* skip
+# guard in _phase_source_branch_version_bump is inert on the session branch, so
+# the bump runs here instead of in the retired staged phase). The downstream
+# _phase_queue_auto_merge (gh pr merge --auto) adds the PR to the merge queue once
+# the queue rule is live (MQ-6). Flag OFF → the two-tier else-branch below.
 _PHASE_MERGE_RC=0
 if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
     if [[ "$DSO_MERGE_QUEUE_ENABLED" == "1" ]]; then
-        # MQ-4 (ADR-0019): merge-queue path — promote the session branch to main
-        # DIRECTLY. No staged-* intermediate, no PR1. _phase_merge opens ONE
-        # session→main PR (base resolves to $_DEFAULT_BRANCH since STORY_PR_BASE
-        # is unset) and bumps the version pre-push (the staged-* skip guard in
-        # _phase_source_branch_version_bump is inert because BRANCH is the session
-        # branch, so the bump runs here instead of in the retired staged phase).
-        # The downstream _phase_queue_auto_merge (gh pr merge --auto) is what adds
-        # the PR to the GitHub merge queue once the queue rule is live (MQ-6).
         _phase_merge || _PHASE_MERGE_RC=$?
     else
         # PR-C: staged-* intermediate runs first; no-op for story-PR mode or

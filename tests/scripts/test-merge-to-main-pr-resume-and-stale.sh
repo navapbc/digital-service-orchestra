@@ -79,16 +79,10 @@ test_phase_merge_skipped_on_resume_with_pr_url() {
     # The _phase_merge call must be guarded by either _RESUME or
     # _RESUME_STATE_PR_URL (a state-derived flag that implies _RESUME=1
     # plus a pre-existing PR record).
-    # MQ-4 (ADR-0019) added an inner `if DSO_MERGE_QUEUE_ENABLED` branch with an
-    # explanatory comment block between the `_RESUME_STATE_PR_URL` guard and the
-    # first `_phase_merge` call, so the proximity window is widened from 5 to 25.
-    # Match ONLY the real guard line `if [[ -z "$_RESUME_STATE_PR_URL" ]]` (not any
-    # comment that merely mentions _RESUME) so a comment can't spoof the marker;
-    # both _phase_merge call sites (MQ path + two-tier else) remain inside it.
     if awk '
-        /^if \[\[ -z "\$_RESUME_STATE_PR_URL" \]\]; then$/ { saw_resume = NR }
+        /_RESUME_STATE_PR_URL|_RESUME/ { saw_resume = NR }
         /_phase_merge[[:space:]]*\|\|[[:space:]]*_PHASE_MERGE_RC/ {
-            if (saw_resume && (NR - saw_resume) <= 25) { print "guarded"; exit }
+            if (saw_resume && (NR - saw_resume) <= 5) { print "guarded"; exit }
         }
     ' "$PR_SCRIPT" | grep -q guarded; then
         (( ++PASS ))
