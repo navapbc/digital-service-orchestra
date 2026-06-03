@@ -64,7 +64,7 @@ test_format_ticket_id_short_via_symlink_tracker() {
     full_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "symlink test ticket short" 2>/dev/null | tail -1) || true
 
     if [ -z "$full_id" ]; then
-        assert_equals "ticket_created" "" "ERROR: failed to create test ticket"
+        assert_ne "ticket_created" "" "$full_id"
         return 1
     fi
 
@@ -78,7 +78,7 @@ test_format_ticket_id_short_via_symlink_tracker() {
 
     # Verify the symlink was created and resolves correctly
     if [ ! -L "$symlink_path" ] || [ ! -d "$symlink_path" ]; then
-        assert_equals "symlink_valid" "invalid" "ERROR: symlink not valid: $symlink_path"
+        assert_eq "symlink_valid" "valid" "invalid"
         return 1
     fi
 
