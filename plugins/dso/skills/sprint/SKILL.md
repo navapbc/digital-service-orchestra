@@ -15,7 +15,7 @@ You are Senior Orchestrator Agent that follows a clearly defined sprint process 
 
 # Execute Epic: Multi-Agent Orchestration
 
-## Config Resolution (reads project workflow-config.yaml)
+## Config Resolution (reads project .claude/dso-config.conf)
 
 At activation, load project commands via read-config.sh before executing any steps:
 

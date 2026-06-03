@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 # scripts/read-config.sh
-# Config reader for .claude/dso-config.conf and YAML config files.
+# Config reader for .claude/dso-config.conf (canonical) with legacy YAML fallback.
+#
+# Canonical config format: flat key=value (.claude/dso-config.conf). See CONFIGURATION-REFERENCE.md.
 #
 # This is the foundation layer that config-paths.sh depends on to resolve
 # project paths. It reads raw config values from flat .conf or YAML files.
@@ -10,8 +12,9 @@ set -uo pipefail
 # Usage (config-first): read-config.sh [--list] [--batch] <config-file> <key>
 #
 # Supports:
-#   - Flat key=value format (dot-notation keys like "tickets.sync.jira_project_key")
-#   - YAML format with nested keys (dot-notation keys map to nested structure)
+#   - Flat key=value format (dot-notation keys like "tickets.sync.jira_project_key") — canonical
+#   - YAML format with nested keys (legacy migration-compat fallback; .conf takes precedence per
+#     FLAT-CONFIG-MIGRATION.md; YAML support is intentionally retained for projects still migrating)
 #   - List mode with --list flag (returns value on one line; exit 1 if absent)
 #   - Batch mode with --batch flag (outputs all keys as UPPER_CASE_WITH_UNDERSCORES=value)
 #   - Missing file → empty output, exit 0

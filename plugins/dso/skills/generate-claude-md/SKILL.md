@@ -1,13 +1,13 @@
 ---
 name: generate-claude-md
-description: Generate a project-specific CLAUDE.md file from workflow-config.yaml and the Digital Service Orchestra template
+description: Generate a project-specific CLAUDE.md file from .claude/dso-config.conf and the Digital Service Orchestra template
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Generate CLAUDE.md
 
-Generate or update a project's `CLAUDE.md` by rendering the Digital Service Orchestra template with project-specific command values from `workflow-config.yaml`.
+Generate or update a project's `CLAUDE.md` by rendering the Digital Service Orchestra template with project-specific command values from `.claude/dso-config.conf`.
 
 
 ## Usage
@@ -35,7 +35,7 @@ LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: 
 ```
 
 Resolution order used by `read-config.sh`:
-1. `workflow-config.yaml` at `$(pwd)/workflow-config.yaml` (project root — most common)
+1. `.claude/dso-config.conf` at `$(pwd)/.claude/dso-config.conf` (project root — canonical path)
 2. Make target fallback: if config is absent or key is empty, fall back to `make <target>` convention
 3. Skip with warning if neither config nor make target found
 
@@ -119,7 +119,7 @@ If the user confirms, write the file. If `CLAUDE.md` already exists, show a diff
 Escalate to the user (do not proceed autonomously) when:
 
 1. **Missing 'Never Do These' rules** — if the template does not contain all required safety rules, report which rules are absent and ask the user to update the template before generating.
-2. **Wrong Quick Reference commands** — if a resolved command is empty or falls back to a bare `make` placeholder that does not match the project's actual toolchain, ask the user to update `workflow-config.yaml` first.
+2. **Wrong Quick Reference commands** — if a resolved command is empty or falls back to a bare `make` placeholder that does not match the project's actual toolchain, ask the user to update `.claude/dso-config.conf` first.
 3. **Merge strategy would overwrite project-specific sections** — if `CLAUDE.md` contains custom content in Quick Reference or Never Do These sections that would be lost, show a diff and require explicit user confirmation before proceeding.
 4. **Template file missing** — if `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.md.template` does not exist, report the missing path and abort.
 
@@ -129,7 +129,7 @@ Escalate to the user (do not proceed autonomously) when:
 
 | Situation | Response |
 |-----------|----------|
-| `workflow-config.yaml` not found | Use make-convention fallbacks; warn user that no config was found |
+| `.claude/dso-config.conf` not found | Use make-convention fallbacks; warn user that no config was found |
 | Template file missing | Report missing path, abort |
 | Commands resolve to empty string | Report which commands are empty, escalate to user |
 | `CLAUDE.md` already exists | Show diff, require confirmation before overwrite |
