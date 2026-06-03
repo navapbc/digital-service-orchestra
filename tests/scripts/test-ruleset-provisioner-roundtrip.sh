@@ -201,24 +201,43 @@ else
     _fail "R6_bypass_actor_is_named_user" "sub-PR bypass_actors is not the named-User shape"
 fi
 
-# ── LIVE round-trip (token-gated; skip when no GH auth) ──────────────────────
+# ── LIVE round-trip (token-gated) ────────────────────────────────────────────
+# Posture flag (CS-17 / §2.9 "Harden the R8 live drift guard"): in warn/default
+# a precondition SKIP returns 0 (live arm not enforced — the offline assertions
+# still ran). In ENFORCE a SKIP is fail-closed (returns FAILURE), so a future PAT
+# expiry / rotation / scope-strip cannot silently re-open the R8 live-parity hole
+# by turning the live arm into a no-op green. Default is warn so today's behavior
+# is unchanged.
+RULESET_INVARIANTS_MODE="${DSO_RULESET_INVARIANTS_MODE:-warn}"
+
+# Handle a live-arm precondition skip per posture. In enforce, record a FAIL and
+# return non-zero so the live arm being absent BLOCKS instead of green-stamping.
+# In warn/default, log the skip and return 0 (offline assertions already ran).
+_live_skip() {
+    local reason="$1"
+    if [[ "$RULESET_INVARIANTS_MODE" == "enforce" ]]; then
+        _fail "R8_live_arm_must_run_under_enforce" "$reason (enforce mode — fail-closed)"
+        return 1
+    fi
+    echo "SKIP: $reason — live round-trip skipped (warn mode)"
+    return 0
+}
+
 _live_round_trip() {
     if [[ -z "${GH_TOKEN:-}" ]] && ! gh auth status >/dev/null 2>&1; then
-        echo "SKIP: no GH_TOKEN and no local gh auth — live round-trip skipped (offline assertions still ran)"
-        return 0
+        _live_skip "no GH_TOKEN and no local gh auth"; return $?
     fi
     if ! command -v gh >/dev/null 2>&1; then
-        echo "SKIP: gh CLI not in PATH — live round-trip skipped"
-        return 0
+        _live_skip "gh CLI not in PATH"; return $?
     fi
 
     local rulesets_json sub_id main_id sub_live main_live
     rulesets_json="$(gh api "repos/${GH_REPO}/rulesets" 2>/dev/null)" || {
-        echo "SKIP: gh api rulesets failed — live round-trip skipped"; return 0; }
+        _live_skip "gh api rulesets failed"; return $?; }
     sub_id="$(echo "$rulesets_json" | python3 -c "import json,sys;print(next((r['id'] for r in json.load(sys.stdin) if r.get('name')=='DSO Sub-PR Review Enforcement'),''))")"
     main_id="$(echo "$rulesets_json" | python3 -c "import json,sys;print(next((r['id'] for r in json.load(sys.stdin) if r.get('name')=='DSO CI Enforcement'),''))")"
     if [[ -z "$sub_id" || -z "$main_id" ]]; then
-        echo "SKIP: live rulesets not found by name — live round-trip skipped"; return 0
+        _live_skip "live rulesets not found by name"; return $?
     fi
     sub_live="$(gh api "repos/${GH_REPO}/rulesets/${sub_id}" 2>/dev/null)"
     main_live="$(gh api "repos/${GH_REPO}/rulesets/${main_id}" 2>/dev/null)"
