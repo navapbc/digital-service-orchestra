@@ -163,7 +163,7 @@ def _open_lock(lock_path: str):
         # If os.fdopen raises (resource exhaustion), close the raw fd we
         # just allocated so it doesn't leak (bug da45 PR #202 cycle-N
         # finding f-XXX). The raised exception still propagates.
-        return os.fdopen(fd, "r")
+        return os.fdopen(fd, "r", encoding="utf-8")
     except Exception:
         try:
             os.close(fd)
@@ -335,6 +335,7 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
                             "commit_sha": "",
                             "findings": [],
                             "findings_hash": parsed.findings_hash,
+                            "pr_number": _SENTINEL_PR_NUMBER,
                             "halt_reason": None,
                         },
                         False,
