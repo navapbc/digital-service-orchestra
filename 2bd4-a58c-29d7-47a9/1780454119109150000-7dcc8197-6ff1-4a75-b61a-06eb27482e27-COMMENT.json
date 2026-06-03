@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"REMEDIATION_CYCLE:1 resolved — plan review PASS (5/5/5/5/5): dd-2 schema-level detection_query binding; distinct dd-3/dd-4/dd-5 per-case ACs; explicit dd-6 primary-stack AC."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780454119109150000,"uuid":"7dcc8197-6ff1-4a75-b61a-06eb27482e27"}
