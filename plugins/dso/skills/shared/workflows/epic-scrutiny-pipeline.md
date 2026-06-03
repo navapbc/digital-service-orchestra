@@ -77,6 +77,7 @@ When an inferred input source is identified, annotate it internally as `<<inferr
 **For each inferred input source found:**
 
 1. Execute a **MUST-execute** `Read` or `Grep` verification to confirm the source exists in the codebase (5-second timeout).
+1a. **When the verified source is a contract document (`.md` file)**: read the implementation file(s) the contract names or implies (e.g., scripts, skill files, hook scripts) to confirm the claimed behavior is complete across all mode paths (e.g., `ci-pr` vs. `local`, `merge.strategy=pr` vs. `direct`). Only after reading the implementation may you conclude whether a gap is real. A contract doc's mode-conditional statement (e.g., "trailer is NOT written in ci-pr mode") is shorthand for nuanced implementation behavior — the implementation is the ground truth. Do not raise a gap finding based solely on contract doc language when a named implementation file is available.
 2. On timeout or tool unavailability: treat-as-not-verifiable — raise the inferred source as a gap finding immediately.
 3. **Explicit prohibition**: reasoning from cached context is NOT a substitute for the Read/Grep tool call. If the model's training or prior context suggests the source exists, the verification tool call is still MANDATORY.
 
