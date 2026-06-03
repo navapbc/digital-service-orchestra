@@ -175,7 +175,7 @@ Environment: <CI failure | staging | local — from triage report>
 {file_ownership_context}
 ```
 
-After all fix sub-agents return, collect compact summaries (bug_id + commit hash + status) and move on to chunk wrap-up (sub-branch push, PR open, ticket transitions).
+After all fix sub-agents return, collect compact summaries (bug_id + commit hash + status) and proceed to Section 9 (Chunk wrap-up) below.
 
 **Triage-to-scoring mapping** (unchanged from prior single-phase loop):
 - Tier 0–1 (mechanical): fix-bug bypasses scoring rubric.
@@ -184,3 +184,65 @@ After all fix sub-agents return, collect compact summaries (bug_id + commit hash
 ## 8. Subagent type selection
 
 See `agent-routing-table.md` for the full table.
+
+## 9. Chunk wrap-up (ci-pr mode)
+
+Execute this section after all Phase 2 fix sub-agents have returned their compact summaries. In `local` mode (DEBUG_MODE=direct or absent) skip to step 4 (reconciliation only).
+
+### Step 1 — Sub-branch invariant pre-flight
+
+Before opening a PR, confirm the sub-branch was created locally and pushed to origin:
+
+```bash
+.claude/scripts/dso assert-batch-branch.sh "<sub-branch-name>" || {
+    echo "ABORT: sub-branch invariant violated. Push the sub-branch to origin before opening the PR." >&2
+    exit 1
+}
+```
+
+The gate exits 0 in `local` mode (silent no-op). In `ci-pr` mode the orchestrator MUST NOT open a PR if this gate fails — bypassing reproduces the Flow C silent-skip pattern (bug da45-7d92-6c86-42bc).
+
+### Step 2 — Open sub-branch PR against SESSION_BRANCH (ci-pr mode only)
+
+The sub-branch PR targets the session branch, NOT main:
+
+```bash
+gh pr create \
+  --base "$SESSION_BRANCH" \
+  --head "<sub-branch-name>" \
+  --title "bug-fix: <chunk-label>" \
+  --body "Bug-Fix Mode chunk <K> — automated fix batch"
+```
+
+`SESSION_BRANCH` is the session worktree branch resolved by `resolve-session-branch.sh` at Phase G / Bug-Fix Mode start. Passing `--base main` here is a defect.
+
+### Step 3 — Await CI; route discriminated outcome
+
+Wait for CI test jobs (Hook Tests, Script Tests, ShellCheck, Lint) to complete before merging:
+
+- **`MERGED`**: CI review passed; merge sub-branch into session branch.
+- **`ESCALATED`**: CI review failed or PR blocked; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (authoritative source of truth for COMPACTION_RESUME), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next chunk.
+- **`ERROR`**: CI workflow failed to produce a result; handle identically to `ESCALATED` but with `reason=ci-workflow-error`; write `SUBBRANCH_ESCALATED: <sub-branch> reason=ci-workflow-error` ticket comment, then update `BLOCKED_SUBBRANCHES:` annotation; continue to next chunk.
+
+`ESCALATED` and `ERROR` do NOT halt the chunk loop — proceed to the next chunk after recording the outcome.
+
+### Step 4 — End-of-chunk reconciliation
+
+Verify the chunk's K tickets reached expected terminal or in-progress states. For each ticket in the chunk:
+- Fixed and committed → must be `closed`
+- Investigation-failed / COMPLEX_ESCALATION / MANUAL_APPROVAL_NEEDED → must remain `open` or `in_progress` with a tracking comment
+
+Write a `CHUNK_RESULT:` tracking comment on the debug session epic:
+
+```bash
+.claude/scripts/dso ticket comment <epic-id> \
+  "CHUNK_RESULT: sub_branch=<name> batch=<K> merged=<Y/N> fixed=<n> escalated=<n> failed=<n> timestamp=<UTC>"
+```
+
+### Step 5 — Session-leakage detection (non-fatal)
+
+```bash
+STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true  # shim-exempt: dispatch-fix-batch orchestrator-direct invocation
+```
+
+Leakage findings are non-fatal — log and continue.

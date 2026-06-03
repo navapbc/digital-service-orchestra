@@ -78,6 +78,9 @@ if [[ "${PR_LIB_MODE:-0}" != "1" ]]; then
         fi
         unset _SCRIPT_DIR_FOR_CONFIG _DERIVED_WORKFLOW
     fi
+    # Export so python3 spawned by _state_init can read it via os.environ
+    # (env-passthrough requirement; non-exported bash vars are invisible to os.environ).
+    export MERGE_STRATEGY
     : "${MERGE_STRATEGY:?MERGE_STRATEGY must be set (expected: pr)}"
 fi
 
