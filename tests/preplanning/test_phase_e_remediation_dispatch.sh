@@ -30,12 +30,12 @@
 set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Prefer the script-relative plugin root over $CLAUDE_PLUGIN_ROOT. The harness
-# exports CLAUDE_PLUGIN_ROOT pointing at the main repo, but in a worktree-
-# isolated sub-agent context we MUST test the prompt file that lives next to
-# this test script (i.e., under the worktree), not the main-repo copy. Allow
-# explicit override via the test-only env var DSO_PHASE_E_PROMPT_OVERRIDE.
-_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../../.." && pwd)"
+# Resolve the plugin root from the worktree's own git toplevel rather than
+# $CLAUDE_PLUGIN_ROOT. The harness exports CLAUDE_PLUGIN_ROOT pointing at the
+# main repo, but in a worktree-isolated context we MUST test the prompt file
+# under THIS worktree's plugin source, not the main-repo copy. Allow explicit
+# override via the test-only env var DSO_PHASE_E_PROMPT_OVERRIDE.
+_PLUGIN_ROOT="$(git -C "$_SCRIPT_DIR" rev-parse --show-toplevel)/plugins/dso"
 PHASE_E="${DSO_PHASE_E_PROMPT_OVERRIDE:-$_PLUGIN_ROOT/skills/preplanning/prompts/phase-e-adversarial-review.md}"
 FIXTURE_DIR="$_SCRIPT_DIR/fixtures/phase-e"
 SYNTH="$FIXTURE_DIR/synthetic-findings.json"
