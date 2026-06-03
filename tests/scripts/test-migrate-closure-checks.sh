@@ -968,5 +968,209 @@ print(orphans)
 }
 test_zero_orphaned_annotations_after_migration
 
+# ── Helper: install a stub classifier and restore the real one on return ──────
+# Usage: _install_stub_classifier <stub_path>
+# Sets _CLASSIFIER_REAL_BACKUP path; registers a trap so the real file is
+# restored unconditionally (EXIT, ERR, INT, TERM) — even on abnormal exit.
+# Caller should still call _restore_real_classifier explicitly on the normal
+# path to clear the trap early, but it is not required for safety.
+_CLASSIFIER_REAL_BACKUP=""
+_install_stub_classifier() {
+    local stub_src="$1"
+    local script_dir
+    script_dir="$(dirname "$MIGRATE_SCRIPT")"
+    local real="$script_dir/closure-checks-classifier-pass.sh"
+    _CLASSIFIER_REAL_BACKUP="$(mktemp "${TMPDIR:-/tmp}/real-classifier-backup.XXXXXX")"
+    cp "$real" "$_CLASSIFIER_REAL_BACKUP"
+    cp "$stub_src" "$real"
+    chmod +x "$real"
+    # Guarantee restoration on any exit — covers assertion failures, ERR, signals.
+    # The trap is cleared by _restore_real_classifier once the stub region ends.
+    trap '_restore_real_classifier' EXIT ERR INT TERM
+}
+_restore_real_classifier() {
+    local script_dir
+    script_dir="$(dirname "$MIGRATE_SCRIPT")"
+    local real="$script_dir/closure-checks-classifier-pass.sh"
+    if [ -n "$_CLASSIFIER_REAL_BACKUP" ] && [ -f "$_CLASSIFIER_REAL_BACKUP" ]; then
+        cp "$_CLASSIFIER_REAL_BACKUP" "$real"
+        rm -f "$_CLASSIFIER_REAL_BACKUP"
+        _CLASSIFIER_REAL_BACKUP=""
+    fi
+    # Remove the restoration trap now that the real file is back.
+    trap - EXIT ERR INT TERM
+}
+
+# ── Helper: make a fast stub classifier ──────────────────────────────────────
+_make_stub_classifier() {
+    local stub
+    stub=$(mktemp "${TMPDIR:-/tmp}/stub-classifier.XXXXXX")
+    cat > "$stub" << 'STUB_EOF'
+#!/usr/bin/env bash
+# Test stub: fast no-op classifier; emits required BUDGET_CONSUMED line
+echo "BUDGET_CONSUMED: 0"
+exit 0
+STUB_EOF
+    chmod +x "$stub"
+    echo "$stub"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 20: --classify mode epic-count cap truncates to DSO_CLASSIFY_MAX_EPICS
+# Regression test for bug 2ac9-fabe-bbb9-4af2: unbounded --classify loop causes SIGKILL
+# Uses stdin-pipe mode so the test repo's ticket-list CLI is not required.
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 20: --classify epic-count cap truncates when epics exceed DSO_CLASSIFY_MAX_EPICS"
+test_classify_epic_count_cap() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migrate script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create 5 epic ticket dirs so the script can process them
+    local i dir ts uuid desc
+    for i in 1 2 3 4 5; do
+        dir="$tracker_dir/epic-cap-test-$(printf '%02d' "$i")"
+        mkdir -p "$dir"
+        ts=$(( 1742800000 + i ))
+        uuid="00000000-0000-4000-8000-cap$(printf '%06d' "$i")"
+        desc="{\"ticket_type\": \"epic\", \"title\": \"Cap test epic $i\", \"status\": \"open\", \"parent_id\": null, \"description\": \"## Context\\n\\nEpic $i context.\\n\\n## Success Criteria\\n- SC$i\\n## Closure Checks\\n\"}"
+        _write_event "$dir" "$ts" "$uuid" "CREATE" "$desc"
+        git -C "$tracker_dir" add "epic-cap-test-$(printf '%02d' "$i")" 2>/dev/null
+    done
+    git -C "$tracker_dir" commit -m "add cap test epics" >/dev/null 2>&1 || true
+
+    # Install stub classifier (replaces real classifier temporarily)
+    local stub
+    stub=$(_make_stub_classifier)
+    _CLEANUP_DIRS+=("$stub")
+    _install_stub_classifier "$stub"
+
+    # Pipe 5 lines via stdin — cap (3) < input (5), so 2 should be deferred
+    local fake_lines=""
+    for i in 1 2 3 4 5; do
+        fake_lines="${fake_lines}epic-cap-test-$(printf '%02d' "$i")\tepic\topen\tCap test epic $i\n"
+    done
+
+    local output
+    local exit_code=0
+    output=$(printf '%b' "$fake_lines" | DSO_CLASSIFY_MAX_EPICS=3 bash "$MIGRATE_SCRIPT" --target "$repo" --classify 2>&1) || exit_code=$?
+
+    _restore_real_classifier
+
+    # Should not exit with fatal error (2)
+    assert_ne "classify cap: no fatal exit (exit != 2)" "2" "$exit_code"
+
+    # Output must mention the cap being reached and deferred count
+    local cap_line_count
+    cap_line_count=$(echo "$output" | grep -c "Epic-count cap reached" 2>/dev/null || true)
+    assert_eq "classify cap: emits 'Epic-count cap reached' message" "1" "$cap_line_count"
+
+    # Output must mention that 2 epics were deferred (5 total - 3 cap = 2)
+    local deferred_count
+    deferred_count=$(echo "$output" | grep "Epic-count cap reached" | grep -c "2 deferred" 2>/dev/null || true)
+    assert_eq "classify cap: message includes deferred count (2)" "1" "$deferred_count"
+
+    # Verify actual truncation: count MIGRATED/SKIPPED/BATCH_COMPLETE lines to confirm
+    # that exactly cap (3) epics were processed and the remaining 2 were not attempted.
+    # SKIPPED:already-has-section counts as processed (the classifier still runs).
+    local processed_lines
+    processed_lines=$(echo "$output" | grep -c "^\(MIGRATED:\|SKIPPED:\|BATCH_COMPLETE:.*migrated_this_batch\)" 2>/dev/null || true)
+    # BATCH_COMPLETE emits 1 summary line; MIGRATED/SKIPPED emit 1 line each per ticket.
+    # With 3 epics capped: 3 SKIPPED lines + 1 BATCH_COMPLETE = 4 lines.
+    # Confirm fewer than 5 SKIPPED lines (which would indicate the cap was not enforced).
+    local skipped_lines
+    skipped_lines=$(echo "$output" | grep -c "^SKIPPED:" 2>/dev/null || true)
+    assert_eq "classify cap: exactly 3 epics processed (3 SKIPPED lines, cap enforced)" "3" "$skipped_lines"
+
+    assert_pass_if_clean "test_classify_epic_count_cap"
+}
+test_classify_epic_count_cap
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 21: --classify mode wall-time guard breaks cleanly when limit exceeded
+# Regression test for bug 2ac9-fabe-bbb9-4af2: unbounded --classify loop causes SIGKILL
+# Uses stdin-pipe mode; sets DSO_CLASSIFY_WALL_TIME_SECS=0 so guard fires immediately.
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 21: --classify wall-time guard breaks cleanly on timeout"
+test_classify_wall_time_guard() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migrate script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create 3 epic ticket dirs with Closure Checks already present (SKIPPED state)
+    # so the classifier path is exercised and the wall-time guard can fire
+    local i dir ts uuid desc
+    for i in 1 2 3; do
+        dir="$tracker_dir/epic-wall-test-$(printf '%02d' "$i")"
+        mkdir -p "$dir"
+        ts=$(( 1742900000 + i ))
+        uuid="00000000-0000-4000-8000-wall$(printf '%06d' "$i")"
+        desc="{\"ticket_type\": \"epic\", \"title\": \"Wall test epic $i\", \"status\": \"open\", \"parent_id\": null, \"description\": \"## Context\\n\\nEpic $i.\\n\\n## Closure Checks\\n\"}"
+        _write_event "$dir" "$ts" "$uuid" "CREATE" "$desc"
+        git -C "$tracker_dir" add "epic-wall-test-$(printf '%02d' "$i")" 2>/dev/null
+    done
+    git -C "$tracker_dir" commit -m "add wall test epics" >/dev/null 2>&1 || true
+
+    # Install stub classifier
+    local stub
+    stub=$(_make_stub_classifier)
+    _CLEANUP_DIRS+=("$stub")
+    _install_stub_classifier "$stub"
+
+    # Pipe 3 lines via stdin; wall-time=0 so the guard fires before/during first epic
+    local fake_lines=""
+    for i in 1 2 3; do
+        fake_lines="${fake_lines}epic-wall-test-$(printf '%02d' "$i")\tepic\topen\tWall test epic $i\n"
+    done
+
+    local output
+    local exit_code=0
+    output=$(printf '%b' "$fake_lines" | DSO_CLASSIFY_MAX_EPICS=100 DSO_CLASSIFY_WALL_TIME_SECS=0 bash "$MIGRATE_SCRIPT" --target "$repo" --classify 2>&1) || exit_code=$?
+
+    _restore_real_classifier
+
+    # Should not exit with fatal error (2)
+    assert_ne "wall-time guard: no fatal exit (exit != 2)" "2" "$exit_code"
+
+    # Output must contain WALL_TIME_EXCEEDED
+    local wt_line_count
+    wt_line_count=$(echo "$output" | grep -c "WALL_TIME_EXCEEDED" 2>/dev/null || true)
+    assert_eq "wall-time guard: emits WALL_TIME_EXCEEDED message" "1" "$wt_line_count"
+
+    # The summary line (Migration complete) must still appear (clean break)
+    local summary_count
+    summary_count=$(echo "$output" | grep -c "Migration complete" 2>/dev/null || true)
+    assert_eq "wall-time guard: summary still printed (clean break)" "1" "$summary_count"
+
+    # Verify the guard caused an actual early-break: count processed epics (SKIPPED/MIGRATED
+    # lines) to confirm fewer than the full 3 were processed.  With wall-time=0, the guard
+    # fires before or during the first iteration, so at most 0 epics complete.  If the guard
+    # were broken (prints the message but doesn't break), all 3 would appear.
+    local processed_epics
+    processed_epics=$(echo "$output" | grep -c "^\(MIGRATED:\|SKIPPED:\)" 2>/dev/null || true)
+    # Strictly fewer than 3 confirms the loop exited early, not just printed the message.
+    local full_set=3
+    local guard_broke_early=0
+    [ "$processed_epics" -lt "$full_set" ] && guard_broke_early=1
+    assert_eq "wall-time guard: loop exited early (fewer than $full_set epics processed)" "1" "$guard_broke_early"
+
+    assert_pass_if_clean "test_classify_wall_time_guard"
+}
+test_classify_wall_time_guard
+
 # ═══════════════════════════════════════════════════════════════════════════════
 print_summary

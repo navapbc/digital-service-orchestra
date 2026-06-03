@@ -179,6 +179,11 @@ if [[ "$_EPIC_CLASS" == "class:architectural" ]]; then
         echo "PROBE_GATE_BLOCKED: architectural epic requires probe output before scrutiny"
         exit 1
     fi
+    # Content-level validation: probe output must contain Self-Use Compatibility section
+    if ! grep -q "## Self-Use Compatibility" "$_PROBE_OUTPUT"; then
+        echo "PROBE_GATE_BLOCKED: probe output missing required '## Self-Use Compatibility' section"
+        exit 1
+    fi
 fi
 ```
 
