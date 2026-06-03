@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../..}"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugins/dso}"
 # Structural validation for /dso:implementation-plan Step 1 (approach proposer)
 # and Step 3 (task decomposer) dispatch wiring, plus the augmented Completeness
 # reviewer's new dd_collective_ac_coverage dimension.

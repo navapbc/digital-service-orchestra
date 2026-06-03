@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../..}"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugins/dso}"
 # Structural validation for Phase E adversarial review wiring.
 # Validates the LIVE agent files and the phase-e dispatcher prompt — the older
 # prompts/red-team-review.md and prompts/blue-team-review.md copies were removed
