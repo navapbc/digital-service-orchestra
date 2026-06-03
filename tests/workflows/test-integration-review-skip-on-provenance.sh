@@ -81,8 +81,64 @@ _make_story_commit() {
     git -C "$repo" rev-parse HEAD
 }
 
+# ── Helper: build a mock `gh` binary that simulates provenanced API responses ──
+# Creates a mock gh in a temp bin dir. The mock returns:
+#   - For `gh api .../commits/{sha}/pulls`  → merged PR JSON
+#   - For `gh api .../commits/{sha}/check-runs` → check-runs with review-sub-pr passing
+#   - For `gh pr diff <N>` → a minimal synthetic diff
+# Returns: sets FIXTURE_MOCK_BIN in caller scope.
+_build_mock_gh_provenanced_bin() {
+    local mock_bin
+    mock_bin="$(mktemp -d "${TMPDIR:-/tmp}/test-mock-gh-bin.XXXXXX")"
+    _CLEANUP_DIRS+=("$mock_bin")
+
+    cat > "$mock_bin/gh" <<'MOCKEOF'
+#!/usr/bin/env bash
+# Mock gh: intercepts API calls made by verify-session-provenance.sh (v4 path)
+# and returns synthetic responses that satisfy the G3 review-check gate.
+#
+# Subcommand dispatch:
+#   gh api .../commits/{sha}/pulls     → merged PR with head.sha for G3 lookup
+#   gh api .../commits/{sha}/check-runs → check_runs with review-sub-pr: success
+#   gh pr diff <N>                      → synthetic diff for dispatcher
+#   gh api .../pulls/{N}               → PR head sha (force-review path)
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "diff" ]]; then
+    printf 'diff --git a/story.py b/story.py\nnew file mode 100644\n--- /dev/null\n+++ b/story.py\n+# provenanced story commit\n'
+    exit 0
+fi
+
+if [[ "${1:-}" == "api" ]]; then
+    _api_path="${2:-}"
+    # commits/{sha}/check-runs — return passing review-sub-pr run
+    if echo "$_api_path" | grep -qE 'commits/[0-9a-f]+/check-runs'; then
+        printf '{"check_runs":[{"name":"review-sub-pr","conclusion":"success","status":"completed"}]}\n'
+        exit 0
+    fi
+    # commits/{sha}/pulls — return a merged covering PR
+    # head.sha is set to the queried SHA so G3's _cov_head_sha lookup resolves
+    if echo "$_api_path" | grep -qE 'commits/[0-9a-f]+/pulls'; then
+        _sha="$(echo "$_api_path" | grep -oE '[0-9a-f]{7,40}' | head -1)"
+        printf '[{"number":42,"state":"closed","merged_at":"2024-01-01T00:00:00Z","merge_commit_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","head":{"sha":"%s"}}]\n' "$_sha"
+        exit 0
+    fi
+    # pulls/{N} — return PR head sha (force-review detection path)
+    if echo "$_api_path" | grep -qE 'pulls/[0-9]+$'; then
+        printf '{"head":{"sha":"0000000000000000000000000000000000000000"}}\n'
+        exit 0
+    fi
+fi
+# Fallback: empty response
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$mock_bin/gh"
+    FIXTURE_MOCK_BIN="$mock_bin"
+}
+
 # ── Helper: build the 6000+ line all-provenanced fixture ──────────────────────
-# Returns: sets FIXTURE_REPO, FIXTURE_BASE_SHA, FIXTURE_HEAD_SHA in caller scope.
+# Returns: sets FIXTURE_REPO, FIXTURE_BASE_SHA, FIXTURE_HEAD_SHA,
+#          FIXTURE_MOCK_BIN in caller scope.
 _build_large_provenanced_fixture() {
     local repo
     repo="$(_make_git_repo)"
@@ -116,6 +172,23 @@ _build_large_provenanced_fixture() {
         echo "WARNING: fixture diff has only ${total_lines} inserted lines (< 6000)" >&2
     fi
 
+    # Build mock gh bin so the v4 GitHub-PR-API path resolves all story SHAs
+    # as provenanced without hitting the real GitHub API on local fixture SHAs.
+    _build_mock_gh_provenanced_bin
+
+    # Set up a bare-clone origin remote so origin/main resolves in the fixture.
+    # The dispatcher's case-1 (unprovenanced) path requires origin/main to
+    # filter already-merged SHAs; tests 2-4 use the all-provenanced path and
+    # don't strictly need it, but having it here keeps the fixture realistic
+    # and avoids silent degradation if the dispatcher is called with any
+    # unprovenanced context.
+    local bare_origin
+    bare_origin="$(mktemp -d "${TMPDIR:-/tmp}/test-provenance-origin.XXXXXX")"
+    _CLEANUP_DIRS+=("$bare_origin")
+    git clone -q --bare "$repo" "$bare_origin" 2>/dev/null
+    git -C "$repo" remote add origin "$bare_origin" 2>/dev/null || true
+    git -C "$repo" fetch -q origin 2>/dev/null || true
+
     FIXTURE_REPO="$repo"
     FIXTURE_BASE_SHA="$base_sha"
     FIXTURE_HEAD_SHA="$head_sha"
@@ -139,10 +212,12 @@ test_verifier_exits_0_for_large_all_provenanced_diff() {
     _CLEANUP_DIRS+=("$artifact_dir")
 
     local exit_code=0
+    PATH="$FIXTURE_MOCK_BIN:$PATH" \
     DSO_REPO_PATH="$FIXTURE_REPO" \
     DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
     DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
     DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="owner/fixture-repo" \
         bash "$VERIFIER" 2>/dev/null || exit_code=$?
 
     assert_eq \
@@ -204,14 +279,17 @@ MOCKEOF
     # artifacts rather than re-invoking the verifier. Pre-run the verifier
     # to populate artifact dir — this mirrors the real ci.yml step ordering
     # (Step 1 verify-session-provenance → Step 2 llm-review-dispatch-or-skip).
+    PATH="$FIXTURE_MOCK_BIN:$PATH" \
     DSO_REPO_PATH="$FIXTURE_REPO" \
     DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
     DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
     DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="owner/fixture-repo" \
         bash "$VERIFIER" >/dev/null 2>&1 || true
 
     # Invoke the wrapper against the populated artifact dir.
     local wrapper_exit=0
+    PATH="$FIXTURE_MOCK_BIN:$PATH" \
     DSO_REPO_PATH="$FIXTURE_REPO" \
     DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
     DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
@@ -270,14 +348,17 @@ MOCKEOF
     _CLEANUP_DIRS+=("$artifact_dir")
 
     # bug 8a77 v2: pre-run verifier to populate artifact dir (see Test 2 note).
+    PATH="$FIXTURE_MOCK_BIN:$PATH" \
     DSO_REPO_PATH="$FIXTURE_REPO" \
     DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
     DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
     DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="owner/fixture-repo" \
         bash "$VERIFIER" >/dev/null 2>&1 || true
 
     local output
     output=$(
+        PATH="$FIXTURE_MOCK_BIN:$PATH" \
         DSO_REPO_PATH="$FIXTURE_REPO" \
         DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
         DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
@@ -329,14 +410,17 @@ MOCKEOF
     _CLEANUP_DIRS+=("$artifact_dir")
 
     # bug 8a77 v2: pre-run verifier to populate artifact dir (see Test 2 note).
+    PATH="$FIXTURE_MOCK_BIN:$PATH" \
     DSO_REPO_PATH="$FIXTURE_REPO" \
     DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
     DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
     DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="owner/fixture-repo" \
         bash "$VERIFIER" >/dev/null 2>&1 || true
 
     local output
     output=$(
+        PATH="$FIXTURE_MOCK_BIN:$PATH" \
         DSO_REPO_PATH="$FIXTURE_REPO" \
         DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
         DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
@@ -385,6 +469,16 @@ test_e2e_mixed_diff_invokes_runner() {
     git -C "$repo" commit -q -m "Initial commit" 2>/dev/null
     local base_sha
     base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Set up a bare-clone origin with origin/main pointing at the initial commit.
+    # The dispatcher's unprovenanced path requires origin/main to be resolvable
+    # to filter already-merged SHAs before generating the commit-scoped diff.
+    local neg_bare_origin
+    neg_bare_origin="$(mktemp -d "${TMPDIR:-/tmp}/test-provenance-neg-origin.XXXXXX")"
+    _CLEANUP_DIRS+=("$neg_bare_origin")
+    git clone -q --bare "$repo" "$neg_bare_origin" 2>/dev/null
+    git -C "$repo" remote add origin "$neg_bare_origin" 2>/dev/null || true
+    git -C "$repo" fetch -q origin 2>/dev/null || true
 
     # Story commits — provenanced
     _make_story_commit "$repo" "neg-ctrl-story-aaa" 1000 >/dev/null
@@ -447,14 +541,20 @@ MOCKEOF
         bash "$VERIFIER" >/dev/null 2>&1 || true
 
     # bug 9788 fix: dispatcher's case-1 branch requires PR_NUMBER to call gh pr diff.
-    PATH="$mock_bin:$PATH" \
-    PR_NUMBER=99 \
-    DSO_REPO_PATH="$repo" \
-    DSO_BASE_SHA="$base_sha" \
-    DSO_SESSION_HEAD="$head_sha" \
-    DSO_RUNNER_PATH="$mock_runner" \
-    DSO_ARTIFACT_DIR="$artifact_dir" \
-        bash "$WRAPPER" 2>/dev/null || true
+    # Run dispatcher from inside the fixture repo so build_net_integration_diff
+    # (sourced by the dispatcher) can resolve the fixture SHAs via git diff-tree.
+    # The dispatcher's git calls have no -C flag — they rely on CWD for repo context.
+    (
+        cd "$repo" || exit
+        PATH="$mock_bin:$PATH" \
+        PR_NUMBER=99 \
+        DSO_REPO_PATH="$repo" \
+        DSO_BASE_SHA="$base_sha" \
+        DSO_SESSION_HEAD="$head_sha" \
+        DSO_RUNNER_PATH="$mock_runner" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>/dev/null || true
+    )
 
     local runner_was_called="no"
     if [[ -f "$runner_call_log" ]] && grep -q "runner-invoked" "$runner_call_log" 2>/dev/null; then
