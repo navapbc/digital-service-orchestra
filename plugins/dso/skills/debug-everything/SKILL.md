@@ -405,6 +405,8 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
    - File-conflict split: bugs in the same chunk that modify the same file are split into separate sub-branches.
    - Large-fix exception: a single bug whose estimated diff exceeds 500 lines gets its own sub-branch with a `-large` suffix.
    - Branch naming: `bug-batch/<debug-session-id>/bug-fix-batch-<K>` (analogous to Diagnostic Mode's `tier-<N>-batch-<K>`; Bug-Fix Mode uses `bug-fix-batch-K` because there is only one tier in scope here — tier 7).
+   - Branch base: create off SESSION_HEAD (`git checkout -b <name>` while on the session branch at SESSION_HEAD).
+   - Serialized integration: the orchestrator MUST serialize sub-agent integration into the shared sub-branch ref — no concurrent push; dispatch one sub-agent at a time for integration, or use a lock mechanism (mirrors Phase G § Serialized integration rule).
    - Record a tracking comment per sub-branch: `DEBUG_BRANCH_TRACKING: sub_branch=<name> tier=7 batch=<K> timestamp=<UTC>`.
 
    In `local` mode (DEBUG_MODE=direct or absent): no sub-branch chunking; commit each fix-bug result directly to the session branch as before.

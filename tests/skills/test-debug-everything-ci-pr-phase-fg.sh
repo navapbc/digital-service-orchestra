@@ -166,6 +166,71 @@ fi
 
 # ============================================================
 echo ""
+echo "=== test_dispatch_fix_batch_chunk_wrapup_section ==="
+SECTION="test_dispatch_fix_batch_chunk_wrapup_section"
+
+DISPATCH_MD="${REPO_ROOT}/plugins/dso/skills/debug-everything/prompts/dispatch-fix-batch.md"
+
+# dispatch-fix-batch.md must have a Section 9 / "Chunk wrap-up" heading
+if grep -qiE 'Section 9|Chunk wrap-?up' "$DISPATCH_MD"; then
+  pass "dispatch-fix-batch.md contains a 'Chunk wrap-up' / Section 9 heading"
+else
+  fail "dispatch-fix-batch.md missing 'Chunk wrap-up' / Section 9 heading (expected after Section 8)"
+fi
+
+# ============================================================
+echo ""
+echo "=== test_dispatch_fix_batch_gh_pr_create ==="
+SECTION="test_dispatch_fix_batch_gh_pr_create"
+
+# dispatch-fix-batch.md must contain a gh pr create instruction
+if grep -q 'gh pr create' "$DISPATCH_MD"; then
+  pass "dispatch-fix-batch.md contains a 'gh pr create' instruction"
+else
+  fail "dispatch-fix-batch.md missing 'gh pr create' instruction"
+fi
+
+# ============================================================
+echo ""
+echo "=== test_dispatch_fix_batch_pr_base_session_branch ==="
+SECTION="test_dispatch_fix_batch_pr_base_session_branch"
+
+# dispatch-fix-batch.md's gh pr create must reference SESSION_BRANCH as base
+# shellcheck disable=SC2016  # single-quoted pattern is intentional literal grep match
+if grep -E 'gh pr create.*--base.*SESSION_BRANCH|--base.*SESSION_BRANCH.*gh pr create|--base "\$SESSION_BRANCH"' "$DISPATCH_MD" | grep -q .; then
+  pass "dispatch-fix-batch.md references SESSION_BRANCH as the PR base"
+else
+  fail "dispatch-fix-batch.md missing SESSION_BRANCH as PR base (gh pr create --base \"\$SESSION_BRANCH\")"
+fi
+
+# ============================================================
+echo ""
+echo "=== test_dispatch_fix_batch_await_ci_routing ==="
+SECTION="test_dispatch_fix_batch_await_ci_routing"
+
+# dispatch-fix-batch.md must contain await-CI / MERGED-ESCALATED-ERROR routing
+if grep -qE 'MERGED|ESCALATED|ERROR' "$DISPATCH_MD" && grep -qiE 'await.{0,20}CI|wait.{0,20}CI|CI.{0,20}outcome' "$DISPATCH_MD"; then
+  pass "dispatch-fix-batch.md contains await-CI / MERGED-ESCALATED-ERROR routing"
+else
+  fail "dispatch-fix-batch.md missing await-CI / MERGED-ESCALATED-ERROR outcome routing"
+fi
+
+# ============================================================
+echo ""
+echo "=== test_skill_md_bugfix_mode_session_head_base ==="
+SECTION="test_skill_md_bugfix_mode_session_head_base"
+
+# SKILL.md Bug-Fix Mode chunking bullet must specify SESSION_HEAD as branch base
+BUG_FIX_SECTION=$(awk '/^2\. \*\*Apply Phase G.s chunking/,/^3\. \*\*Error handling/' "$SKILL_MD")
+
+if echo "$BUG_FIX_SECTION" | grep -qE 'SESSION_HEAD'; then
+  pass "SKILL.md Bug-Fix Mode chunking bullet specifies SESSION_HEAD as the branch base"
+else
+  fail "SKILL.md Bug-Fix Mode chunking bullet missing SESSION_HEAD branch base reference"
+fi
+
+# ============================================================
+echo ""
 echo "============================================================"
 echo "Results: ${PASS} passed, ${FAIL} failed"
 if [[ $FAIL -gt 0 ]]; then

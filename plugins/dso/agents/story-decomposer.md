@@ -118,6 +118,8 @@ and halt — do NOT emit any story drafts.
 **Step 3 — Build the target set:**
 Collect all `target_story_id` values from `remediation_context.findings`. Emit **only** `story_drafts` whose `target_story_id` appears in that set. Stories not in that set are absent from output (no full re-decomposition).
 
+**DD-superset preservation rule (REQUIRED):** For each targeted story, your returned `done_definitions` MUST be a superset of the prior draft's `done_definitions`. Retain verbatim every DD not explicitly named in a finding. Omitting a prior DD that no finding addresses is a protocol violation.
+
 **Strict ordering**: emit mode declaration → Read all artifacts → emit evidence quotes → emit story drafts. Never reorder.
 
 **Backward-compatible default**: when `remediation_context` is absent, skip the DELTA OUTPUT MODE block entirely. The output shape is unchanged from current behavior.
