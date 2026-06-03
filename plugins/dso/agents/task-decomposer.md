@@ -55,7 +55,7 @@ The story's testing-mode classification (RED / GREEN / UPDATE) from `/dso:fix-bu
 
 ### Migration-Class Marker
 
-The migration-class marker for this story, sourced by the orchestrator (implementation-plan Step 3) from the **LAST** `MIGRATION_CLASS:` comment on the story ticket and passed in verbatim. It is a single-line JSON payload of the shape `{"migration-class":"sweep|db|inconclusive","detection_query":"<sg pattern>","threshold_used":<int>,"target_symbol":"<name>"}` (full contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/migration-class-marker.md`).
+The migration-class marker for this story, sourced by the orchestrator (implementation-plan Step 3) from the **LAST** `MIGRATION_CLASS:` comment on the story ticket and passed in verbatim. It is a single-line JSON payload of the shape `{"migration-class":"sweep|db|none|inconclusive","detection_query":"<sg pattern>","threshold_used":<int>,"target_symbol":"<name>"}` (full contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/migration-class-marker.md`).
 
 Parse `migration-class` from THIS passed-in input block. You are read-only with respect to tickets — NEVER fetch this marker from the ticket yourself (you have no ticket access). When this block is absent, empty, or unparseable, treat it as an inert no-op: emit no migration task pair and decompose exactly as you would for a story with no marker (backward-compatible default). See **Migration-Class Pair Emission** below for how the parsed value drives pair emission.
 
@@ -216,7 +216,7 @@ If any check fails, iterate until valid. Do not emit an invalid set.
 
 ## Migration-Class Pair Emission
 
-This is the **single shared dispatch point** for migration / rollout task-pair emission. Sibling stories ADD cases here rather than overwrite it — keep the structure additive. The dispatch reads the parsed `migration-class` value from the `{migration-marker}` input block (see Inputs > Migration-Class Marker) and the separate `{feature-flags-marker}` input (added by a sibling story). These are **independent axes**, NOT a mutually-exclusive `case` switch on one variable: evaluate each conditional separately, in addition to the others. A story that is both `db` AND flag-approved must emit BOTH pairs — do not let one case drop another. Treat `migration-class` (single-valued: `sweep` | `db` | `inconclusive`) and the feature-flags marker as composable, independent conditionals.
+This is the **single shared dispatch point** for migration / rollout task-pair emission. Sibling stories ADD cases here rather than overwrite it — keep the structure additive. The dispatch reads the parsed `migration-class` value from the `{migration-marker}` input block (see Inputs > Migration-Class Marker) and the separate `{feature-flags-marker}` input (added by a sibling story). These are **independent axes**, NOT a mutually-exclusive `case` switch on one variable: evaluate each conditional separately, in addition to the others. A story that is both `db` AND flag-approved must emit BOTH pairs — do not let one case drop another. Treat `migration-class` (single-valued: `sweep` | `db` | `none` | `inconclusive`) and the feature-flags marker as composable, independent conditionals.
 
 **Parse-from-passed-in-arg rule.** Read `migration-class` from the passed-in `{migration-marker}` input block ONLY. The marker arrives verbatim as a passed-in input; this agent operates read-only with respect to the tracker and has no tracker access, so the value MUST come from the `{migration-marker}` arg and from nowhere else.
 
@@ -287,6 +287,10 @@ See also: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/feature-flags-marker.md` for the
 ### Case: `migration-class` = `inconclusive` (ACTIVE — no pair)
 
 When the parsed `migration-class` is `inconclusive` (ast-grep / `sg` was unavailable at detection time), do NOT emit the sweep pair — detection could not establish call-site coverage, so an automated sweep cannot be specified safely. This branch is NOT silently dropped: surface a `decomposition_notes` entry stating that migration-class detection was inconclusive (detection unavailable — `sg` absent) and that no migration pair was emitted, so the orchestrator can prompt re-running detection after installing `sg`. The `inconclusive` branch is a distinct named action, separate from the absent-marker no-op.
+
+### Case: `migration-class` = `none` (clean no-op — proceed normally)
+
+When the parsed `migration-class` is `none`, detection RAN successfully and produced a definite negative result: the symbol is not db-coupled and its call-site count is below the configured threshold, so the change is **not** migration-class. Emit NO migration pair and decompose exactly as a story with no marker would. Unlike `inconclusive`, `none` is NOT a degradation: do NOT surface an "install `sg` and re-run" prompt — detection completed and concluded the change is ordinary. Treat `none` identically to the absent-marker no-op (the only difference is provenance: detection ran and returned a definite negative rather than no marker existing at all). Recording a brief `decomposition_notes` entry noting "migration-class=none (detection ran; below threshold, not a migration-class change)" is permitted but not required.
 
 ## DELTA OUTPUT MODE
 

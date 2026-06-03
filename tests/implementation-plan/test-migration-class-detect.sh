@@ -126,9 +126,14 @@ EOF
 
 # ---------------------------------------------------------------------------
 # test_db_classification
-# Given a touched file matching schema/migration globs
+# Given the TARGET SYMBOL is referenced INSIDE a migration-pattern file
 # When migration-class-detect.sh runs
 # Then migration-class=db regardless of call-site count
+#
+# DB classification is symbol-scoped: the symbol must actually appear within a
+# migration-pattern file (migrations/0001_initial.py here), not merely because a
+# migrations/ directory exists. See test_sweep_with_migrations_dir_present for the
+# negative-control sibling.
 # ---------------------------------------------------------------------------
 test_db_classification() {
     _snapshot_fail
@@ -140,7 +145,8 @@ test_db_classification() {
     fix_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-mcd-db.XXXXXX")
     trap 'rm -rf "$fix_dir"' RETURN
 
-    # Create a migrations/ directory with a file containing the symbol
+    # Create a migrations/ directory with a file that REFERENCES the symbol.
+    # Symbol-scoped db classification requires the symbol to be present here.
     mkdir -p "$fix_dir/migrations"
     cat > "$fix_dir/migrations/0001_initial.py" <<'EOF'
 run_migration(conn)
@@ -166,6 +172,72 @@ EOF
     assert_eq "test_db_classification: target_symbol matches" "$sym" "$ts"
 
     assert_pass_if_clean "test_db_classification"
+}
+
+# ---------------------------------------------------------------------------
+# test_sweep_with_migrations_dir_present
+# Given a repo that HAS a migrations/ directory, but the TARGET SYMBOL is NOT
+#   referenced inside any migration-pattern file — it has >= threshold call
+#   sites in normal source instead
+# When migration-class-detect.sh runs
+# Then migration-class=sweep (NOT db) — db classification is symbol-scoped, so
+#   the bare existence of a migrations/ dir must NOT short-circuit to db.
+# This is the negative control proving Finding 1's fix: a symbol with many call
+# sites in normal source still classifies sweep even when a migrations dir exists.
+# ---------------------------------------------------------------------------
+test_sweep_with_migrations_dir_present() {
+    _snapshot_fail
+
+    # Only run if sg (ast-grep) is available
+    if ! command -v sg >/dev/null 2>&1 || ! sg --version 2>/dev/null | grep -qE '^(sg|ast-grep) [0-9]'; then
+        echo "test_sweep_with_migrations_dir_present ... SKIP (sg/ast-grep not available)"
+        return
+    fi
+
+    local sym="ordinary_helper"
+    local lang="python"
+
+    local fix_dir
+    fix_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-mcd-sweepdir.XXXXXX")
+    trap 'rm -rf "$fix_dir"' RETURN
+
+    # A migrations/ directory EXISTS, but it does NOT reference the target symbol.
+    mkdir -p "$fix_dir/migrations"
+    cat > "$fix_dir/migrations/0001_initial.py" <<'EOF'
+some_unrelated_migration(conn)
+EOF
+
+    # The target symbol has 4 call sites in NORMAL source (above threshold of 3).
+    cat > "$fix_dir/caller1.py" <<'EOF'
+result = ordinary_helper(x, y)
+EOF
+    cat > "$fix_dir/caller2.py" <<'EOF'
+val = ordinary_helper(a)
+EOF
+    cat > "$fix_dir/caller3.py" <<'EOF'
+data = ordinary_helper(b, c)
+EOF
+    cat > "$fix_dir/caller4.py" <<'EOF'
+out = ordinary_helper(z)
+EOF
+
+    local tmp_conf
+    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/test-mcd-conf.XXXXXX")
+    printf 'migration.call_site_threshold=3\n' > "$tmp_conf"
+
+    local output exit_code
+    exit_code=0
+    output=$(WORKFLOW_CONFIG_FILE="$tmp_conf" bash "$DETECT_SCRIPT" "$sym" "$lang" "$fix_dir" < /dev/null) || exit_code=$?
+    rm -f "$tmp_conf"
+
+    assert_eq "test_sweep_with_migrations_dir_present: exit 0" "0" "$exit_code"
+
+    local mc
+    mc=$(parse_field "$output" "migration-class")
+    # Must be sweep — NOT db. The migrations/ dir exists but the symbol is not in it.
+    assert_eq "test_sweep_with_migrations_dir_present: migrations dir present yet symbol classifies sweep (not db)" "sweep" "$mc"
+
+    assert_pass_if_clean "test_sweep_with_migrations_dir_present"
 }
 
 # ---------------------------------------------------------------------------
@@ -220,8 +292,61 @@ EOF
     local mc
     mc=$(parse_field "$output" "migration-class")
     assert_ne "test_exclusion_of_imports_and_test_files: migration-class is NOT sweep" "sweep" "$mc"
+    # Detection RAN (sg available) but found too few real call sites → none,
+    # NOT inconclusive (which is reserved for sg-unavailable).
+    assert_eq "test_exclusion_of_imports_and_test_files: below-threshold ran → migration-class=none" "none" "$mc"
+    assert_ne "test_exclusion_of_imports_and_test_files: not inconclusive (detection ran)" "inconclusive" "$mc"
 
     assert_pass_if_clean "test_exclusion_of_imports_and_test_files"
+}
+
+# ---------------------------------------------------------------------------
+# test_below_threshold_is_none_not_inconclusive
+# Given sg IS available and the symbol has FEWER than threshold call sites
+#   (detection ran, but produced a definite negative result)
+# When migration-class-detect.sh runs
+# Then migration-class=none — distinct from inconclusive (sg-unavailable).
+# This guards Finding 4: a below-threshold result must NOT emit the false
+# "install sg and re-run" inconclusive signal.
+# ---------------------------------------------------------------------------
+test_below_threshold_is_none_not_inconclusive() {
+    _snapshot_fail
+
+    # Only run if sg (ast-grep) is available
+    if ! command -v sg >/dev/null 2>&1 || ! sg --version 2>/dev/null | grep -qE '^(sg|ast-grep) [0-9]'; then
+        echo "test_below_threshold_is_none_not_inconclusive ... SKIP (sg/ast-grep not available)"
+        return
+    fi
+
+    local sym="rare_helper"
+    local lang="python"
+
+    local fix_dir
+    fix_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-mcd-none.XXXXXX")
+    trap 'rm -rf "$fix_dir"' RETURN
+
+    # Exactly 1 call site — below the threshold of 3.
+    cat > "$fix_dir/caller.py" <<'EOF'
+result = rare_helper(x)
+EOF
+
+    local tmp_conf
+    tmp_conf=$(mktemp "${TMPDIR:-/tmp}/test-mcd-conf.XXXXXX")
+    printf 'migration.call_site_threshold=3\n' > "$tmp_conf"
+
+    local output exit_code
+    exit_code=0
+    output=$(WORKFLOW_CONFIG_FILE="$tmp_conf" bash "$DETECT_SCRIPT" "$sym" "$lang" "$fix_dir" < /dev/null) || exit_code=$?
+    rm -f "$tmp_conf"
+
+    assert_eq "test_below_threshold_is_none_not_inconclusive: exit 0" "0" "$exit_code"
+
+    local mc
+    mc=$(parse_field "$output" "migration-class")
+    assert_eq "test_below_threshold_is_none_not_inconclusive: migration-class=none" "none" "$mc"
+    assert_ne "test_below_threshold_is_none_not_inconclusive: NOT inconclusive" "inconclusive" "$mc"
+
+    assert_pass_if_clean "test_below_threshold_is_none_not_inconclusive"
 }
 
 # ---------------------------------------------------------------------------
@@ -428,7 +553,9 @@ EOF
 
 test_sweep_classification
 test_db_classification
+test_sweep_with_migrations_dir_present
 test_exclusion_of_imports_and_test_files
+test_below_threshold_is_none_not_inconclusive
 test_detection_query_in_output
 test_non_interactive_closed_stdin
 test_sg_unavailable_inconclusive

@@ -11,7 +11,8 @@
 #
 # NEVER recomputes migration-class detection (no detection binary invocation).
 # Idempotent: checks existing links before writing; skips duplicates.
-# Emits no edges and exits 0 for absent-marker or inconclusive.
+# Emits no edges and exits 0 for absent-marker, none, or inconclusive (any
+# value other than sweep/db is a clean no-op for the migration-class axis).
 #
 # Contract: ${CLAUDE_PLUGIN_ROOT}/docs/contracts/migration-class-marker.md
 # Key spelling: "migration-class" (hyphenated) — the persisted marker key.
@@ -84,7 +85,9 @@ read_marker_line() {
 
 # ── Parse migration-class value from marker line ──────────────────────────────
 # Input: "MIGRATION_CLASS: {\"migration-class\":\"sweep\",...}"
-# Output: "sweep", "db", "inconclusive", or ""
+# Output: "sweep", "db", "none", "inconclusive", or ""
+# Only "sweep" and "db" drive edge emission; all other values (including the
+# new "none" = detection-ran-but-below-threshold) are clean no-ops.
 parse_marker_value() {
     local marker_line="$1"
     if [[ -z "$marker_line" ]]; then
@@ -124,20 +127,32 @@ parse_task_roles() {
 }
 
 # ── Idempotent link writer ────────────────────────────────────────────────────
-# Checks if depends_on edge already exists before writing.
+# Checks if a depends_on edge already exists before writing.
 # Args: <dependent-task-id> <earlier-task-id>
+#
+# Reads existing edges via the REAL `dso ticket deps <id>` subcommand (there is no
+# `list-links` subcommand — the dispatcher exposes link/unlink/deps). `ticket deps`
+# emits a single-line JSON object whose `.deps[]` entries carry `relation` and
+# `target_id` fields; an existing edge is one with relation=="depends_on" and
+# target_id==<earlier>.
 write_depends_on_edge() {
     local dependent="$1"
     local earlier="$2"
 
-    # Check existing links on the dependent task via list-links subcommand
-    local existing_links
-    existing_links=$("$DSO_CMD" ticket list-links "$dependent" 2>/dev/null) || true
+    # Query the dependent task's compiled dependency graph.
+    local deps_json
+    deps_json=$("$DSO_CMD" ticket deps "$dependent" 2>/dev/null) || deps_json=""
 
-    # Check if "depends_on <earlier>" already exists in the output
-    if echo "$existing_links" | grep -q "^depends_on ${earlier}$"; then
-        echo "INFO: edge already exists: $dependent depends_on $earlier — skipping" >&2
-        return 0
+    if [[ -n "$deps_json" ]]; then
+        local already
+        already=$(echo "$deps_json" \
+            | jq -r --arg tgt "$earlier" \
+                '[.deps[]? | select(.relation == "depends_on" and .target_id == $tgt)] | length' \
+                2>/dev/null) || already="0"
+        if [[ "$already" =~ ^[0-9]+$ && "$already" -gt 0 ]]; then
+            echo "INFO: edge already exists: $dependent depends_on $earlier — skipping" >&2
+            return 0
+        fi
     fi
 
     # Write the edge: dso ticket link <dependent> <earlier> depends_on

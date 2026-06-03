@@ -18,7 +18,8 @@
 #
 #   migration-class values:
 #     sweep       — call site count >= threshold_used (ast-grep available, not db-coupled)
-#     db          — symbol file set matches schema/migration globs (regardless of call count)
+#     db          — TARGET_SYMBOL is referenced inside a schema/migration file pattern
+#     none         — detection ran, but symbol is below threshold / not migration-class
 #     inconclusive — ast-grep unavailable or no target_symbol provided
 #
 # Configuration:
@@ -29,8 +30,12 @@
 #   - import lines (lines matching ^(import |from .* import|require\(|#include))
 #   - test files (paths matching test/, *_test.*, *.test.*)
 #
-# DB short-circuit globs (any matched file in repo_root triggers migration-class=db):
-#   migrations/, alembic/, db/migrate/, *.migration.ts, schema.sql
+# DB classification (symbol-scoped, NOT repo-global):
+#   migration-class=db is emitted only when TARGET_SYMBOL is actually referenced
+#   inside a migration-pattern file — migrations/, alembic/, db/migrate/ directories,
+#   or *.migration.ts / schema.sql files. The mere existence of such a directory does
+#   NOT classify a symbol as db: a symbol with many call sites in normal source still
+#   classifies as sweep.
 
 set -uo pipefail
 
@@ -47,7 +52,9 @@ source "${_PLUGIN_ROOT}/hooks/lib/planning-config.sh"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 TARGET_SYMBOL="${1:-}"
-LANG="${2:-python}"
+# Language hint for ast-grep. Deliberately NOT named LANG — that is the POSIX
+# locale env var, and overwriting it corrupts child-process locales (sg/grep/find).
+LANG_HINT="${2:-python}"
 REPO_ROOT_ARG="${3:-}"
 
 # Resolve repo root
@@ -62,9 +69,7 @@ THRESHOLD=3
 THRESHOLD=$(get_call_site_threshold 2>/dev/null) || THRESHOLD=3
 
 # ── Build the detection query string ──────────────────────────────────────────
-# ast-grep call-site pattern: matches <sym>(<args>)
-DETECTION_QUERY="\$A.${TARGET_SYMBOL}(\$\$\$B)"
-# Simpler pattern that works for both method calls and standalone calls
+# ast-grep call-site pattern that works for both method calls and standalone calls
 DETECTION_QUERY="${TARGET_SYMBOL}(\$\$\$)"
 
 # ── Emit JSON helper ──────────────────────────────────────────────────────────
@@ -86,27 +91,45 @@ if [[ -z "$TARGET_SYMBOL" ]]; then
     exit 0
 fi
 
-# ── DB short-circuit: check if scan root contains schema/migration files ──────
-# Globs: migrations/, alembic/, db/migrate/, *.migration.ts, schema.sql
-_is_db_coupled() {
+# ── DB classification (symbol-scoped): is TARGET_SYMBOL referenced inside a ───
+# migration-pattern file? Classification is db ONLY when the target symbol
+# actually appears within a schema/migration file — NOT merely because such a
+# directory exists in the repo. A symbol with many call sites in normal source
+# still classifies as sweep.
+#
+# Migration-pattern files: any file under migrations/ | alembic/ | db/migrate/
+# directories, or any *.migration.ts / schema.sql file (maxdepth 5,
+# excluding node_modules).
+_symbol_in_migration_file() {
     local root="$1"
-    # Check for migration directory patterns
-    if [[ -d "${root}/migrations" ]] || \
-       [[ -d "${root}/alembic" ]] || \
-       [[ -d "${root}/db/migrate" ]]; then
-        return 0
-    fi
-    # Check for migration file patterns
-    if find "$root" -maxdepth 5 \
-        \( -name "*.migration.ts" -o -name "schema.sql" \) \
+    local sym="$2"
+
+    local migration_files=()
+    local f
+    # Collect candidate migration-pattern files. Use find with -path matches for
+    # the directory patterns and -name matches for the file patterns.
+    while IFS= read -r f; do
+        [[ -n "$f" ]] && migration_files+=("$f")
+    done < <(find "$root" -maxdepth 5 -type f \
+        \( -path "*/migrations/*" \
+           -o -path "*/alembic/*" \
+           -o -path "*/db/migrate/*" \
+           -o -name "*.migration.ts" \
+           -o -name "schema.sql" \) \
         -not -path "*/node_modules/*" \
-        2>/dev/null | grep -q .; then
+        2>/dev/null)
+
+    # No migration-pattern files at all → not db.
+    [[ ${#migration_files[@]} -eq 0 ]] && return 1
+
+    # Is the target symbol referenced (as a word) inside any of them?
+    if grep -qwF -- "$sym" "${migration_files[@]}" 2>/dev/null; then
         return 0
     fi
     return 1
 }
 
-if _is_db_coupled "$SCAN_ROOT"; then
+if _symbol_in_migration_file "$SCAN_ROOT" "$TARGET_SYMBOL"; then
     emit_json "db" "$DETECTION_QUERY" "$THRESHOLD" "$TARGET_SYMBOL"
     exit 0
 fi
@@ -186,13 +209,18 @@ _count_call_sites() {
     echo "$count"
 }
 
-CALL_SITE_COUNT=$(_count_call_sites "$TARGET_SYMBOL" "$LANG" "$SCAN_ROOT" "$DETECTION_QUERY")
+CALL_SITE_COUNT=$(_count_call_sites "$TARGET_SYMBOL" "$LANG_HINT" "$SCAN_ROOT" "$DETECTION_QUERY")
 
 # ── Classify ──────────────────────────────────────────────────────────────────
+# Detection RAN (sg available, db check already excluded). A below-threshold
+# result is NOT inconclusive — inconclusive is reserved for "detection could not
+# run" (sg unavailable / no target symbol). Emit the distinct `none` value so
+# consumers treat it as "not a migration-class change, proceed normally" rather
+# than as an install-sg / re-run prompt.
 if [[ "$CALL_SITE_COUNT" -ge "$THRESHOLD" ]]; then
     emit_json "sweep" "$DETECTION_QUERY" "$THRESHOLD" "$TARGET_SYMBOL"
 else
-    emit_json "inconclusive" "$DETECTION_QUERY" "$THRESHOLD" "$TARGET_SYMBOL"
+    emit_json "none" "$DETECTION_QUERY" "$THRESHOLD" "$TARGET_SYMBOL"
 fi
 
 exit 0

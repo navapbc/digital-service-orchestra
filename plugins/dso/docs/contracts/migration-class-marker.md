@@ -25,7 +25,7 @@ MIGRATION_CLASS: {"migration-class":"sweep","detection_query":"$A($$$B)","thresh
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `migration-class` | `string` | yes | Classification result. One of: `sweep`, `db`, `inconclusive`. |
+| `migration-class` | `string` | yes | Classification result. One of: `sweep`, `db`, `none`, `inconclusive`. |
 | `detection_query` | `string` | yes | The exact ast-grep pattern string used to count call sites. |
 | `threshold_used` | `integer` | yes | The effective threshold value applied during detection (after config lookup and floor enforcement). |
 | `target_symbol` | `string` | yes | The symbol whose call sites were counted by the detection query. |
@@ -35,8 +35,9 @@ MIGRATION_CLASS: {"migration-class":"sweep","detection_query":"$A($$$B)","thresh
 | Value | Meaning |
 |---|---|
 | `sweep` | Call site count is **at or above** `threshold_used`; a sweeping migration `automated-sweep` + `manual-verification` task duo is warranted. |
-| `db` | Symbol is database-coupled; requires a coordinated three-task DB migration unit (forward-migration + rollback + rollback-verification) regardless of call site count. `db` short-circuits BEFORE the sweep call-site count, so it is single-valued and authoritative — a db symbol emits ONLY the three-task db unit, never an additional sweep duo. |
-| `inconclusive` | ast-grep (`sg`) was unavailable; detection could not run. |
+| `db` | The **target symbol is referenced inside a migration-pattern file** (`migrations/` \| `alembic/` \| `db/migrate/` directories, or `*.migration.ts` / `schema.sql` files). DB classification is **symbol-scoped, not repo-global**: the mere existence of a migration directory does NOT classify a symbol as `db` — the symbol must actually appear within such a file. Requires a coordinated three-task DB migration unit (forward-migration + rollback + rollback-verification) regardless of call site count. `db` is checked BEFORE the sweep call-site count, so it is single-valued and authoritative — a db symbol emits ONLY the three-task db unit, never an additional sweep duo. |
+| `none` | **Detection ran successfully** (`sg` available, symbol not db-coupled) but the call site count is **below** `threshold_used`. The change is **not** migration-class; consumers proceed normally and emit no migration pair. This is distinct from `inconclusive` — detection completed and produced a definite negative result, so it carries NO "install `sg` and re-run" signal. |
+| `inconclusive` | ast-grep (`sg`) was unavailable (or no target symbol was provided); detection **could not run**. This is the ONLY value that signals "install `sg` and re-run detection". |
 
 ### Key Spelling Note
 
@@ -102,7 +103,11 @@ Three consumers read the `MIGRATION_CLASS:` marker:
 
 1. **Task-decomposer story** — an **ACTIVE consumer** for both `sweep` and `db`: on `sweep` it co-authors an `automated-sweep` + `manual-verification` duo; on `db` it co-authors a three-task unit (forward-migration + rollback + rollback-verification co-authored as one unit in the same plan). It does **not** self-fetch the marker (the `dso:task-decomposer` agent is read-only with respect to the tracker and has no tracker access). The marker is delivered to it as the `{migration-marker}` dispatch argument constructed by `implementation-plan` Step 3, which sources the **LAST** `MIGRATION_CLASS:` comment (last-wins) and passes the verbatim JSON payload. The `db` branch classifies the rollback (`safe-revert` for additive changes, `compensating-forward` for destructive ones, ambiguous → `compensating-forward` with a `DATA LOSS RISK` note inferred from the change description, since the marker carries only the literal `db` value), and the rollback-verification task asserts post-rollback schema state. `db` short-circuits before the sweep count, so a `db` marker emits ONLY the three-task db unit (never an additional sweep duo); `flag-tag` is **reserved** to sibling story `c5fa` (an independent, composable axis — not a mutually-exclusive switch). For `inconclusive`: emits no migration tasks and surfaces a `decomposition_notes` entry that detection was unavailable.
 2. **Sprint two-pass-ordering story** — reads the marker to determine ordering of migration tasks within the sprint batch. Does **not** recompute the classification; it is a read-only consumer of the last `MIGRATION_CLASS:` comment.
-3. **E2E fixture story** — asserts that a `MIGRATION_CLASS:` comment exists on the story ticket after Step 1 runs, and that the JSON payload has the correct shape (all four fields present, `migration-class` is one of the three valid values, `threshold_used` is an integer ≥ 1).
+3. **E2E fixture story** — asserts that a `MIGRATION_CLASS:` comment exists on the story ticket after Step 1 runs, and that the JSON payload has the correct shape (all four fields present, `migration-class` is one of the four valid values — `sweep`, `db`, `none`, `inconclusive` — and `threshold_used` is an integer ≥ 1).
+
+### Consumer handling of `none`
+
+`none` is a definite negative ("detection ran; not a migration-class change"). All consumers MUST treat it as a clean no-op equivalent to "proceed normally": emit no migration pair, write no edges, and surface NO degradation / install-`sg` prompt. Only `inconclusive` (detection could not run) carries the re-run-after-installing-`sg` signal.
 
 ---
 

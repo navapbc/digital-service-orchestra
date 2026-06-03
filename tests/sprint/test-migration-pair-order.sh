@@ -91,13 +91,20 @@ make_tmpdir() {
 # stub_dir: directory to put stubs in
 # ticket_show_response: what `dso ticket show <id>` prints to stdout
 # link_log: file to append `ticket link` args to (one call per line)
-# existing_links: space-separated list of "src rel tgt" already present
-#   (used for idempotent: ticket list-links returns these)
+# existing_links: space-separated list of "src:rel:tgt" already present.
+#   These are returned by the REAL `dso ticket deps <src>` subcommand (the helper
+#   reads existing depends_on edges via `deps`, NOT a fictional `list-links`).
+#   The deps stub emits the contract JSON shape: {"deps":[{"relation":..,"target_id":..}]}.
+#
+# IMPORTANT: the `link` stub logs EVERY invocation UNCONDITIONALLY — it performs
+# NO duplicate-suppression of its own. This makes the test measure the HELPER's
+# idempotency guard (which reads `deps`), not the stub's behavior. If the helper's
+# guard failed to fire, the duplicate link WOULD appear in the log.
 build_stub_bin() {
     local stub_dir="$1"          # directory for stub executables
     local ticket_show_body="$2"  # JSON body returned by `dso ticket show`
     local link_log="$3"          # file to append link invocations to
-    local existing_links="${4:-}" # existing "src rel tgt" for idempotent check
+    local existing_links="${4:-}" # existing "src:rel:tgt" returned by `ticket deps`
 
     # Stub dso script
     cat > "$stub_dir/dso" <<STUB_DSO
@@ -116,34 +123,28 @@ case "\$subcommand" in
                 echo '${ticket_show_body}'
                 ;;
             link)
-                # Log: <src> <relation> <tgt>
+                # Log EVERY invocation unconditionally — no stub-side dedup.
+                # Format: <src> <relation> <tgt>
                 src="\${1:-}"
                 tgt="\${2:-}"
                 rel="\${3:-}"
-                # Check for existing link (idempotent guard)
-                existing="${existing_links}"
-                match=0
-                for entry in \$existing; do
-                    if [[ "\$entry" == "\${src}:\${rel}:\${tgt}" ]]; then
-                        match=1
-                        break
-                    fi
-                done
-                if [[ \$match -eq 0 ]]; then
-                    echo "\$src \$rel \$tgt" >> "${link_log}"
-                fi
+                echo "\$src \$rel \$tgt" >> "${link_log}"
                 exit 0
                 ;;
-            list-links)
-                # Return existing links for idempotent check
+            deps)
+                # Emit the contract JSON: {"deps":[{"relation":..,"target_id":..}]}
+                # for edges whose source == the queried ticket id.
                 target_id="\${1:-}"
                 existing="${existing_links}"
+                entries=""
                 for entry in \$existing; do
                     IFS=':' read -r s r t <<< "\$entry"
                     if [[ "\$s" == "\$target_id" ]]; then
-                        echo "\$r \$t"
+                        [[ -n "\$entries" ]] && entries="\${entries},"
+                        entries="\${entries}{\"relation\":\"\$r\",\"target_id\":\"\$t\"}"
                     fi
                 done
+                echo "{\"ticket_id\":\"\$target_id\",\"deps\":[\$entries]}"
                 exit 0
                 ;;
             *)
@@ -499,7 +500,10 @@ JSON
 
     local stub_dir="$tmpdir/bin"
     mkdir -p "$stub_dir"
-    # Pre-populate: the depends_on edge already exists
+    # Pre-populate the REAL `ticket deps` query: the depends_on edge already
+    # exists on the dependent task (task-manual depends_on task-auto). The link
+    # stub does NO dedup of its own, so a duplicate would be logged if the
+    # HELPER's guard failed to read this edge via `ticket deps`.
     build_stub_bin "$stub_dir" "$story_json" "$link_log" "task-manual:depends_on:task-auto"
 
     local exit_code=0
@@ -510,7 +514,8 @@ JSON
 
     assert_eq "idempotent: helper exits 0 on re-run" "0" "$exit_code"
 
-    # Observable: no new link written (existing edge not duplicated)
+    # Observable: no new link written — the helper's guard read the existing
+    # depends_on edge via `ticket deps` and skipped the duplicate link call.
     local link_count
     link_count=$(wc -l < "$link_log" 2>/dev/null | tr -d ' ' || echo "0")
     assert_eq "idempotent: no duplicate edge written on re-run" "0" "$link_count"
