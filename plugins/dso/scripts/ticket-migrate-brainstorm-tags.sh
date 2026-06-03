@@ -67,14 +67,22 @@ if [ -f "$_TARGET/plugin.json" ]; then
     exit 0
 fi
 
-# ── Marker check (idempotency) ────────────────────────────────────────────────
-_MARKER_FILE="$_TARGET/.claude/.brainstorm-tag-migration-v2"
-if [ -f "$_MARKER_FILE" ]; then
-    exit 0
-fi
-
 # ── Ticket tracker location ───────────────────────────────────────────────────
 _TRACKER_DIR="$_TARGET/.tickets-tracker"
+
+# ── Marker check (idempotency) ────────────────────────────────────────────────
+# PRIMARY marker: stored in the shared tickets tracker branch (.migrations/)
+# so it persists across all worktrees (the old per-worktree path was gitignored
+# and absent in fresh worktrees, causing re-migration bug 01b9-3359-7df3-45cf).
+_MARKER_FILE="$_TRACKER_DIR/.migrations/brainstorm-tag-migration-v2"
+# COMPAT marker: honor the old per-worktree path as a secondary "already done"
+# signal so existing worktrees that have the old marker skip cleanly (one
+# no-op re-run on already-migrated stores at most, since the new shared marker
+# is written on the first run after the upgrade).
+_MARKER_FILE_COMPAT="$_TARGET/.claude/.brainstorm-tag-migration-v2"
+if [ -f "$_MARKER_FILE" ] || [ -f "$_MARKER_FILE_COMPAT" ]; then
+    exit 0
+fi
 
 if [ ! -d "$_TRACKER_DIR" ]; then
     echo "Error: ticket tracker not found at '$_TRACKER_DIR'" >&2
@@ -286,10 +294,15 @@ while IFS= read -r _line; do
     esac
 done <<< "$_migrate_output"
 
-# ── Write marker file (skipped in dry-run mode) ───────────────────────────────
+# ── Write shared marker file and commit to tracker branch (skipped in dry-run) ─
+# Writing to the tickets tracker branch (not .claude/, which is gitignored)
+# ensures the marker persists across all worktrees (bug 01b9-3359-7df3-45cf fix).
 if [ "$_DRYRUN" = "0" ]; then
     mkdir -p "$(dirname "$_MARKER_FILE")"
     touch "$_MARKER_FILE"
+    git -C "$_TRACKER_DIR" add ".migrations/brainstorm-tag-migration-v2" 2>/dev/null && \
+        git -C "$_TRACKER_DIR" commit -m "migration: write brainstorm-tag-migration-v2 marker" 2>/dev/null || \
+        git -C "$_TRACKER_DIR" reset 2>/dev/null || true
 fi
 
 exit 0
