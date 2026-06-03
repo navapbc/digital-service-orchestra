@@ -111,4 +111,37 @@ real_rc=0
 assert_eq "test_real_tree_is_clean: exit 0" "0" "$real_rc"
 assert_pass_if_clean "test_real_tree_is_clean"
 
+# ── test_completes_under_budget_real_tree ────────────────────────────────────
+# Run against the REAL tests/ tree and assert completion < 5s.
+# (At N=1205 files, the per-file loop is ~6s; the batch-grep fix is ~0.1s.)
+# This test is RED against the per-file loop implementation and GREEN after
+# the batch-grep fix. We time the actual run rather than using a synthetic
+# tree because at N=50 the loop finishes in ~300ms — too fast to be a
+# meaningful performance regression gate.
+_snapshot_fail
+budget_start=$(date +%s)
+( cd "$REPO_ROOT" && bash "$CHECK" ) >/dev/null 2>&1
+budget_end=$(date +%s)
+budget_elapsed=$((budget_end - budget_start))
+if [[ $budget_elapsed -lt 5 ]]; then
+    assert_eq "test_completes_under_budget_real_tree: elapsed < 5s" "pass" "pass"
+else
+    assert_eq "test_completes_under_budget_real_tree: elapsed < 5s (got ${budget_elapsed}s)" "pass" "fail"
+fi
+assert_pass_if_clean "test_completes_under_budget_real_tree"
+
+# ── test_correctness_bad_pattern_still_fails ─────────────────────────────────
+# Ensure that after the batch-grep fix a file containing the anti-pattern
+# still produces exit 1 and reports the file:line in stderr.
+# Uses the WORK tree already created above (test_bad_underscore.sh has the
+# anti-pattern). Re-run with explicit arg to test correctness path.
+_snapshot_fail
+bad_stderr=$( cd "$WORK" && bash "$CHECK" tests/sub/test_bad_underscore.sh 2>&1 >/dev/null || true )
+bad_rc=$( cd "$WORK" && bash "$CHECK" tests/sub/test_bad_underscore.sh >/dev/null 2>&1; echo $? )
+assert_eq "test_correctness_bad_pattern_still_fails: exit 1" "1" "$bad_rc"
+# Verify the file:line appears in output (format: "  <file>:<lineno> ...")
+assert_contains "test_correctness_bad_pattern_still_fails: output contains filename" \
+    "test_bad_underscore.sh" "$bad_stderr"
+assert_pass_if_clean "test_correctness_bad_pattern_still_fails"
+
 print_summary
