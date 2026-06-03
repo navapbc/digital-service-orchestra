@@ -114,15 +114,16 @@ if [[ -f "$SKILL_FILE" ]]; then
     assert_eq "test_init_skill_covers_unknown_stack_escalation" "present" "$actual"
 fi
 
-# test_init_skill_references_workflow_config
-# Must reference workflow-config.yaml as the output file.
+# test_init_skill_references_dso_config
+# Must reference .claude/dso-config.conf as the output file (bug 1ce9:
+# workflow-config.yaml was the legacy format; the flat conf is canonical).
 if [[ -f "$SKILL_FILE" ]]; then
-    if grep -q 'workflow-config.yaml' "$SKILL_FILE"; then
+    if grep -q '\.claude/dso-config\.conf' "$SKILL_FILE"; then
         actual="present"
     else
         actual="missing"
     fi
-    assert_eq "test_init_skill_references_workflow_config" "present" "$actual"
+    assert_eq "test_init_skill_references_dso_config" "present" "$actual"
 fi
 
 print_summary
