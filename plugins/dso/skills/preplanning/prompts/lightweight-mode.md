@@ -22,12 +22,16 @@ When `--lightweight` is passed:
        "epicId": "<epic-id>"
      }
      ```
-5. **If no overrides discovered**, proceed to write done definitions:
-   - Update the epic description with:
-     - **Done Definitions**: Observable outcomes from the epic description, formatted the same way as story-level done definitions (see Phase H Step 2).
-     - **Scope**: What's in and what's explicitly out.
-     - **Considerations**: Flags from the abbreviated risk scan.
-   - Write the preplanning context to the epic ticket as a comment (same schema as Phase H Step 6, but with an empty `stories` array) using Python subprocess to avoid ARG_MAX shell argument limits. This write is an optional cache — if it fails, log a warning and continue; do not abort the phase:
+5. **If no overrides discovered**, write the preplanning context as a comment on the epic ticket:
+
+   > **Note**: lightweight mode does NOT modify the epic description. The `PREPLANNING_CONTEXT_LIGHTWEIGHT:` comment below is the sole structured output — it carries Done Definitions, Scope, and Considerations. `/dso:implementation-plan` reads this comment directly; the epic description is left intact to preserve brainstorm-authored content (Context, Approach, Success Criteria, Scenario Analysis, etc.).
+
+   The comment payload must include:
+   - **doneDefinitions**: Observable outcomes from the epic description, formatted the same way as story-level done definitions (see Phase H Step 2).
+   - **scope**: What's in and what's explicitly out.
+   - **considerations**: Flags from the abbreviated risk scan.
+
+   Write the preplanning context to the epic ticket as a comment (same schema as Phase H Step 6, but with an empty `stories` array) using Python subprocess to avoid ARG_MAX shell argument limits. This write is an optional cache — if it fails, log a warning and continue; do not abort the phase:
      ```python
      import json, subprocess
      payload = json.dumps(<context-dict>, separators=(",",":"))

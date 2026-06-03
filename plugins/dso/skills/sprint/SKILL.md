@@ -400,7 +400,7 @@ When `SPRINT_MODE=ci-pr`: per-story PR mechanisms are active. Proceed with norma
 #### Step 1: Check for Existing Children (/dso:sprint)
 
 ```bash
-OPEN=$({ .claude/scripts/dso ticket list --parent=<epic-id> --status=open 2>/dev/null; .claude/scripts/dso ticket list --parent=<epic-id> --status=in_progress 2>/dev/null; } | grep -c '"ticket_id"' || echo 0)
+OPEN=$(.claude/scripts/dso ticket list --parent=<epic-id> --status=open,in_progress 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo 0)
 ALL=$(.claude/scripts/dso ticket list --parent=<epic-id> --include-archived --exclude-deleted 2>/dev/null | grep -c '"ticket_id"' || echo 0)
 ```
 
