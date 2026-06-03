@@ -599,6 +599,21 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+## Migration
+
+### `migration.call_site_threshold`
+
+| | |
+|---|---|
+| **Description** | Sweep-classification call-site repetition threshold. When a story's targeted symbol repeats at or above this many call sites, `/dso:implementation-plan` classifies the change as `migration-class:sweep`. Read by `get_call_site_threshold()` in `hooks/lib/planning-config.sh` and the migration-class detection step. |
+| **Accepted values** | Integer >= 1 |
+| **Default** | `3` |
+| **Minimum** | `1` (values < 1 are rejected at load time, not silently clamped) |
+| **Rejection behavior** | `get_call_site_threshold()` exits non-zero and writes to stderr: `migration.call_site_threshold must be >= 1 (got: <value>)`. An absent or empty value is treated as the default (3). |
+| **Used by** | `/dso:implementation-plan` (migration-class detection), `scripts/implementation-plan/migration-class-detect.sh`, `hooks/lib/planning-config.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
+
+---
+
 ### `project_closure_hooks`
 
 | | |
