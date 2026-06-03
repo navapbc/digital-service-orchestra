@@ -81,6 +81,28 @@ Review #3 verdict: **the bounded E1 design is sound; no architectural blocker.**
 - **N-1 (retry):** bounded retry wraps the **outer** invariant invocation in-script (ledger persists in workspace → no budget re-spend), not per-`gh api` call.
 - **New experiments:** **E15** (clean-merge + ticket-only + mixed ticket+code all in one PR2 range — proves the ordering & empty-set=not-exempt); **E16** (post-rollback, `merge-to-main-pr.sh`'s `783ce127a1`+`78163b1407` behavior survives).
 
+## 2.9 Completeness audit (grounding review vs live codebase) — additions before building
+
+Verified accurate: rollback is clean (only GitHub auto-merge + pre-existing `mergeStateStatus` retained); ADR-0019 + proposal carry SUPERSEDED banners; `review-coverage-invariant`/`dangling-references` ARE warn-mode and NOT in `required-checks.txt`; d205 (Node-20, ~2-week deadline) intact. Missing items to add:
+
+**Parity fix (CRITICAL):** A-5 must **remove `merge-pipeline-checks` from `required-checks.txt` AND the live ruleset** when adding `review-gate` — not just the ruleset. The live main ruleset (15629023) required set == the 12 `required-checks.txt` lines (incl. `merge-pipeline-checks`); `ruleset-design-invariants` enforces that parity, so dropping it from one side only would wedge. Swap = `merge-pipeline-checks` OUT / `review-gate` IN on **both**.
+
+**Mirror the ticket exemption to ALL coverage-lib consumers:** the `.tickets-tracker/**` diff-scoped exemption (A-4.5) must be mirrored in **`verify-session-provenance.sh`** (G3; has `_vsp_is_clean_merge`, no ticket exemption) **and `fp-recovery-audit-sweep.sh`** — else G3/the audit sweep diverge from the gate (wedge or mis-audit ticket-only SHAs). <!-- # tickets-boundary-ok -->
+
+**`ruleset-design-invariants` test:** it does NOT currently pin the full required set (only I6=`check-staged-head`, I2=sub-PR check). A-6 **adds** a new `review-gate ∈ required` invariant (and the `merge-pipeline-checks` parity change) — it's an add, not an edit of an existing set assertion. Update its contract `plugins/dso/docs/contracts/review-defenses.md` in lockstep (load-bearing — the invariant reads against it).
+
+**`required-checks.txt` consumer sweep (A-5/A-6):** beyond `provision-ruleset.sh`/`validate-required-checks.sh`, also `promote-ruleset-required.sh`, `update-required-checks-manifest.sh`, `github-bootstrap.sh`, and tests `test-promote-ruleset-required.sh`, `test-provision-ruleset.sh`, `test-ruleset-provisioner-roundtrip.sh`, `test-github-bootstrap.sh`, `test-ci-enforcement-e2e.sh` — any that snapshot the list need updating.
+
+**A-4.6 local-pipeline impact (expand):** tightening the allowlist changes **local** commit behavior (docs-only commits now require local review via `pre-commit-review-gate.sh` / COMMIT-WORKFLOW.md Step 0.5) — a real contributor-facing change for this repo's own doc edits. Consumers beyond the CI `changes` job: `pre-commit-review-gate.sh`, `pre-commit-test-gate.sh`, `pre-commit-ticket-gate.sh`, `compute-diff-hash.sh`, `review-complexity-classifier.sh`, `assert-review-liveness.sh`, `check-allowlist-correctness.sh`. Re-baseline tests: `test-review-gate-allowlist.sh`, `test-behavioral-equivalence-allowlist.sh`, `test-skip-review-check.sh`, `test-review-gate-config-doc-dirs.sh`, `test-compute-diff-hash-tickets*.sh`, and the `check-allowlist-correctness.sh` probe set.
+
+**A-6 docs list (expand) — the doc set that goes stale:** add `WORKFLOW-STABILITY-CHECKS.md` (warn→enforce go-live + the new `review-gate`/subsumption), `contracts/review-defenses.md` (load-bearing for `ruleset-design-invariants`), `runbooks/rulesets-rollback.md`, `HOOKS-REFERENCE.md` + `CONFIGURATION-REFERENCE.md` (allowlist semantics), `workflows/COMMIT-WORKFLOW.md` Step 0.5 (local gate), `INSTALL.md` (Goal-4 / go-live + the `merge-pipeline-checks` ownership note), and `CLAUDE.md` (required-checks/go-live story). `CI-INTEGRATION.md` already named.
+
+**Sprint preflight review-gate awareness (A-6):** `check-ruleset-preflight.sh` (sprint Phase A, ci-pr) asserts the main-ruleset checks; teach it about `review-gate` so a sprint validates against the post-Option-A ruleset. Confirmed clean of MQ residue; debug-everything skill also clean.
+
+**A-7 PR1-title test:** `test-merge-to-main-pr.sh` asserts `gh pr merge` argv; the PR1-title-format change is net-new coverage (only PR2 title uses `_derive_pr_title` today) — add a PR1-title argv assertion; may touch `test-merge-to-main-pr-trailer-injection.sh`.
+
+> Also fix ADR-0020 V0.6 row to name `merge-pipeline-checks` in the live required set and state the OUT/IN swap.
+
 ## 3. Phase 0 — experimental verification
 
 **Pre-flight V0.\* (DONE — results in ADR-0020):** V0.1 ✅, V0.2 ✅, V0.3a ❌(hole confirmed), V0.3b ✅, V0.3c ✅(empty-range only — see E8), V0.5 ✅, V0.5b ✅, V0.6 ✅, V0.7 ✅, V0.8 ✅, V0.4 ⚠️(partial).
