@@ -33,7 +33,7 @@ TICKET_CMD="${TICKET_CMD:-${_BYPASS_SCRIPT_DIR%/*}/ticket}"
 # ── Resolve repo root ─────────────────────────────────────────────────────────
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [[ -z "$REPO_ROOT" ]]; then
-    echo "bypass-surveillance: WARN: could not resolve REPO_ROOT — skipping sweep" >&2
+    echo "WARNING: bypass-surveillance skipped — could not resolve REPO_ROOT (git unavailable)" >&2
     exit 0
 fi
 

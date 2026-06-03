@@ -48,12 +48,17 @@ _write_log() {
 }
 
 # Create a stub ticket CLI that succeeds (exit 0) and prints a fake ticket ID.
+# Optionally writes all args to a capture file for inspection (if STUB_CAPTURE_FILE is set).
 _make_stub_ticket_success() {
     local dir="$1"
     local stub="$dir/ticket"
     cat > "$stub" <<'STUB_EOF'
 #!/usr/bin/env bash
 # Stub ticket CLI that succeeds.
+# If STUB_CAPTURE_FILE is set, write all args to it for inspection.
+if [[ -n "${STUB_CAPTURE_FILE:-}" ]]; then
+    printf '%s\n' "$@" >> "$STUB_CAPTURE_FILE"
+fi
 printf 'BUG-STUB-001\n'
 exit 0
 STUB_EOF
@@ -214,8 +219,10 @@ rm -rf "$_td"
 
 # ── Test (e): reason sanitization ─────────────────────────────────────────────
 # Verify that control characters are stripped and reasons are capped at 200 chars.
+# Uses a capture-enabled stub so we can inspect the actual description passed to ticket.
 _td=$(_make_test_env)
 _stub=$(_make_stub_ticket_success "$_td")
+_capture_file=$(mktemp "${TMPDIR:-/tmp}/bypass-capture.XXXXXX")
 
 # Log with control chars and a very long reason (>200 chars)
 _long_reason="$(python3 -c "print('A'*300, end='')")"
@@ -228,22 +235,64 @@ _write_log "$_td" "sprint-merge-only-bypass-003.log" "normal reason" > /dev/null
 _run \
     "DSO_ARTIFACTS_DIR=${_td}" \
     "TICKET_CMD=${_stub}" \
-    "BYPASS_ALERT_THRESHOLD=3"
+    "BYPASS_ALERT_THRESHOLD=3" \
+    "STUB_CAPTURE_FILE=${_capture_file}"
 
 assert_eq "sanitize_exit_0" "0" "$_exit"
 
-# Check that the long reason was truncated (ticket output shouldn't have 300 A's in a row).
-# The ticket description goes to the stub which ignores it, but we verify the script
-# didn't crash and the warning was emitted cleanly.
+# Warning must be emitted to stderr.
 _warn_count=$(echo "$_stderr" | grep -c "INTEGRITY WARNING" || true)
 assert_eq "sanitize_warning_emitted" "1" "$_warn_count"
 
-# Verify no raw control characters leak into stderr output.
-_ctrl_leak=$(echo "$_stderr" | grep -cP '[\x00-\x1f]' 2>/dev/null || true)
-# Note: newlines are expected (\n is 0x0a); we check for other control chars specifically.
+# Verify no raw control characters (non-newline) leak into stderr output.
 _non_nl_ctrl=$(printf '%s' "$_stderr" | tr -d '\n' | grep -cP '[\x00-\x1f]' 2>/dev/null || echo "0")
 assert_eq "sanitize_no_control_chars_in_stderr" "0" "$_non_nl_ctrl"
 
+# Assert ACTUAL sanitized output: the captured ticket args must NOT contain 300 A's
+# (the long reason must be truncated to 200 chars before passing to ticket).
+_captured=$(cat "$_capture_file" 2>/dev/null || true)
+_has_300_A=$(printf '%s' "$_captured" | grep -cP 'A{201,}' 2>/dev/null || echo "0")
+assert_eq "sanitize_long_reason_truncated_to_200" "0" "$_has_300_A"
+
+# Assert the ctrl-char reason has its control chars stripped in the captured args.
+_has_ctrl_chars=$(printf '%s' "$_captured" | grep -cP '[\x01-\x1f]' 2>/dev/null || echo "0")
+assert_eq "sanitize_ctrl_chars_stripped_in_ticket_args" "0" "$_has_ctrl_chars"
+
 rm -rf "$_td"
+rm -f "$_capture_file"
+
+# ── Test (f): REPO_ROOT-resolution failure ─────────────────────────────────────
+# Simulate a non-git directory by running the script with a fake git that fails rev-parse.
+# Verifies: (a) exit 0 (non-fatal), (b) WARNING emitted to stderr, (c) NOT silent.
+_td=$(_make_test_env)
+_stub=$(_make_stub_ticket_success "$_td")
+
+# Create a fake 'git' that always exits non-zero (simulating no-git environment).
+_fake_git_dir=$(mktemp -d "${TMPDIR:-/tmp}/bypass-fake-git.XXXXXX")
+cat > "$_fake_git_dir/git" <<'GIT_STUB_EOF'
+#!/usr/bin/env bash
+# Fake git: fail every command (simulates git unavailable / non-git dir).
+exit 128
+GIT_STUB_EOF
+chmod +x "$_fake_git_dir/git"
+
+# Run with the fake git first on PATH so rev-parse fails.
+_run \
+    "PATH=${_fake_git_dir}:${PATH}" \
+    "DSO_ARTIFACTS_DIR=${_td}" \
+    "TICKET_CMD=${_stub}" \
+    "BYPASS_ALERT_THRESHOLD=3"
+
+# Must exit 0 (non-fatal — bypass-surveillance is advisory, not blocking).
+assert_eq "repo_root_fail_exit_0" "0" "$_exit"
+
+# Must emit the WARNING to stderr — the skip must NOT be silent.
+_warn_count=$(echo "$_stderr" | grep -c "WARNING.*bypass-surveillance skipped.*REPO_ROOT" || true)
+assert_eq "repo_root_fail_warning_emitted" "1" "$_warn_count"
+
+# stdout must be empty — no side effects.
+assert_eq "repo_root_fail_stdout_empty" "" "$_stdout"
+
+rm -rf "$_td" "$_fake_git_dir"
 
 print_summary

@@ -36,11 +36,14 @@ except ImportError:
 _SCHEMA_REQUIRED_KEYS = {"required_fields", "tag_vocabulary"}
 
 
-def _validate_schema_structure(schema: dict, schema_path: Path) -> bool:
+def _schema_structure_is_valid(schema: dict, schema_path: Path) -> bool:
     """Return True if schema has at least one of the expected top-level keys.
 
-    Emits a warning to stderr (does not exit) when the schema appears malformed
-    so callers can decide whether to fall back to the top-level schema or abort.
+    Advisory check only: emits a warning to stderr and returns False when the
+    schema appears malformed.  Does NOT exit — the caller is responsible for
+    deciding whether to fall back to a higher-priority schema or abort.  This
+    warn-and-fallback contract is intentional: a missing sub-directory schema
+    should not abort the entire corpus validation run.
     """
     if not _SCHEMA_REQUIRED_KEYS.intersection(schema.keys()):
         print(
@@ -187,7 +190,7 @@ def resolve_schema(
     subdir_schema_path = parent / "_schema.yaml"
     if subdir_schema_path.exists() and parent != corpus_dir:
         resolved = load_schema(subdir_schema_path)
-        if _validate_schema_structure(resolved, subdir_schema_path):
+        if _schema_structure_is_valid(resolved, subdir_schema_path):
             schema_cache[parent] = resolved
             return resolved
         # Malformed subdir schema — emit warning (already done) and fall through
@@ -202,7 +205,7 @@ def resolve_schema(
     sibling_schema_path = corpus_dir / f"_schema-{parent.name}.yaml"
     if sibling_schema_path.exists():
         resolved = load_schema(sibling_schema_path)
-        if _validate_schema_structure(resolved, sibling_schema_path):
+        if _schema_structure_is_valid(resolved, sibling_schema_path):
             schema_cache[parent] = resolved
             return resolved
         # Malformed sibling schema — fall through to top-level.
