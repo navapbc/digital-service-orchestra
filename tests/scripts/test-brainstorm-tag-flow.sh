@@ -163,8 +163,11 @@ fi
 # ── Test 2: migration stdout contains UNMATCHED for 2 non-PIL epics ──────────
 echo "Test 2: migration stdout contains UNMATCHED lines for non-PIL epics"
 test_migration_unmatched_lines() {
-    # Remove marker so migration runs again
+    # Remove markers so migration runs again (bug 01b9 moved the primary
+    # marker to the shared tracker branch; the legacy per-worktree path is
+    # still honored for compat, so both must be cleared to force a re-run)
     rm -f "$TDIR/.claude/.brainstorm-tag-migration-v2"
+    rm -f "$TRACKER/.migrations/brainstorm-tag-migration-v2"
     # Reset brainstorm:complete tags (idempotent — will skip already-tagged)
     local out
     out=$(bash "$MIGRATION" --target "$TDIR" 2>/dev/null)
