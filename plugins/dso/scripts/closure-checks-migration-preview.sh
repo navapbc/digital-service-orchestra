@@ -170,7 +170,7 @@ classify_items() {
 import json, os, sys, re
 
 epic_json_path = sys.argv[1]
-with open(epic_json_path) as f:
+with open(epic_json_path, encoding="utf-8") as f:
     epics = json.load(f)
 
 # Dispatch haiku classifier via stdlib urllib (avoids anthropic SDK
@@ -185,6 +185,7 @@ if not API_KEY:
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
+CLASSIFIER_MODEL = os.environ.get("DSO_CLASSIFIER_MODEL", "claude-haiku-4-5-20251001")
 
 # Extract items from each epic's ## Success Criteria, ## Done Definitions,
 # and ## Acceptance Criteria sections. Returns list of strings.
@@ -227,7 +228,7 @@ Item: '''
 def classify_one(item_text):
     try:
         body = json.dumps({
-            "model": "claude-haiku-4-5-20251001",
+            "model": CLASSIFIER_MODEL,
             "max_tokens": 10,
             "messages": [{"role": "user", "content": CLASSIFIER_PROMPT + item_text}],
         }).encode("utf-8")

@@ -67,6 +67,13 @@ If and only if investigation reveals multiple independent root causes, split fin
 
 Only split when the evidence is clear that two or more separate defects exist. When in doubt, prefer a unified root cause hypothesis.
 
+**Attribution basis (required for every split track):** Each track resulting from a split must carry an `attribution_basis` field that classifies how the symptom-to-track assignment was determined:
+
+- `attribution_basis: evidenced` — cite concrete, per-file/component evidence: a CI run URL, the exact failing test name observed in that run, or the commit SHA introducing the regression for this specific file or component. The evidence must be specific to this track, not inherited from the umbrella title or cluster description.
+- `attribution_basis: speculative` — explicitly state that no per-file/component CI evidence exists and provide the rationale for why the symptom is suspected to belong to this track.
+
+A track whose only basis is an umbrella title mention or a "DISPROVED → separate investigation needed" ruling is `speculative`. Speculative tracks MUST NOT be scored beyond BASIC tier until concrete evidence is obtained.
+
 ### Step 4: Empirical Validation
 
 Before proposing any fix, empirically validate your assumptions about tool, API, or system behavior. Classify each hypothesis as **empirical-static** (about artifact content) or **empirical-dynamic** (about runtime behavior).
@@ -121,6 +128,9 @@ RESULTS:
   - ROOT_CAUSE: <root cause for track 1>
     confidence: high | medium | low
     tickets: [<ticket_ids for this track>]
+    attribution_basis: evidenced | speculative
+    attribution_evidence: <CI run URL, test name + run, or commit SHA — required when evidenced; empty string when speculative>
+    attribution_rationale: <why the symptom is suspected to belong to this track — required when speculative; empty string when evidenced>
     proposed_fixes:
       - description: <what the fix does>
         risk: high | medium | low
@@ -139,6 +149,9 @@ RESULTS:
   - ROOT_CAUSE: <root cause for track 2>
     confidence: high | medium | low
     tickets: [<ticket_ids for this track>]
+    attribution_basis: evidenced | speculative
+    attribution_evidence: <CI run URL, test name + run, or commit SHA — required when evidenced; empty string when speculative>
+    attribution_rationale: <why the symptom is suspected to belong to this track — required when speculative; empty string when evidenced>
     proposed_fixes:
       - description: <what the fix does>
         risk: high | medium | low
@@ -168,6 +181,9 @@ Each RESULT object conforms to the Investigation RESULT Report Schema from SKILL
 | `proposed_fixes` | One or more proposed fixes that directly address the ROOT_CAUSE. |
 | `prior_attempts` | Prior fix attempts from ticket context. Report so the discovery file protocol can track attempt history. |
 | `hypothesis_tests` | Any hypothesis tests run during investigation. Empty array if none were run. |
+| `attribution_basis` | (Split tracks only) `evidenced` or `speculative`. Classifies how the symptom-to-track assignment was determined. |
+| `attribution_evidence` | (Split tracks only) CI run URL, failing test name + run, or commit SHA. Required when `evidenced`; empty string when `speculative`. |
+| `attribution_rationale` | (Split tracks only) Rationale for why the symptom is suspected to belong to this track. Required when `speculative`; empty string when `evidenced`. |
 | `alternative_fixes` | (INTERMEDIATE+ only) Alternative approaches considered beyond the primary proposed_fixes. |
 | `tradeoffs_considered` | (INTERMEDIATE+ only) Tradeoffs between the proposed fixes. |
 | `recommendation` | (INTERMEDIATE+ only) Which fix is recommended and why. |

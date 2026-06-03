@@ -194,9 +194,9 @@ SNAPSHOT_FILE = os.environ["SNAPSHOT_FILE"]
 APPLY_FROM_PLAN = os.environ["APPLY_FROM_PLAN"]
 DECISIONS_FILE = os.environ["DECISIONS_FILE"]
 
-with open(APPLY_FROM_PLAN) as f:
+with open(APPLY_FROM_PLAN, encoding="utf-8") as f:
     plan = json.load(f)
-with open(DECISIONS_FILE) as f:
+with open(DECISIONS_FILE, encoding="utf-8") as f:
     decisions_obj = json.load(f)
 
 # Index decisions by item index. Keep full decision dicts so override_target
@@ -205,8 +205,20 @@ with open(DECISIONS_FILE) as f:
 # proposed_target; reject/defer keep the item in its original section.
 dec_by_index = {d["index"]: d for d in decisions_obj.get("decisions", [])}
 
+# Validate that the decisions file covers every non-auto item in the plan.
+# A count mismatch means the orchestrator produced a stale or truncated
+# decisions file; silently deferring missing items would cause data loss.
+non_auto_items = [it for it in plan["items"] if not it.get("auto_accepted")]
+if len(non_auto_items) != len(decisions_obj.get("decisions", [])):
+    print(
+        f"ERROR: decisions count mismatch: expected {len(non_auto_items)}, "
+        f"got {len(decisions_obj.get('decisions', []))}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 # Load snapshot description for section-move regex
-with open(SNAPSHOT_FILE) as f:
+with open(SNAPSHOT_FILE, encoding="utf-8") as f:
     raw = f.read()
 lines = raw.split("\n")
 if lines and lines[0].startswith("# snapshot_timestamp:"):
@@ -267,7 +279,7 @@ audit = {
     "ticket_id": TICKET_ID,
     "items": audit_items,
 }
-with open(AUDIT_JSON_FILE, "w") as f:
+with open(AUDIT_JSON_FILE, "w", encoding="utf-8") as f:
     json.dump(audit, f, indent=2)
 
 # Build new description if there are moves to apply (and not dry-run)
@@ -294,7 +306,7 @@ if moves and not DRYRUN:
             additions = "\n\n## Closure Checks\n\n" + "\n".join(f"- {it}" for it in cc_items_to_add) + "\n"
             new_desc = new_desc + additions
 
-    with open(NEW_DESC_FILE, "w") as f:
+    with open(NEW_DESC_FILE, "w", encoding="utf-8") as f:
         f.write(new_desc)
 
 print(f"BUDGET_CONSUMED: {sum(1 for d in dec_by_index.values())}")
@@ -337,7 +349,7 @@ NEW_DESC_FILE = os.environ["NEW_DESC_FILE"]
 # Read description from snapshot
 import subprocess
 SNAPSHOT_FILE = os.environ.get("SNAPSHOT_FILE") or f"/tmp/migrate-closure-checks-classify.{os.environ.get('SESSION_ID','')}.snapshot/{TICKET_ID}.txt"
-with open(SNAPSHOT_FILE) as f:
+with open(SNAPSHOT_FILE, encoding="utf-8") as f:
     raw = f.read()
 # Strip the snapshot header (first two lines: "# snapshot_timestamp: ..." + blank)
 lines = raw.split("\n")
@@ -404,7 +416,7 @@ if not items_extracted:
         "ticket_id": TICKET_ID,
         "items": [],
     }
-    with open(AUDIT_JSON_FILE, "w") as f:
+    with open(AUDIT_JSON_FILE, "w", encoding="utf-8") as f:
         json.dump(audit, f, indent=2)
     print(f"BUDGET_CONSUMED: 0")
     sys.exit(0)
@@ -422,6 +434,7 @@ if not API_KEY:
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
+CLASSIFIER_MODEL = os.environ.get("DSO_CLASSIFIER_MODEL", "claude-haiku-4-5-20251001")
 
 CLASSIFIER_PROMPT = '''You are classifying one item from a planning ticket. The item is either:
 - end-state: a durable property of the system that could be false before the work and true only after this specific work. Phrased as ongoing system behavior.
@@ -446,7 +459,7 @@ def classify_one(item_text):
     for attempt in range(2):
         try:
             body = json.dumps({
-                "model": "claude-haiku-4-5-20251001",
+                "model": CLASSIFIER_MODEL,
                 "max_tokens": 200,
                 "messages": [{"role": "user", "content": CLASSIFIER_PROMPT + item_text}],
             }).encode("utf-8")
@@ -656,7 +669,7 @@ if PLAN_OUTPUT:
         "migration_run_id": MIGRATION_RUN_ID,
         "items": plan_items,
     }
-    with open(PLAN_OUTPUT, "w") as f:
+    with open(PLAN_OUTPUT, "w", encoding="utf-8") as f:
         json.dump(plan, f, indent=2)
     budget_consumed = REMAINING_BUDGET - items_remaining_budget
     print(f"PLAN_WRITTEN: {PLAN_OUTPUT} items={len(plan_items)} needs_ack={sum(1 for it in plan_items if not it.get('auto_accepted'))}")
@@ -674,7 +687,7 @@ audit = {
     "ticket_id": TICKET_ID,
     "items": audit_items,
 }
-with open(AUDIT_JSON_FILE, "w") as f:
+with open(AUDIT_JSON_FILE, "w", encoding="utf-8") as f:
     json.dump(audit, f, indent=2)
 
 # Build new description if there are moves to apply (and not dry-run)
@@ -709,7 +722,7 @@ if moves and not DRYRUN:
             additions = "\n\n## Closure Checks\n\n" + "\n".join(f"- {it}" for it in cc_items_to_add) + "\n"
             new_desc = new_desc + additions
 
-    with open(NEW_DESC_FILE, "w") as f:
+    with open(NEW_DESC_FILE, "w", encoding="utf-8") as f:
         f.write(new_desc)
 
 budget_consumed = REMAINING_BUDGET - items_remaining_budget
