@@ -44,12 +44,5 @@ jobs:
           # fail-closed: a precondition failure MUST block rather than silently
           # green-stamp a candidate with an unresolved symbol reference. Default
           # is warn so live CI behavior is unchanged.
-          if [ "$rc" -eq 78 ]; then
-            if [ "${DSO_DANGLING_MODE:-warn}" = "enforce" ]; then
-              echo "::error::dangling-references precondition not met — fail-closed (enforce mode)"
-              exit "$rc"
-            fi
-            echo "::warning::dangling-references precondition not met — not enforced this run (warn mode)"
-            exit 0
-          fi
-          exit $rc
+          bash plugins/dso/scripts/ci/precondition-gate.sh \
+            "$rc" "${DSO_DANGLING_MODE:-warn}" "dangling-references"
