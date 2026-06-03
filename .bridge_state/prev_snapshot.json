@@ -184761,15 +184761,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "read-config.sh: documents and implements YAML config parsing -> YAML config support was removed in flat-config migration (stale docs + dead code)"
@@ -207837,7 +207837,7 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot silently regress."
+    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot sile [truncated]"
   },
   "DIG-5147": {
     "assignee": null,
@@ -237711,342 +237711,6 @@
         {
           "content": [
             {
-              "text": "As a maintainer, I want behavior-bearing instruction surfaces (docs/**, skills, behavior-driving config) to be reviewable so that an un-reviewed instruction surface \u2014 an attack vector in an agentic codebase \u2014 cannot ride to main via the allowlist.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "Plan refs: A-4.6 (allowlist tightening); \u00a72.9/\u00a72.10 (two-file edit). Contributor-facing change (this repo's own doc edits now need review) \u2014 ship carefully and communicate.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "DONE DEFINITION:",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD1: review-gate-allowlist.conf is tightened \u2014 remove docs/**, skills, .claude/docs/**, .semgrep.yml, .pre-commit-config.yaml, .claude/scripts/** from the skip set; KEEP only genuinely-inert artifacts (images, lockfiles, generated) AND the event-sourced ticket store (.tickets-tracker tree). (SC5)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD2: TWO-FILE edit \u2014 also strip the hardcoded :!docs/** and :!.claude/docs/** from compute-diff-hash.sh _FALLBACK_PATHSPECS (the degradation else-branch) so the degraded path matches the tightened normal path. (SC5)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD3: assert-review-liveness.sh skip-stub acceptance still fail-closes for the newly-reviewable docs/config paths (TS-1 revalidation). (SC2/SC5)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD4: re-baseline the affected tests (test-review-gate-allowlist.sh, test-behavioral-equivalence-allowlist.sh, test-skip-review-check.sh, test-review-gate-config-doc-dirs.sh, test-compute-diff-hash-tickets*.sh, check-allowlist-correctness.sh probe set).",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "LIVE VERIFICATION + EXPERIMENTS:",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- E11: a docs-only PR now yields code_changed=true (requires review); an image/lockfile-only PR still skips.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- E-compute-hash: feed an identical file list incl docs/foo.md to skip-review-check.sh AND compute-diff-hash.sh -> both classify docs as reviewable (consumers in sync).",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- Live: open a throwaway docs-only PR2 -> review actually runs (not skip-to-success).",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "COURSE-CORRECTION TRIGGER: if tightening makes the project's own routine doc/config edits painfully slow or wedges legitimate doc PRs, reassess the allowlist scope (keep genuinely-inert patterns) before story 7 \u2014 do not ship a contributor-hostile gate.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "Maps to SC5. DEPENDS ON story 5 (review-gate must exist to enforce the tightened classification).",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        }
-      ],
-      "type": "doc",
-      "version": 1
-    },
-    "issuetype": {
-      "avatarId": 10315,
-      "description": "Stories track functionality or features expressed as user goals.",
-      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
-      "hierarchyLevel": 0,
-      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
-      "id": "17290",
-      "name": "Story",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
-      "subtask": false
-    },
-    "labels": [
-      "dso-id:0cd7-369b-06c4-4889",
-      "option-a"
-    ],
-    "priority": {
-      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
-      "id": "2",
-      "name": "High",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
-    },
-    "status": {
-      "description": "",
-      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
-      "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
-      }
-    },
-    "summary": "Build the fail-closed review-gate summary check + shared ticket-exemption helper"
-  },
-  "DIG-5259": {
-    "assignee": null,
-    "description": {
-      "content": [
-        {
-          "content": [
-            {
-              "text": "As a maintainer, I want a structurally-accurate (ast-grep / sg) dangling-reference matcher with a measured false-positive rate so that enforcing dangling-references does not wedge legitimate promotions on comment/string false matches.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "Plan refs: A-4 (CF-8); the matcher is git-grep today (check-dangling-references.sh:20-21 \u2014 confirmed greenfield). E7 is BLOCKING for the enforce-flip. THIS IS THE EPIC'S ONE GENUINE REBUILD-RISK \u2014 front-loaded so we learn the answer fast.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "DONE DEFINITION:",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD1: sg-based reference matcher (guarded git-grep fallback when sg absent), reference-side scans .md/.yml/Makefile/.txt, short-symbol guard. (SC1)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD2: a 20-PR ground-truth set is assembled and the matcher's FP/FN rate measured against it. (SC1)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD3: GO/NO-GO recorded: FP rate 0 (or acceptable) -> dangling-references is enforce-ready; OTHERWISE the documented FALLBACK applies (ship review-gate with coverage-invariant ENFORCED and dangling-references ADVISORY) and the epic proceeds with reduced scope, not blocked.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD4: TDD for the matcher + the fallback wiring.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "LIVE VERIFICATION + EXPERIMENTS:",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- E7: run the matcher over the 20-PR ground-truth set; record FP/FN. Also confirm its exit-78 enforce path blocks (mirror of story 1, V0.4).",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "COURSE-CORRECTION TRIGGER (the key fast-feedback gate): if sg cannot reach an acceptable FP rate, DO NOT block the epic \u2014 invoke the fallback (dangling advisory) and record the decision in ADR-0020. This story exists to surface that fork EARLY, before story 5/7 assume an enforce-ready dangling check.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "Maps to SC1. Independent of stories 1/2/3; pull early.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        }
-      ],
-      "type": "doc",
-      "version": 1
-    },
-    "issuetype": {
-      "avatarId": 10315,
-      "description": "Stories track functionality or features expressed as user goals.",
-      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
-      "hierarchyLevel": 0,
-      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
-      "id": "17290",
-      "name": "Story",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
-      "subtask": false
-    },
-    "labels": [
-      "dso-id:2730-a5e2-600b-44b3",
-      "option-a"
-    ],
-    "priority": {
-      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
-      "id": "2",
-      "name": "High",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
-    },
-    "status": {
-      "description": "",
-      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
-      "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
-      }
-    },
-    "summary": "Admin-exemption ledger for review-coverage-invariant (S-11)"
-  },
-  "DIG-5260": {
-    "assignee": null,
-    "description": {
-      "content": [
-        {
-          "content": [
-            {
               "text": "As a maintainer, I want a single always-runs, fail-closed `review-gate` summary check on every base==main PR so that the conjunction of independently-skippable required checks is replaced by one gate that cannot report success without per-SHA review coverage.",
               "type": "text"
             }
@@ -238237,7 +237901,7 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:29e7-c612-706d-42bc",
+      "dso-id:0cd7-369b-06c4-4889",
       "option-a"
     ],
     "priority": {
@@ -238260,9 +237924,504 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
+    "summary": "Build the fail-closed review-gate summary check + shared ticket-exemption helper"
+  },
+  "DIG-5259": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want an admin-exemption ledger for review-coverage-invariant so that a legitimate admin bypass does not wedge all subsequent PRs once the gate is enforced.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-2 (S-11). Ship independently; warn mode.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1: a reviewed-equivalent exemption ledger records admin-bypassed SHAs with audit metadata, HMAC-signed (fabrication-proof \u2014 never a self-attested trailer; the v4 fabricated-trailer lesson). (SC1/SC4)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2: coverage-invariant consults the ledger: an HMAC-valid exempt SHA is treated as covered; an invalid/forged entry is NOT. (SC4)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3: TDD: bypass -> exempt entry -> next PR passes; forged entry -> still fail-closed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION + EXPERIMENTS:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Live: perform an admin bypass on a throwaway PR2; confirm the next PR over the same base passes (does not wedge on the bypassed SHA).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Negative: hand-craft an entry with a bad HMAC -> coverage-invariant still fails-closed on that SHA.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER: if the ledger's HMAC verification can be bypassed or if a bypassed SHA still wedges the next PR, STOP \u2014 the exemption model is unsound; do not enforce until fixed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC1, SC4. Independent of stories 1/2/4.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:2730-a5e2-600b-44b3",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "statusCategory": {
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+      }
+    },
+    "summary": "Admin-exemption ledger for review-coverage-invariant (S-11)"
+  },
+  "DIG-5260": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want a structurally-accurate (ast-grep / sg) dangling-reference matcher with a measured false-positive rate so that enforcing dangling-references does not wedge legitimate promotions on comment/string false matches.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-4 (CF-8); the matcher is git-grep today (check-dangling-references.sh:20-21 \u2014 confirmed greenfield). E7 is BLOCKING for the enforce-flip. THIS IS THE EPIC'S ONE GENUINE REBUILD-RISK \u2014 front-loaded so we learn the answer fast.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1: sg-based reference matcher (guarded git-grep fallback when sg absent), reference-side scans .md/.yml/Makefile/.txt, short-symbol guard. (SC1)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2: a 20-PR ground-truth set is assembled and the matcher's FP/FN rate measured against it. (SC1)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3: GO/NO-GO recorded: FP rate 0 (or acceptable) -> dangling-references is enforce-ready; OTHERWISE the documented FALLBACK applies (ship review-gate with coverage-invariant ENFORCED and dangling-references ADVISORY) and the epic proceeds with reduced scope, not blocked.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD4: TDD for the matcher + the fallback wiring.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION + EXPERIMENTS:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E7: run the matcher over the 20-PR ground-truth set; record FP/FN. Also confirm its exit-78 enforce path blocks (mirror of story 1, V0.4).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER (the key fast-feedback gate): if sg cannot reach an acceptable FP rate, DO NOT block the epic \u2014 invoke the fallback (dangling advisory) and record the decision in ADR-0020. This story exists to surface that fork EARLY, before story 5/7 assume an enforce-ready dangling check.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC1. Independent of stories 1/2/3; pull early.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:29e7-c612-706d-42bc",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "statusCategory": {
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+      }
+    },
     "summary": "sg-based dangling-reference matcher + FP-rate gate (CF-8 / E7)"
   },
   "DIG-5261": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want behavior-bearing instruction surfaces (docs/**, skills, behavior-driving config) to be reviewable so that an un-reviewed instruction surface \u2014 an attack vector in an agentic codebase \u2014 cannot ride to main via the allowlist.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-4.6 (allowlist tightening); \u00a72.9/\u00a72.10 (two-file edit). Contributor-facing change (this repo's own doc edits now need review) \u2014 ship carefully and communicate.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1: review-gate-allowlist.conf is tightened \u2014 remove docs/**, skills, .claude/docs/**, .semgrep.yml, .pre-commit-config.yaml, .claude/scripts/** from the skip set; KEEP only genuinely-inert artifacts (images, lockfiles, generated) AND the event-sourced ticket store (.tickets-tracker tree). (SC5)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2: TWO-FILE edit \u2014 also strip the hardcoded :!docs/** and :!.claude/docs/** from compute-diff-hash.sh _FALLBACK_PATHSPECS (the degradation else-branch) so the degraded path matches the tightened normal path. (SC5)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3: assert-review-liveness.sh skip-stub acceptance still fail-closes for the newly-reviewable docs/config paths (TS-1 revalidation). (SC2/SC5)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD4: re-baseline the affected tests (test-review-gate-allowlist.sh, test-behavioral-equivalence-allowlist.sh, test-skip-review-check.sh, test-review-gate-config-doc-dirs.sh, test-compute-diff-hash-tickets*.sh, check-allowlist-correctness.sh probe set).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION + EXPERIMENTS:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E11: a docs-only PR now yields code_changed=true (requires review); an image/lockfile-only PR still skips.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E-compute-hash: feed an identical file list incl docs/foo.md to skip-review-check.sh AND compute-diff-hash.sh -> both classify docs as reviewable (consumers in sync).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Live: open a throwaway docs-only PR2 -> review actually runs (not skip-to-success).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER: if tightening makes the project's own routine doc/config edits painfully slow or wedges legitimate doc PRs, reassess the allowlist scope (keep genuinely-inert patterns) before story 7 \u2014 do not ship a contributor-hostile gate.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC5. DEPENDS ON story 5 (review-gate must exist to enforce the tightened classification).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:3783-9b4d-5ae5-495f",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Tighten the review-gate allowlist (docs/skills reviewable; two-file edit)"
+  },
+  "DIG-5262": {
     "assignee": null,
     "description": {
       "content": [
@@ -238480,165 +238639,6 @@
           "content": [
             {
               "text": "Maps to SC1, SC3. DEPENDS ON stories 1,2,3,4,5,6 ALL verified.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        }
-      ],
-      "type": "doc",
-      "version": 1
-    },
-    "issuetype": {
-      "avatarId": 10315,
-      "description": "Stories track functionality or features expressed as user goals.",
-      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
-      "hierarchyLevel": 0,
-      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
-      "id": "17290",
-      "name": "Story",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
-      "subtask": false
-    },
-    "labels": [
-      "dso-id:3783-9b4d-5ae5-495f",
-      "option-a"
-    ],
-    "priority": {
-      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
-      "id": "2",
-      "name": "High",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
-    },
-    "status": {
-      "description": "",
-      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
-      "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
-      }
-    },
-    "summary": "Tighten the review-gate allowlist (docs/skills reviewable; two-file edit)"
-  },
-  "DIG-5262": {
-    "assignee": null,
-    "description": {
-      "content": [
-        {
-          "content": [
-            {
-              "text": "As a maintainer, I want the two-tier-flow UX defects fixed and the documentation/ADR brought current so that the enforced architecture is correctly described and the merge-to-main UX is clean.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "Plan refs: A-7 (UX fixes \u2014 independent of the enforce-flip, may land any time); A-6 (docs + validation + closure). Includes the review-#4 re-baseline note.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "DONE DEFINITION:",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD1 (A-7 PR1 titles): merge-to-main-pr.sh:938-939 PR1 title is derived from the branch's meaningful commit subject (reuse _derive_pr_title, the helper PR2 already uses) with the staged: prefix retained; TDD asserts the gh pr create --title argv for PR1 is descriptive, not the branch-arrow form. Live: a throwaway promotion's PR1 shows a descriptive title. (SC6)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD2 (A-7 draft umbrella): create-sprint-draft-pr.sh gets a descriptive title/body and its lifecycle closes the draft at sprint end (or documents why long-lived); the script is RETAINED (two-tier flow kept). (SC6)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD3 (re-baseline): before touching merge-to-main-pr.sh, re-run the per-file rollback/preserve guard against CURRENT origin/main (it has moved beyond the plan snapshot \u2014 e.g. this session's CONFLICTING fast-fail and empty-state PR discovery commits). (SC6)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD4 (docs): update WORKFLOW-STABILITY-CHECKS.md, contracts/review-defenses.md, runbooks/rulesets-rollback.md, HOOKS-REFERENCE.md, CONFIGURATION-REFERENCE.md, workflows/COMMIT-WORKFLOW.md (Step 0.5 local gate), INSTALL.md, CLAUDE.md, CI-INTEGRATION.md, and teach check-ruleset-preflight.sh about review-gate. (SC6)",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "- DD5 (ADR + closure): record the execution results (E-series outcomes, the E1 per-SHA semantics, the E7 GO/fallback decision) in ADR-0020; run the completion-verifier for every epic SC; close the epic only on verifier PASS.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "LIVE VERIFICATION: a full two-tier promotion through the enforced summary gate completes clean (the canonical end-to-end demonstration).",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "COURSE-CORRECTION TRIGGER: if the completion-verifier cannot confirm any SC against the implementation, do NOT close \u2014 open a remediation story.",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "Maps to SC6 (+ verifies SC1-SC5 at closure). A-7 portion independent; A-6 portion is the final closure step.",
               "type": "text"
             }
           ],
@@ -238896,7 +238896,7 @@
         {
           "content": [
             {
-              "text": "As a maintainer, I want an admin-exemption ledger for review-coverage-invariant so that a legitimate admin bypass does not wedge all subsequent PRs once the gate is enforced.",
+              "text": "As a maintainer, I want the review-coverage-invariant ledger to be stable and convergent across CI re-runs so that enforcing it cannot wedge the whole team's promotions on a transient budget/cache miss.",
               "type": "text"
             }
           ],
@@ -238908,7 +238908,7 @@
         {
           "content": [
             {
-              "text": "Plan refs: A-2 (S-11). Ship independently; warn mode.",
+              "text": "Plan refs: A-3 (CF-6); \u00a74.2.1 (\"CF-6 is a HARD precondition of A-5\"). Ship independently; warn mode.",
               "type": "text"
             }
           ],
@@ -238929,7 +238929,7 @@
         {
           "content": [
             {
-              "text": "- DD1: a reviewed-equivalent exemption ledger records admin-bypassed SHAs with audit metadata, HMAC-signed (fabrication-proof \u2014 never a self-attested trailer; the v4 fabricated-trailer lesson). (SC1/SC4)",
+              "text": "- DD1: coverage-invariant cache key is stable (drop github.run_id) so re-runs warm-hit the prior ledger. (SC4)",
               "type": "text"
             }
           ],
@@ -238938,7 +238938,7 @@
         {
           "content": [
             {
-              "text": "- DD2: coverage-invariant consults the ledger: an HMAC-valid exempt SHA is treated as covered; an invalid/forged entry is NOT. (SC4)",
+              "text": "- DD2: ledger is save-always + merged (partial progress persisted), with bounded API backoff and a budget-convergence retryable status (transient 5xx/rate-limit -> retry then block; config-error -> block now). (SC1/SC4)",
               "type": "text"
             }
           ],
@@ -238947,7 +238947,7 @@
         {
           "content": [
             {
-              "text": "- DD3: TDD: bypass -> exempt entry -> next PR passes; forged entry -> still fail-closed.",
+              "text": "- DD3: TDD for cache-key stability, ledger merge, and the retry/backoff classifier.",
               "type": "text"
             }
           ],
@@ -238968,7 +238968,7 @@
         {
           "content": [
             {
-              "text": "- Live: perform an admin bypass on a throwaway PR2; confirm the next PR over the same base passes (does not wedge on the bypassed SHA).",
+              "text": "- E5: force budget exhaustion mid-walk on a throwaway PR2; re-run -> ledger_hits>0 and converges within K re-runs (no infinite wedge).",
               "type": "text"
             }
           ],
@@ -238977,19 +238977,16 @@
         {
           "content": [
             {
-              "text": "- Negative: hand-craft an entry with a bad HMAC -> coverage-invariant still fails-closed on that SHA.",
+              "text": "- E4: scope-stripped token -> block immediately; simulated transient 5xx -> retry+PASS (do not wedge on one blip).",
               "type": "text"
             }
           ],
           "type": "paragraph"
         },
         {
-          "type": "paragraph"
-        },
-        {
           "content": [
             {
-              "text": "COURSE-CORRECTION TRIGGER: if the ledger's HMAC verification can be bypassed or if a bypassed SHA still wedges the next PR, STOP \u2014 the exemption model is unsound; do not enforce until fixed.",
+              "text": "- Confirm on a live re-run that a previously-walked range is warm-hit (observable in logs).",
               "type": "text"
             }
           ],
@@ -239001,7 +238998,19 @@
         {
           "content": [
             {
-              "text": "Maps to SC1, SC4. Independent of stories 1/2/4.",
+              "text": "COURSE-CORRECTION TRIGGER: if the ledger cannot converge within K re-runs under realistic budget pressure, STOP \u2014 enforcing a non-convergent check would wedge the team; re-evaluate the budget/backoff design before story 7.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC1, SC4. Independent of stories 1/3/4.",
               "type": "text"
             }
           ],
@@ -239214,7 +239223,7 @@
         {
           "content": [
             {
-              "text": "As a maintainer, I want the review-coverage-invariant ledger to be stable and convergent across CI re-runs so that enforcing it cannot wedge the whole team's promotions on a transient budget/cache miss.",
+              "text": "As a maintainer, I want every review-enforcing CI wrapper to fail-closed on a precondition/token failure so that a transient API blip, an expired/scope-stripped PAT, or a missing secret can never silently turn a required review gate green.",
               "type": "text"
             }
           ],
@@ -239226,7 +239235,7 @@
         {
           "content": [
             {
-              "text": "Plan refs: A-3 (CF-6); \u00a74.2.1 (\"CF-6 is a HARD precondition of A-5\"). Ship independently; warn mode.",
+              "text": "Plan refs: \u00a72.5, \u00a72.9 (Harden the R8 live drift guard), \u00a72.10.1, A-5 prereq items 1-2. Foundation story \u2014 ship warn-safe (mode-gated), so no team impact until the enforce-flip story.",
               "type": "text"
             }
           ],
@@ -239247,7 +239256,7 @@
         {
           "content": [
             {
-              "text": "- DD1: coverage-invariant cache key is stable (drop github.run_id) so re-runs warm-hit the prior ledger. (SC4)",
+              "text": "- DD1: exit-78 handling is gated on mode in ALL THREE carriers \u2014 review-coverage-invariant.yml, dangling-references.yml, ruleset-invariants.yml (the 3rd carrier, CS-17, gates the already-required ruleset-design-invariants check). In warn: exit 78 -> exit 0 with ::warning (unchanged). In enforce: exit 78 -> BLOCK (non-zero). (SC2)",
               "type": "text"
             }
           ],
@@ -239256,7 +239265,7 @@
         {
           "content": [
             {
-              "text": "- DD2: ledger is save-always + merged (partial progress persisted), with bounded API backoff and a budget-convergence retryable status (transient 5xx/rate-limit -> retry then block; config-error -> block now). (SC1/SC4)",
+              "text": "- DD2: test-ruleset-provisioner-roundtrip.sh `_live_round_trip` fail-closes under an enforce posture flag: a SKIP (no token / 403 / rulesets-not-found) returns FAIL in enforce, exit 0 only in warn. (SC2/SC3)",
               "type": "text"
             }
           ],
@@ -239265,7 +239274,16 @@
         {
           "content": [
             {
-              "text": "- DD3: TDD for cache-key stability, ledger merge, and the retry/backoff classifier.",
+              "text": "- DD3: the existing DSO_RULESETS_READ_TOKEN secret's scope (Administration:read / ruleset-structure read) and expiry are verified and recorded; CS-7a hygiene probe added (git credential fill + gh api user must NOT resolve to a bypass actor). (SC3)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD4: TDD coverage for each new fail-closed branch (RED before, GREEN after).",
               "type": "text"
             }
           ],
@@ -239286,7 +239304,7 @@
         {
           "content": [
             {
-              "text": "- E5: force budget exhaustion mid-walk on a throwaway PR2; re-run -> ledger_hits>0 and converges within K re-runs (no infinite wedge).",
+              "text": "- V0.3a-post-fix x3: scope-stripped token + DSO_*_MODE=enforce against each of the 3 carriers -> check RED (today it goes green via 78->0). In warn -> still green.",
               "type": "text"
             }
           ],
@@ -239295,7 +239313,7 @@
         {
           "content": [
             {
-              "text": "- E4: scope-stripped token -> block immediately; simulated transient 5xx -> retry+PASS (do not wedge on one blip).",
+              "text": "- R8-skip-fail: force the 403 condition under enforce -> roundtrip FAILS (vs today's PASSED-6 green-skip, V0.10).",
               "type": "text"
             }
           ],
@@ -239304,19 +239322,7 @@
         {
           "content": [
             {
-              "text": "- Confirm on a live re-run that a previously-walked range is warm-hit (observable in logs).",
-              "type": "text"
-            }
-          ],
-          "type": "paragraph"
-        },
-        {
-          "type": "paragraph"
-        },
-        {
-          "content": [
-            {
-              "text": "COURSE-CORRECTION TRIGGER: if the ledger cannot converge within K re-runs under realistic budget pressure, STOP \u2014 enforcing a non-convergent check would wedge the team; re-evaluate the budget/backoff design before story 7.",
+              "text": "- Confirm in a live CI run (warn mode) that all 3 carriers still pass normally (no false wedge introduced).",
               "type": "text"
             }
           ],
@@ -239328,7 +239334,19 @@
         {
           "content": [
             {
-              "text": "Maps to SC1, SC4. Independent of stories 1/3/4.",
+              "text": "COURSE-CORRECTION TRIGGER: if making any wrapper fail-closed causes flakiness on normal PRs even in warn mode (e.g. R8 intermittently 403s with the configured PAT), STOP \u2014 the PAT/scope is unstable and must be fixed before any other enforce work depends on it.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC2, SC3. No dependencies; can start immediately.",
               "type": "text"
             }
           ],
@@ -239362,6 +239380,90 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "statusCategory": {
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+      }
+    },
+    "summary": "Fail-closed the silent-pass review gates (exit-78 x3 carriers + R8 live-arm)"
+  },
+  "DIG-5267": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Observed during Option A story implementation (2026-06-03): the `mktemp-tmpdir-check` pre-commit hook reproducibly exits 124 (timeout) at its own 30s wrapper budget on commits touching multiple shell scripts, blocking the commit. Workaround used: SKIP=mktemp-tmpdir-check after verifying the changed scripts pass the check directly (rc=0) and follow CLAUDE.md mktemp templates.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Impact: forces a hook-skip on legitimate commits; risks masking real mktemp violations if skipped habitually.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Observed: exit 124 at 30s; the three changed scripts each pass the check when run directly.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Not yet investigated: whether the timeout is total-runtime (too many files) or a hang in the check itself.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:9089-6483-54af-40e6",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
       "id": "21057",
       "name": "To Do",
       "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
@@ -239373,6 +239475,6 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "Fail-closed the silent-pass review gates (exit-78 x3 carriers + R8 live-arm)"
+    "summary": "mktemp-tmpdir-check pre-commit hook times out (exit 124) at 30s wrapper budget on multi-script commits"
   }
 }
