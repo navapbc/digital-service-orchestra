@@ -259,7 +259,7 @@ plugins/dso/scripts/implementation-plan/approach-cycle-state.sh:tests/scripts/te
 plugins/dso/scripts/implementation-plan/check-reinvocation.sh:tests/scripts/test-implementation-plan-helpers.sh
 plugins/dso/scripts/implementation-plan/check-tag-guards.sh:tests/scripts/test-implementation-plan-helpers.sh
 plugins/dso/scripts/implementation-plan/migration-class-detect.sh:tests/implementation-plan/test-migration-class-detect.sh
-plugins/dso/scripts/sprint/apply-two-pass-ordering.sh:tests/sprint/test-migration-pair-order.sh [test_no_recompute]
+plugins/dso/scripts/sprint/apply-two-pass-ordering.sh:tests/sprint/test-migration-pair-order.sh
 plugins/dso/scripts/inference-recall-replay.sh:tests/test-inference-recall-replay.sh
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test-issue-quality-check-storage-api.sh,tests/scripts/test_issue_quality_check_file_impact.py
 plugins/dso/scripts/lib/ci-findings-normalize.sh:tests/scripts/test-ci-findings-normalize.sh
