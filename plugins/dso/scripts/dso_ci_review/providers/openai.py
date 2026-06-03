@@ -66,10 +66,21 @@ def review_diff(diff_text: str, model: str = _DEFAULT_MODEL) -> dict[str, Any]:
     ]
     response = litellm.completion(model=model, messages=messages)
     raw_content: str = response.choices[0].message.content or ""
+    # Fast path: clean JSON response.
     try:
         return json.loads(raw_content)
     except (json.JSONDecodeError, TypeError):
-        raise ValueError(
-            f"LLM returned non-JSON response (length={len(raw_content)}); "
-            "cannot parse as findings. Treat as review failure."
-        )
+        pass
+    # R5 (bug 05ca-0388): apply the same robust extractor that dispatch._parse_response
+    # uses. Without this rescue, this legacy adapter silently fails on
+    # markdown-fenced JSON (```json ... ```) and friendly-preamble responses
+    # ("Here is my review: { ... }"), even though the rest of the system
+    # handles them. Mirror the anthropic.py dispatch path for shape consistency.
+    from dso_ci_review.findings import _extract_json_from_text  # local import to avoid cycle
+    extracted = _extract_json_from_text(raw_content)
+    if extracted is not None:
+        return extracted
+    raise ValueError(
+        f"LLM returned non-JSON response (length={len(raw_content)}); "
+        "cannot parse as findings. Treat as review failure."
+    )
