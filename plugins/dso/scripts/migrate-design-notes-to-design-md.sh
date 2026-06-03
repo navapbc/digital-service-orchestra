@@ -179,12 +179,4 @@ Migration performed by: migrate-design-notes-to-design-md.sh
 See DESIGN.md for the current design system specification.
 EOF
 
-# ── Stage and commit migration outputs ───────────────────────────────────────
-# Stage the two migration outputs explicitly (never -A/-u), then commit --only
-# those exact paths so that any pre-existing staged changes are NOT swept in.
-# Silent-fail handles restricted/CI/non-git contexts.
-git -C "$_TARGET" add "$_TARGET/DESIGN.md" "$_DESIGN_NOTES" 2>/dev/null || true
-git -C "$_TARGET" commit --only "$_TARGET/DESIGN.md" "$_DESIGN_NOTES" \
-    -m "chore: migrate design-notes.md to DESIGN.md" 2>/dev/null || true
-
 exit 0

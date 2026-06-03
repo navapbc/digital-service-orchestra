@@ -51,22 +51,6 @@ _make_target() {
     echo "$tmp"
 }
 
-# ── Helper: create a git-initialized temp project dir ────────────────────────
-_make_git_target() {
-    local tmp
-    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-migrate-design-notes.XXXXXX")
-    _CLEANUP_DIRS+=("$tmp")
-    mkdir -p "$tmp/.claude"
-    git -C "$tmp" init -q
-    git -C "$tmp" config user.email "test@example.com"
-    git -C "$tmp" config user.name "Test"
-    # Initial commit so we have a valid HEAD
-    touch "$tmp/.gitkeep"
-    git -C "$tmp" add "$tmp/.gitkeep"
-    git -C "$tmp" commit -q -m "initial"
-    echo "$tmp"
-}
-
 # ── Helper: write a sample design-notes.md ────────────────────────────────────
 _write_design_notes() {
     local target="$1"
@@ -269,74 +253,5 @@ else
     assert_ne "section mapping: ## Color Palette passthrough present" "0" "$_color_count"
 fi
 assert_pass_if_clean "test_section_mapping"
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Test 8: git commit — migration outputs are committed; working tree is clean
-# ═══════════════════════════════════════════════════════════════════════════════
-echo ""
-echo "Test 8: git commit — migration outputs committed; working tree clean"
-_snapshot_fail
-if [ ! -f "$MIGRATE_SCRIPT" ]; then
-    echo "test_git_commit ... SKIP (script missing)"
-else
-    _target=$(_make_git_target)
-    _write_design_notes "$_target"
-    # Stage design-notes.md so git tracks it before migration
-    git -C "$_target" add "$_target/.claude/design-notes.md"
-    git -C "$_target" commit -q -m "add design-notes"
-    exit_code=0
-    bash "$MIGRATE_SCRIPT" --target "$_target" 2>&1 || exit_code=$?
-    assert_eq "git commit: exits 0" "0" "$exit_code"
-    # DESIGN.md should exist
-    design_md_exists="no"
-    [ -f "$_target/DESIGN.md" ] && design_md_exists="yes"
-    assert_eq "git commit: DESIGN.md created" "yes" "$design_md_exists"
-    # A commit should have been made (log should have at least 3 entries: initial + add design-notes + migration)
-    commit_count=0
-    commit_count=$(git -C "$_target" log --oneline 2>/dev/null | wc -l | tr -d ' ')
-    assert_ne "git commit: migration commit was created" "0" "$commit_count"
-    # The commit message should contain 'migrate'
-    last_msg=""
-    last_msg=$(git -C "$_target" log -1 --pretty=%s 2>/dev/null || echo "")
-    _migrate_in_msg="no"
-    echo "$last_msg" | grep -qi "migrat" && _migrate_in_msg="yes"
-    assert_eq "git commit: last commit message contains 'migrate'" "yes" "$_migrate_in_msg"
-    # Working tree should be clean (both files committed)
-    _dirty=""
-    _dirty=$(git -C "$_target" status --porcelain 2>/dev/null || echo "")
-    assert_eq "git commit: working tree is clean after migration" "" "$_dirty"
-fi
-assert_pass_if_clean "test_git_commit"
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Test 9: git commit — unrelated staged/unstaged changes are NOT committed
-# ═══════════════════════════════════════════════════════════════════════════════
-echo ""
-echo "Test 9: unrelated changes NOT swept into migration commit"
-_snapshot_fail
-if [ ! -f "$MIGRATE_SCRIPT" ]; then
-    echo "test_git_commit_isolation ... SKIP (script missing)"
-else
-    _target=$(_make_git_target)
-    _write_design_notes "$_target"
-    git -C "$_target" add "$_target/.claude/design-notes.md"
-    git -C "$_target" commit -q -m "add design-notes"
-    # Create an unrelated staged file and an unrelated unstaged file
-    printf "unrelated staged\n" > "$_target/unrelated-staged.txt"
-    git -C "$_target" add "$_target/unrelated-staged.txt"
-    printf "unrelated unstaged\n" > "$_target/unrelated-unstaged.txt"
-    exit_code=0
-    bash "$MIGRATE_SCRIPT" --target "$_target" 2>&1 || exit_code=$?
-    assert_eq "isolation: exits 0" "0" "$exit_code"
-    # Unrelated staged file must still be staged (not committed)
-    _staged_status=""
-    _staged_status=$(git -C "$_target" status --porcelain 2>/dev/null | grep "unrelated-staged.txt" || echo "")
-    assert_ne "isolation: unrelated staged file not swept into commit" "" "$_staged_status"
-    # Unrelated unstaged file must still be present as untracked/modified
-    _unstaged_status=""
-    _unstaged_status=$(git -C "$_target" status --porcelain 2>/dev/null | grep "unrelated-unstaged.txt" || echo "")
-    assert_ne "isolation: unrelated unstaged file not swept into commit" "" "$_unstaged_status"
-fi
-assert_pass_if_clean "test_git_commit_isolation"
 
 print_summary
