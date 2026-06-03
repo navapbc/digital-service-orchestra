@@ -24747,15 +24747,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[ticket list]: concatenating two JSON arrays from shell brace group -> JSONDecodeError when piped to python3 json.load()"
@@ -28008,15 +28008,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "closure-checks-classifier-pass: 5 CI llm-review findings on prior ad70 work -> defer remediation"
@@ -33332,15 +33332,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[sprint/clarity-gate]: ticket-clarity-check.sh fails with 'could not locate .claude/scripts/dso shim' -> exit code 2"
@@ -70188,15 +70188,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[fix-bug/cluster-investigation]: umbrella split-out propagates title-only attribution into child tickets -> phantom-symptom investigations consume ADVANCED-tier budget"
@@ -106260,15 +106260,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "No structural test asserting recipe: dispatch row exists in sprint SKILL.md Phase E"
@@ -189018,15 +189018,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "lightweight-mode.md: 'update epic description' step has no append-safe mechanism -> destructive-rewrite risk / silently skipped"
@@ -201623,15 +201623,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "/dso:sprint auto-resume: .sprint-active not created on Phase-C resume entry -> session-merge-only enforcement inactive on resumed sprints"
@@ -207837,7 +207837,7 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot sile [truncated]"
+    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot silently regress."
   },
   "DIG-5147": {
     "assignee": null,
@@ -237703,5 +237703,1676 @@
       }
     },
     "summary": "[PR #42] Deferred review comment: Agreed, we should track this separately."
+  },
+  "DIG-5258": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want behavior-bearing instruction surfaces (docs/**, skills, behavior-driving config) to be reviewable so that an un-reviewed instruction surface \u2014 an attack vector in an agentic codebase \u2014 cannot ride to main via the allowlist.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-4.6 (allowlist tightening); \u00a72.9/\u00a72.10 (two-file edit). Contributor-facing change (this repo's own doc edits now need review) \u2014 ship carefully and communicate.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1: review-gate-allowlist.conf is tightened \u2014 remove docs/**, skills, .claude/docs/**, .semgrep.yml, .pre-commit-config.yaml, .claude/scripts/** from the skip set; KEEP only genuinely-inert artifacts (images, lockfiles, generated) AND the event-sourced ticket store (.tickets-tracker tree). (SC5)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2: TWO-FILE edit \u2014 also strip the hardcoded :!docs/** and :!.claude/docs/** from compute-diff-hash.sh _FALLBACK_PATHSPECS (the degradation else-branch) so the degraded path matches the tightened normal path. (SC5)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3: assert-review-liveness.sh skip-stub acceptance still fail-closes for the newly-reviewable docs/config paths (TS-1 revalidation). (SC2/SC5)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD4: re-baseline the affected tests (test-review-gate-allowlist.sh, test-behavioral-equivalence-allowlist.sh, test-skip-review-check.sh, test-review-gate-config-doc-dirs.sh, test-compute-diff-hash-tickets*.sh, check-allowlist-correctness.sh probe set).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION + EXPERIMENTS:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E11: a docs-only PR now yields code_changed=true (requires review); an image/lockfile-only PR still skips.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E-compute-hash: feed an identical file list incl docs/foo.md to skip-review-check.sh AND compute-diff-hash.sh -> both classify docs as reviewable (consumers in sync).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Live: open a throwaway docs-only PR2 -> review actually runs (not skip-to-success).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER: if tightening makes the project's own routine doc/config edits painfully slow or wedges legitimate doc PRs, reassess the allowlist scope (keep genuinely-inert patterns) before story 7 \u2014 do not ship a contributor-hostile gate.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC5. DEPENDS ON story 5 (review-gate must exist to enforce the tightened classification).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:0cd7-369b-06c4-4889",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Build the fail-closed review-gate summary check + shared ticket-exemption helper"
+  },
+  "DIG-5259": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want a structurally-accurate (ast-grep / sg) dangling-reference matcher with a measured false-positive rate so that enforcing dangling-references does not wedge legitimate promotions on comment/string false matches.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-4 (CF-8); the matcher is git-grep today (check-dangling-references.sh:20-21 \u2014 confirmed greenfield). E7 is BLOCKING for the enforce-flip. THIS IS THE EPIC'S ONE GENUINE REBUILD-RISK \u2014 front-loaded so we learn the answer fast.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1: sg-based reference matcher (guarded git-grep fallback when sg absent), reference-side scans .md/.yml/Makefile/.txt, short-symbol guard. (SC1)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2: a 20-PR ground-truth set is assembled and the matcher's FP/FN rate measured against it. (SC1)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3: GO/NO-GO recorded: FP rate 0 (or acceptable) -> dangling-references is enforce-ready; OTHERWISE the documented FALLBACK applies (ship review-gate with coverage-invariant ENFORCED and dangling-references ADVISORY) and the epic proceeds with reduced scope, not blocked.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD4: TDD for the matcher + the fallback wiring.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION + EXPERIMENTS:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E7: run the matcher over the 20-PR ground-truth set; record FP/FN. Also confirm its exit-78 enforce path blocks (mirror of story 1, V0.4).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER (the key fast-feedback gate): if sg cannot reach an acceptable FP rate, DO NOT block the epic \u2014 invoke the fallback (dangling advisory) and record the decision in ADR-0020. This story exists to surface that fork EARLY, before story 5/7 assume an enforce-ready dangling check.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC1. Independent of stories 1/2/3; pull early.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:2730-a5e2-600b-44b3",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Admin-exemption ledger for review-coverage-invariant (S-11)"
+  },
+  "DIG-5260": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want a single always-runs, fail-closed `review-gate` summary check on every base==main PR so that the conjunction of independently-skippable required checks is replaced by one gate that cannot report success without per-SHA review coverage.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-4.5; \u00a72.6 (REDESIGN); \u00a72.9/\u00a72.10 (shared ticket-exemption helper). THE ARCHITECTURAL CORE. Ship in warn/advisory first and shadow-observe on live PR2 traffic.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1: a single script `review-gate` (NOT a needs/if:failure() aggregation \u2014 that greens on a skipped upstream) runs on every base==main PR with no code_changed skip. (SC1)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2: it fails-closed unless every SHA in origin/main..head is proven reviewed by the per-SHA review-coverage-invariant, EXCEPT SHAs whose diff is entirely within the event-sourced ticket store (.tickets-tracker tree) via a shared rc_diff_is_tickets_only helper. The exemption is diff-scoped tree evidence ONLY (git diff-tree non-empty AND every entry anchored to the ticket-store prefix) \u2014 never a trailer/marker (v4 fabricated-trailer lesson); empty file list = NOT exempt. (SC1/SC4)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3: the shared rc_diff_is_tickets_only helper lives in one place (review-coverage-lib.sh, sourced by all three consumers) and is wired into review-coverage-invariant.sh, verify-session-provenance.sh, AND fp-recovery-audit-sweep.sh (the last has no clean-merge scaffolding today \u2014 build it). Each consumer honors its own error posture; the predicate is identical. (SC4)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD4: it runs the dangling-references check inline (same script) so it cannot independently skip-to-success, and replaces the no-op merge-pipeline-checks umbrella as the always-runs gate. (SC1)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD5: it fail-closes on precondition with bounded retry (story 2 ledger) and reconciles with assert-review-liveness.sh (does NOT re-implement liveness's classification cross-check; complementary, boundary documented). (SC1)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD6: a single shared-fixture EQUIVALENCE TEST asserts all three ticket-exemption consumers return identical exempt/not-exempt verdicts (the trailer-shortcut survived in one path after removal from another \u2014 prevent the same divergence).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION + EXPERIMENTS (warn mode):",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E2: allowlisted-only PR2 with un-reviewed content -> review-gate would BLOCK (logs FAIL in warn).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E3: confirm merge-pipeline-checks no-ops on staged-* head and review-gate is the real always-runs gate.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E8: populated staged-* merge-commit: clean merge -> exempt (no false wedge); evil merge (manual edit in merge commit) -> RED.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E14/E15 across all three consumers: ticket-only -> exempt; mixed ticket+code -> NOT exempt (no launder); clean merge -> exempt. Identical verdicts.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E13: confirm a skipped upstream does NOT green the gate (single-script property).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Shadow-observe several real PR2 promotions in warn mode; review-gate's warn verdict must match the actual outcome with zero false BLOCKs.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER: if review-gate in warn mode would FALSE-BLOCK any legitimate PR2 (clean, fully-reviewed, or ticket-only), STOP and fix before story 6/7 \u2014 a false-wedge under enforce blocks the team. If the three consumers ever disagree on an exemption verdict, STOP (launder/wedge risk).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC1, SC4. DEPENDS ON stories 1 (fail-closed), 2 (ledger), 4 (dangling matcher).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:29e7-c612-706d-42bc",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "sg-based dangling-reference matcher + FP-rate gate (CF-8 / E7)"
+  },
+  "DIG-5261": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want to flip the live main ruleset to require `review-gate` (swapping out the no-op merge-pipeline-checks) so that the non-negotiable requirement is finally ruleset-enforced end-to-end.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-5 (enforce-flip); A-5 HARD PREREQUISITE GATE; \u00a72.10.1 runbook. THE ONLY HARD-TO-REVERSE STEP \u2014 affects every contributor's promotions. Gated; runbook-driven.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "HARD PREREQUISITE GATE (do NOT start until ALL green \u2014 verify explicitly):",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. exit-78 fail-closed fix landed + verified RED in enforce in all 3 carriers (story 1).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. R8 _live_round_trip fail-closed under enforce + PAT scope/expiry verified (story 1).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "3. CF-6 ledger convergent (story 2); S-11 admin-exemption ledger (story 3).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "4. review-gate warn-mode shadow shows ZERO false BLOCKs on real PR2 traffic (story 5).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "5. allowlist tightening verified (story 6).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "6. E7 GO (dangling enforce-ready) OR the documented advisory fallback applied (story 4).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "7. durable admin PAT secured (V0.8).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1: required-checks.txt swap \u2014 merge-pipeline-checks OUT, review-gate IN (retain llm-review). (SC3)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2: live main ruleset 15629023 re-provisioned (admin PAT) with the SAME swap, atomic IN+OUT in one provision call, in the E6-verified order. (SC3)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3: required-checks.txt consumer sweep applied (provision-ruleset.sh, validate-required-checks.sh, promote-ruleset-required.sh, update-required-checks-manifest.sh, github-bootstrap.sh + their tests). (SC3/SC6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD4: flip DSO_*_MODE to enforce for the gate; decommission redundant individually-required backstops as subsumed (do not add coverage/dangling individually \u2014 I-4). (SC1)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RUNBOOK (mandatory): land the swap PR with NO other PR2 in flight \u2014 ruleset-invariants.yml fires on every PR to main and the live provision is global, so R8 goes RED repo-wide during the live<->file skew window. Quiesce other promotions, provision live, land the file-PR fast.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION + EXPERIMENTS:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E6': live drift (review-gate IN/merge-pipeline-checks OUT but required-checks.txt NOT yet updated, and the reverse) -> a required check actually goes RED. Settles the self-wedge ordering.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E6: atomic provision/assert ordering \u2014 out-of-order wedges ruleset-design-invariants; correct order green.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Post-flip live: an allowlisted-only PR2 with un-reviewed content is BLOCKED; a clean fully-reviewed PR2 passes; a real combined-state issue is BLOCKED; a ticket-only commit passes; no false wedge. [E2/E3/E8]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER: if the swap wedges any legitimate promotion post-flip, execute the documented rollback (re-provision live back to the prior 12-context set; revert the required-checks.txt swap) IMMEDIATELY \u2014 do not leave the team wedged while debugging.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC1, SC3. DEPENDS ON stories 1,2,3,4,5,6 ALL verified.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:3783-9b4d-5ae5-495f",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Tighten the review-gate allowlist (docs/skills reviewable; two-file edit)"
+  },
+  "DIG-5262": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want the two-tier-flow UX defects fixed and the documentation/ADR brought current so that the enforced architecture is correctly described and the merge-to-main UX is clean.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-7 (UX fixes \u2014 independent of the enforce-flip, may land any time); A-6 (docs + validation + closure). Includes the review-#4 re-baseline note.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1 (A-7 PR1 titles): merge-to-main-pr.sh:938-939 PR1 title is derived from the branch's meaningful commit subject (reuse _derive_pr_title, the helper PR2 already uses) with the staged: prefix retained; TDD asserts the gh pr create --title argv for PR1 is descriptive, not the branch-arrow form. Live: a throwaway promotion's PR1 shows a descriptive title. (SC6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2 (A-7 draft umbrella): create-sprint-draft-pr.sh gets a descriptive title/body and its lifecycle closes the draft at sprint end (or documents why long-lived); the script is RETAINED (two-tier flow kept). (SC6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3 (re-baseline): before touching merge-to-main-pr.sh, re-run the per-file rollback/preserve guard against CURRENT origin/main (it has moved beyond the plan snapshot \u2014 e.g. this session's CONFLICTING fast-fail and empty-state PR discovery commits). (SC6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD4 (docs): update WORKFLOW-STABILITY-CHECKS.md, contracts/review-defenses.md, runbooks/rulesets-rollback.md, HOOKS-REFERENCE.md, CONFIGURATION-REFERENCE.md, workflows/COMMIT-WORKFLOW.md (Step 0.5 local gate), INSTALL.md, CLAUDE.md, CI-INTEGRATION.md, and teach check-ruleset-preflight.sh about review-gate. (SC6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD5 (ADR + closure): record the execution results (E-series outcomes, the E1 per-SHA semantics, the E7 GO/fallback decision) in ADR-0020; run the completion-verifier for every epic SC; close the epic only on verifier PASS.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION: a full two-tier promotion through the enforced summary gate completes clean (the canonical end-to-end demonstration).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER: if the completion-verifier cannot confirm any SC against the implementation, do NOT close \u2014 open a remediation story.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC6 (+ verifies SC1-SC5 at closure). A-7 portion independent; A-6 portion is the final closure step.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:3ee4-6cb2-0a15-48f0",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Enforce-flip: swap merge-pipeline-checks -> review-gate on the live main ruleset"
+  },
+  "DIG-5263": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Implement Option A: harden the two-tier flow into a ruleset-enforced, fail-closed review gate.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Source of truth: docs/handoff/option-a-pivot-plan.md (CONVERGED, review #1-6 + experiments V0.1-V0.12) and docs/adr/0020-two-tier-hardening-over-merge-queue.md. This epic translates plan Phase 2 (\u00a75) + the review-#4/#6 prerequisites into shippable phases. Do NOT use /dso:sprint (the plan was produced by a different process).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "NON-NEGOTIABLE REQUIREMENT: every commit reaching `main` must pass an LLM review that is ruleset-enforced (a hard GitHub gate), not merely flow-enforced \u2014 and the enforcing checks must fail-closed (never silently green on a precondition/token/expiry failure).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DELIVERY PRINCIPLES (build so surprises surface fast and we can course-correct):",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Warn-first: every story ships its enforcing logic in warn/advisory mode and is validated on live PR2 traffic BEFORE any enforce-flip. The single enforce-flip (final story) is the only hard-to-reverse step and is hard-gated.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Live-verify each story on real GitHub (admin PAT: provision/read; non-admin: containment reads) AND by the named E-series/V-series experiments.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Each story names a COURSE-CORRECTION TRIGGER: the observable that, if seen, means stop and re-plan rather than push on.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Reversibility: warn-mode checks are advisory (no team impact); the enforce-flip story carries the runbook (land the swap with no other PR2 in flight \u2014 R8 RED is repo-wide during the live<->file skew window).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "SUCCESS CRITERIA (epic closes only when ALL are met + completion-verifier PASS):",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC1 (single fail-closed gate): a single always-runs required check `review-gate` exists that runs on every base==main PR (no code_changed skip) and fail-closes unless every SHA in origin/main..head is proven reviewed (per-SHA coverage). Verified live: an allowlisted-only PR2 carrying un-reviewed content is BLOCKED (not skip-to-success). [E2/E13]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC2 (no silent pass): all review-enforcing CI wrappers fail-closed on precondition/token failure under enforce mode. Verified: a scope-stripped/expired token makes the gate RED (not exit-0) in ALL THREE carriers \u2014 review-coverage-invariant.yml, dangling-references.yml, ruleset-invariants.yml. [V0.3a-post-fix, R8 fail-closed]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC3 (live ruleset enforces it, durably): live `main` ruleset requires `review-gate` and retains `llm-review`; the merge-pipeline-checks->review-gate swap is reflected on BOTH required-checks.txt and the live ruleset; the R8 live-parity guard fail-closes under enforce so PAT expiry/scope-strip/drift cannot silently disable it. [E6', V0.11]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC4 (no false wedge): a clean fully-reviewed PR2 passes; a commit whose diff is entirely within the event-sourced ticket store is exempt and does not wedge; the coverage ledger warm-hits across re-runs (no flaky-check team block). [E5/E8/E14/E15]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC5 (instruction surfaces reviewable): behavior-bearing surfaces (docs/**, skills, behavior-driving config) are removed from the review-gate allowlist and become reviewable; genuinely-inert artifacts (images, lockfiles, generated) and the ticket store remain exempt. Verified: a docs-only PR now requires review; an image/lockfile PR still skips. [E11/E-compute-hash]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- SC6 (flow preserved + documented): the two-tier flow is retained and its UX correctness fixes land (descriptive PR1 titles; sprint draft-umbrella lifecycle); docs reflect the final enforced architecture; ADR-0020 updated with execution results.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "SEQUENCING: stories 1-4 may proceed in parallel after start; story 5 depends on 1+2+4; story 6 depends on 5; story 7 (enforce-flip) depends on 1-6 ALL verified; story 8 (UX) is independent and may land any time. See each story's dependency links.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10307,
+      "description": "Workstreams track a set of related work and activities that work towards a larger deliverable.",
+      "entityId": "ac43421d-383b-4d08-ba0e-cc35239fdb4d",
+      "hierarchyLevel": 1,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10307?size=medium",
+      "id": "17009",
+      "name": "Epic",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17009",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:588e-abec-221f-42c0",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/highest_new.svg",
+      "id": "1",
+      "name": "Highest",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/1"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Implement Option A: ruleset-enforced fail-closed review gate on the two-tier flow"
+  },
+  "DIG-5264": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want an admin-exemption ledger for review-coverage-invariant so that a legitimate admin bypass does not wedge all subsequent PRs once the gate is enforced.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-2 (S-11). Ship independently; warn mode.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1: a reviewed-equivalent exemption ledger records admin-bypassed SHAs with audit metadata, HMAC-signed (fabrication-proof \u2014 never a self-attested trailer; the v4 fabricated-trailer lesson). (SC1/SC4)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2: coverage-invariant consults the ledger: an HMAC-valid exempt SHA is treated as covered; an invalid/forged entry is NOT. (SC4)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3: TDD: bypass -> exempt entry -> next PR passes; forged entry -> still fail-closed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION + EXPERIMENTS:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Live: perform an admin bypass on a throwaway PR2; confirm the next PR over the same base passes (does not wedge on the bypassed SHA).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Negative: hand-craft an entry with a bad HMAC -> coverage-invariant still fails-closed on that SHA.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER: if the ledger's HMAC verification can be bypassed or if a bypassed SHA still wedges the next PR, STOP \u2014 the exemption model is unsound; do not enforce until fixed.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC1, SC4. Independent of stories 1/2/4.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:7b77-be58-336f-49d6",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Coverage-invariant ledger stability (CF-6: stable cache key, backoff, convergence)"
+  },
+  "DIG-5265": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want the two-tier-flow UX defects fixed and the documentation/ADR brought current so that the enforced architecture is correctly described and the merge-to-main UX is clean.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-7 (UX fixes \u2014 independent of the enforce-flip, may land any time); A-6 (docs + validation + closure). Includes the review-#4 re-baseline note.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1 (A-7 PR1 titles): merge-to-main-pr.sh:938-939 PR1 title is derived from the branch's meaningful commit subject (reuse _derive_pr_title, the helper PR2 already uses) with the staged: prefix retained; TDD asserts the gh pr create --title argv for PR1 is descriptive, not the branch-arrow form. Live: a throwaway promotion's PR1 shows a descriptive title. (SC6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2 (A-7 draft umbrella): create-sprint-draft-pr.sh gets a descriptive title/body and its lifecycle closes the draft at sprint end (or documents why long-lived); the script is RETAINED (two-tier flow kept). (SC6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3 (re-baseline): before touching merge-to-main-pr.sh, re-run the per-file rollback/preserve guard against CURRENT origin/main (it has moved beyond the plan snapshot \u2014 e.g. this session's CONFLICTING fast-fail and empty-state PR discovery commits). (SC6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD4 (docs): update WORKFLOW-STABILITY-CHECKS.md, contracts/review-defenses.md, runbooks/rulesets-rollback.md, HOOKS-REFERENCE.md, CONFIGURATION-REFERENCE.md, workflows/COMMIT-WORKFLOW.md (Step 0.5 local gate), INSTALL.md, CLAUDE.md, CI-INTEGRATION.md, and teach check-ruleset-preflight.sh about review-gate. (SC6)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD5 (ADR + closure): record the execution results (E-series outcomes, the E1 per-SHA semantics, the E7 GO/fallback decision) in ADR-0020; run the completion-verifier for every epic SC; close the epic only on verifier PASS.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION: a full two-tier promotion through the enforced summary gate completes clean (the canonical end-to-end demonstration).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER: if the completion-verifier cannot confirm any SC against the implementation, do NOT close \u2014 open a remediation story.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC6 (+ verifies SC1-SC5 at closure). A-7 portion independent; A-6 portion is the final closure step.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:830c-5e63-d735-4032",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Two-tier UX fixes plus docs, ADR-0020 update, and epic closure"
+  },
+  "DIG-5266": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a maintainer, I want the review-coverage-invariant ledger to be stable and convergent across CI re-runs so that enforcing it cannot wedge the whole team's promotions on a transient budget/cache miss.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Plan refs: A-3 (CF-6); \u00a74.2.1 (\"CF-6 is a HARD precondition of A-5\"). Ship independently; warn mode.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "DONE DEFINITION:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD1: coverage-invariant cache key is stable (drop github.run_id) so re-runs warm-hit the prior ledger. (SC4)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD2: ledger is save-always + merged (partial progress persisted), with bounded API backoff and a budget-convergence retryable status (transient 5xx/rate-limit -> retry then block; config-error -> block now). (SC1/SC4)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- DD3: TDD for cache-key stability, ledger merge, and the retry/backoff classifier.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "LIVE VERIFICATION + EXPERIMENTS:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E5: force budget exhaustion mid-walk on a throwaway PR2; re-run -> ledger_hits>0 and converges within K re-runs (no infinite wedge).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- E4: scope-stripped token -> block immediately; simulated transient 5xx -> retry+PASS (do not wedge on one blip).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Confirm on a live re-run that a previously-walked range is warm-hit (observable in logs).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "COURSE-CORRECTION TRIGGER: if the ledger cannot converge within K re-runs under realistic budget pressure, STOP \u2014 enforcing a non-convergent check would wedge the team; re-evaluate the budget/backoff design before story 7.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Maps to SC1, SC4. Independent of stories 1/3/4.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:a85d-5f7f-8898-4a4f",
+      "option-a"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Fail-closed the silent-pass review gates (exit-78 x3 carriers + R8 live-arm)"
   }
 }
