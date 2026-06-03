@@ -17,13 +17,26 @@
 # diff-scope rule can see.
 #
 # Scope: shell function defs (`name() {` / `function name`) and Python `def`/
-# `class`. Plain `git grep` first cut (sg/ast-grep preferred per CLAUDE.md — a
-# follow-up can swap the reference scan for `sg` to drop comment/string matches).
+# `class`.
+#
+# REFERENCE SCAN (story 29e7 / CF-8 / E7): the reference side is now syntactic
+# via `sg` (ast-grep) for .sh/.py — it matches identifier *usages* and ignores
+# matches inside comments and string literals, which a plain `git grep` cannot
+# distinguish (the #1 false-positive source: a removed symbol that survives only
+# in a comment or a doc string). When `sg` is unavailable the script falls back
+# to a guarded whole-word `git grep` (per CLAUDE.md ast-grep guidance). The
+# reference side ALSO scans doc/config carriers (.md/.yml/.yaml/Makefile/.txt)
+# via whole-word `git grep` — a surviving textual mention of a removed symbol in
+# docs/config is a real dangling reference worth surfacing. A short-symbol guard
+# (DSO_DANGLING_MIN_LEN, default 3) suppresses noise from very short identifiers
+# whose bare-identifier match rate is dominated by coincidence.
 #
 # Inputs (env):
 #   GITHUB_BASE_REF   base branch (default: main) → base ref origin/<branch>
 #   DSO_HEAD_SHA / GITHUB_SHA  head (else HEAD)
 #   DSO_DANGLING_MODE enforce (default) | warn
+#   DSO_DANGLING_MIN_LEN  min symbol length to scan references for (default 3)
+#   DSO_DANGLING_FORCE_NO_SG  if =1, pretend sg is absent (exercises fallback)
 #
 # Exit codes:
 #   0  no dangling references (or warn mode)
@@ -37,6 +50,26 @@ command -v git >/dev/null 2>&1 || _precondition_not_met "git not in PATH"
 
 MODE="${DSO_DANGLING_MODE:-enforce}"
 _BASE_REF="origin/${GITHUB_BASE_REF:-main}"
+_MIN_LEN="${DSO_DANGLING_MIN_LEN:-3}"
+
+# sg (ast-grep) availability — drives syntactic reference matching for .sh/.py.
+# DSO_DANGLING_FORCE_NO_SG=1 forces the git-grep fallback path (tested).
+_HAVE_SG=0
+if [[ "${DSO_DANGLING_FORCE_NO_SG:-0}" != "1" ]] && command -v sg >/dev/null 2>&1; then
+    _HAVE_SG=1
+fi
+
+# Reference-side doc/config carriers scanned via whole-word git grep.
+_REF_DOC_PATHSPEC=( '*.md' '*.yml' '*.yaml' '*.txt' 'Makefile' '*/Makefile' )
+
+# Temp dir for materialized HEAD content fed to sg (sg reads files, not refs).
+_SG_WORK=""
+_sg_workdir() {
+    [[ -n "$_SG_WORK" ]] && { echo "$_SG_WORK"; return; }
+    _SG_WORK="$(mktemp -d "/tmp/dso-dangling-sg.XXXXXX")" || return 1
+    echo "$_SG_WORK"
+}
+trap '[[ -n "$_SG_WORK" ]] && rm -rf "$_SG_WORK"' EXIT
 
 if ! git rev-parse --verify --quiet "$_BASE_REF" >/dev/null 2>&1; then
     echo "ERROR [dangling]: base ref ${_BASE_REF} not resolvable — fail closed" >&2
@@ -85,11 +118,81 @@ _defined_at_head() {
         "$_HEAD" -- '*.sh' '*.py' 2>/dev/null | head -1
 }
 
-# Surviving references to SYMBOL at HEAD, excluding its own definition lines.
-_references_at_head() {
+# sg lang for a path, or empty if not an sg-scanned code file.
+_sg_lang_of() {
+    case "$1" in
+        *.sh) echo bash ;;
+        *.py) echo python ;;
+        *) echo "" ;;
+    esac
+}
+
+# Materialize "$_HEAD:$file" into the sg workdir under its original relative path
+# so sg can parse it. Echoes the temp path, or empty on failure.
+_materialize_head_file() {
+    local file="$1" wd dst
+    wd="$(_sg_workdir)" || return 1
+    dst="$wd/$file"
+    mkdir -p "$(dirname "$dst")" 2>/dev/null || return 1
+    if git show "${_HEAD}:${file}" >"$dst" 2>/dev/null; then
+        echo "$dst"
+    fi
+}
+
+# Syntactic references to SYMBOL in .sh/.py at HEAD via sg (ignores comments /
+# strings). Emits "<file>:<line>:<text>" lines (paths relativized to repo).
+# Returns reference lines EXCLUDING the symbol's own definition lines.
+_sg_code_references() {
+    local sym="$1" wd
+    # Prefilter: only files that textually contain the symbol at HEAD, to avoid
+    # materializing the whole tree. This is a candidate set; sg does the real
+    # (comment/string-aware) matching.
+    local cand
+    cand="$(git grep -lw "$sym" "$_HEAD" -- '*.sh' '*.py' 2>/dev/null | sed -E 's/^[^:]*://')"
+    [[ -z "$cand" ]] && return 0
+    wd="$(_sg_workdir)" || return 1
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        local lang tmp
+        lang="$(_sg_lang_of "$file")"; [[ -z "$lang" ]] && continue
+        tmp="$(_materialize_head_file "$file")"; [[ -z "$tmp" ]] && continue
+        # sg matches the bare identifier syntactically (excludes comments/strings
+        # and substring/word-boundary noise). Re-anchor output to the repo path.
+        sg run -p "$sym" -l "$lang" "$tmp" --heading=never 2>/dev/null \
+            | sed -E "s#^${tmp}:#${file}:#"
+    done <<< "$cand" \
+        | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)|:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
+}
+
+# Fallback (sg absent): guarded whole-word git grep for .sh/.py, minus def lines.
+_grep_code_references() {
     local sym="$1"
     git grep -nwE "${sym}" "$_HEAD" -- '*.sh' '*.py' 2>/dev/null \
         | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)|^[^:]*:[0-9]+:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
+}
+
+# Doc/config-carrier references (.md/.yml/.yaml/.txt/Makefile): a surviving
+# whole-word textual mention of a removed symbol is a real dangling reference.
+_doc_references() {
+    local sym="$1"
+    git grep -nwF "$sym" "$_HEAD" -- "${_REF_DOC_PATHSPEC[@]}" 2>/dev/null
+}
+
+# Surviving references to SYMBOL at HEAD, excluding its own definition lines.
+# Combines the syntactic/code scan (sg or grep fallback) with the doc scan.
+_references_at_head() {
+    local sym="$1"
+    # Short-symbol guard: very short identifiers (e.g. `x`, `id`) generate
+    # coincidental matches that dominate the signal — skip them.
+    if (( ${#sym} < _MIN_LEN )); then
+        return 0
+    fi
+    if (( _HAVE_SG == 1 )); then
+        _sg_code_references "$sym"
+    else
+        _grep_code_references "$sym"
+    fi
+    _doc_references "$sym"
 }
 
 # ── Touched files in base..head ──────────────────────────────────────────────
