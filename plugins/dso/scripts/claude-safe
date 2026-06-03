@@ -23,7 +23,7 @@
 #   _CLAUDE_SAFE_SOURCE_ONLY=1 source scripts/claude-safe
 #   _cleanup_docker_for_worktree "wt-name" "/path/to/wt"
 #
-# Config keys read from workflow-config.yaml via read-config.sh:
+# Config keys read from .claude/dso-config.conf via read-config.sh:
 #   infrastructure.compose_files   — list of compose file paths (relative to repo root)
 #   infrastructure.compose_project — prefix for COMPOSE_PROJECT_NAME (e.g. myproject-db-)
 #   worktree.service_start_cmd   — command to start background services before Claude launches
@@ -325,7 +325,7 @@ mkdir -p "$VALIDATION_ARTIFACTS_DIR"
 VALIDATION_STATE_FILE="$VALIDATION_ARTIFACTS_DIR/status"
 
 # ── Service startup (background, config-driven) ───────────────────────────────
-# Runs worktree.service_start_cmd from workflow-config.yaml (when set) in a
+# Runs worktree.service_start_cmd from .claude/dso-config.conf (when set) in a
 # background subshell. When absent, no service startup is attempted (zero-config no-op).
 # Failure is non-blocking: stderr captured to SERVICE_LOG for post-hoc inspection.
 #
@@ -336,7 +336,7 @@ VALIDATION_STATE_FILE="$VALIDATION_ARTIFACTS_DIR/status"
 # chaining (e.g. 'cd "$WORKTREE_PATH/app" && env VAR=val cmd'), which requires
 # eval to handle properly. bash -c would suppress variable expansion that the
 # caller relies on (WORKTREE_PATH, APP_PORT). The trust boundary is identical
-# to the script itself; repo owners control workflow-config.yaml.
+# to the script itself; repo owners control .claude/dso-config.conf.
 # Test coverage: scripts/tests/test-claude-safe.sh tests 13-18 cover this block.
 SERVICE_LOG="$VALIDATION_ARTIFACTS_DIR/service-startup.log"
 SERVICE_START_CMD=$(_read_cfg worktree.service_start_cmd 2>/dev/null || true)
