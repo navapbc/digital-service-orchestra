@@ -53,6 +53,14 @@ The story's testing-mode classification (RED / GREEN / UPDATE) from `/dso:fix-bu
 
 {testing-mode}
 
+### Migration-Class Marker
+
+The migration-class marker for this story, sourced by the orchestrator (implementation-plan Step 3) from the **LAST** `MIGRATION_CLASS:` comment on the story ticket and passed in verbatim. It is a single-line JSON payload of the shape `{"migration-class":"sweep|db|inconclusive","detection_query":"<sg pattern>","threshold_used":<int>,"target_symbol":"<name>"}` (full contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/migration-class-marker.md`).
+
+Parse `migration-class` from THIS passed-in input block. You are read-only with respect to tickets — NEVER fetch this marker from the ticket yourself (you have no ticket access). When this block is absent, empty, or unparseable, treat it as an inert no-op: emit no migration task pair and decompose exactly as you would for a story with no marker (backward-compatible default). See **Migration-Class Pair Emission** below for how the parsed value drives pair emission.
+
+{migration-marker}
+
 ### AC Library Reference
 
 Read `${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md` once at the start. Select category blocks per task type and fill parameterized slots ({path}, {ClassName}, {N}, etc.). Do not invent ACs that exist in the library.
@@ -197,6 +205,44 @@ Re-read your output against this checklist before emitting:
 8. Every task-specific `Verify:` command passes all 11 items in the **Verify-Command Robustness** checklist from Step 5 (word-boundary matching, shell expansion escaping, helper script argv signature, fixture independence, cardinality guards, format tolerance, structured-artifact assertion target, prerequisite-state ACs, conflicting-AC resolution, positive awk anchors, sibling-file existence).
 
 If any check fails, iterate until valid. Do not emit an invalid set.
+
+## Migration-Class Pair Emission
+
+This is the **single shared dispatch point** for migration / rollout task-pair emission. Sibling stories ADD cases here rather than overwrite it — keep the structure additive. The dispatch reads the parsed `migration-class` value from the `{migration-marker}` input block (see Inputs > Migration-Class Marker) and the separate `{feature-flags-marker}` input (added by a sibling story). These are **independent axes**, NOT a mutually-exclusive `case` switch on one variable: evaluate each conditional separately, in addition to the others. A story that is both `db` AND flag-approved must emit BOTH pairs — do not let one case drop another. Treat `migration-class` (single-valued: `sweep` | `db` | `inconclusive`) and the feature-flags marker as composable, independent conditionals.
+
+**Parse-from-passed-in-arg rule.** Read `migration-class` from the passed-in `{migration-marker}` input block ONLY. The marker arrives verbatim as a passed-in input; this agent operates read-only with respect to the tracker and has no tracker access, so the value MUST come from the `{migration-marker}` arg and from nowhere else.
+
+**Absent / unparseable marker ⇒ inert no-op.** When the `{migration-marker}` block is absent, empty, or unparseable, emit NO migration pair and decompose exactly as a story with no marker would — this is the backward-compatible default (the common case). The absent-marker path is inert: it adds no tasks and changes nothing.
+
+**Pairing tag (machine-readable).** Every emitted pair-half task MUST carry a reserved `migration-role:<role>` tag so the sprint two-pass consumer can deterministically pair the halves (the `task_type` field is not persisted as a queryable key). The role vocabulary is reserved: `migration-role:automated-sweep`, `migration-role:manual-verification`, `migration-role:rollback`, `migration-role:rollback-verification`, `migration-role:flag-cutover`, `migration-role:flag-cleanup`. The orchestrator writes this tag at ticket-create time; you specify it on each emitted pair-half task draft so the orchestrator can apply it. (This agent does not create tickets — it only specifies the role so Step 5 can tag.)
+
+### Case: `migration-class` = `sweep` (ACTIVE)
+
+When the parsed `migration-class` is `sweep`, emit a PAIR of tasks under the two reserved task-type namespaces — `automated-sweep` (the transform half) and `manual-verification` (the audit half). Both halves carry their `migration-role:` pairing tag.
+
+**`automated-sweep` task** (the transform half; `migration-role:automated-sweep`):
+
+- The `detection_query` is the BROAD symbol match from the marker (`detection_query` field of `{migration-marker}`) — the wide net that enumerates every call site.
+- The `transform_descriptor` is the PRECISE rewrite, a token DISTINCT from `detection_query`: a recipe rule id, OR an `sg` rewrite `find` → `replace` pattern. `transform_descriptor` ≠ `detection_query` — the detection query finds sites; the transform descriptor specifies how each is rewritten. Specify both, separately named, on the task draft.
+- **Recipe-preferred / agent-sweep fallback.** On a recipe-registry match for the transform, emit `task_type: "recipe"` with the matching `recipe_id` (recipe-preferred path). Otherwise emit `task_type: "code"` carrying the `agent-sweep` fallback descriptor. Do NOT re-decide executor selection in-prompt: final executor selection is deferred to the sprint phase via `translate-recipe-to-llm-task.sh` (consistent with the existing Step 7 "identify the transform, not select the executor" guidance). You only identify the transform and encode the recipe-preferred / agent-sweep fallback; sprint resolves the executor.
+
+**`manual-verification` task** (the audit half; `migration-role:manual-verification`): this half is ALWAYS AGENT-DRIVEN — `task_type: "code"`, NEVER `recipe` (a human-judgment audit is not a deterministic transform). Its done-definition encodes THREE distinct, separately-named clauses — all three are required; satisfying a subset is NOT complete:
+
+- **Clause (a) — zero remaining sites:** re-run the `detection_query` over the modified tree AND assert zero remaining matched sites. A non-zero count means the sweep is incomplete. (Asserting zero remaining sites against the re-run `detection_query` is the completion signal for the transform.)
+- **Clause (b) — un_automatable_sites:** any site the automated sweep could not safely rewrite MUST be recorded as an inline `TODO(migration)` marker at the site AND enumerated in an `un_automatable_sites` field on the task. The `un_automatable_sites` field lists every site that carries a `TODO(migration)` marker; an empty list means the sweep fully covered all sites.
+- **Clause (c) — test gate passes:** the test gate MUST pass over the modified files. This clause is DISTINCT from clauses (a) and (b): a zero `detection_query` count (clause a) WITHOUT a passing test gate is NOT complete. Zero remaining sites plus a green test gate together define done; neither alone suffices.
+
+### Case: `db` (RESERVED)
+
+`db` is a **RESERVED** header — reserved for sibling story `ef21`, which fills in the active db-migration pair emission (rollback / rollback-verification roles). For THIS story, `db` is reserved and emits NO active pair. Do not implement active db emission here; the sibling story adds the active case under this header. Because the dispatch evaluates conditionals independently, the `db` case composes with `sweep` and with the flag-tag case once active.
+
+### Case: `flag-tag` (RESERVED)
+
+`flag-tag` (feature-flag rollout, driven by the separate `{feature-flags-marker}` input) is a **RESERVED** header — reserved for sibling story `c5fa`, which fills in the active flag-cutover / flag-cleanup pair emission. For THIS story, `flag-tag` is reserved and emits NO active pair. It is an INDEPENDENT axis from `migration-class`: a flag-approved story emits the flag pair in addition to (not instead of) any `migration-class` pair. Do not implement active flag emission here; the sibling story adds the active case under this header.
+
+### Case: `migration-class` = `inconclusive` (ACTIVE — no pair)
+
+When the parsed `migration-class` is `inconclusive` (ast-grep / `sg` was unavailable at detection time), do NOT emit the sweep pair — detection could not establish call-site coverage, so an automated sweep cannot be specified safely. This branch is NOT silently dropped: surface a `decomposition_notes` entry stating that migration-class detection was inconclusive (detection unavailable — `sg` absent) and that no migration pair was emitted, so the orchestrator can prompt re-running detection after installing `sg`. The `inconclusive` branch is a distinct named action, separate from the absent-marker no-op.
 
 ## DELTA OUTPUT MODE
 

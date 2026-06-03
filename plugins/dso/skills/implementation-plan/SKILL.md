@@ -634,6 +634,7 @@ Pass the following as task arguments:
 - `{file-impact-table}` — the orchestrator's enumeration from "File Impact Enumeration" below (every file × action × test-classification)
 - `{project-commands}` — `commands.test_unit`, `commands.lint`, `commands.format_check` from `dso-config.conf` (verbatim)
 - `{testing-mode}` — the story's testing-mode classification (RED / GREEN / UPDATE; default RED)
+- `{migration-marker}` — the migration-class marker emitted by Step 1 (Migration-Class Detection). Source it by scanning the story ticket for the **LAST** `MIGRATION_CLASS:` comment (last-wins idiom) and passing the verbatim single-line JSON payload that follows the `MIGRATION_CLASS:` prefix. If no `MIGRATION_CLASS:` comment is present (older stories planned before this step existed), pass an empty block — the task-decomposer treats an absent/unparseable marker as an inert no-op (the absent-marker path emits no migration pair, preserving backward compatibility). The agent parses migration-class from THIS passed-in arg; it never fetches it from the ticket (the agent has no ticket access).
 
 The agent returns a JSON object with `dd_partition_map`, `task_drafts`, and `decomposition_notes`. Validate in this order — do NOT reorder:
 
