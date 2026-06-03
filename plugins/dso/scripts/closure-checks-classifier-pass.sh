@@ -145,7 +145,9 @@ except Exception as e:
 fi
 
 # ── ANTHROPIC_API_KEY gate (DD1 graceful degradation) ───────────────────────
-if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+# apply-from-plan mode uses cached classifications from the plan file and
+# never dispatches the classifier, so it does not require the API key.
+if [[ -z "${ANTHROPIC_API_KEY:-}" && -z "$APPLY_FROM_PLAN" ]]; then
     echo "NOTICE: $TICKET_ID — ANTHROPIC_API_KEY unset; classifier pass skipped" >&2
     echo "BUDGET_CONSUMED: 0"
     exit 0
