@@ -65,7 +65,7 @@ _view() {
     _err_file=$(mktemp /tmp/wait-for-pr-err.XXXXXX)
     _VIEW_RC=0
     _VIEW_OUT=$("$GH_CMD" pr view "$PR" "${REPO_ARGS[@]}" \
-        --json state,mergedAt,statusCheckRollup,autoMergeRequest,mergeStateStatus 2>"$_err_file") || _VIEW_RC=$?
+        --json state,mergedAt,statusCheckRollup,autoMergeRequest,mergeable 2>"$_err_file") || _VIEW_RC=$?
     _VIEW_ERR=$(cat "$_err_file" 2>/dev/null || echo "")
     rm -f "$_err_file"
 }
@@ -147,38 +147,43 @@ while true; do
         continue
     fi
 
-    # Auto-merge transition check (non-null -> null while OPEN) — must run
-    # BEFORE _classify since _classify only knows the current poll's payload.
-    # Also surface mergeStateStatus so the eviction diagnostic can distinguish a
-    # merge-queue eviction (GitHub clears auto-merge when a queued candidate's
-    # required merge_group check fails or the base advances) from a reviewer
-    # manually disabling auto-merge. Both still exit 1 — only the message differs.
-    read -r _auto_present _merge_state <<< "$(printf '%s\n' "$out" | python3 -c '
+    # Fast conflict detection: a CONFLICTING (DIRTY) PR will NEVER get its
+    # required checks run by GitHub — it cannot compute the merge ref, so the
+    # check-based poll below would spin until --timeout (and any auto-merge
+    # never fires). Detect mergeable == CONFLICTING and exit fast (exit 1) so
+    # the caller/orchestrator can resolve the conflict (rebase) and retry,
+    # instead of dead-waiting the full timeout. mergeable is UNKNOWN while
+    # GitHub computes mergeability and MERGEABLE when clean, so CONFLICTING is
+    # a definitive terminal signal — safe to act on immediately.
+    _mergeable=$(printf '%s\n' "$out" | python3 -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
 except Exception:
-    print("? -"); sys.exit(0)
+    print("?"); sys.exit(0)
+print(d.get("mergeable") or "?")
+')
+    if [[ "$_mergeable" == "CONFLICTING" ]]; then
+        echo "ERROR: PR #$PR has merge conflicts (mergeable=CONFLICTING) — GitHub will not run required checks on a conflicting PR. Resolve the conflict (rebase onto the base) and retry." >&2
+        exit 1
+    fi
+
+    # Auto-merge transition check (non-null -> null while OPEN) — must run
+    # BEFORE _classify since _classify only knows the current poll's payload.
+    _auto_present=$(printf '%s\n' "$out" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print("?"); sys.exit(0)
 amr = d.get("autoMergeRequest")
 state = d.get("state") or ""
-mss = d.get("mergeStateStatus") or "-"
-print(("1" if amr else ("0" if state == "OPEN" else "?")) + " " + mss)
-')"
+print("1" if amr else ("0" if state == "OPEN" else "?"))
+')
     if [[ "$_auto_present" == "1" ]]; then
         _ever_had_auto=1
     elif [[ "$_auto_present" == "0" && "$_ever_had_auto" == "1" ]]; then
-        # mergeStateStatus BLOCKED/DIRTY/BEHIND on an OPEN PR whose auto-merge
-        # just cleared is the signature of a merge-queue eviction (vs a clean
-        # reviewer un-queue). Name it so operators don't chase a phantom
-        # "someone disabled auto-merge".
-        case "$_merge_state" in
-            BLOCKED|DIRTY|BEHIND)
-                echo "ERROR: PR #$PR was evicted from the merge queue (auto-merge cleared, mergeStateStatus=$_merge_state)" >&2
-                ;;
-            *)
-                echo "ERROR: PR #$PR auto-merge was queued then disabled" >&2
-                ;;
-        esac
+        echo "ERROR: PR #$PR auto-merge was queued then disabled" >&2
         exit 1
     fi
 

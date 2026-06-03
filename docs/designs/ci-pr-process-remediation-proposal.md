@@ -1,5 +1,7 @@
 # CI/PR/llm-review Pipeline — Remediation Proposal (v2, re-baselined)
 
+> **⛔ Its Merge-Queue recommendation is SUPERSEDED (2026-06-03) — see [ADR-0020](../adr/0020-two-tier-hardening-over-merge-queue.md).** The CF-1…CF-9 / S-11 problem statements and the non-MQ hardening remain valid and feed the Option A plan (`docs/handoff/option-a-pivot-plan.md`); the Merge-Queue conclusion was rejected after live validation. Retained as a historical record.
+
 **Status:** Draft for user approval
 **Process:** 2 independent opus audits → 10 convergent findings → blue-team verification (9 sustained, 1 downgraded, 0 dismissed) → proposal → opus proposal-review (approved) → **4-stream due diligence** (Merge-Queue spike, scenario stress-test, historical why-not, prior-art convergence) → this v2 re-baseline.
 

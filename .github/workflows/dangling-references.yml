@@ -13,10 +13,6 @@ name: dangling-references
 on:
   pull_request:
     branches: [main]
-  # GitHub Merge Queue (ADR-0019): the cross-PR symbol-conflict backstop must run
-  # on the queue's combined candidate. The env block below is event-aware because
-  # github.event.pull_request.* is NULL on merge_group. Inert until MQ-6.
-  merge_group:
 
 permissions:
   contents: read
@@ -34,9 +30,8 @@ jobs:
 
       - name: Run dangling-reference check
         env:
-          # Event-aware (ADR-0019): pull_request.* is null on merge_group.
-          GITHUB_BASE_REF: ${{ github.base_ref || 'main' }}
-          DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # ROLLOUT KNOB — flip to `enforce` at go-live (see header).
           DSO_DANGLING_MODE: warn
         run: |

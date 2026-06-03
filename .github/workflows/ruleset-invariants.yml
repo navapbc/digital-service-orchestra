@@ -14,10 +14,6 @@ name: ruleset-design-invariants
 # drift signal is worth firing on every PR.
 on:
   pull_request:
-  # GitHub Merge Queue (ADR-0019): required checks must report on merge_group.
-  # Inert until MQ is provisioned (MQ-6); the invariant assertions themselves
-  # are rewritten for the MQ model in MQ-3 before cut-over.
-  merge_group:
 
 # The Rulesets API requires repository Administration permission, which
 # GITHUB_TOKEN cannot grant via the permissions block (no `administration`
