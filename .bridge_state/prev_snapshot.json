@@ -27400,6 +27400,7 @@
     },
     "labels": [
       "CLI_user",
+      "bug-type-logic-error",
       "dso-id:3203-236a-09bc-44f4"
     ],
     "priority": {
@@ -27411,15 +27412,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[ticket-lib + bash scripts]: find calls walking .tickets-tracker without -L -> silent zero-result in worktree sessions (preventive guard)"
@@ -100586,15 +100587,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "/dso:brainstorm Part B: Verify inferred source against contract doc only -> Surfaced false-positive gap to user"
@@ -113332,6 +113333,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:adea-5dfc-3979-4ca2"
     ],
     "priority": {
@@ -113343,15 +113345,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "[test_cycle_ledger.py regression tests]: mock_run.returncode used but subprocess.run with check=True raises CalledProcessError -> mock attribute never inspected"
@@ -122118,6 +122120,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "detected_by:internal-review",
       "dso-id:c121-8f3e-5e87-40cb",
       "tag:test_gap"
@@ -122131,15 +122134,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "[debug-everything]: two-phase pipeline lacks functional integration test \u2014 only structural assertions cover the contract"
@@ -148695,7 +148698,7 @@
         {
           "content": [
             {
-              "text": "- A fixture at plugins/dso/skills/implementation-plan/tests/fixtures/migration-sweep/ (synthetic codebase, at least 5 call sites of a target signature, one intentionally omitted) demonstrates in-session that /dso:implementation-plan emits a migration-class marker and an automated-sweep/manual-verification pair, and that when the sweep leaves the omitted site, the verification completeness assertion exits non-zero and surfaces the missed site \u2014 while the pre-change planner (RED-phase committed baseline) produces no marker and no paired structure. Shown with captured tool output.",
+              "text": "- A fixture at tests/implementation-plan/fixtures/migration-sweep/ (synthetic codebase, at least 5 call sites of a target signature, one intentionally omitted) demonstrates in-session that /dso:implementation-plan emits a migration-class marker and an automated-sweep/manual-verification pair, and that when the sweep leaves the omitted site, the verification completeness assertion exits non-zero and surfaces the missed site \u2014 while the pre-change planner (RED-phase committed baseline) produces no marker and no paired structure. Shown with captured tool output.",
               "type": "text"
             }
           ],
@@ -184510,6 +184513,7 @@
       "subtask": false
     },
     "labels": [
+      "CLI_user",
       "dso-id:ed1e-b88d-0b82-4413",
       "workflow-stability"
     ],
@@ -184522,15 +184526,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "test-integration-review-skip-on-provenance.sh: 6 pre-existing failures in all-provenanced verifier fixture"
@@ -198872,15 +198876,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "MQ-4: merge-to-main-pr.sh MQ promotion path (retire staged-*; session->main direct)"
@@ -199482,15 +199486,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "MQ-5: rewrite sprint/check-ruleset-preflight.sh for the MQ model"
@@ -199588,15 +199592,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21058",
-      "name": "In Progress",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "yellow",
-        "id": 4,
-        "key": "indeterminate",
-        "name": "In Progress",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "MQ-1: merge_group trigger fan-out across all required workflows (inert until MQ enabled)"
@@ -207833,7 +207837,7 @@
         "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
       }
     },
-    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot sile [truncated]"
+    "summary": "As a DSO plugin maintainer, I want a three-variant regression fixture family run through brainstorm and preplanning with a test asserting each fixture fires a distinct named gate, so that the three enforcement gates stay wired and cannot silently regress."
   },
   "DIG-5147": {
     "assignee": null,
@@ -210433,7 +210437,7 @@
         {
           "content": [
             {
-              "text": "- A fixture exists at exactly plugins/dso/skills/implementation-plan/tests/fixtures/migration-sweep/ with a synthetic codebase containing at least 5 call sites of a target signature, one intentionally omitted from the sweep",
+              "text": "- A fixture exists at exactly tests/implementation-plan/fixtures/migration-sweep/ with a synthetic codebase containing at least 5 call sites of a target signature, one intentionally omitted from the sweep",
               "type": "text"
             }
           ],
@@ -210614,7 +210618,9 @@
       "subtask": false
     },
     "labels": [
-      "dso-id:2bd4-a58c-29d7-47a9"
+      "dso-id:2bd4-a58c-29d7-47a9",
+      "gap_analysis:complete",
+      "plan_review:pass"
     ],
     "priority": {
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
@@ -227630,15 +227636,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "Add Migration-Class Pair Emission dispatch + sweep case to task-decomposer.md and wire {migration-marker} in SKILL.md"
@@ -228394,15 +228400,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "Add structural-boundary suite asserting the Migration-Class Pair Emission contract in task-decomposer.md"
@@ -230531,15 +230537,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21059",
+      "name": "Done",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21059",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "green",
+        "id": 3,
+        "key": "done",
+        "name": "Done",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/3"
       }
     },
     "summary": "RED: behavioral suite test-migration-pair-order.sh for two-pass ordering helper"
@@ -230992,15 +230998,15 @@
     "status": {
       "description": "",
       "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
-      "id": "21057",
-      "name": "To Do",
-      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "id": "21058",
+      "name": "In Progress",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21058",
       "statusCategory": {
-        "colorName": "blue-gray",
-        "id": 2,
-        "key": "new",
-        "name": "To Do",
-        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+        "colorName": "yellow",
+        "id": 4,
+        "key": "indeterminate",
+        "name": "In Progress",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/4"
       }
     },
     "summary": "GREEN: apply-two-pass-ordering.sh helper (marker read + idempotent depends_on wiring)"
@@ -232216,5 +232222,923 @@
       }
     },
     "summary": "Fill reserved db case in task-decomposer.md and reconcile migration-class-marker contract"
+  },
+  "DIG-5246": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-2: Running the migration-aware planner against the fixture emits a migration-class marker and an automated-sweep / manual-verification pair, captured as tool output. (Asserted at SCHEMA LEVEL \u2014 see below.)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-3: When the sweep leaves the omitted site, the verification completeness assertion exits non-zero and surfaces the specific missed site.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-4: Running the RED-phase committed baseline planner against the same fixture produces no migration-class marker and no paired structure.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-5: The fixture and its bash test are deterministic \u2014 no network, clock, or random dependence \u2014 asserted by a repeatable run producing identical output.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-7: Unit tests written and passing for all new or modified logic.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create tests/implementation-plan/test_migration_sweep_e2e.sh + a committed baseline-expected.txt fixture + a REPO-ROOT .test-index entry. The E2E drives the REAL deterministic detector plugins/dso/scripts/implementation-plan/migration-class-detect.sh \u2014 NOT the LLM task-decomposer (dd-5 determinism). It runs an inline detection_query re-query against an mktemp-copied swept copy of the task-1 fixture, performs a committed-baseline byte-diff, asserts double-run byte-identity, and on sg-unavailable emits a loud 'SWEEP-E2E-SKIPPED: sg unavailable' and asserts the inconclusive path. NO new production helper script (no verify-sweep-completeness.sh / emit-sweep-pair.sh) \u2014 the re-query reuses the existing detection_query inline.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "SCHEMA-LEVEL dd-2 binding (Dependencies finding): the \"pair\" assertion is bound to the SCHEMA LEVEL \u2014 assert the marker carries the detection_query structural-contract field (the field from which the automated-sweep/manual-verification pair-emission is generated). Do NOT assert on actual live LLM pair-emission prose; the live pair-emission consumer (1c2b) is NOT required to be live for this E2E, and no AC requires live pair-emission output.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Expose a `--case <name>` selector (cases: missed-site, clean-sweep, marker, baseline, determinism, sg-skip) so each DD's AC invokes its case independently (mirrors sibling 982a's test-migration-pair-order.sh per-case pattern). chmod +x. Document the baseline-expected.txt regeneration procedure in the test header. Register in the REPO-ROOT .test-index keyed on plugins/dso/scripts/implementation-plan/migration-class-detect.sh (append to the existing line).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Test Spec",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Given the task-1 Python fixture and the committed baseline-expected.txt; When test_migration_sweep_e2e.sh drives migration-class-detect.sh against an mktemp swept copy and runs the inline detection_query re-query; Then (a) the marker carries the schema-level detection_query field, (b) --case missed-site exits non-zero and prints the omitted file:line, (c) the committed baseline contains no marker/pair tokens, (d) two runs are byte-identical, (e) under sg-unavailable it prints 'SWEEP-E2E-SKIPPED: sg unavailable' and asserts inconclusive.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] E2E test exists and is executable",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: test -x tests/implementation-plan/test_migration_sweep_e2e.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test header documents the baseline regeneration procedure",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qi 'regenerat' tests/implementation-plan/test_migration_sweep_e2e.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-2 (schema-level pair binding): the emitted marker carries the detection_query structural-contract field (NOT live LLM pair-emission prose; 1c2b need not be live)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: WORKFLOW_CONFIG_FILE=tests/implementation-plan/fixtures/migration-sweep/fixture-config.conf bash plugins/dso/scripts/implementation-plan/migration-class-detect.sh legacy_call python tests/implementation-plan/fixtures/migration-sweep | grep -qE '\"detection_query\":\"[^\"]+\"'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-3 (distinct): the completeness re-query with the omitted site present exits non-zero AND surfaces the missed file:line",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: out=$(bash tests/implementation-plan/test_migration_sweep_e2e.sh --case missed-site 2>&1); rc=$?; [ $rc -ne 0 ] && echo \"$out\" | grep -qE ':[0-9]+'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-4 (distinct): the committed baseline-expected.txt contains NO migration-class marker and NO automated-sweep/manual-verification pair tokens",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: ! grep -qE 'migration-class.{0,3}sweep|automated-sweep|manual-verification' tests/implementation-plan/fixtures/migration-sweep/baseline-expected.txt",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-5 (distinct, double-run determinism): the test contains the double-run determinism assertion AND the determinism case exits 0",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qiE 'diff|byte-identical|determinism|run.*twice' tests/implementation-plan/test_migration_sweep_e2e.sh && bash tests/implementation-plan/test_migration_sweep_e2e.sh --case determinism",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-7 / sg-unavailable loud skip: the test emits 'SWEEP-E2E-SKIPPED: sg unavailable' and asserts the inconclusive path",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -q 'SWEEP-E2E-SKIPPED: sg unavailable' tests/implementation-plan/test_migration_sweep_e2e.sh && grep -qE 'inconclusive' tests/implementation-plan/test_migration_sweep_e2e.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test does NOT invoke the LLM task-decomposer and creates no new production sweep helper",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: ! grep -qE 'task-decomposer|verify-sweep-completeness.sh|emit-sweep-pair.sh' tests/implementation-plan/test_migration_sweep_e2e.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Test exposes a --case selector",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qE '\\-\\-case' tests/implementation-plan/test_migration_sweep_e2e.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Registered in repo-root .test-index keyed on migration-class-detect.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qE 'migration-class-detect\\.sh:.*test_migration_sweep_e2e\\.sh' \"$(git rev-parse --show-toplevel)/.test-index\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-7: full E2E suite passes against the committed fixture",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: bash tests/implementation-plan/test_migration_sweep_e2e.sh 2>&1 | tail -1 | grep -qE 'FAILED: 0\\b'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:8803-9b28-219d-47b9"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Create migration-sweep E2E test driving deterministic detector with per-case selectors + committed baseline"
+  },
+  "DIG-5247": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Discovered during 2bd4 gap analysis. plugins/dso/scripts/implementation-plan/migration-class-detect.sh excludes import lines before counting call sites by extracting content via 'cut -d: -f4-', but this sg version emits 'path:line:content' (3 colon-fields), so field 4+ is empty and the import-exclusion regex never matches. Currently harmless because the call-site pattern legacy_call($$$) does not match import statements, but the filter provides no actual protection and would silently fail to exclude an import that happened to match a future pattern. Fix: parse path:line:content (cut -d: -f3-) so the import filter operates on the real content field. Reported, not blocking 2bd4.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10303,
+      "description": "Bugs track problems or errors.",
+      "entityId": "bd97dc3c-54d4-47aa-99f5-cf3aa85839ab",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10303?size=medium",
+      "id": "17289",
+      "name": "Bug",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17289",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:98a9-2d64-cd56-4ce4"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "migration-class-detect.sh import-line filter is dead code (cut -d: -f4- on 3-field sg output)"
+  },
+  "DIG-5248": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "RED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "This task is responsible for satisfying the following story done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-1: A fixture exists at EXACTLY tests/implementation-plan/fixtures/migration-sweep/ with a synthetic codebase containing at least 5 call sites of a target signature, one intentionally omitted from the sweep.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-6: The fixture is stack-generic \u2014 the target signature is covered for the repo's primary stack (Python). dd-6's chosen OR-branch is \"covered for the repo's primary stack\"; a non-Python fixture is OUT OF SCOPE.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Create a synthetic Python fixture under tests/implementation-plan/fixtures/migration-sweep/app/ : __init__.py, users.py, orders.py, reports.py, legacy_helpers.py. Across these modules place at least FIVE NON-test, NON-import call sites of `legacy_call` (real call expressions, not import/from-import lines, not under any test path), plus EXACTLY ONE call site annotated with a `# OMITTED-SITE` marker comment (the site task-2's completeness re-query must catch). Add fixture-config.conf pinning migration.call_site_threshold low enough that the fixture's call-site count is deterministically over threshold, so migration-class-detect.sh (LANG default python) classifies the target as migration-class:sweep.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "dd-6 scope note: the satisfied branch is the OR-branch \"covered for the repo's primary stack\" (Python = repo primary stack + migration-class-detect.sh LANG default). A non-Python fixture is explicitly out of scope.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## TDD Test Spec",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Given the synthetic Python fixture with \u22655 non-test non-import legacy_call sites, one '# OMITTED-SITE' site, and fixture-config.conf pinning the threshold; When migration-class-detect.sh legacy_call python <fixture> runs with WORKFLOW_CONFIG_FILE\u2192fixture-config.conf; Then the emitted marker JSON has \"migration-class\":\"sweep\", proving the Python primary-stack target is detected over threshold.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: TEST_CMD=$(.claude/scripts/dso read-config commands.test_unit) && [ -n \"$TEST_CMD\" ] && $TEST_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Lint passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && [ -n \"$LINT_CMD\" ] && $LINT_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Format check passes (exit 0)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: FORMAT_CHECK_CMD=$(.claude/scripts/dso read-config commands.format_check) && [ -n \"$FORMAT_CHECK_CMD\" ] && $FORMAT_CHECK_CMD",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Fixture package exists at the EXACT path with all 5 modules",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: for f in __init__ users orders reports legacy_helpers; do test -f tests/implementation-plan/fixtures/migration-sweep/app/$f.py || exit 1; done",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-1: \u22655 non-test, non-import legacy_call call sites",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: [ $(grep -rhnE 'legacy_call\\s*\\(' tests/implementation-plan/fixtures/migration-sweep/app/ | grep -vE '^[^:]*:[0-9]+:\\s*(import |from .* import)' | wc -l | tr -d ' ') -ge 5 ]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-1: exactly one '# OMITTED-SITE'-marked call site",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: [ $(grep -rh '# OMITTED-SITE' tests/implementation-plan/fixtures/migration-sweep/app/ | wc -l | tr -d ' ') -eq 1 ]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] fixture-config.conf pins migration.call_site_threshold",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: grep -qE '^[[:space:]]*migration\\.call_site_threshold[[:space:]]*=' tests/implementation-plan/fixtures/migration-sweep/fixture-config.conf",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] dd-6 (primary-stack coverage): the Python fixture target is detected as a sweep via migration-class-detect.sh python LANG default (a non-Python fixture is out of scope; this run evidences stack coverage)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  Verify: WORKFLOW_CONFIG_FILE=tests/implementation-plan/fixtures/migration-sweep/fixture-config.conf bash plugins/dso/scripts/implementation-plan/migration-class-detect.sh legacy_call python tests/implementation-plan/fixtures/migration-sweep | grep -q '\"migration-class\":\"sweep\"'",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus with full diagnostic context (all 3 failure messages)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user with full failure history",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "If MAX_AGENTS: 0 at sonnet\u2192opus escalation time: skip opus step, escalate to user immediately",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "labels": [
+      "dso-id:d2cb-6ddc-d4c5-431b"
+    ],
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Create synthetic Python migration-sweep fixture (>=5 legacy_call sites + one OMITTED-SITE) with pinned threshold config"
   }
 }
