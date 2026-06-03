@@ -235,6 +235,15 @@ JSON
 
     # Observable: helper exits 0 (marker read successfully)
     assert_eq "no-recompute: helper exits 0" "0" "$exit_code"
+
+    # Observable (positive): the helper READ the persisted migration-class=sweep
+    # marker and acted on it — it wrote the sweep-derived depends_on edge
+    # (manual-verification depends_on automated-sweep). This proves the persisted
+    # marker was consulted, not merely that the detector was skipped. Without
+    # reading the marker, no edge would be emitted (mclass would be empty → no-op).
+    local link_written
+    link_written=$(grep -c "task-manual-verify depends_on task-auto-sweep" "$link_log" 2>/dev/null || echo "0")
+    assert_eq "no-recompute: persisted sweep marker drove the depends_on edge" "1" "$link_written"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════

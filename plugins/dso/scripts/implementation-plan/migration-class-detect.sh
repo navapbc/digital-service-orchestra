@@ -145,10 +145,9 @@ fi
 #   - test files: paths matching /test/, _test., .test.
 #   - import lines: lines starting with import, from ... import, require(, #include
 _count_call_sites() {
-    local sym="$1"
-    local lang="$2"
-    local root="$3"
-    local pattern="$4"
+    local lang="$1"
+    local root="$2"
+    local pattern="$3"
 
     local raw_output
     # sg outputs file:line:col:match format with --json or plain text
@@ -194,9 +193,10 @@ _count_call_sites() {
             continue
         fi
 
-        # Extract the actual matched line content (everything after file:line:col:)
-        # sg format: path:line:col:content
-        line_content=$(echo "$line" | cut -d: -f4-)
+        # Extract the actual matched line content. sg's default plain output
+        # format is `file:line:content` (3 fields) — the matched source text is
+        # field 3 onward (any colons inside the content are preserved by -f3-).
+        line_content=$(echo "$line" | cut -d: -f3-)
 
         # Skip import lines
         if echo "$line_content" | grep -qE '^\s*(import |from .+ import |require\(|#include)' 2>/dev/null; then
@@ -209,7 +209,7 @@ _count_call_sites() {
     echo "$count"
 }
 
-CALL_SITE_COUNT=$(_count_call_sites "$TARGET_SYMBOL" "$LANG_HINT" "$SCAN_ROOT" "$DETECTION_QUERY")
+CALL_SITE_COUNT=$(_count_call_sites "$LANG_HINT" "$SCAN_ROOT" "$DETECTION_QUERY")
 
 # ── Classify ──────────────────────────────────────────────────────────────────
 # Detection RAN (sg available, db check already excluded). A below-threshold
