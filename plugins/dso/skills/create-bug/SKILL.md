@@ -22,6 +22,12 @@ It defines: title format (`[Component]: [Condition] -> [Observed Result]`), prio
 ## Workflow
 
 1. **Gather evidence.** Exact error messages, exit codes, commands that triggered the failure, expected vs. actual behavior with a pointer to the contract/rule/skill definition that defines "expected".
+
+   **Split-from-umbrella filings:** When Scenario Type is `split-from-umbrella` (i.e., this bug is filed as a result of a cluster-investigation split), the Actual Behavior section MUST include one of:
+   - `attribution_basis: evidenced — <CI run URL, failing test name + run, or commit SHA specific to this file/component>`
+   - `attribution_basis: speculative — <rationale for why the symptom is suspected; no per-file CI evidence exists>`
+
+   A bug with `attribution_basis: speculative` MUST NOT be scored or investigated at BASIC tier or above until the user explicitly confirms the symptom was observed. Filing without either annotation violates the Zero Inference Rule — symptom-claims inherited from an umbrella title alone are not evidence of a distinct defect.
 2. **Format the description.** Populate template §2 "Incident Overview" (always required). Add §1 (Technical Environment), §3 (Action History), §4 (Chronological Rationalization), §5 (Skills and Workflows), and §6 (Logs) whenever you have real data for them — the heredoc below is a minimum skeleton, not a ceiling.
 3. **Create the ticket.** Use the shim — never call plugin scripts directly.
 4. **Validate the title post-creation.** The ticket-create script emits a stderr warning when the title pattern is malformed. Catch it and auto-repair.
