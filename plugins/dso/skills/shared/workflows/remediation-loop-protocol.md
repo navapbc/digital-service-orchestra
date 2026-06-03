@@ -146,6 +146,18 @@ When the `task-decomposer` agent runs in delta mode (cycle >= 2), its output MUS
 
 4. **Acceptance-criteria preservation.** Each preserved task's prior `acceptance_criteria` list is carried forward verbatim — the agent MUST NOT re-author AC on unchanged tasks. Only task drafts being modified in the current cycle re-author AC, and even then the three Universal Criteria (`Unit tests pass`, `Lint passes`, `Format check passes`) MUST remain as the first three AC entries on every preserved or modified task, bit-identical to the canonical wording in the task-decomposer agent's Universal Criteria template. Preserved tasks' AC lists remain bit-identical to the prior cycle.
 
+### Schema Preservation — story-decomposer
+
+When the `story-decomposer` agent runs in delta mode (DELTA OUTPUT MODE active, i.e., `remediation_context` is provided), its output MUST follow these schema-preservation rules. Delta mode is a partial-update of the prior cycle's story drafts, not a full re-decomposition.
+
+1. **Preserve-by-omission rule for `done_definitions`.** For each targeted story, the returned `done_definitions` array MUST be a superset of the prior draft's `done_definitions`. Every DD not explicitly named in a finding MUST be carried forward verbatim. Omitting a prior DD that no finding addresses is a protocol violation.
+
+2. **Full-draft emission with carried-forward content.** The agent emits only `story_drafts` whose `target_story_id` appears in the finding set, but each emitted draft MUST include its complete `done_definitions` list — the union of carried-forward (unmodified) DDs and delta (new or modified) DDs. An emitted draft that silently drops carried-forward DDs violates the superset invariant and constitutes a protocol violation.
+
+3. **Finding-scoped modification only.** Only the parts of a story's `done_definitions` array explicitly addressed by a finding may be modified or replaced. All other DDs on that story are preserved verbatim, even if the story itself is in the target set.
+
+4. **Protocol-violation framing.** When the story-decomposer produces a `done_definitions` list that fails the superset check (i.e., a prior DD is absent and no finding named it), the orchestrator MUST treat this as a protocol violation: log the discrepancy, reconstruct the superset from the prior draft's DDs plus the delta, and record a `decomposition_notes` entry indicating the violation was detected and corrected.
+
 ---
 
 ## Section 6: Upstream Enum

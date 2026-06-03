@@ -139,7 +139,7 @@ Case (a) skips Steps 2–4 entirely; case (b) only skips Step 4 (Step 3 still ru
    - Quote evidence verbatim from each artifact path (one evidence quote per artifact) before emitting any story draft — the producer's pre-generation Read gate.
    - Emit only stories whose `target_story_id` appears in the passed `target_story_ids` list — NO full re-decomposition; absence of unlisted stories is a contract assertion that the fixture verifies.
 
-5. **Consume the delta only**. After the sub-agent returns, parse the `DELTA OUTPUT` block and apply only the new/modified stories. Stories outside the passed `target_story_ids` MUST be absent from the producer's response; if any unlisted stories appear, log a contract violation and discard them.
+5. **Merge the delta into the full story map.** After the sub-agent returns, parse the `DELTA OUTPUT` block and apply the following merge procedure to produce the authoritative updated story set: (a) take all prior `done_definitions` from `DECOMP_JSON` for each targeted story; (b) for DDs addressed by a finding, apply the modification specified in the finding; (c) for DDs NOT addressed by any finding, carry forward verbatim; (d) append new DDs introduced by the delta. Apply the merged result — the full `done_definitions` list is the union of carried-forward and delta entries. Stories outside the passed `target_story_ids` MUST be absent from the producer's response; if any unlisted stories appear, log a contract violation and discard them.
 
 6. **Record a single ticket comment** on the epic referencing the dispatch (SC5 single-comment policy):
    ```bash
