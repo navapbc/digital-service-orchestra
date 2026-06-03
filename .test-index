@@ -644,4 +644,4 @@ plugins/dso/scripts/ci/assert-review-liveness.sh:tests/scripts/test-assert-revie
 
 plugins/dso/hooks/check-antipattern-scan-trailer.sh: tests/hooks/test-check-antipattern-scan-trailer.sh
 plugins/dso/scripts/run-hermetic.sh: tests/scripts/test-run-hermetic.sh
-plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh:tests/scripts/test-resolve-feature-flag-approval.sh [test_story_tag_yields_approved_with_source_story]
+plugins/dso/scripts/implementation-plan/resolve-feature-flag-approval.sh:tests/scripts/test-resolve-feature-flag-approval.sh
