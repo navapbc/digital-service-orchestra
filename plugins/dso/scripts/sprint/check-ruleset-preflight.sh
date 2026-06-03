@@ -1,12 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # check-ruleset-preflight.sh
-# Validates the GitHub Rulesets the sprint ci-pr promotion relies on. TRANSITION-
-# TOLERANT (dual-mode, MQ-5 / ADR-0019): the live ruleset is re-provisioned in a
-# single gated cutover (MQ-6), so this preflight — which runs at sprint Phase A —
-# must pass against BOTH promotion models and select which to assert from live
-# state. The discriminator is FAIL-CLOSED: MQ mode iff the MAIN ruleset carries a
-# merge_queue rule; otherwise the two-tier assertions run (the closed default).
+# Validates the two-tier-promotion GitHub Rulesets the sprint ci-pr flow relies on:
+# a sub-PR tier (staged-*) and a main tier. (Updated from the obsolete single-tier
+# session-* / 'Sprint Story Review' model — those branches/checks no longer exist.)
 #
 # Usage:
 #   check-ruleset-preflight.sh [--repo <owner/repo>] [--config <path-to-dso-config.conf>]
@@ -15,22 +12,15 @@ set -euo pipefail
 #   DSO_CONFIG_FILE — path to dso-config.conf (overrides default discovery)
 #
 # Exit codes:
-#   0 = all Ruleset conditions satisfied (for the active model)
+#   0 = all Ruleset conditions satisfied
 #   1 = validation failure or dependency missing
 #
-# TWO-TIER model (no merge_queue rule on main — pre-cutover):
-#   1. A Ruleset matching staged-* requires the sub-PR review check (default
-#      review-sub-pr) and has no required_linear_history (PR1 session→staged gate).
-#   2. A Ruleset matching main requires check-staged-head + llm-review, does NOT
-#      require the sub-PR check (it never runs on staged-*→main; would deadlock
-#      PR2), and has no required_linear_history (PR2 staged→main gate).
-#
-# MERGE-QUEUE model (merge_queue rule on main — post-cutover):
-#   1. The main Ruleset has a merge_queue rule, still requires llm-review, no
-#      longer requires check-staged-head, and has no required_linear_history.
-#   2. Some Ruleset still requires the sub-PR review check (every commit reviewed
-#      at sub-PR time). The enforcing ruleset's ref include is not asserted here
-#      (staged-* vs session-* is finalized by MQ-4/MQ-6).
+# Validation conditions (all must pass):
+#   1. A Ruleset matching staged-* requires the sub-PR review check (default review-sub-pr)
+#      and has no required_linear_history (PR1 session→staged gate).
+#   2. A Ruleset matching main requires check-staged-head + llm-review, does NOT require the
+#      sub-PR check (it never runs on staged-*→main; would deadlock PR2), and has no
+#      required_linear_history (PR2 staged→main gate).
 #
 # Reads dso.review.check_name from dso-config.conf for the sub-PR check; falls back to 'review-sub-pr'.
 
@@ -217,18 +207,21 @@ def _has_linear(rs):
     )
 
 
-def _has_merge_queue(rs):
-    return any(
-        isinstance(r, dict) and r.get("type") == "merge_queue"
-        for r in (rs.get("rules") or [])
-    )
-
-
 def _find(pred):
     for rs in rulesets:
         if isinstance(rs, dict) and pred(_includes(rs)):
             return rs
     return None
+
+
+# Sub-PR tier: the ruleset whose ref include references staged-* (gates PR1 session→staged).
+subpr = _find(lambda incs: any(isinstance(p, str) and "staged-" in p for p in incs))
+if subpr is None:
+    print("NO_SUBPR_RULESET"); sys.exit(0)
+if subpr_check not in _required_contexts(subpr):
+    print("SUBPR_MISSING_CHECK"); sys.exit(0)
+if _has_linear(subpr):
+    print("SUBPR_HAS_LINEAR"); sys.exit(0)
 
 
 # Main tier: the ruleset whose ref include references the default branch (main) and NOT staged-*.
@@ -238,51 +231,10 @@ def _is_main_include(p):
     )
 
 
-# main_rs may be None in malformed/partial states; that is handled per-mode
-# below so the two-tier error ordering (sub-PR errors before NO_MAIN_RULESET)
-# is preserved.
 main_rs = _find(
     lambda incs: any(_is_main_include(p) for p in incs)
     and not any(isinstance(p, str) and "staged-" in p for p in incs)
 )
-
-
-def _any_ruleset_requires(ctx):
-    return any(isinstance(rs, dict) and ctx in _required_contexts(rs) for rs in rulesets)
-
-
-# Dual-mode discriminator (MQ-5, ADR-0019): MQ mode iff a MAIN ruleset EXISTS and
-# carries a merge_queue rule (what MQ-6 provisions live). Anything else — no main
-# ruleset, or a main ruleset without a merge_queue rule — falls through to the
-# two-tier assertions: the FAIL-CLOSED default. A two-tier regression (e.g.
-# check-staged-head wrongly dropped) cannot masquerade as MQ because it lacks the
-# merge_queue rule. Mirrors tests/scripts/test-ruleset-design-invariants.sh.
-if main_rs is not None and _has_merge_queue(main_rs):
-    # ── MERGE-QUEUE model (post-cutover) ──
-    main_checks = _required_contexts(main_rs)
-    if "check-staged-head" in main_checks:
-        print("MQ_MAIN_HAS_STAGED_HEAD"); sys.exit(0)
-    if "llm-review" not in main_checks:
-        print("MQ_MAIN_MISSING_LLM_REVIEW"); sys.exit(0)
-    if _has_linear(main_rs):
-        print("MQ_MAIN_HAS_LINEAR"); sys.exit(0)
-    # The per-story sub-PR LLM review must survive (every commit reviewed at
-    # sub-PR time). Tolerant on the enforcing ruleset's ref include (staged-* vs
-    # session-* is finalized by MQ-4/MQ-6) — require only that SOME ruleset gates
-    # the sub-PR check.
-    if not _any_ruleset_requires(subpr_check):
-        print("MQ_NO_SUBPR_REVIEW"); sys.exit(0)
-    print("OK_MQ"); sys.exit(0)
-
-# ── TWO-TIER model (pre-cutover; fail-closed default) ──
-# Sub-PR tier: the ruleset whose ref include references staged-* (gates PR1 session→staged).
-subpr = _find(lambda incs: any(isinstance(p, str) and "staged-" in p for p in incs))
-if subpr is None:
-    print("NO_SUBPR_RULESET"); sys.exit(0)
-if subpr_check not in _required_contexts(subpr):
-    print("SUBPR_MISSING_CHECK"); sys.exit(0)
-if _has_linear(subpr):
-    print("SUBPR_HAS_LINEAR"); sys.exit(0)
 if main_rs is None:
     print("NO_MAIN_RULESET"); sys.exit(0)
 main_checks = _required_contexts(main_rs)
@@ -309,35 +261,6 @@ case "$_PRELIGHT_RESULT" in
         echo "  - Main ruleset does not require the sub-PR check (no PR2 deadlock): confirmed"
         echo "  - No linear_history constraint on either ruleset: confirmed"
         exit 0
-        ;;
-    OK_MQ)
-        echo "GitHub Ruleset preflight check: success (merge queue promotion model)"
-        echo "  - Main ruleset has a merge_queue rule: found"
-        echo "  - Main ruleset no longer requires check-staged-head (retired): confirmed"
-        echo "  - Main ruleset requires llm-review (session→main integration review): found"
-        echo "  - A ruleset still requires the sub-PR check '$CHECK_NAME': found"
-        echo "  - No linear_history constraint on the main ruleset: confirmed"
-        exit 0
-        ;;
-    MQ_MAIN_HAS_STAGED_HEAD)
-        echo "ERROR: Under the merge queue model the main Ruleset still requires 'check-staged-head'." >&2
-        echo "  check-staged-head is retired at cutover; a required context nothing emits would block every queue entry." >&2
-        echo "  Re-provision the main ruleset (provision-ruleset.sh) to drop check-staged-head." >&2
-        exit 1
-        ;;
-    MQ_MAIN_MISSING_LLM_REVIEW)
-        echo "ERROR: Under the merge queue model the main Ruleset does not require 'llm-review'." >&2
-        echo "  The session→main PR's provenance-aware llm-review must still gate promotion." >&2
-        exit 1
-        ;;
-    MQ_MAIN_HAS_LINEAR)
-        echo "ERROR: The main Ruleset contains a 'required_linear_history' rule (incompatible with merge-queue merge commits)." >&2
-        exit 1
-        ;;
-    MQ_NO_SUBPR_REVIEW)
-        echo "ERROR: Under the merge queue model no Ruleset requires the sub-PR review check '$CHECK_NAME'." >&2
-        echo "  Every commit must still be reviewed at sub-PR time; the sub-PR review enforcement must survive the cutover." >&2
-        exit 1
         ;;
     FETCH_PARSE_ERROR)
         echo "ERROR: could not parse the GitHub rulesets API response." >&2

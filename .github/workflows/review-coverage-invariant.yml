@@ -19,10 +19,6 @@ name: review-coverage-invariant
 on:
   pull_request:
     branches: [main]
-  # GitHub Merge Queue (ADR-0019): the Goal-1 coverage backstop must run on the
-  # queue's combined candidate. The env block below is event-aware because
-  # github.event.pull_request.* is NULL on merge_group. Inert until MQ-6.
-  merge_group:
 
 permissions:
   contents: read
@@ -54,12 +50,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          # Event-aware (ADR-0019): pull_request.* is null on merge_group; fall
-          # back to the merge_group event shape. No PR number exists on
-          # merge_group — the coverage check must not hard-require PR_NUMBER.
-          GITHUB_BASE_REF: ${{ github.base_ref || 'main' }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+          DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           DSO_REVIEWED_LEDGER: .review-coverage-ledger
           # ROLLOUT KNOB — flip to `enforce` at go-live (see header).
           DSO_COVERAGE_INVARIANT_MODE: warn

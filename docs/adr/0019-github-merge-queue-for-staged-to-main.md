@@ -1,6 +1,9 @@
 # GitHub Merge Queue for the staged→main Promotion
 
-- Status: accepted
+> **⛔ SUPERSEDED (2026-06-03) — NOT ADOPTED. See [ADR-0020](0020-two-tier-hardening-over-merge-queue.md).**
+> Pre-cutover live validation proved GitHub Merge Queue cannot ruleset-enforce a content-aware LLM review: MQ evaluates required checks on the `merge_group` candidate, and `llm-review` (event-guarded to `pull_request`) never reports there → the queue entry times out and is evicted; you cannot configure a separate required-checks list for the queue vs the PR. MQ-1…MQ-5 were implemented (all flag-gated OFF) and have been **rolled back** (code preserved in git history); the project adopts the named fallback — harden the two-tier flow (ADR-0020). This document is retained as the historical decision record.
+
+- Status: **superseded by ADR-0020** (was: accepted)
 - Deciders: @joeoakhart
 - Date: 2026-06-02
 - Recommendation: **GO (scoped)** — ratified 2026-06-02 after a 4-stream due-diligence pass (MQ spike, scenario stress-test, historical re-baseline, prior-art convergence) and a live `merge_group` empirical test (PRs #544/#545, torn down). — adopt GitHub Merge Queue for the `staged-* → main` promotion, keep the LLM review on the sub-PR, make the deterministic Goal-1 backstops required on `merge_group`, and retire the bespoke staged-branch/PR1/PR2/resume machinery.
