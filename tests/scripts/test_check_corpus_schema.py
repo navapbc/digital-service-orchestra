@@ -632,3 +632,59 @@ def test_sibling_schema_naming_convention_enforced(tmp_path: Path) -> None:
         f"(which allows 'b') must NOT be used for this subdir.\n"
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 16: Malformed subdir _schema.yaml (missing required keys) is handled
+#          deterministically — falls back to top-level schema with a warning,
+#          not silently used as-is.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_malformed_subdir_schema_falls_back_to_toplevel_with_warning(
+    tmp_path: Path,
+) -> None:
+    """Given a subdir whose _schema.yaml is malformed (has neither
+    'required_fields' nor 'tag_vocabulary'), when the validator processes an
+    entry in that subdir, then it emits a warning to stderr and falls back to
+    the top-level schema rather than silently using the malformed schema.
+
+    The entry is valid under the top-level schema, so the validator must exit 0
+    (confirming the fallback is the top-level schema, not the broken one).
+    """
+    corpus_dir = tmp_path / "corpus"
+    corpus_dir.mkdir()
+
+    # Top-level schema: domain allows 'a' and 'b'
+    (corpus_dir / "_schema.yaml").write_text(
+        "required_fields:\n  - title\ntag_vocabulary:\n  domain:\n    - a\n    - b\n"
+    )
+
+    subdir = corpus_dir / "broken"
+    subdir.mkdir()
+
+    # Malformed subdir schema: contains neither 'required_fields' nor 'tag_vocabulary'
+    (subdir / "_schema.yaml").write_text(
+        "some_unrelated_key: not_a_schema\nanother_key: also_not_a_schema\n"
+    )
+
+    # Entry valid under top-level schema
+    (subdir / "entry.yaml").write_text(
+        "title: Entry in broken-schema subdir\ndomain: a\n"
+    )
+
+    result = _run_validator(corpus_dir)
+
+    # Should not silently use the malformed schema — must emit a warning
+    assert "malformed" in result.stderr.lower() or "WARNING" in result.stderr, (
+        f"Expected a malformed-schema WARNING in stderr.\nstderr: {result.stderr}"
+    )
+
+    # Should fall back to top-level schema and pass (entry is valid under top-level)
+    assert result.returncode == 0, (
+        f"Expected exit 0 after falling back to top-level schema for malformed subdir "
+        f"_schema.yaml. The entry is valid under the top-level schema.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )

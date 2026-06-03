@@ -44,8 +44,14 @@ ARTIFACTS_DIR="${DSO_ARTIFACTS_DIR:-$REPO_ROOT/.claude/artifacts}"
 # Read from config if not already overridden by BYPASS_ALERT_THRESHOLD env var.
 if [[ -z "${BYPASS_ALERT_THRESHOLD:-}" ]]; then
     _PLUGIN_SCRIPTS_DIR="$_BYPASS_SCRIPT_DIR/.."
-    _cfg_val=$(bash "$_PLUGIN_SCRIPTS_DIR/read-config.sh" end_session.bypass_alert_threshold 2>/dev/null || true)  # shim-exempt: internal orchestration script
-    BYPASS_ALERT_THRESHOLD="${_cfg_val:-3}"
+    _read_config_sh="$_PLUGIN_SCRIPTS_DIR/read-config.sh"
+    if [[ -f "$_read_config_sh" && -x "$_read_config_sh" ]]; then
+        _cfg_val=$(bash "$_read_config_sh" end_session.bypass_alert_threshold 2>/dev/null || true)  # shim-exempt: internal orchestration script
+        BYPASS_ALERT_THRESHOLD="${_cfg_val:-3}"
+    else
+        echo "bypass-surveillance: WARN: read-config.sh not found or not executable at ${_read_config_sh} — using default threshold 3" >&2
+        BYPASS_ALERT_THRESHOLD=3
+    fi
 fi
 
 # Validate threshold is a positive integer; fall back to default on bad value.
@@ -53,6 +59,21 @@ if ! [[ "$BYPASS_ALERT_THRESHOLD" =~ ^[0-9]+$ ]] || [[ "$BYPASS_ALERT_THRESHOLD"
     echo "bypass-surveillance: WARN: invalid bypass_alert_threshold '${BYPASS_ALERT_THRESHOLD}' — using default 3" >&2
     BYPASS_ALERT_THRESHOLD=3
 fi
+
+# ── Archive helper ───────────────────────────────────────────────────────────
+# Move all processed log files into bypass-processed/ to prevent re-counting.
+# Called ONLY when the run completed its obligation:
+#   (a) count was below threshold (no ticket needed), or
+#   (b) count was at/above threshold AND a ticket was successfully filed.
+# On ticket-creation failure, do NOT call this — leave logs in place for retry.
+_archive_logs() {
+    local archive_dir="${ARTIFACTS_DIR}/bypass-processed"
+    mkdir -p "$archive_dir" 2>/dev/null || true
+    local log
+    for log in "${_all_logs[@]}"; do
+        [[ -f "$log" ]] && mv "$log" "$archive_dir/" 2>/dev/null || true
+    done
+}
 
 # ── Collect bypass log files ──────────────────────────────────────────────────
 mapfile -t _sprint_logs < <(ls -1 "$ARTIFACTS_DIR"/sprint-merge-only-bypass-*.log 2>/dev/null || true)
@@ -89,11 +110,7 @@ if [[ $_count -lt "$BYPASS_ALERT_THRESHOLD" ]]; then
     # Below threshold — log count informally but do not alert.
     echo "bypass-surveillance: ${_count} bypass invocation(s) recorded (threshold: ${BYPASS_ALERT_THRESHOLD}) — below alert threshold." >&2
     # Archive logs so they are not re-counted on the next run.
-    _archive_dir="${ARTIFACTS_DIR}/bypass-processed"
-    mkdir -p "$_archive_dir" 2>/dev/null || true
-    for _log in "${_all_logs[@]}"; do
-        [[ -f "$_log" ]] && mv "$_log" "$_archive_dir/" 2>/dev/null || true
-    done
+    _archive_logs
     exit 0
 fi
 
@@ -114,7 +131,16 @@ echo "" >&2
 # ── File a follow-up bug ticket ───────────────────────────────────────────────
 _reasons_md=""
 for i in "${!_reasons[@]}"; do
+    # Reasons are already sanitized above (control chars stripped, capped at 200).
     _reasons_md+="$((i+1)). ${_reasons[$i]}"$'\n'
+done
+
+# Sanitize log paths: strip control chars and newlines to prevent embedded
+# content from breaking the description or being interpreted as extra args.
+_logs_md=""
+for _lp in "${_all_logs[@]}"; do
+    _safe_lp=$(printf '%s' "$_lp" | tr -d '\000-\037\177' | cut -c1-400)
+    _logs_md+="${_safe_lp}"$'\n'
 done
 
 _description="## Incident Overview
@@ -135,8 +161,7 @@ ${_count} bypass invocation(s) were recorded during this session (threshold: ${B
 ${_reasons_md}
 ### Log Files
 
-$(printf '%s\n' "${_all_logs[@]}")
-
+${_logs_md}
 ### Recommended Follow-Up
 
 Review whether the bypassed commits were LLM-reviewed. If any bypass was used to avoid the review gate, initiate a retroactive review of the affected commits."
@@ -153,12 +178,10 @@ _ticket_exit=$?
 if [[ $_ticket_exit -ne 0 ]]; then
     echo "bypass-surveillance: ERROR: failed to file follow-up bug ticket (exit ${_ticket_exit})" >&2
     echo "bypass-surveillance: ticket create output: ${_ticket_out}" >&2
-    # Archive logs even on ticket-filing failure to avoid re-counting on next run.
-    _archive_dir="${ARTIFACTS_DIR}/bypass-processed"
-    mkdir -p "$_archive_dir" 2>/dev/null || true
-    for _log in "${_all_logs[@]}"; do
-        [[ -f "$_log" ]] && mv "$_log" "$_archive_dir/" 2>/dev/null || true
-    done
+    # DO NOT archive logs when ticket creation fails — leave them in place so
+    # the next end-session run can retry filing the ticket. Archiving here
+    # would silently discard bypass evidence with no audit trail.
+    echo "bypass-surveillance: RETRY REQUIRED — bypass logs left in ${ARTIFACTS_DIR} for next end-session run" >&2
     exit 1
 fi
 
@@ -166,10 +189,7 @@ _new_ticket_id=$(echo "$_ticket_out" | tail -1)
 echo "bypass-surveillance: INTEGRITY ALERT — ${_count} bypass invocations exceeded threshold ${BYPASS_ALERT_THRESHOLD}. Follow-up ticket filed: ${_new_ticket_id}" >&2
 
 # ── Archive processed logs (preserve audit trail, prevent re-counting) ────────
-_archive_dir="${ARTIFACTS_DIR}/bypass-processed"
-mkdir -p "$_archive_dir" 2>/dev/null || true
-for _log in "${_all_logs[@]}"; do
-    [[ -f "$_log" ]] && mv "$_log" "$_archive_dir/" 2>/dev/null || true
-done
+# Only reached when ticket was filed successfully — obligation is complete.
+_archive_logs
 
 exit 0

@@ -31,6 +31,27 @@ except ImportError:
     sys.exit(2)
 
 
+# Top-level keys that must be present in any schema dict for it to be usable.
+# A schema missing both is not structurally valid — it cannot constrain anything.
+_SCHEMA_REQUIRED_KEYS = {"required_fields", "tag_vocabulary"}
+
+
+def _validate_schema_structure(schema: dict, schema_path: Path) -> bool:
+    """Return True if schema has at least one of the expected top-level keys.
+
+    Emits a warning to stderr (does not exit) when the schema appears malformed
+    so callers can decide whether to fall back to the top-level schema or abort.
+    """
+    if not _SCHEMA_REQUIRED_KEYS.intersection(schema.keys()):
+        print(
+            f"WARNING: Schema file {schema_path} is missing both 'required_fields' "
+            f"and 'tag_vocabulary' keys — schema appears malformed.",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
 def load_schema(schema_path: Path) -> dict:
     """Load and return the schema definition from _schema.yaml."""
     if not schema_path.exists():
@@ -166,15 +187,30 @@ def resolve_schema(
     subdir_schema_path = parent / "_schema.yaml"
     if subdir_schema_path.exists() and parent != corpus_dir:
         resolved = load_schema(subdir_schema_path)
-        schema_cache[parent] = resolved
-        return resolved
+        if _validate_schema_structure(resolved, subdir_schema_path):
+            schema_cache[parent] = resolved
+            return resolved
+        # Malformed subdir schema — emit warning (already done) and fall through
+        # to next priority rather than silently using an unusable schema.
+        print(
+            f"WARNING: Falling back to next-priority schema for {parent} "
+            f"due to malformed {subdir_schema_path}.",
+            file=sys.stderr,
+        )
 
     # Priority 2: corpus_dir/_schema-{subdir_name}.yaml
     sibling_schema_path = corpus_dir / f"_schema-{parent.name}.yaml"
     if sibling_schema_path.exists():
         resolved = load_schema(sibling_schema_path)
-        schema_cache[parent] = resolved
-        return resolved
+        if _validate_schema_structure(resolved, sibling_schema_path):
+            schema_cache[parent] = resolved
+            return resolved
+        # Malformed sibling schema — fall through to top-level.
+        print(
+            f"WARNING: Falling back to top-level schema for {parent} "
+            f"due to malformed {sibling_schema_path}.",
+            file=sys.stderr,
+        )
 
     # Priority 3: fall back to top-level schema
     schema_cache[parent] = top_schema
