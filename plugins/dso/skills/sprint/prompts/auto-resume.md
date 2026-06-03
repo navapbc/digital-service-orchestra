@@ -54,6 +54,11 @@
           - On conflict: run `git merge --abort`, log `'Conflict in <b> — discarded'`
      5. After scan: if repo is clean, proceed to Phase C
 
+   - Re-create sprint-active marker (auto-resume path bypasses Phase A):
+     ```bash
+     # Re-create sprint-active marker (auto-resume path bypasses Phase A)
+     touch "$(git rev-parse --show-toplevel)/.sprint-active"
+     ```
    - Proceed to Phase C.
 
 (e) **Non-epic tickets** (story, task, bug) with `in_progress` status are NOT affected by auto-resume detection — they proceed through Non-Epic Routing as before. Auto-resume only applies to epic-type tickets.
