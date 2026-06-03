@@ -81,6 +81,33 @@ if [[ "${PR_LIB_MODE:-0}" != "1" ]]; then
     : "${MERGE_STRATEGY:?MERGE_STRATEGY must be set (expected: pr)}"
 fi
 
+# --- MQ-4 (ADR-0019): resolve merge-queue promotion-path enablement ---------
+# When dso.merge_queue.enabled is ON, the session branch is promoted to main
+# DIRECTLY (one PR → main → GitHub Merge Queue), retiring the bespoke staged-*
+# PR1/PR2 two-tier dance. When OFF (default, and the live state until the gated
+# MQ-6 cutover) the legacy two-tier flow runs UNCHANGED — this is load-bearing
+# because every migration story still lands through it. The flag only selects
+# which orchestration this script runs; it does NOT provision/enable the live
+# queue (that is provision-ruleset.sh --enable-merge-queue at MQ-6).
+#
+# Read once here (mirrors the MERGE_STRATEGY derivation above and the
+# provisioner's read at provision-ruleset.sh:307); skipped under PR_LIB_MODE so
+# sourced-library unit tests never touch config. DSO_MERGE_QUEUE_ENABLED_OVERRIDE
+# (1/0) forces the value for tests, matching the DSO_* override convention used
+# elsewhere in this file.
+DSO_MERGE_QUEUE_ENABLED=0
+if [[ "${PR_LIB_MODE:-0}" != "1" ]]; then
+    _SCRIPT_DIR_FOR_MQ="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    _MQ_CONF_RAW="$(WORKFLOW_CONFIG_FILE="${WORKFLOW_CONFIG_FILE:-}" \
+        bash "$_SCRIPT_DIR_FOR_MQ/read-config.sh" dso.merge_queue.enabled 2>/dev/null || echo "")"
+    case "${_MQ_CONF_RAW,,}" in true|1|yes|on) DSO_MERGE_QUEUE_ENABLED=1 ;; esac
+    unset _SCRIPT_DIR_FOR_MQ _MQ_CONF_RAW
+fi
+case "${DSO_MERGE_QUEUE_ENABLED_OVERRIDE:-}" in
+    1) DSO_MERGE_QUEUE_ENABLED=1 ;;
+    0) DSO_MERGE_QUEUE_ENABLED=0 ;;
+esac
+
 # --- Resolve repo root (best-effort; PR mode can run outside a git repo for
 # certain failure paths in skeleton form, but most production paths require it). ---
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "")}"
@@ -2908,7 +2935,11 @@ fi
 # Fail-safe: any gh/git uncertainty defaults to "do NOT advance" (finish PR1). The
 # staged-work check (bug b7bf-c3b9) prevents advancing onto an EMPTY staged ref
 # sitting at main HEAD — the empty-staged advance that lost a live session's work.
-if type _state_get_field >/dev/null 2>&1; then
+#
+# MQ-4: this whole staged-advance machinery is two-tier-only. Under the merge
+# queue there is no staged-* ref or PR1, so the advance must not run — the gate
+# below makes it a strict no-op when the flag is ON. Flag OFF → identical to before.
+if [[ "$DSO_MERGE_QUEUE_ENABLED" == "0" ]] && type _state_get_field >/dev/null 2>&1; then
     _saved_staged=$(_state_get_field "staged_branch" "" 2>/dev/null || true)
     if [[ -n "$_saved_staged" && "$BRANCH" != "$_saved_staged" ]]; then
         _pr1_open=$(gh pr list --head "$BRANCH" --base "$_saved_staged" --state open --json number --jq 'length' 2>/dev/null || echo "1")
@@ -2964,15 +2995,24 @@ except Exception:
         # e.g. #534/#556), which is NOT a staged promotion PR. Resolving it here made
         # --resume drive the wrong PR and lose the staged promotion. Filter to
         # non-draft PRs whose base is a staged-* branch.
+        #
+        # MQ-4: under the merge queue there is no staged-* PR — the single promotion
+        # PR targets main directly. Select the non-draft base==main PR instead so
+        # --resume re-attaches to it rather than minting a duplicate. The DSO_MQ
+        # env var switches the discovery filter; everything else is unchanged.
         _RESUME_STATE_PR_URL=$(gh pr list --head "$BRANCH" --state open \
             --json url,isDraft,baseRefName 2>/dev/null \
-            | python3 -c "
-import json, sys
+            | DSO_MQ="$DSO_MERGE_QUEUE_ENABLED" DSO_DB="${_DEFAULT_BRANCH:-main}" python3 -c "
+import json, os, sys
+mq = os.environ.get('DSO_MQ', '0') == '1'
+db = os.environ.get('DSO_DB', 'main')
 try:
     prs = json.load(sys.stdin)
+    def match(p):
+        base = str(p.get('baseRefName', ''))
+        return (base == db) if mq else base.startswith('staged-')
     print(next((p['url'] for p in prs
-                if not p.get('isDraft', False)
-                and str(p.get('baseRefName', '')).startswith('staged-')), ''))
+                if not p.get('isDraft', False) and match(p)), ''))
 except Exception:
     print('')
 " 2>/dev/null || true)
@@ -3000,11 +3040,23 @@ fi
 # branch/PR, hitting the duplicate-PR error.
 _PHASE_MERGE_RC=0
 if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
-    # PR-C: staged-* intermediate runs first; no-op for story-PR mode or
-    # already-staged-* BRANCH. Failure routes through the same CONFLICT_DATA
-    # emission path below as a _phase_merge failure (test_conflict_data_*).
-    _phase_staged_intermediate || _PHASE_MERGE_RC=$?
-    [[ "$_PHASE_MERGE_RC" -eq 0 ]] && _phase_merge || _PHASE_MERGE_RC=$?
+    if [[ "$DSO_MERGE_QUEUE_ENABLED" == "1" ]]; then
+        # MQ-4 (ADR-0019): merge-queue path — promote the session branch to main
+        # DIRECTLY. No staged-* intermediate, no PR1. _phase_merge opens ONE
+        # session→main PR (base resolves to $_DEFAULT_BRANCH since STORY_PR_BASE
+        # is unset) and bumps the version pre-push (the staged-* skip guard in
+        # _phase_source_branch_version_bump is inert because BRANCH is the session
+        # branch, so the bump runs here instead of in the retired staged phase).
+        # The downstream _phase_queue_auto_merge (gh pr merge --auto) is what adds
+        # the PR to the GitHub merge queue once the queue rule is live (MQ-6).
+        _phase_merge || _PHASE_MERGE_RC=$?
+    else
+        # PR-C: staged-* intermediate runs first; no-op for story-PR mode or
+        # already-staged-* BRANCH. Failure routes through the same CONFLICT_DATA
+        # emission path below as a _phase_merge failure (test_conflict_data_*).
+        _phase_staged_intermediate || _PHASE_MERGE_RC=$?
+        [[ "$_PHASE_MERGE_RC" -eq 0 ]] && _phase_merge || _PHASE_MERGE_RC=$?
+    fi
 fi
 if [[ "$_PHASE_MERGE_RC" -ne 0 ]]; then
     if type _emit_conflict_data >/dev/null 2>&1; then

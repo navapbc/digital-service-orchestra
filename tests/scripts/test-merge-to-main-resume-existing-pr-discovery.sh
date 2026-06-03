@@ -122,8 +122,11 @@ test_resume_fallback_filters_to_staged_base() {
 #
 # The advance-to-PR2 detection block must run on EVERY invocation, not only under
 # --resume — a bare re-invocation after PR1 merged must also advance instead of
-# minting a duplicate staged ref + PR1 (#490/#492). Assert its guard is the bare
-# `if type _state_get_field`, NOT `[[ "${_RESUME:-0}" -eq 1 ]] && type _state_get_field`.
+# minting a duplicate staged ref + PR1 (#490/#492). Assert its guard is NOT
+# `_RESUME`-gated. MQ-4 (ADR-0019) added a `DSO_MERGE_QUEUE_ENABLED == 0` prefix
+# so the entire staged-advance machinery is a no-op under the merge queue (no
+# staged refs exist there); that flag gate is orthogonal to _RESUME, so the
+# 73b5 invariant (advance is independent of --resume) still holds.
 # ============================================================
 test_advance_block_not_resume_gated() {
     local advance_block resume_gated=0 unconditional=0
@@ -132,8 +135,10 @@ test_advance_block_not_resume_gated() {
         found { print }
         found && /_resume_should_advance_to_staged "\$_pr1_open"/ { exit }
     ' "$MERGE_SCRIPT" 2>/dev/null)
-    grep -qE 'if \[\[ "\$\{_RESUME:-0\}" -eq 1 \]\] && type _state_get_field' <<< "$advance_block" 2>/dev/null && resume_gated=1 || true
-    grep -qE '^if type _state_get_field >/dev/null 2>&1; then' <<< "$advance_block" 2>/dev/null && unconditional=1 || true
+    grep -qE '_RESUME[^"]*-eq 1 \]\] && type _state_get_field' <<< "$advance_block" 2>/dev/null && resume_gated=1 || true
+    # Accept either the bare `if type _state_get_field` (pre-MQ-4) or the
+    # MQ-flag-prefixed form; both keep the block independent of --resume.
+    grep -qE '(^if type _state_get_field|DSO_MERGE_QUEUE_ENABLED" == "0" \]\] && type _state_get_field) >/dev/null 2>&1; then' <<< "$advance_block" 2>/dev/null && unconditional=1 || true
     assert_eq "advance-to-PR2 block runs unconditionally, not _RESUME-gated (73b5)" "01" "${resume_gated}${unconditional}"
 }
 
