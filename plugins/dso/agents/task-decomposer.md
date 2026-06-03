@@ -61,6 +61,14 @@ Parse `migration-class` from THIS passed-in input block. You are read-only with 
 
 {migration-marker}
 
+### Feature-Flags Marker
+
+The feature-flags approval marker for this story, sourced by the orchestrator (implementation-plan Step 1 + Step 3) via the two-hop lookup (`resolve-feature-flag-approval.sh`) and passed in verbatim as `{feature-flags-marker}`. It is a single-line JSON payload of the shape `{"feature-flags":"approved|prohibited","reason":"<non-empty string>","source":"story|parent|none"}` (full contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/feature-flags-marker.md`).
+
+Read `feature-flags` from THIS passed-in `{feature-flags-marker}` input block ONLY. You are read-only with respect to tickets — NEVER fetch or compute this value from the story ticket, from story prose, or from parent-epic ticket tags yourself (you have no tracker access; the two-hop lookup is done by the orchestrator, not by you). When this block is absent, empty, or unparseable, treat it as an inert no-op: emit no flag pair and decompose exactly as you would for a story with no marker (backward-compatible default). See **Migration-Class Pair Emission** — `flag-tag` case below for how the resolved verdict drives flag pair emission. Feature-flag wording in the story text alone does NOT trigger flag pair emission; only the passed-in {feature-flags-marker} verdict drives it.
+
+{feature-flags-marker}
+
 ### AC Library Reference
 
 Read `${CLAUDE_PLUGIN_ROOT}/docs/ACCEPTANCE-CRITERIA-LIBRARY.md` once at the start. Select category blocks per task type and fill parameterized slots ({path}, {ClassName}, {N}, etc.). Do not invent ACs that exist in the library.
@@ -250,9 +258,31 @@ When the parsed `migration-class` (read from the PASSED-IN `{migration-marker}` 
 
 **Rollback-verification task** (`migration-role:rollback-verification`): ALWAYS agent-driven (`task_type: "code"`). Its done-definition MUST assert on the post-rollback **schema state** — i.e., that the resulting schema reached the intended post-rollback shape (e.g., the expected column/table is present or absent after the rollback runs) — NOT merely that the rollback command exited 0. A rollback can exit 0 while leaving the schema in an incorrect intermediate state; the verification asserts the resulting schema state directly (expected schema after rollback), so a schema-state assertion is the completion signal — exit-0 alone is insufficient.
 
-### Case: `flag-tag` (RESERVED)
+### Case: `flag-tag` (ACTIVE)
 
-`flag-tag` (feature-flag rollout, driven by the separate `{feature-flags-marker}` input) is a **RESERVED** header — reserved for sibling story `c5fa`, which fills in the active flag-cutover / flag-cleanup pair emission. For THIS story, `flag-tag` is reserved and emits NO active pair. It is an INDEPENDENT axis from `migration-class`: a flag-approved story emits the flag pair in addition to (not instead of) any `migration-class` pair. Do not implement active flag emission here; the sibling story adds the active case under this header.
+<!-- CHECKPOINT(d666): ACTIVE flag-tag case filled per story c5fa DDs — flag-cutover + flag-cleanup pair emission with depends_on ordering edge, feature_flags:prohibited recording with reason, read-only-marker boundary (no story prose / no two-hop self-fetch). -->
+
+**Source rule.** Read the `feature-flags` verdict from the passed-in `{feature-flags-marker}` input ONLY — never from story prose, never via a self-fetch, and never by performing the two-hop story→parent tag lookup yourself. That lookup is done by the orchestrator (via `resolve-feature-flag-approval.sh`) before dispatch; you are a pure consumer of the resolved marker. Feature-flag wording in the story text alone does NOT trigger flag pair emission; only the passed-in {feature-flags-marker} verdict does.
+
+**Independence rule.** The flag-tag axis is INDEPENDENT of and does NOT gate the `migration-class` axis. Evaluate these two markers as separate conditionals. A story that is both `db` AND flag-approved MUST emit BOTH the db three-task unit AND the flag pair — do not let one case short-circuit the other.
+
+**APPROVED branch** — when `{feature-flags-marker}` carries `"feature-flags": "approved"`:
+
+Emit a PAIR of tasks: a **flag-cutover task** and a **flag-cleanup task**. Both tasks are emitted together as a co-authored pair in the same plan.
+
+- **Flag-cutover task** (`migration-role:flag-cutover`): the flag-guarded code path cutover — enable the flag in production and verify that the feature-flag-guarded path is live. Tag: `migration-role:flag-cutover`. The cutover task is the first half; the cleanup depends on it.
+
+- **Flag-cleanup task** (`migration-role:flag-cleanup`): the flag removal and cleanup — after the flag-guarded cutover has been confirmed live, remove the feature flag, delete the flag guard conditional, and clean up any flag-infrastructure artifacts. Tag: `migration-role:flag-cleanup`. This task MUST carry a `depends_on` edge referencing the flag-cutover task's `temp_id` — cleanup is only safe AFTER cutover has been confirmed. Mirror the sweep pair's `manual-verification depends_on automated-sweep` ordering pattern: emit `depends_on: [<flag-cutover-temp-id>]` on the flag-cleanup task draft so the sprint two-pass consumer can order them deterministically.
+
+Both pair-half tasks carry their `migration-role:` pairing tag so the sprint two-pass consumer (982a) can deterministically pair the halves and enforce ordering. The orchestrator applies these tags at ticket-create time; specify them on the emitted task drafts.
+
+**PROHIBITED branch** — when `{feature-flags-marker}` carries `"feature-flags": "prohibited"` (tag absent on story and parent, lookup failure, or any other non-approved verdict):
+
+Emit NO feature-flag task pair. Record `feature_flags:prohibited` in the plan's `decomposition_notes`, accompanied by the marker's `reason` field (non-empty; not a bare token). The reason explains why the flag pair was not emitted (e.g., `"tag-absent-on-story-and-parent-<epic-id>"`, `"no-parent-on-story-<story-id>"`). This is the backward-compatible default — stories without the approval tag decompose exactly as before, with no flag tasks and a recorded reason.
+
+**Absent / unparseable marker ⇒ inert no-op.** When `{feature-flags-marker}` is absent, empty, or unparseable, treat it identically to PROHIBITED: emit no flag pair, and note the absent marker in `decomposition_notes` (reason: `"marker-absent-or-unparseable"`). Do not halt or surface an error — the absent-marker path is the backward-compatible default for stories planned before this step was added.
+
+See also: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/feature-flags-marker.md` for the full marker JSON shape, field definitions, source-of-truth helper, safe-default, and consumer protocol.
 
 ### Case: `migration-class` = `inconclusive` (ACTIVE — no pair)
 
