@@ -26,6 +26,7 @@ if _SCRIPTS_DIR not in sys.path:
 # Importing the not-yet-existing module — every test fails with
 # ModuleNotFoundError until T3 lands cycle_ledger.py.
 from dso_ci_review.cycle_ledger import (  # noqa: E402
+    _SENTINEL_PR_NUMBER,
     append_cycle,
     read_ledger,
     reconstruct_from_pr_comments,
@@ -583,3 +584,79 @@ def test_reconstruct_endpoint_matches_shared_helper():
         f"reconstruct_from_pr_comments must pass the shared helper's endpoint "
         f"'{expected_endpoint}' to gh, but got cmd={cmd!r}"
     )
+
+
+# ── Bug 2d66-970d-7009-4098 — v1.0.0 reconstruct entries missing pr_number ───
+
+
+def test_reconstruct_v100_legacy_entry_has_pr_number_sentinel():
+    """Bug 2d66-970d-7009-4098 defect (a): v1.0.0 entries reconstructed from
+    PR comments must carry pr_number=_SENTINEL_PR_NUMBER (0).
+
+    The v1.0.0 branch in reconstruct_from_pr_comments previously built the
+    dict WITHOUT a pr_number key, violating the module docstring invariant that
+    "v1.1.0 entries are returned with pr_number=_SENTINEL_PR_NUMBER (0)".
+
+    RED trigger: KeyError / missing key before fix.
+    GREEN after: "pr_number" key present with value _SENTINEL_PR_NUMBER.
+    """
+    legacy_comment = "Review\nDSO-Review-Cycle: 1 findings-hash=h1\nDone"
+    fake_response = json.dumps([{"body": legacy_comment}])
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.stdout = fake_response
+        mock_run.return_value.returncode = 0
+        ledger = reconstruct_from_pr_comments(42, "owner/repo")
+
+    assert len(ledger["cycles"]) == 1, (
+        f"Expected 1 legacy-format cycle, got {len(ledger['cycles'])}"
+    )
+    cycle = ledger["cycles"][0]
+    assert "pr_number" in cycle, (
+        f"v1.0.0 reconstructed entry must have 'pr_number' key; got keys={list(cycle.keys())!r}"
+    )
+    assert cycle["pr_number"] == _SENTINEL_PR_NUMBER, (
+        f"v1.0.0 reconstructed entry must have pr_number=_SENTINEL_PR_NUMBER "
+        f"({_SENTINEL_PR_NUMBER}), got {cycle.get('pr_number')!r}"
+    )
+
+
+# ── Bug 2d66-970d-7009-4098 — _open_lock missing utf-8 encoding ──────────────
+
+
+def test_open_lock_uses_utf8_encoding(monkeypatch, tmp_path):
+    """Bug 2d66-970d-7009-4098 defect (b): _open_lock must pass encoding='utf-8'
+    to os.fdopen, matching _atomic_write's encoding and preventing platform-
+    dependent codec issues on systems where the default encoding is not UTF-8.
+
+    RED trigger: the monkeypatched fdopen captures the call; before fix the
+    'r'-mode call lacks encoding='utf-8'.
+    GREEN after: all os.fdopen calls use encoding='utf-8'.
+    """
+    import os as _os
+
+    calls = []
+    real_fdopen = _os.fdopen
+
+    def capturing_fdopen(fd, *args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        return real_fdopen(fd, *args, **kwargs)
+
+    monkeypatch.setattr(_os, "fdopen", capturing_fdopen)
+
+    ledger_path = str(tmp_path / "ledger.json")
+    write_ledger(
+        ledger_path,
+        {"schema_version": "1.2.0", "epic_id": "", "cycles": []},
+    )
+
+    # Filter to only the read-mode fdopen calls (the lock-file open)
+    read_mode_calls = [c for c in calls if c["args"] and c["args"][0] == "r"]
+    assert read_mode_calls, (
+        "Expected at least one os.fdopen(..., 'r', ...) call from _open_lock; "
+        f"all fdopen calls: {calls!r}"
+    )
+    for call in read_mode_calls:
+        assert call["kwargs"].get("encoding") == "utf-8", (
+            f"_open_lock must call os.fdopen(fd, 'r', encoding='utf-8'); "
+            f"got args={call['args']!r} kwargs={call['kwargs']!r}"
+        )
