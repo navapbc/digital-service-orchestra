@@ -494,4 +494,69 @@ echo "--- Test 14 (RED): debug bypass with reason → accepted + logged ---"
 test_debug_bypass_with_reason_accepted_and_logged
 echo ""
 
+# ── Test 15: agent worktree with copied .sprint-active rejects non-merge commit ─
+# Documents the INVARIANT that check-session-merge-only.sh must respect:
+# a linked worktree with .sprint-active present (whether placed by copy or any
+# other means) REJECTS non-merge commits. This is exactly why the skills must
+# NOT copy .sprint-active into agent sub-branch worktrees. The hook behavior
+# itself is tested as-is (unchanged); this test records WHY the copy had to go.
+test_agent_worktree_with_copied_sprint_active_rejects_non_merge_commit() {
+    local _repo
+    _repo=$(make_linked_worktree)
+
+    # Simulate what Step 3.5 / Step 7.5 used to do: copy .sprint-active into
+    # the agent worktree. This is the trigger for the mutual-exclusion conflict
+    # described in bug 3349-8532-1183-4fc1.
+    touch "$_repo/.sprint-active"
+
+    local exit_code=0
+    ( cd "$_repo" && bash "$_SCRIPT" 2>/dev/null ) || exit_code=$?
+
+    assert_ne \
+        "test_agent_worktree_with_copied_sprint_active_rejects_non_merge_commit: linked worktree + .sprint-active rejects non-merge commit (invariant the skills must respect)" \
+        "0" "$exit_code"
+}
+
+echo "--- Test 15: agent worktree with copied .sprint-active rejects non-merge commit (invariant) ---"
+test_agent_worktree_with_copied_sprint_active_rejects_non_merge_commit
+echo ""
+
+# ── Test 16 (RED → GREEN after fix): skill prompts contain no cp-of-.sprint-active ─
+# Structural assertion: per-worktree-review-commit.md and single-agent-integrate.md
+# must NOT contain any instruction to `cp` `.sprint-active` into a sub-worktree.
+# RED before fix (the cp instruction is still present in both files).
+# GREEN after fix (the cp instructions are replaced with env-var export).
+test_skill_prompts_contain_no_cp_sprint_active_instruction() {
+    local _repo_root
+    _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "$PLUGIN_ROOT")
+
+    local _per_worktree="$_repo_root/plugins/dso/skills/sprint/prompts/per-worktree-review-commit.md"
+    local _single_agent="$_repo_root/plugins/dso/skills/shared/prompts/single-agent-integrate.md"
+
+    # Look for `cp` commands that copy `.sprint-active` into a worktree path.
+    # The pattern is: `cp "$SESSION_ROOT/.sprint-active"` or
+    # `cp "$ORCHESTRATOR_ROOT/.sprint-active"` (both variants used in the two files).
+    local _per_worktree_violation=0
+    local _single_agent_violation=0
+
+    if grep -qE 'cp[[:space:]].*\.sprint-active' "$_per_worktree" 2>/dev/null; then
+        _per_worktree_violation=1
+    fi
+    if grep -qE 'cp[[:space:]].*\.sprint-active' "$_single_agent" 2>/dev/null; then
+        _single_agent_violation=1
+    fi
+
+    assert_eq \
+        "test_skill_prompts_contain_no_cp_sprint_active_instruction: per-worktree-review-commit.md has no cp-of-.sprint-active instruction" \
+        "0" "$_per_worktree_violation"
+
+    assert_eq \
+        "test_skill_prompts_contain_no_cp_sprint_active_instruction: single-agent-integrate.md has no cp-of-.sprint-active instruction" \
+        "0" "$_single_agent_violation"
+}
+
+echo "--- Test 16 (RED→GREEN): skill prompts contain no cp-of-.sprint-active instruction ---"
+test_skill_prompts_contain_no_cp_sprint_active_instruction
+echo ""
+
 print_summary
