@@ -1,11 +1,22 @@
 #!/usr/bin/env bash
 # tests/skills/test-sprint-agent-dispatch-pattern.sh
-# Structural test: assert that skill files do NOT use `subagent_type: dso:*` patterns.
+# Structural test: assert that skill files do NOT use unregistered `subagent_type: dso:*`
+# patterns.
 #
 # Background (bug af02-e276): dso:* labels are agent file identifiers, NOT valid
-# subagent_type values. The Agent tool only accepts built-in types (general-purpose,
-# Explore, Plan). Skill files must use subagent_type: "general-purpose" with the
-# named agent file loaded verbatim as the prompt.
+# subagent_type values for unregistered agents. The Agent tool only accepts built-in types
+# (general-purpose, Explore, Plan) OR named agents registered in plugin.json/AGENTS.md.
+#
+# Per AGENTS.md policy, agents registered in the plugin ARE allowed to use the named
+# `subagent_type: "dso:<agent-name>"` primary form (with general-purpose fallback). This
+# test allowlists these registered named-primary dispatches while still flagging any
+# genuinely-invalid unregistered dso:* dispatches.
+#
+# Registered agents allowlisted for named-primary dispatch (sourced from AGENTS.md):
+#   - dso:gov-copy-writer
+#   - dso:completion-verifier
+#   - dso:verification-remediation-planner
+#   - dso:feasibility-reviewer
 #
 # This test verifies the structural boundary for:
 #   - plugins/dso/skills/sprint/SKILL.md
@@ -25,9 +36,23 @@ ok()   { echo "ok - $1"; PASS=$((PASS + 1)); }
 fail() { echo "not ok - $1"; FAIL=$((FAIL + 1)); }
 
 # ---------------------------------------------------------------------------
-# Helper: assert a file does NOT contain `subagent_type: dso:*` patterns,
-# excluding lines that are clearly explaining why NOT to use the pattern
-# (i.e., lines containing "NOT a valid" or "file identifier" or "only accepts").
+# Registered agents that are allowed to use the named-primary dispatch form
+# `subagent_type: "dso:<name>"` per AGENTS.md policy. These are plugin-registered
+# agents that have their own agent file in plugins/dso/agents/. Unregistered dso:*
+# dispatches are still flagged as invalid.
+# ---------------------------------------------------------------------------
+REGISTERED_DSO_AGENTS=(
+    "dso:gov-copy-writer"
+    "dso:completion-verifier"
+    "dso:verification-remediation-planner"
+    "dso:feasibility-reviewer"
+)
+
+# ---------------------------------------------------------------------------
+# Helper: assert a file does NOT contain unregistered `subagent_type: dso:*`
+# patterns. Registered named-primary dispatches (listed in REGISTERED_DSO_AGENTS)
+# are allowlisted per AGENTS.md policy. Lines explaining why NOT to use the pattern
+# (containing "NOT a valid", "file identifier", "only accepts") are also excluded.
 # ---------------------------------------------------------------------------
 assert_no_invalid_subagent_type() {
     local file="$1"
@@ -38,20 +63,28 @@ assert_no_invalid_subagent_type() {
         return
     fi
 
-    # Find lines with `subagent_type.*dso:` that are NOT explanatory clarifications
+    # Build a grep -v pattern for all registered agents
+    local registered_pattern
+    registered_pattern=$(printf '%s\|' "${REGISTERED_DSO_AGENTS[@]}")
+    registered_pattern="${registered_pattern%\\|}"  # strip trailing \|
+
+    # Find lines with `subagent_type.*dso:` that are:
+    # - NOT explanatory clarifications (NOT a valid, file identifier, only accepts)
+    # - NOT registered named-primary dispatches (allowlisted per AGENTS.md)
     local bad_lines
     bad_lines=$(grep -n "subagent_type.*dso:" "$REPO_ROOT/$file" 2>/dev/null \
         | grep -v "NOT a valid\|file identifier\|NOT valid\|not a valid\|only accepts" \
+        | grep -v "$registered_pattern" \
         || true)
 
     if [[ -n "$bad_lines" ]]; then
-        fail "$label: contains invalid 'subagent_type: dso:*' dispatch pattern"
+        fail "$label: contains invalid unregistered 'subagent_type: dso:*' dispatch pattern"
         echo "  Found in $file:"
         echo "$bad_lines" | while IFS= read -r line; do
             echo "    $line"
         done
     else
-        ok "$label: no invalid 'subagent_type: dso:*' dispatch patterns"
+        ok "$label: no invalid unregistered 'subagent_type: dso:*' dispatch patterns"
     fi
 }
 
@@ -131,6 +164,24 @@ fi
 SCRUTINY_FILE="plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md"
 
 assert_no_invalid_subagent_type "$SCRUTINY_FILE" "epic-scrutiny-pipeline.md: no invalid dso: subagent_type"
+
+# ---------------------------------------------------------------------------
+# Negative assertion: verify that an UNREGISTERED dso:* agent would still be flagged.
+# This ensures the allowlist only whitelists known registered agents and does not
+# create a blanket pass for all dso:* dispatches.
+# ---------------------------------------------------------------------------
+_TMPFILE=$(mktemp "${TMPDIR:-/tmp}/test-dispatch-negative.XXXXXX")
+echo 'subagent_type: "dso:some-unregistered-agent"' > "$_TMPFILE"
+_NEG_RESULT=$(grep -n "subagent_type.*dso:" "$_TMPFILE" 2>/dev/null \
+    | grep -v "NOT a valid\|file identifier\|NOT valid\|not a valid\|only accepts" \
+    | grep -v "dso:gov-copy-writer\|dso:completion-verifier\|dso:verification-remediation-planner\|dso:feasibility-reviewer" \
+    || true)
+rm -f "$_TMPFILE"
+if [[ -n "$_NEG_RESULT" ]]; then
+    ok "allowlist: unregistered dso:* dispatch is still flagged by the filter"
+else
+    fail "allowlist: unregistered dso:* dispatch was NOT flagged — allowlist is too broad"
+fi
 
 # ---------------------------------------------------------------------------
 # Test: REVIEW-WORKFLOW.md uses general-purpose (canonical pattern reference)
