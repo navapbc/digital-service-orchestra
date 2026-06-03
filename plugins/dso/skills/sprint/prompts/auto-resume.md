@@ -4,7 +4,7 @@
 
 (b) Count active (open + in_progress) children:
    ```bash
-   ACTIVE=$({ .claude/scripts/dso ticket list --parent=<primary_ticket_id> --status=open 2>/dev/null; .claude/scripts/dso ticket list --parent=<primary_ticket_id> --status=in_progress 2>/dev/null; } | grep -c '"ticket_id"' || echo 0)
+   ACTIVE=$(.claude/scripts/dso ticket list --parent=<primary_ticket_id> --status=open,in_progress 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo 0)
    ```
 
 (c) **If `ACTIVE == 0`**: Check for historical (including closed) children:
