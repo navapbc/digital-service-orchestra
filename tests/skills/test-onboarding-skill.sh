@@ -386,12 +386,13 @@ test_design_areas_complete() {
     assert_pass_if_clean "test_design_areas_complete"
 }
 
-# test_design_notes_output: SKILL.md must reference .claude/design-notes.md as output artifact
+# test_design_notes_output: SKILL.md must reference DESIGN.md as the design output artifact
+# (path configurable via design.design_notes_path config key, default DESIGN.md)
 test_design_notes_output() {
     _snapshot_fail
     local artifact_found
     artifact_found="missing"
-    if grep -q "design-notes.md" "$SKILL_MD" 2>/dev/null; then
+    if grep -q "DESIGN.md" "$SKILL_MD" 2>/dev/null; then
         artifact_found="found"
     fi
     assert_eq "test_design_notes_output" "found" "$artifact_found"

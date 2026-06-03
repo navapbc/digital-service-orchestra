@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../..}"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)/plugins/dso}"
 # Structural validation for the Story Decomposition phase wiring.
 # Pins: agent file present with opus + required fields; SKILL.md inserts the
 # phase between Phase B and Phase C; explicit model: "opus" passed to dispatch;

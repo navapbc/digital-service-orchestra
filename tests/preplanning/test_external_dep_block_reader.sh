@@ -5,7 +5,7 @@
 set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILL_MD="${_SCRIPT_DIR}/../SKILL.md"
+SKILL_MD="$(git -C "$_SCRIPT_DIR" rev-parse --show-toplevel)/plugins/dso/skills/preplanning/SKILL.md"
 
 PASS=0
 FAIL=0

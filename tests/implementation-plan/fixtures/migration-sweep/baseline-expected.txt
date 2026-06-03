@@ -1,0 +1,47 @@
+# RED-phase committed baseline -- hand-authored pre-epic planner output
+#
+# PROVENANCE (read before regenerating):
+#   This file is HAND-AUTHORED. It is NOT produced by running the current
+#   migration-class detector against the fixture. The migration-class
+#   detection feature (epic dso-uvyl) is already landed, so running the
+#   detector today ALREADY emits a sweep-class marker. There is therefore no
+#   way to *generate* a no-marker baseline from the current detector -- it
+#   must be authored by hand to represent the planner output from BEFORE the
+#   epic added migration-class detection.
+#
+#   The migration-sweep E2E test (test_migration_sweep_e2e.sh, task 8803) uses
+#   this file as the negative side of a POSITIVE-DIFFERENTIAL assertion: the
+#   current migration-aware detector run carries the migration-class marker and
+#   the detection-query structural-contract field (the field from which the
+#   automated / manual verification pair is generated), while this committed
+#   baseline carries NEITHER -- proving the epic added them.
+#
+# INVARIANT (enforced by the test and by dd-4's own AC):
+#   This file MUST stay free of the migration-aware marker/pair tokens, namely:
+#     - the sweep-class marker phrase  (regex: migration-class.{0,3}sweep)
+#     - the automated verification half of the pair phrase
+#     - the manual verification half of the pair phrase
+#     - the JSON detection-query contract field
+#   The literal token spellings are intentionally NOT written out here so the
+#   AC's negative grep stays true. If any of those tokens appears in this file
+#   it stops being a valid negative and the differential assertion is vacuous.
+#
+# REGENERATION PROCEDURE:
+#   Do NOT regenerate this file from tool output. To intentionally change it,
+#   edit it by hand and keep it free of every token listed in the INVARIANT
+#   block above, then re-run:
+#     bash tests/implementation-plan/test_migration_sweep_e2e.sh
+#   and confirm the suite still reports FAILED: 0.
+#
+# ---------------------------------------------------------------------------
+# Hypothetical pre-epic planner output for the legacy_call migration story.
+# A plain task list with no migration-class awareness and no paired
+# automated/manual verification structure.
+# ---------------------------------------------------------------------------
+PLANNER OUTPUT (pre-epic baseline)
+task-1: Replace legacy_call in app/orders.py with the new data layer.
+task-2: Replace legacy_call in app/users.py with the new data layer.
+task-3: Replace legacy_call in app/reports.py with the new data layer.
+task-4: Replace legacy_call in app/__init__.py with the new data layer.
+task-5: Update the unit tests for the migrated modules.
+verification: Run the test suite and confirm all modules import cleanly.
