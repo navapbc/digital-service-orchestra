@@ -488,6 +488,66 @@ def test_reconstruct_uses_issues_endpoint_not_pulls_endpoint():
     )
 
 
+# ── Bug adea-5dfc — error-branch coverage for reconstruct_from_pr_comments ───
+
+
+def test_reconstruct_gh_api_failure_sets_reconstruction_gaps(capsys):
+    """Given: subprocess.run raises CalledProcessError (gh API failure).
+    When: reconstruct_from_pr_comments is called.
+    Then: returned ledger has reconstruction_gaps=True and WARNING emitted to stderr.
+    """
+    with patch("subprocess.run") as mock_run:
+        mock_run.side_effect = subprocess.CalledProcessError(
+            1, "gh", stderr="auth error"
+        )
+        ledger = reconstruct_from_pr_comments(42, "owner/repo")
+    assert ledger.get("reconstruction_gaps") is True, (
+        f"Expected reconstruction_gaps=True on CalledProcessError, "
+        f"got reconstruction_gaps={ledger.get('reconstruction_gaps')!r}"
+    )
+    captured = capsys.readouterr()
+    assert "WARNING" in captured.err, (
+        f"Expected 'WARNING' in stderr, got: {captured.err!r}"
+    )
+
+
+def test_reconstruct_gh_not_installed_sets_reconstruction_gaps(capsys):
+    """Given: subprocess.run raises FileNotFoundError (gh CLI missing).
+    When: reconstruct_from_pr_comments is called.
+    Then: returned ledger has reconstruction_gaps=True and diagnostic emitted to stderr.
+    """
+    with patch("subprocess.run") as mock_run:
+        mock_run.side_effect = FileNotFoundError
+        ledger = reconstruct_from_pr_comments(42, "owner/repo")
+    assert ledger.get("reconstruction_gaps") is True, (
+        f"Expected reconstruction_gaps=True on FileNotFoundError, "
+        f"got reconstruction_gaps={ledger.get('reconstruction_gaps')!r}"
+    )
+    captured = capsys.readouterr()
+    assert "gh CLI is not installed" in captured.err, (
+        f"Expected 'gh CLI is not installed' in stderr, got: {captured.err!r}"
+    )
+
+
+def test_reconstruct_json_decode_error_sets_reconstruction_gaps(capsys):
+    """Given: subprocess.run returns non-JSON stdout.
+    When: reconstruct_from_pr_comments is called.
+    Then: returned ledger has reconstruction_gaps=True and parse-error warning in stderr.
+    """
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.stdout = "not-valid-json"
+        mock_run.return_value.returncode = 0
+        ledger = reconstruct_from_pr_comments(42, "owner/repo")
+    assert ledger.get("reconstruction_gaps") is True, (
+        f"Expected reconstruction_gaps=True on JSONDecodeError, "
+        f"got reconstruction_gaps={ledger.get('reconstruction_gaps')!r}"
+    )
+    captured = capsys.readouterr()
+    assert "not valid JSON" in captured.err, (
+        f"Expected 'not valid JSON' in stderr, got: {captured.err!r}"
+    )
+
+
 def test_reconstruct_endpoint_matches_shared_helper():
     """Bug 230d-6cab writer/reader parity contract (Approach B).
 
