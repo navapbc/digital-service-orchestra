@@ -258,7 +258,7 @@ plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-harvest-wo
 plugins/dso/scripts/implementation-plan/approach-cycle-state.sh:tests/scripts/test-implementation-plan-helpers.sh
 plugins/dso/scripts/implementation-plan/check-reinvocation.sh:tests/scripts/test-implementation-plan-helpers.sh
 plugins/dso/scripts/implementation-plan/check-tag-guards.sh:tests/scripts/test-implementation-plan-helpers.sh
-plugins/dso/scripts/implementation-plan/migration-class-detect.sh:tests/implementation-plan/test-migration-class-detect.sh
+plugins/dso/scripts/implementation-plan/migration-class-detect.sh:tests/implementation-plan/test-migration-class-detect.sh,tests/implementation-plan/test_migration_sweep_e2e.sh
 plugins/dso/scripts/sprint/apply-two-pass-ordering.sh:tests/sprint/test-migration-pair-order.sh
 plugins/dso/scripts/inference-recall-replay.sh:tests/test-inference-recall-replay.sh
 plugins/dso/scripts/issue-quality-check.sh:tests/scripts/test-issue-quality-check-storage-api.sh,tests/scripts/test_issue_quality_check_file_impact.py

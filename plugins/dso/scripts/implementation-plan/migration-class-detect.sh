@@ -138,7 +138,11 @@ _count_call_sites() {
     fi
 
     local count=0
-    local line file_part line_content
+    local line file_part rel_part line_content
+
+    # Normalise the scan root for scope-relative path computation: strip any
+    # trailing slash so the prefix-strip below yields a clean relative path.
+    local root_norm="${root%/}"
 
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
@@ -148,8 +152,22 @@ _count_call_sites() {
         # Try to extract file path from the line
         file_part="${line%%:*}"
 
-        # Skip test files
-        if echo "$file_part" | grep -qE '(^|/)(test[s]?)/|_test\.|\.test\.' 2>/dev/null; then
+        # Compute the path RELATIVE to the scan root before applying the
+        # test-file exclusion. The exclusion must be scope-relative: a "tests/"
+        # segment in the absolute prefix above the scan root (e.g. when the
+        # scan root itself lives under a repo's tests/ tree) must NOT cause the
+        # legitimate source files inside the scan root to be excluded. Anchoring
+        # the match to the relative path keeps the real exclusion of test files
+        # *within* the scanned tree intact while ignoring the absolute prefix.
+        rel_part="$file_part"
+        if [[ "$file_part" == "$root_norm/"* ]]; then
+            rel_part="${file_part#"$root_norm"/}"
+        elif [[ "$file_part" == "$root_norm" ]]; then
+            rel_part=""
+        fi
+
+        # Skip test files — matched against the scope-relative path only.
+        if echo "$rel_part" | grep -qE '(^|/)(test[s]?)/|_test\.|\.test\.' 2>/dev/null; then
             continue
         fi
 
