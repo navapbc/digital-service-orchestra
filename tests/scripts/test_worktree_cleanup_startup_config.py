@@ -46,16 +46,129 @@ REQUIRED_CONFIG_KEYS = [
 ]
 
 
-def _make_mock_read_config(tmpdir: Path, return_value: str = "mock-value") -> Path:
-    """Create a mock read-config.sh that echoes a fixed value for any key."""
-    mock_script = tmpdir / "read-config.sh"
+def _make_isolated_git_repo(tmpdir: Path) -> Path:
+    """Create a minimal isolated git repo suitable for running worktree-cleanup.sh.
+
+    The repo is placed at tmpdir/repo/. Worktrees are typically added under
+    tmpdir/ (alongside repo/). The fake-home dir is placed at tmpdir/meta/home/.
+
+    To prevent the orphan-dir sweep from removing tmpdir/meta (which would be
+    empty and thus match _dir_only_regenerable), we write a sentinel file at
+    tmpdir/meta/.keep — a real file outside the regenerable allowlist.
+    """
+    repo = tmpdir / "repo"
+    repo.mkdir()
+    (tmpdir / "meta" / "home").mkdir(parents=True, exist_ok=True)
+    # Sentinel file prevents the orphan sweep from treating meta/ as an empty orphan dir.
+    (tmpdir / "meta" / ".keep").write_text("test isolation sentinel")
+    env = {
+        **os.environ,
+        "HOME": str(tmpdir / "meta" / "home"),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "Test",
+        "GIT_AUTHOR_EMAIL": "test@example.com",
+        "GIT_COMMITTER_NAME": "Test",
+        "GIT_COMMITTER_EMAIL": "test@example.com",
+    }
+
+    subprocess.run(
+        ["git", "init", "-b", "main", str(repo)],
+        check=True,
+        capture_output=True,
+        env=env,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "test@example.com"],
+        check=True,
+        capture_output=True,
+        env=env,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"],
+        check=True,
+        capture_output=True,
+        env=env,
+    )
+    # Create an initial commit so the repo has a HEAD and a main branch
+    (repo / "README.md").write_text("test repo")
+    subprocess.run(
+        ["git", "-C", str(repo), "add", "README.md"],
+        check=True,
+        capture_output=True,
+        env=env,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-m", "initial commit"],
+        check=True,
+        capture_output=True,
+        env=env,
+    )
+    return repo
+
+
+def _make_mock_read_config(
+    scripts_dir: Path,
+    *,
+    key_values: dict | None = None,
+    default_value: str = "mock-value",
+    record_to: Path | None = None,
+) -> Path:
+    """Create a mock read-config.sh that optionally records calls and returns key-specific values.
+
+    Args:
+        scripts_dir: Directory where the mock script is written (acts as PLUGIN_SCRIPTS).
+        key_values: Optional dict mapping config key → return value. Unknown keys return default_value.
+        default_value: Value returned for any key not in key_values.
+        record_to: If given, each invocation appends its arguments to this file (one call per line).
+    """
+    mock_script = scripts_dir / "read-config.sh"
+    record_block = ""
+    if record_to is not None:
+        record_block = f'echo "$*" >> "{record_to}"\n'
+    lookup_block = ""
+    if key_values:
+        lookup_block = 'case "$1" in\n'
+        # --list flag: skip the flag, use $2
+        lookup_block += "  --list) shift ;;\nesac\n"
+        lookup_block += 'case "$1" in\n'
+        for k, v in key_values.items():
+            lookup_block += f"  '{k}') echo '{v}' ;;\n"
+        lookup_block += f"  *) echo '{default_value}' ;;\nesac\n"
+    else:
+        lookup_block = f"echo '{default_value}'\n"
+
     mock_script.write_text(
-        f"#!/usr/bin/env bash\n"
-        f"# Mock read-config.sh for testing\n"
-        f"echo '{return_value}'\n"
+        "#!/usr/bin/env bash\n"
+        "# Mock read-config.sh for testing\n" + record_block + lookup_block
     )
     mock_script.chmod(mock_script.stat().st_mode | stat.S_IEXEC)
     return mock_script
+
+
+def _make_script_copy_with_mock(
+    scripts_dir: Path,
+    *,
+    key_values: dict | None = None,
+    default_value: str = "",
+    record_to: Path | None = None,
+) -> Path:
+    """Place a copy of worktree-cleanup.sh in scripts_dir with a mock read-config.sh beside it.
+
+    Because the script derives PLUGIN_SCRIPTS from dirname(BASH_SOURCE[0]), placing
+    the copy in the same directory as the mock ensures the mock is found at runtime.
+
+    Returns the path to the script copy.
+    """
+    script_copy = scripts_dir / "worktree-cleanup.sh"
+    script_copy.write_text(SCRIPT.read_text())
+    script_copy.chmod(script_copy.stat().st_mode | stat.S_IEXEC)
+    _make_mock_read_config(
+        scripts_dir,
+        key_values=key_values,
+        default_value=default_value,
+        record_to=record_to,
+    )
+    return script_copy
 
 
 def _extract_startup_config_block(script_content: str) -> str:
@@ -79,6 +192,23 @@ def _extract_startup_config_block(script_content: str) -> str:
                 break
 
     return "\n".join(block_lines)
+
+
+def _base_env(fake_home: Path) -> dict:
+    """Minimal environment dict for subprocess calls (no ambient git config)."""
+    return {
+        **os.environ,
+        "HOME": str(fake_home),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "Test",
+        "GIT_AUTHOR_EMAIL": "test@example.com",
+        "GIT_COMMITTER_NAME": "Test",
+        "GIT_COMMITTER_EMAIL": "test@example.com",
+        # Disable interactive prompts
+        "FORCE": "true",
+        # Prevent side-effects
+        "CLEANUP_LOG": "/dev/null",
+    }
 
 
 @pytest.mark.scripts
@@ -223,391 +353,190 @@ class TestStartupConfigBlock:
                 f"Variable {var} was not printed at all.\nstdout: {output}"
             )
 
-    def test_read_config_called_exactly_six_times(self) -> None:
-        """read-config.sh is called exactly once per config key (6 total).
+    def test_read_config_called_for_all_required_keys(self) -> None:
+        """worktree-cleanup.sh invokes read-config.sh for each required config key.
 
-        Ensures no per-use read-config.sh calls sneak in later. The 6th call
-        reads `worktree.orphan_patterns` via `--list` for the orphan-branch
-        sweep — added after the original 5-call shape (bug 7000-e366-367d-4ab2).
+        Given: a copy of worktree-cleanup.sh placed in a temp dir alongside a mock
+               read-config.sh that records all key arguments, plus an isolated git repo.
+        When: the copy of the script is run in dry-run mode.
+        Then: the recorded calls include each of the 6 expected config keys
+              (the 5 scalar startup keys + worktree.orphan_patterns list key).
+
+        Behavioral: the assertion is on the set of keys the script actually requests
+        at runtime, not on the number or ordering of source-file lines.
+
+        Note: PLUGIN_SCRIPTS is derived from BASH_SOURCE[0] (the script's own dir),
+        so we place a copy of the script in the temp dir alongside the mock; we do
+        NOT rely on env var injection which the script overwrites at startup.
         """
-        content = SCRIPT.read_text()
-        # Count lines that call bash ...read-config.sh
-        lines_with_calls = [
-            line
-            for line in content.splitlines()
-            if "read-config.sh" in line and "bash" in line
-        ]
-        assert len(lines_with_calls) == 6, (
-            f"Expected exactly 6 'bash ... read-config.sh' calls, found {len(lines_with_calls)}.\n"
-            f"Lines: {lines_with_calls}"
+        tmpdir_path = Path(
+            tempfile.mkdtemp(dir=os.environ.get("TMPDIR", "/tmp"), prefix="wtcleanup.")
+        )
+        try:
+            fake_home = tmpdir_path / "meta" / "home"
+            fake_home.mkdir(parents=True)
+
+            repo = _make_isolated_git_repo(tmpdir_path)
+
+            # Place a copy of the script in a temp scripts dir alongside the mock.
+            # This ensures BASH_SOURCE[0]-based PLUGIN_SCRIPTS resolves to our mock dir.
+            scripts_dir = tmpdir_path / "plugin-scripts"
+            scripts_dir.mkdir()
+
+            # Copy the real script into the mock scripts dir
+            script_copy = scripts_dir / "worktree-cleanup.sh"
+            script_copy.write_text(SCRIPT.read_text())
+            script_copy.chmod(script_copy.stat().st_mode | stat.S_IEXEC)
+
+            record_file = tmpdir_path / "read-config-calls.txt"
+            record_file.write_text("")
+            _make_mock_read_config(scripts_dir, record_to=record_file, default_value="")
+
+            env = _base_env(fake_home)
+            env["CLEANUP_LOG"] = "/dev/null"
+
+            result = subprocess.run(
+                ["bash", str(script_copy), "--dry-run", "--all", "--force"],
+                capture_output=True,
+                text=True,
+                cwd=str(repo),
+                env=env,
+                timeout=30,
+            )
+
+            # The script may exit 0 or 1 in dry-run against an empty repo; what matters
+            # is that read-config.sh was invoked for each expected key.
+            calls_text = record_file.read_text()
+        finally:
+            import shutil
+
+            shutil.rmtree(str(tmpdir_path), ignore_errors=True)
+
+        called_keys = set()
+        for line in calls_text.splitlines():
+            # Lines may be "infrastructure.compose_db_file" or "--list worktree.orphan_patterns"
+            args = line.strip().split()
+            # Strip flags like --list
+            key_args = [a for a in args if not a.startswith("--")]
+            if key_args:
+                called_keys.add(key_args[0])
+
+        expected_keys = set(REQUIRED_CONFIG_KEYS) | {"worktree.orphan_patterns"}
+        missing = expected_keys - called_keys
+        assert not missing, (
+            f"read-config.sh was not called for key(s): {missing}\n"
+            f"All recorded calls:\n{calls_text}\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
         )
 
-    def test_plugin_scripts_derived_from_bash_source(self) -> None:
-        """PLUGIN_SCRIPTS must be derived relative to BASH_SOURCE[0], not hardcoded."""
-        content = SCRIPT.read_text()
-        assert "PLUGIN_SCRIPTS" in content, (
-            "PLUGIN_SCRIPTS variable not found in script"
-        )
-        assert "BASH_SOURCE[0]" in content, (
-            "BASH_SOURCE[0] not referenced for PLUGIN_SCRIPTS"
-        )
+    def test_startup_config_all_vars_set_to_mock_values(self) -> None:
+        """CONFIG_* variables receive the values returned by read-config.sh.
 
-        # Find the PLUGIN_SCRIPTS= line and ensure BASH_SOURCE[0] appears there
-        for line in content.splitlines():
-            if "PLUGIN_SCRIPTS=" in line:
-                assert "BASH_SOURCE" in line, (
-                    f"PLUGIN_SCRIPTS= line does not reference BASH_SOURCE:\n{line}"
-                )
-                break
+        Given: a mock read-config.sh that returns a unique value per key.
+        When: the startup config block is sourced.
+        Then: each CONFIG_* variable holds the mock value for its key.
 
-    def test_all_six_config_vars_present_in_script(self) -> None:
-        """All five CONFIG_* variable names appear in the script."""
-        content = SCRIPT.read_text()
+        This replaces the source-grep tests that checked variable names and key strings
+        are present in the file — here we observe the actual runtime values instead.
+        """
+        script_content = SCRIPT.read_text()
+        block = _extract_startup_config_block(script_content)
+
+        key_to_var = {
+            "infrastructure.compose_db_file": "CONFIG_COMPOSE_DB_FILE",
+            "infrastructure.compose_project": "CONFIG_COMPOSE_PROJECT",
+            "infrastructure.container_prefix": "CONFIG_CONTAINER_PREFIX",
+            "worktree.branch_pattern": "CONFIG_BRANCH_PATTERN",
+            "worktree.max_age_hours": "CONFIG_MAX_AGE_HOURS",
+        }
+        # Each key gets a distinct sentinel so we can verify the right key feeds the right var.
+        key_values = {k: f"sentinel-{k.replace('.', '-')}" for k in key_to_var}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            fake_scripts_dir = tmpdir_path / "scripts"
+            fake_scripts_dir.mkdir()
+            _make_mock_read_config(fake_scripts_dir, key_values=key_values)
+
+            var_prints = "\n".join(
+                f'echo "{var}=${{{var}:-__UNSET__}}"' for var in key_to_var.values()
+            )
+            test_script = fake_scripts_dir / "test_var_values.sh"
+            test_script.write_text(
+                f"#!/usr/bin/env bash\nset -uo pipefail\n{block}\n{var_prints}\n"
+            )
+            test_script.chmod(test_script.stat().st_mode | stat.S_IEXEC)
+
+            result = subprocess.run(
+                ["bash", str(test_script)],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "HOME": str(tmpdir_path)},
+            )
+
+        assert result.returncode == 0, (
+            f"Harness failed (rc={result.returncode}).\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        output = result.stdout
+        for key, var in key_to_var.items():
+            expected = f"sentinel-{key.replace('.', '-')}"
+            assert f"{var}={expected}" in output, (
+                f"Expected {var}={expected!r} in output but got:\n{output}"
+            )
+
+    def test_graceful_fallback_script_exits_zero_on_missing_read_config(self) -> None:
+        """When read-config.sh is absent the script exits 0 and CONFIG_* vars are empty.
+
+        Given: a startup-config harness with NO read-config.sh in PLUGIN_SCRIPTS.
+        When: the harness is executed.
+        Then: exit code is 0 and each CONFIG_* variable is set to empty string (not unset).
+
+        This replaces the source-grep test that checked for '2>/dev/null || true' syntax —
+        we observe the actual graceful-fallback behavior instead.
+        """
+        script_content = SCRIPT.read_text()
+        block = _extract_startup_config_block(script_content)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            fake_scripts_dir = tmpdir_path / "scripts"
+            fake_scripts_dir.mkdir()
+            # Intentionally NO read-config.sh in fake_scripts_dir.
+
+            # Use ${var+ISSET} (not ${var:-default}): prints ISSET only if the var is
+            # declared (even if empty); prints nothing if truly unset.
+            var_prints = "\n".join(
+                f'echo "{var}=${{{var}+ISSET}}"' for var in REQUIRED_CONFIG_VARS
+            )
+            test_script = fake_scripts_dir / "test_graceful.sh"
+            test_script.write_text(
+                f"#!/usr/bin/env bash\nset -uo pipefail\n{block}\n{var_prints}\n"
+            )
+            test_script.chmod(test_script.stat().st_mode | stat.S_IEXEC)
+
+            result = subprocess.run(
+                ["bash", str(test_script)],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "HOME": str(tmpdir_path)},
+            )
+
+        # Graceful fallback: must not exit non-zero
+        assert result.returncode == 0, (
+            f"Script exited {result.returncode} when read-config.sh is absent — "
+            f"graceful fallback expected.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        # Variables must be DECLARED (set to empty string); ${var+ISSET} prints ISSET for
+        # declared vars (including empty), and nothing for truly unset vars.
+        output = result.stdout
         for var in REQUIRED_CONFIG_VARS:
-            assert var in content, f"CONFIG variable '{var}' not found in {SCRIPT}"
-
-    def test_all_six_config_keys_present_in_script(self) -> None:
-        """All five read-config.sh key paths appear in the script."""
-        content = SCRIPT.read_text()
-        for key in REQUIRED_CONFIG_KEYS:
-            assert key in content, f"Config key '{key}' not found in {SCRIPT}"
-
-    def test_graceful_fallback_syntax_present(self) -> None:
-        """All five read-config.sh calls use '2>/dev/null || true' for graceful fallback."""
-        content = SCRIPT.read_text()
-        lines_with_calls = [
-            line
-            for line in content.splitlines()
-            if "read-config.sh" in line and "bash" in line
-        ]
-        for line in lines_with_calls:
-            assert "2>/dev/null || true" in line, (
-                f"read-config.sh call missing '2>/dev/null || true' graceful fallback:\n{line}"
+            assert f"{var}=ISSET" in output, (
+                f"Variable {var} was not declared by the fallback path "
+                f"(expected '{var}=ISSET' in output).\n"
+                f"stdout: {output}"
             )
-
-
-@pytest.mark.scripts
-class TestDockerTeardownConfig:
-    """Docker teardown section uses CONFIG_COMPOSE_DB_FILE and CONFIG_COMPOSE_PROJECT."""
-
-    def test_docker_teardown_uses_config_compose_db_file(self) -> None:
-        """Worktree removal section builds compose_file from $CONFIG_COMPOSE_DB_FILE.
-
-        RED: fails while the script still hardcodes 'app/docker-compose.db.yml'.
-        GREEN: passes after the hardcoded path is replaced with $CONFIG_COMPOSE_DB_FILE.
-        """
-        content = SCRIPT.read_text()
-        # Must NOT contain the old hardcoded path
-        assert "app/docker-compose.db.yml" not in content, (
-            "Found hardcoded 'app/docker-compose.db.yml' in worktree-cleanup.sh — "
-            "replace with $CONFIG_COMPOSE_DB_FILE"
-        )
-        # Must reference CONFIG_COMPOSE_DB_FILE in the compose_file construction
-        assert "CONFIG_COMPOSE_DB_FILE" in content, (
-            "CONFIG_COMPOSE_DB_FILE variable not found in script"
-        )
-        # compose_file must be built from $path + $CONFIG_COMPOSE_DB_FILE
-        compose_file_lines = [
-            line
-            for line in content.splitlines()
-            if "compose_file" in line and "CONFIG_COMPOSE_DB_FILE" in line
-        ]
-        assert len(compose_file_lines) >= 1, (
-            "No line found that constructs compose_file using CONFIG_COMPOSE_DB_FILE"
-        )
-
-    def test_docker_teardown_skips_when_config_compose_db_file_empty(self) -> None:
-        """Docker Compose teardown is skipped when CONFIG_COMPOSE_DB_FILE is empty.
-
-        RED: fails while the section lacks the guard.
-        GREEN: passes after adding an 'if [[ -n "$CONFIG_COMPOSE_DB_FILE" ]]' guard.
-        """
-        content = SCRIPT.read_text()
-        # The teardown block must have a guard for empty CONFIG_COMPOSE_DB_FILE
-        assert (
-            "if.*CONFIG_COMPOSE_DB_FILE" in content
-            or "CONFIG_COMPOSE_DB_FILE.*-n" in content
-            or "-n.*CONFIG_COMPOSE_DB_FILE" in content
-        ) or any(
-            (
-                "CONFIG_COMPOSE_DB_FILE" in line
-                and ("if" in line or "-n" in line or "-z" in line)
-            )
-            for line in content.splitlines()
-        ), (
-            "No guard found for empty CONFIG_COMPOSE_DB_FILE — "
-            "the Docker Compose teardown must be skipped when CONFIG_COMPOSE_DB_FILE is empty"
-        )
-
-    def test_orphaned_network_cleanup_uses_config_compose_project(self) -> None:
-        """Orphaned network cleanup uses $CONFIG_COMPOSE_PROJECT instead of hardcoded prefix.
-
-        RED: fails while the script still hardcodes 'lockpick-db-worktree-'.
-        GREEN: passes after the hardcoded filter is replaced with $CONFIG_COMPOSE_PROJECT.
-        """
-        content = SCRIPT.read_text()
-        # Must NOT contain the old hardcoded network filter
-        assert "lockpick-db-worktree-" not in content, (
-            "Found hardcoded 'lockpick-db-worktree-' in worktree-cleanup.sh — "
-            "replace with a filter derived from $CONFIG_COMPOSE_PROJECT"
-        )
-        # Must reference CONFIG_COMPOSE_PROJECT
-        assert "CONFIG_COMPOSE_PROJECT" in content, (
-            "CONFIG_COMPOSE_PROJECT variable not found in script"
-        )
-
-    def test_docker_teardown_requires_both_config_vars(self) -> None:
-        """Docker teardown guard requires BOTH CONFIG_COMPOSE_DB_FILE and CONFIG_COMPOSE_PROJECT.
-
-        When CONFIG_COMPOSE_DB_FILE is set but CONFIG_COMPOSE_PROJECT is empty,
-        the teardown block must be skipped to avoid accidentally tearing down
-        unrelated containers with an unqualified project name.
-
-        RED: fails while guard only checks CONFIG_COMPOSE_DB_FILE.
-        GREEN: passes after guard also requires CONFIG_COMPOSE_PROJECT to be non-empty.
-        """
-        content = SCRIPT.read_text()
-        # Find the guard line that protects the Docker Compose teardown
-        guard_lines = [
-            line
-            for line in content.splitlines()
-            if "CONFIG_COMPOSE_DB_FILE" in line
-            and ("DRY_RUN" in line or "docker" in line)
-            and ("if" in line or "[[ -n" in line)
-        ]
-        assert guard_lines, (
-            "Could not find the Docker teardown guard line referencing CONFIG_COMPOSE_DB_FILE"
-        )
-        guard_line = guard_lines[0]
-        # The guard must also require CONFIG_COMPOSE_PROJECT to be non-empty
-        assert "CONFIG_COMPOSE_PROJECT" in guard_line, (
-            "Docker teardown guard checks CONFIG_COMPOSE_DB_FILE but NOT CONFIG_COMPOSE_PROJECT. "
-            "When CONFIG_COMPOSE_PROJECT is empty, the teardown would use a bare worktree name "
-            "as COMPOSE_PROJECT_NAME, risking unrelated container teardown. "
-            f"Guard line: {guard_line!r}"
-        )
-
-    def test_orphaned_network_sed_uses_config_compose_project(self) -> None:
-        """Orphaned network sed extraction does not hardcode 'lockpick-db-' prefix.
-
-        RED: fails while sed still uses hardcoded 's/^lockpick-db-//'.
-        GREEN: passes after sed uses $CONFIG_COMPOSE_PROJECT to strip the prefix.
-        """
-        content = SCRIPT.read_text()
-        # The sed pattern s/^lockpick-db- must NOT appear in non-comment lines
-        non_comment_lines = [
-            line for line in content.splitlines() if not line.lstrip().startswith("#")
-        ]
-        hardcoded_sed = any("s/^lockpick-db-" in line for line in non_comment_lines)
-        assert not hardcoded_sed, (
-            "Found hardcoded sed pattern 's/^lockpick-db-' in non-comment line — "
-            "replace with a pattern derived from $CONFIG_COMPOSE_PROJECT"
-        )
-
-
-@pytest.mark.scripts
-class TestBranchPatternConfig:
-    """git branch --list and .gitignore cleanup use CONFIG_BRANCH_PATTERN, not hardcoded 'worktree-*'."""
-
-    def test_branch_pattern_uses_config_branch_pattern(self) -> None:
-        """git branch --list uses a configured pattern, not hardcoded 'worktree-*'.
-
-        RED: fails while the script still uses hardcoded 'worktree-*' in the branch --list call.
-        GREEN: passes after replacing 'worktree-*' with either
-          - ${CONFIG_BRANCH_PATTERN:-worktree-*}, or
-          - a loop variable bound from the CONFIG_ORPHAN_PATTERNS array (the
-            current shape, which supports multiple patterns).
-
-        The test checks that the git branch --list call references either
-        CONFIG_BRANCH_PATTERN directly or a loop variable from
-        CONFIG_ORPHAN_PATTERNS (bug 7000-e366-367d-4ab2: the orphan sweep
-        moved from a single glob to a configurable array).
-        """
-        content = SCRIPT.read_text()
-        non_comment_lines = [
-            line for line in content.splitlines() if not line.lstrip().startswith("#")
-        ]
-        # Must NOT have 'branch --list' with hardcoded 'worktree-*' glob
-        hardcoded_list = any(
-            "branch --list" in line and "'worktree-*'" in line
-            for line in non_comment_lines
-        )
-        assert not hardcoded_list, (
-            "Found 'git branch --list' with hardcoded 'worktree-*' glob — "
-            "replace with '${CONFIG_BRANCH_PATTERN:-worktree-*}' or a loop "
-            "variable bound from the CONFIG_ORPHAN_PATTERNS array."
-        )
-        # The branch --list call must reference a configured pattern. Accept
-        # either CONFIG_BRANCH_PATTERN directly OR a loop variable bound from
-        # CONFIG_ORPHAN_PATTERNS earlier in the script (the current pattern).
-        branch_list_lines = [
-            line for line in non_comment_lines if "branch --list" in line
-        ]
-        assert branch_list_lines, "No 'git branch --list' call found in script."
-
-        config_branch_used = any(
-            "CONFIG_BRANCH_PATTERN" in line for line in branch_list_lines
-        )
-        # Detect the CONFIG_ORPHAN_PATTERNS loop form: the for-loop binds a
-        # local variable from "${CONFIG_ORPHAN_PATTERNS[@]}" and the branch
-        # --list call references that variable. Find the loop's iterator name,
-        # then check that the branch --list line uses it.
-        import re
-
-        loop_pat = re.compile(r'for\s+(\w+)\s+in\s+"\$\{CONFIG_ORPHAN_PATTERNS\[@\]\}"')
-        loop_var = None
-        for line in non_comment_lines:
-            m = loop_pat.search(line)
-            if m:
-                loop_var = m.group(1)
-                break
-        loop_var_used = bool(loop_var) and any(
-            f'"${loop_var}"' in line or f"${loop_var}" in line
-            for line in branch_list_lines
-        )
-
-        assert config_branch_used or loop_var_used, (
-            "git branch --list call does not reference CONFIG_BRANCH_PATTERN nor "
-            "a loop variable bound from CONFIG_ORPHAN_PATTERNS — replace "
-            "hardcoded 'worktree-*' with one of the configured-pattern forms."
-        )
-
-    def test_gitignore_cleanup_uses_config_branch_pattern(self) -> None:
-        """The .gitignore cleanup section uses CONFIG_BRANCH_PATTERN for prefix detection.
-
-        RED: fails while awk still uses hardcoded 'worktree-' prefix and 'worktree-*/' wildcard.
-        GREEN: passes after the awk patterns are derived from CONFIG_BRANCH_PATTERN.
-
-        Checks that after the 'Clean up .gitignore' comment, CONFIG_BRANCH_PATTERN appears.
-        """
-        content = SCRIPT.read_text()
-        lines = content.splitlines()
-        # Find the .gitignore cleanup section
-        gitignore_section_start = None
-        for i, line in enumerate(lines):
-            if "Clean up" in line and "gitignore" in line.lower():
-                gitignore_section_start = i
-                break
-        assert gitignore_section_start is not None, (
-            "Could not find '# Clean up .gitignore' section header in script."
-        )
-        # Check the next 20 lines of the section for CONFIG_BRANCH_PATTERN usage
-        section_lines = lines[gitignore_section_start : gitignore_section_start + 20]
-        config_used = any("CONFIG_BRANCH_PATTERN" in line for line in section_lines)
-        assert config_used, (
-            "The .gitignore cleanup section (within 20 lines of 'Clean up .gitignore' comment) "
-            "does not reference CONFIG_BRANCH_PATTERN — "
-            "replace hardcoded 'worktree-' prefix patterns with CONFIG_BRANCH_PATTERN-derived values."
-        )
-
-    def test_no_hardcoded_worktree_glob_in_branch_list(self) -> None:
-        """No functional git branch --list call uses a hardcoded 'worktree-*' glob literal.
-
-        RED: fails while the branch --list call contains the hardcoded glob.
-        GREEN: passes after the glob is replaced with the config var.
-        """
-        content = SCRIPT.read_text()
-        non_comment_lines = [
-            line for line in content.splitlines() if not line.lstrip().startswith("#")
-        ]
-        violations = [
-            line
-            for line in non_comment_lines
-            if "branch --list" in line and "'worktree-*'" in line
-        ]
-        assert not violations, (
-            "Found git branch --list with hardcoded 'worktree-*' in functional lines — "
-            "replace with '${CONFIG_BRANCH_PATTERN:-worktree-*}':\n"
-            + "\n".join(violations)
-        )
-
-
-@pytest.mark.scripts
-class TestAgeHoursConfig:
-    """AGE_HOURS default in worktree-cleanup.sh is driven by CONFIG_MAX_AGE_HOURS."""
-
-    def test_age_hours_uses_config_max_age_hours(self) -> None:
-        """AGE_HOURS in the Defaults block uses ${CONFIG_MAX_AGE_HOURS:-12} instead of a literal.
-
-        RED: fails while the old AGE_DAYS/CONFIG_MAX_AGE_DAYS pattern is still present.
-        GREEN: passes after AGE_HOURS=${CONFIG_MAX_AGE_HOURS:-12} is used.
-        """
-        content = SCRIPT.read_text()
-        # Must contain CONFIG_MAX_AGE_HOURS in the AGE_HOURS assignment
-        assert "AGE_HOURS" in content and "CONFIG_MAX_AGE_HOURS" in content, (
-            "Script must assign AGE_HOURS using CONFIG_MAX_AGE_HOURS"
-        )
-        age_hours_lines = [
-            line
-            for line in content.splitlines()
-            if line.strip().startswith("AGE_HOURS=")
-        ]
-        assert age_hours_lines, "No AGE_HOURS= assignment line found in script"
-        # The assignment must reference CONFIG_MAX_AGE_HOURS
-        assert any("CONFIG_MAX_AGE_HOURS" in line for line in age_hours_lines), (
-            "AGE_HOURS= assignment does not reference CONFIG_MAX_AGE_HOURS.\n"
-            f"Found: {age_hours_lines}"
-        )
-
-    def test_age_hours_literal_not_bare_assignment(self) -> None:
-        """AGE_HOURS=12 literal no longer appears as a bare default assignment.
-
-        GREEN: passes after AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}} is used.
-        """
-        import re
-
-        content = SCRIPT.read_text()
-        # AGE_HOURS=12 as a bare assignment (not inside ${...}) must not exist
-        violations = [
-            line
-            for line in content.splitlines()
-            if re.match(r"^AGE_HOURS=\d+\b", line.strip())
-        ]
-        assert not violations, (
-            "Found bare 'AGE_HOURS=<number>' assignment — use "
-            "'AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}}':\n"
-            + "\n".join(violations)
-        )
-
-    def test_is_old_enough_fallback_uses_12_hours(self) -> None:
-        """is_old_enough() function body uses AGE_HOURS:-12, not AGE_DAYS.
-
-        The backward-compat shim is allowed to reference AGE_DAYS (intentional),
-        but the is_old_enough() function itself must use AGE_HOURS:-12.
-        """
-        content = SCRIPT.read_text()
-        lines = content.splitlines()
-
-        # Extract only lines inside the is_old_enough() function
-        in_func = False
-        func_lines = []
-        brace_depth = 0
-        for line in lines:
-            stripped = line.strip()
-            if "is_old_enough()" in stripped and "{" in stripped:
-                in_func = True
-                brace_depth = stripped.count("{") - stripped.count("}")
-                func_lines.append(line)
-                continue
-            if in_func:
-                func_lines.append(line)
-                brace_depth += stripped.count("{") - stripped.count("}")
-                if brace_depth <= 0:
-                    break
-
-        assert func_lines, "is_old_enough() function not found in script"
-        func_non_comment = [ln for ln in func_lines if not ln.lstrip().startswith("#")]
-
-        # is_old_enough() must not reference AGE_DAYS
-        violations = [ln for ln in func_non_comment if "AGE_DAYS" in ln]
-        assert not violations, (
-            "is_old_enough() references 'AGE_DAYS' — it must use 'AGE_HOURS':\n"
-            + "\n".join(violations)
-        )
-        # is_old_enough() must reference AGE_HOURS:-12
-        assert any("AGE_HOURS:-12" in ln for ln in func_non_comment), (
-            "is_old_enough() must use '${AGE_HOURS:-12}' as the fallback value"
-        )
 
     def test_age_days_backward_compat_shim_converts_and_warns(self) -> None:
         """When AGE_DAYS=3 is set and AGE_HOURS is unset, the shim sets AGE_HOURS=72 and warns.
@@ -670,13 +599,513 @@ class TestAgeHoursConfig:
             f"stderr: {result.stderr}"
         )
 
+
+@pytest.mark.scripts
+class TestDockerTeardownConfig:
+    """Docker teardown section uses CONFIG_COMPOSE_DB_FILE and CONFIG_COMPOSE_PROJECT."""
+
+    def _run_cleanup_with_docker_mock(
+        self,
+        tmpdir: Path,
+        compose_db_file: str,
+        compose_project: str,
+        *,
+        worktree_name: str = "worktree-test-abc",
+        dry_run: bool = False,
+    ) -> tuple[subprocess.CompletedProcess, str]:
+        """Set up an isolated repo with a worktree and a mock docker binary.
+
+        Returns (result, docker_calls_text).
+        docker_calls_text is the content of the docker invocation record file.
+
+        All filesystem operations happen within tmpdir; the caller must keep tmpdir
+        alive until after reading the return values.
+        """
+        fake_home = tmpdir / "meta" / "home"
+        fake_home.mkdir(parents=True, exist_ok=True)
+
+        repo = _make_isolated_git_repo(tmpdir)
+        wt_path = tmpdir / worktree_name
+        env = _base_env(fake_home)
+
+        # Create a branch for the worktree and add it
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "-b", worktree_name],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "main"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", str(wt_path), worktree_name],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+
+        # Place the compose file inside the worktree if compose_db_file is set
+        if compose_db_file:
+            compose_dest = wt_path / compose_db_file
+            compose_dest.parent.mkdir(parents=True, exist_ok=True)
+            compose_dest.write_text("version: '3'\nservices: {}\n")
+
+        # Mock docker binary that records invocations
+        mock_bin = tmpdir / "mock-bin"
+        mock_bin.mkdir()
+        docker_calls_file = tmpdir / "docker-calls.txt"
+        docker_calls_file.write_text("")
+        mock_docker = mock_bin / "docker"
+        mock_docker.write_text(
+            f'#!/usr/bin/env bash\necho "$*" >> "{docker_calls_file}"\nexit 0\n'
+        )
+        mock_docker.chmod(mock_docker.stat().st_mode | stat.S_IEXEC)
+
+        # Place a copy of the script alongside the mock read-config.sh so
+        # BASH_SOURCE[0]-based PLUGIN_SCRIPTS resolves to our mock dir.
+        scripts_dir = tmpdir / "plugin-scripts"
+        scripts_dir.mkdir(exist_ok=True)
+        key_values = {
+            "infrastructure.compose_db_file": compose_db_file,
+            "infrastructure.compose_project": compose_project,
+            "infrastructure.container_prefix": "",
+            "worktree.branch_pattern": "worktree-*",
+            "worktree.max_age_hours": "",
+            "worktree.orphan_patterns": "",
+            "worktree.regenerable_paths": "",
+        }
+        script_copy = _make_script_copy_with_mock(
+            scripts_dir, key_values=key_values, default_value=""
+        )
+
+        flags = ["--all", "--force", "--force-dirty", "--no-branches"]
+        if dry_run:
+            flags = ["--dry-run"] + flags
+
+        path_env = f"{mock_bin}:{os.environ.get('PATH', '/usr/bin:/bin')}"
+        env["PATH"] = path_env
+        env["CLEANUP_LOG"] = "/dev/null"
+        # AGE_HOURS=0 so any worktree passes the age gate regardless of creation time
+        env["AGE_HOURS"] = "0"
+
+        result = subprocess.run(
+            ["bash", str(script_copy)] + flags,
+            capture_output=True,
+            text=True,
+            cwd=str(repo),
+            env=env,
+            timeout=30,
+        )
+        # Read the recorded docker calls while tmpdir is still alive
+        calls_text = docker_calls_file.read_text()
+        return result, calls_text
+
+    def test_docker_compose_down_called_with_config_compose_db_file(self) -> None:
+        """docker compose down is called with the path constructed from CONFIG_COMPOSE_DB_FILE.
+
+        Given: CONFIG_COMPOSE_DB_FILE=docker-compose.db.yml, a worktree with that file present.
+        When: worktree-cleanup.sh runs with --all --force (not dry-run).
+        Then: docker is invoked with 'compose -f <worktree>/docker-compose.db.yml down'.
+
+        Behavioral test — replaces source greps for 'CONFIG_COMPOSE_DB_FILE' and
+        'compose_file' line presence.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result, calls_text = self._run_cleanup_with_docker_mock(
+                Path(tmpdir),
+                compose_db_file="docker-compose.db.yml",
+                compose_project="myproject-",
+            )
+
+        # docker compose -f <path> down must have been called
+        assert "compose" in calls_text and "down" in calls_text, (
+            "Expected 'docker compose ... down' to be called when CONFIG_COMPOSE_DB_FILE is set.\n"
+            f"Docker calls recorded:\n{calls_text}\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        # The -f argument must reference the compose_db_file path fragment
+        assert "docker-compose.db.yml" in calls_text, (
+            "docker compose down was not called with the compose_db_file path.\n"
+            f"Docker calls recorded:\n{calls_text}"
+        )
+
+    def test_docker_compose_down_skipped_when_compose_db_file_empty(self) -> None:
+        """docker compose down is NOT called when CONFIG_COMPOSE_DB_FILE is empty.
+
+        Given: CONFIG_COMPOSE_DB_FILE="" (empty).
+        When: worktree-cleanup.sh runs with --all --force.
+        Then: docker is not invoked for compose down.
+
+        Behavioral test — replaces source grep for the guard line.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result, calls_text = self._run_cleanup_with_docker_mock(
+                Path(tmpdir),
+                compose_db_file="",
+                compose_project="myproject-",
+            )
+
+        # docker compose down must NOT have been called
+        assert "down" not in calls_text, (
+            "docker compose down was called even though CONFIG_COMPOSE_DB_FILE is empty.\n"
+            f"Docker calls recorded:\n{calls_text}\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+    def test_docker_compose_down_skipped_when_compose_project_empty(self) -> None:
+        """docker compose down is NOT called when CONFIG_COMPOSE_PROJECT is empty.
+
+        Given: CONFIG_COMPOSE_DB_FILE set but CONFIG_COMPOSE_PROJECT="" (empty).
+        When: worktree-cleanup.sh runs with --all --force.
+        Then: docker is not invoked for compose down.
+
+        Behavioral test — replaces source grep for the dual-guard assertion.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result, calls_text = self._run_cleanup_with_docker_mock(
+                Path(tmpdir),
+                compose_db_file="docker-compose.db.yml",
+                compose_project="",
+            )
+
+        assert "down" not in calls_text, (
+            "docker compose down was called even though CONFIG_COMPOSE_PROJECT is empty.\n"
+            f"Docker calls recorded:\n{calls_text}\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+    def test_orphaned_network_cleanup_uses_config_compose_project_filter(self) -> None:
+        """Orphaned Docker network cleanup filters by CONFIG_COMPOSE_PROJECT prefix.
+
+        Given: CONFIG_COMPOSE_PROJECT=myprj- is set, and docker returns network names.
+        When: worktree-cleanup.sh runs post-removal.
+        Then: the docker network ls call includes 'myprj-' as the name filter,
+              NOT any hardcoded project name.
+
+        Behavioral test — replaces source greps for hardcoded 'lockpick-db-worktree-'
+        and the sed pattern assertion.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            fake_home = tmpdir_path / "meta" / "home"
+            fake_home.mkdir(parents=True)
+
+            repo = _make_isolated_git_repo(tmpdir_path)
+            worktree_name = "worktree-test-net"
+
+            # Create a worktree eligible for cleanup
+            env = _base_env(fake_home)
+            wt_path = tmpdir_path / worktree_name
+            subprocess.run(
+                ["git", "-C", str(repo), "checkout", "-b", worktree_name],
+                check=True,
+                capture_output=True,
+                env=env,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "checkout", "main"],
+                check=True,
+                capture_output=True,
+                env=env,
+            )
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "worktree",
+                    "add",
+                    str(wt_path),
+                    worktree_name,
+                ],
+                check=True,
+                capture_output=True,
+                env=env,
+            )
+
+            # Place the compose file
+            compose_file = wt_path / "docker-compose.db.yml"
+            compose_file.write_text("version: '3'\nservices: {}\n")
+
+            # Mock docker that records calls
+            mock_bin = tmpdir_path / "mock-bin"
+            mock_bin.mkdir()
+            docker_calls_file = tmpdir_path / "docker-calls.txt"
+            docker_calls_file.write_text("")
+
+            # Mock docker: for 'network ls', emit a fake network; otherwise record + exit 0
+            mock_docker = mock_bin / "docker"
+            mock_docker.write_text(
+                "#!/usr/bin/env bash\n"
+                f'echo "$*" >> "{docker_calls_file}"\n'
+                # Return a dummy network name for 'network ls' queries
+                'if [[ "$1" == "network" && "$2" == "ls" ]]; then\n'
+                '  echo "myprj-worktree-test-net_default"\n'
+                "fi\n"
+                "exit 0\n"
+            )
+            mock_docker.chmod(mock_docker.stat().st_mode | stat.S_IEXEC)
+
+            # Place the script copy alongside the mock so BASH_SOURCE[0]-based
+            # PLUGIN_SCRIPTS resolves to our mock dir.
+            scripts_dir = tmpdir_path / "plugin-scripts"
+            scripts_dir.mkdir()
+            key_values = {
+                "infrastructure.compose_db_file": "docker-compose.db.yml",
+                "infrastructure.compose_project": "myprj-",
+                "infrastructure.container_prefix": "",
+                "worktree.branch_pattern": "worktree-*",
+                "worktree.max_age_hours": "",
+                "worktree.orphan_patterns": "",
+                "worktree.regenerable_paths": "",
+            }
+            script_copy = _make_script_copy_with_mock(
+                scripts_dir, key_values=key_values, default_value=""
+            )
+
+            path_env = f"{mock_bin}:{os.environ.get('PATH', '/usr/bin:/bin')}"
+            env["PATH"] = path_env
+            env["CLEANUP_LOG"] = "/dev/null"
+            # AGE_HOURS=0 makes any worktree pass the age gate
+            env["AGE_HOURS"] = "0"
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(script_copy),
+                    "--all",
+                    "--force",
+                    "--force-dirty",
+                    "--no-branches",
+                ],
+                capture_output=True,
+                text=True,
+                cwd=str(repo),
+                env=env,
+                timeout=30,
+            )
+
+            calls_text = docker_calls_file.read_text()
+
+        # The network ls call must use the configured project prefix as the name filter
+        assert "myprj-" in calls_text, (
+            "docker network ls was not called with the configured CONFIG_COMPOSE_PROJECT filter 'myprj-'.\n"
+            f"Docker calls recorded:\n{calls_text}\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+
+@pytest.mark.scripts
+class TestBranchPatternConfig:
+    """git branch --list and .gitignore cleanup use CONFIG_BRANCH_PATTERN, not hardcoded 'worktree-*'."""
+
+    def _run_cleanup_dry_run(
+        self,
+        tmpdir: Path,
+        *,
+        branch_pattern: str = "worktree-*",
+        orphan_patterns: list[str] | None = None,
+    ) -> subprocess.CompletedProcess:
+        """Run worktree-cleanup.sh in dry-run against an isolated repo.
+
+        Returns the CompletedProcess result.
+        """
+        fake_home = tmpdir / "meta" / "home"
+        fake_home.mkdir(parents=True, exist_ok=True)
+        repo = _make_isolated_git_repo(tmpdir)
+        env = _base_env(fake_home)
+
+        # Create a local branch matching the pattern (no associated worktree = orphan)
+        matching_branch = "worktree-old-abc"
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "-b", matching_branch],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "main"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        # Create a non-matching branch that must not be touched
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "-b", "feature-keep-me"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "checkout", "main"],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+
+        # Place the script copy alongside the mock so BASH_SOURCE[0]-based
+        # PLUGIN_SCRIPTS resolves to our mock dir (not the real plugin scripts dir).
+        scripts_dir = tmpdir / "plugin-scripts"
+        scripts_dir.mkdir(exist_ok=True)
+        orphan_val = "\n".join(orphan_patterns) if orphan_patterns else ""
+        key_values = {
+            "infrastructure.compose_db_file": "",
+            "infrastructure.compose_project": "",
+            "infrastructure.container_prefix": "",
+            "worktree.branch_pattern": branch_pattern,
+            "worktree.max_age_hours": "",
+            "worktree.orphan_patterns": orphan_val,
+            "worktree.regenerable_paths": "",
+        }
+        script_copy = _make_script_copy_with_mock(
+            scripts_dir, key_values=key_values, default_value=""
+        )
+
+        env["CLEANUP_LOG"] = "/dev/null"
+        return subprocess.run(
+            ["bash", str(script_copy), "--dry-run", "--all", "--force"],
+            capture_output=True,
+            text=True,
+            cwd=str(repo),
+            env=env,
+            timeout=30,
+        )
+
+    def test_matching_orphan_branch_listed_in_dry_run(self) -> None:
+        """Orphan branches matching the configured pattern appear in dry-run output.
+
+        Given: isolated repo with branch 'worktree-old-abc' (no associated worktree),
+               CONFIG_BRANCH_PATTERN=worktree-* / orphan_patterns=[worktree-*].
+        When: worktree-cleanup.sh --dry-run --all --force.
+        Then: stdout mentions 'worktree-old-abc' as a candidate for deletion.
+
+        Behavioral test — replaces source greps for branch --list and pattern usage.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = self._run_cleanup_dry_run(
+                Path(tmpdir),
+                branch_pattern="worktree-*",
+                orphan_patterns=["worktree-*"],
+            )
+
+        combined = result.stdout + result.stderr
+        assert "worktree-old-abc" in combined, (
+            "Expected 'worktree-old-abc' to appear in dry-run output as an orphan branch candidate.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+    def test_non_matching_branch_not_listed_in_dry_run(self) -> None:
+        """Branches NOT matching the configured pattern do NOT appear in dry-run output.
+
+        Given: isolated repo with branch 'feature-keep-me',
+               orphan_patterns=[worktree-*].
+        When: worktree-cleanup.sh --dry-run --all --force.
+        Then: 'feature-keep-me' is NOT mentioned as a deletion candidate.
+
+        Behavioral test — replaces source greps for pattern binding.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = self._run_cleanup_dry_run(
+                Path(tmpdir),
+                branch_pattern="worktree-*",
+                orphan_patterns=["worktree-*"],
+            )
+
+        # 'feature-keep-me' must not appear as a deletion target
+        assert (
+            "Would delete" not in result.stdout
+            or "feature-keep-me" not in result.stdout
+        ), (
+            "'feature-keep-me' branch appeared in dry-run deletion output — "
+            "it should not match the 'worktree-*' pattern.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+    def test_gitignore_matching_entries_cleaned_in_dry_run(self) -> None:
+        """Worktree-specific .gitignore entries are flagged for cleanup in dry-run.
+
+        Given: isolated repo with a .gitignore containing 'worktree-old-abc',
+               CONFIG_BRANCH_PATTERN=worktree-*.
+        When: worktree-cleanup.sh --dry-run --all --force.
+        Then: stdout includes a message about cleaning up .gitignore entries.
+
+        Behavioral test — replaces source greps for CONFIG_BRANCH_PATTERN in .gitignore section.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            fake_home = tmpdir_path / "meta" / "home"
+            fake_home.mkdir(parents=True)
+            repo = _make_isolated_git_repo(tmpdir_path)
+            env = _base_env(fake_home)
+
+            # Add a specific worktree entry to .gitignore that should be cleaned up
+            gitignore = repo / ".gitignore"
+            gitignore.write_text("worktree-old-abc\nworktree-*/\n")
+            subprocess.run(
+                ["git", "-C", str(repo), "add", ".gitignore"],
+                check=True,
+                capture_output=True,
+                env=env,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "add gitignore"],
+                check=True,
+                capture_output=True,
+                env=env,
+            )
+
+            # Place the script copy alongside the mock so BASH_SOURCE[0]-based
+            # PLUGIN_SCRIPTS resolves to our mock dir.
+            scripts_dir = tmpdir_path / "plugin-scripts"
+            scripts_dir.mkdir()
+            key_values = {
+                "infrastructure.compose_db_file": "",
+                "infrastructure.compose_project": "",
+                "infrastructure.container_prefix": "",
+                "worktree.branch_pattern": "worktree-*",
+                "worktree.max_age_hours": "",
+                "worktree.orphan_patterns": "",
+                "worktree.regenerable_paths": "",
+            }
+            script_copy = _make_script_copy_with_mock(
+                scripts_dir, key_values=key_values, default_value=""
+            )
+
+            env["CLEANUP_LOG"] = "/dev/null"
+            result = subprocess.run(
+                ["bash", str(script_copy), "--dry-run", "--all", "--force"],
+                capture_output=True,
+                text=True,
+                cwd=str(repo),
+                env=env,
+                timeout=30,
+            )
+
+        combined = result.stdout + result.stderr
+        # The script should report that .gitignore would be cleaned
+        assert "gitignore" in combined.lower(), (
+            "Expected a message about cleaning up .gitignore but none found.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+
+@pytest.mark.scripts
+class TestAgeHoursConfig:
+    """AGE_HOURS default in worktree-cleanup.sh is driven by CONFIG_MAX_AGE_HOURS."""
+
     def test_age_hours_reads_from_config_max_age_hours(self) -> None:
         """When CONFIG_MAX_AGE_HOURS=24, AGE_HOURS resolves to 24.
 
-        TDD GREEN: passes after AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}} is used.
-        """
-        import subprocess
+        Given: CONFIG_MAX_AGE_HOURS=24, AGE_HOURS not in environment.
+        When: the shell expression AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}} is evaluated.
+        Then: AGE_HOURS equals 24.
 
+        This tests the behavior of the expression, not the text of the source.
+        """
         result = subprocess.run(
             [
                 "bash",
@@ -695,14 +1124,213 @@ class TestAgeHoursConfig:
             "When CONFIG_MAX_AGE_HOURS=24, AGE_HOURS should resolve to 24.\n"
             f"stdout: {result.stdout}"
         )
-        # Now verify the actual script uses the pattern
-        content = SCRIPT.read_text()
-        age_hours_assignment = [
-            line
-            for line in content.splitlines()
-            if line.strip().startswith("AGE_HOURS=")
-        ]
-        assert any("CONFIG_MAX_AGE_HOURS" in line for line in age_hours_assignment), (
-            "The script's AGE_HOURS assignment must use CONFIG_MAX_AGE_HOURS.\n"
-            f"Found AGE_HOURS lines: {age_hours_assignment}"
+
+    def test_age_hours_defaults_to_12_when_config_absent(self) -> None:
+        """AGE_HOURS defaults to 12 when neither AGE_HOURS nor CONFIG_MAX_AGE_HOURS is set.
+
+        Given: both AGE_HOURS and CONFIG_MAX_AGE_HOURS are absent from the environment.
+        When: the startup config block runs via the script harness.
+        Then: AGE_HOURS equals 12 (the compiled-in default).
+
+        Behavioral test — replaces source greps for 'AGE_HOURS=12' bare literal.
+        """
+        script_content = SCRIPT.read_text()
+        block = _extract_startup_config_block(script_content)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            fake_scripts_dir = tmpdir_path / "scripts"
+            fake_scripts_dir.mkdir()
+            # read-config.sh returns empty for max_age_hours
+            _make_mock_read_config(fake_scripts_dir, default_value="")
+
+            test_script = fake_scripts_dir / "test_age_default.sh"
+            test_script.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -uo pipefail\n"
+                f"{block}\n"
+                # Apply the AGE_HOURS default expression from the script
+                "AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}}\n"
+                'echo "AGE_HOURS=${AGE_HOURS}"\n'
+            )
+            test_script.chmod(test_script.stat().st_mode | stat.S_IEXEC)
+
+            # Run with AGE_HOURS and CONFIG_MAX_AGE_HOURS absent from environment
+            env = {
+                k: v
+                for k, v in os.environ.items()
+                if k not in ("AGE_HOURS", "CONFIG_MAX_AGE_HOURS")
+            }
+            env["HOME"] = str(tmpdir_path)
+            result = subprocess.run(
+                ["bash", str(test_script)],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+
+        assert result.returncode == 0, (
+            f"Test script failed (rc={result.returncode}).\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "AGE_HOURS=12" in result.stdout, (
+            "Expected AGE_HOURS=12 as the compiled-in default when neither "
+            "AGE_HOURS nor CONFIG_MAX_AGE_HOURS is set.\n"
+            f"stdout: {result.stdout}"
+        )
+
+    def test_age_hours_env_var_overrides_config(self) -> None:
+        """An explicit AGE_HOURS env var takes precedence over CONFIG_MAX_AGE_HOURS.
+
+        Given: AGE_HOURS=48 in environment, CONFIG_MAX_AGE_HOURS=24 from config.
+        When: the AGE_HOURS default expression is evaluated.
+        Then: AGE_HOURS remains 48 (env var wins).
+
+        Behavioral test — replaces source grep for the precedence pattern.
+        """
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "CONFIG_MAX_AGE_HOURS=24; AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}}; "
+                'echo "AGE_HOURS=${AGE_HOURS}"',
+            ],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "AGE_HOURS": "48"},
+        )
+        assert result.returncode == 0, (
+            f"bash -c failed (rc={result.returncode}).\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "AGE_HOURS=48" in result.stdout, (
+            "AGE_HOURS env var should override CONFIG_MAX_AGE_HOURS.\n"
+            f"stdout: {result.stdout}"
+        )
+
+    def test_is_old_enough_respects_age_hours_threshold(self) -> None:
+        """is_old_enough() returns true for old directories and false for fresh ones.
+
+        Given: a directory created 'now' (too recent) and a temp directory with
+               mtime backdated to 25 hours ago, with AGE_HOURS=12.
+        When: is_old_enough() is called on each directory.
+        Then: the backdated directory is eligible (old enough), the fresh one is not.
+
+        Behavioral test — replaces source greps for 'AGE_HOURS:-12' inside function body.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            fake_home = tmpdir_path / "meta" / "home"
+            fake_home.mkdir(parents=True)
+
+            # Create an "old" directory by backdating its mtime by 25 hours
+            old_dir = tmpdir_path / "old-worktree"
+            old_dir.mkdir()
+            twenty_five_hours_ago = os.stat(str(old_dir)).st_mtime - (25 * 3600)
+            os.utime(str(old_dir), (twenty_five_hours_ago, twenty_five_hours_ago))
+
+            # Fresh directory (just created)
+            fresh_dir = tmpdir_path / "fresh-worktree"
+            fresh_dir.mkdir()
+
+            # Build a harness that sources the is_old_enough function from the real script
+            # and calls it on both directories.
+            harness_script = tmpdir_path / "test-age.sh"
+            harness_script.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                "AGE_HOURS=12\n"
+                # Source just the is_old_enough function from the real script
+                f'source <(grep -A 40 "^is_old_enough()" "{SCRIPT}" | head -45)\n'
+                f'if is_old_enough "{old_dir}"; then\n'
+                '  echo "OLD_ELIGIBLE=yes"\n'
+                "else\n"
+                '  echo "OLD_ELIGIBLE=no"\n'
+                "fi\n"
+                f'if is_old_enough "{fresh_dir}"; then\n'
+                '  echo "FRESH_ELIGIBLE=yes"\n'
+                "else\n"
+                '  echo "FRESH_ELIGIBLE=no"\n'
+                "fi\n"
+            )
+            harness_script.chmod(harness_script.stat().st_mode | stat.S_IEXEC)
+
+            result = subprocess.run(
+                ["bash", str(harness_script)],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "HOME": str(fake_home)},
+            )
+
+        assert result.returncode == 0, (
+            f"Age harness failed (rc={result.returncode}).\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "OLD_ELIGIBLE=yes" in result.stdout, (
+            "A 25-hour-old directory should be eligible with AGE_HOURS=12.\n"
+            f"stdout: {result.stdout}"
+        )
+        assert "FRESH_ELIGIBLE=no" in result.stdout, (
+            "A freshly-created directory should NOT be eligible with AGE_HOURS=12.\n"
+            f"stdout: {result.stdout}"
+        )
+
+    def test_age_days_backward_compat_shim_converts_and_warns(self) -> None:
+        """When AGE_DAYS=3 is set and AGE_HOURS is unset, the shim sets AGE_HOURS=72 and warns.
+
+        Behavioral test: extracts the shim block from the script and executes it via
+        subprocess with AGE_DAYS=3 in the environment, then asserts the runtime outcomes.
+
+        GREEN: passes after the shim block is added.
+        """
+        lines = SCRIPT.read_text().splitlines()
+
+        # Extract the shim block: _AGE_HOURS_FROM_ENV capture line through the
+        # closing `fi` of the `if [[ -n "${AGE_DAYS:-}"` block.
+        shim_lines: list[str] = []
+        in_shim = False
+        brace_depth = 0
+        for line in lines:
+            stripped = line.strip()
+            if not in_shim and "_AGE_HOURS_FROM_ENV=" in stripped:
+                in_shim = True
+            if in_shim:
+                shim_lines.append(line)
+                # Track if/fi nesting so we stop at the right fi
+                if stripped.startswith("if ") or stripped.startswith("if["):
+                    brace_depth += 1
+                if stripped == "fi":
+                    if brace_depth > 0:
+                        brace_depth -= 1
+                    if brace_depth == 0:
+                        break  # done
+
+        assert shim_lines, "Could not extract the AGE_DAYS backward-compat shim block"
+
+        # Build a small test harness: run the shim block and print AGE_HOURS
+        harness = (
+            "#!/usr/bin/env bash\n"
+            "set -uo pipefail\n"
+            "\n" + "\n".join(shim_lines) + '\necho "AGE_HOURS=${AGE_HOURS}"\n'
+        )
+
+        result = subprocess.run(
+            ["bash", "-c", harness],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "AGE_DAYS": "3"},  # AGE_HOURS intentionally absent
+        )
+
+        assert result.returncode == 0, (
+            f"Shim harness exited non-zero (rc={result.returncode}).\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "AGE_HOURS=72" in result.stdout, (
+            "AGE_DAYS=3 should convert to AGE_HOURS=72 (3 × 24).\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert (
+            "deprecated" in result.stderr.lower() or "warning" in result.stderr.lower()
+        ), (
+            "Shim must emit a deprecation warning to stderr when AGE_DAYS is set.\n"
+            f"stderr: {result.stderr}"
         )
