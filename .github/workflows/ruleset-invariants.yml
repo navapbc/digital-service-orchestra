@@ -48,19 +48,24 @@ jobs:
           # handled as a precondition-not-met by the test).
           GH_TOKEN: ${{ secrets.DSO_RULESETS_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          # ROLLOUT KNOB — flip to `enforce` at go-live. CS-17: this wrapper is
+          # the THIRD carrier of the exit-78→pass hole and, unlike the
+          # coverage/dangling wrappers, gates an ALREADY-required check. In
+          # enforce mode a token blip can no longer silently green-stamp the
+          # drift guard A-5 leans on.
+          DSO_RULESET_INVARIANTS_MODE: warn
         run: |
           set +e
           bash tests/scripts/test-ruleset-design-invariants.sh
           rc=$?
           # exit 78 = EX_CONFIG (precondition not met — e.g. token lacks
-          # rulesets:read). During rollout the secret may not yet be
-          # provisioned; treat as warning so the required check passes.
-          # Drift (exit 1) and pass (exit 0) propagate normally.
-          if [ "$rc" -eq 78 ]; then
-            echo "::warning::ruleset-invariants precondition not met (likely missing DSO_RULESETS_READ_TOKEN secret) — drift detection not enforced this run"
-            exit 0
-          fi
-          exit $rc
+          # rulesets:read). In WARN mode (today's default) treat as warning so
+          # the required check passes during rollout. In ENFORCE mode the
+          # precondition is fail-closed: a missing/under-scoped token MUST block
+          # so a PAT expiry/scope-strip cannot silently re-open the hole.
+          # Drift (exit 1) and pass (exit 0) propagate normally regardless.
+          bash plugins/dso/scripts/ci/precondition-gate.sh \
+            "$rc" "${DSO_RULESET_INVARIANTS_MODE:-warn}" "ruleset-invariants"
 
       - name: Run provisioner round-trip drift test
         # Single-source-of-truth drift lock: provisioner dry-run vs live ruleset
@@ -71,12 +76,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.DSO_RULESETS_READ_TOKEN || secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          # Same rollout posture as the invariant test above. The test itself
+          # reads DSO_RULESET_INVARIANTS_MODE to make `_live_round_trip`
+          # fail-closed under enforce (a skipped live arm FAILS rather than
+          # returning 0), and this wrapper makes the exit-78 path fail-closed
+          # under enforce too. Default warn → live behavior unchanged.
+          DSO_RULESET_INVARIANTS_MODE: warn
         run: |
           set +e
           bash tests/scripts/test-ruleset-provisioner-roundtrip.sh
           rc=$?
-          if [ "$rc" -eq 78 ]; then
-            echo "::warning::provisioner round-trip precondition not met — drift detection not enforced this run"
-            exit 0
-          fi
-          exit $rc
+          bash plugins/dso/scripts/ci/precondition-gate.sh \
+            "$rc" "${DSO_RULESET_INVARIANTS_MODE:-warn}" "provisioner-round-trip"
