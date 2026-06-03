@@ -209,5 +209,80 @@ assert_contains "test_reads_check_name_from_config: output contains success mess
     "success" "$custom_output"
 assert_pass_if_clean "test_reads_check_name_from_config"
 
+# ═════════════════════════════════════════════════════════════════════════════
+# MQ-5 (ADR-0019): dual-mode / transition-tolerant preflight.
+# The preflight runs at sprint Phase A and is `set -euo pipefail`. During the
+# merge-queue migration the live ruleset is re-provisioned in a single gated
+# cutover (MQ-6); the preflight must pass against BOTH models and select which to
+# assert from the live state — a hard flip to MQ-only would fail every sprint
+# Phase A in the window between MQ-5 landing and the MQ-6 live cutover.
+# Discriminator (FAIL-CLOSED): MQ mode iff the MAIN ruleset carries a merge_queue
+# rule; otherwise the two-tier assertions run (the closed default).
+# ═════════════════════════════════════════════════════════════════════════════
+
+# Shared MQ fixture: MAIN ruleset has a merge_queue rule + llm-review (NO
+# check-staged-head); a sub-PR ruleset still requires review-sub-pr.
+_MQ_MAIN_RULE='{"type":"merge_queue","parameters":{"merge_method":"MERGE","max_entries_to_build":1,"max_entries_to_merge":1,"min_entries_to_merge":1,"min_entries_to_merge_wait_minutes":5,"check_response_timeout_minutes":60,"grouping_strategy":"ALLGREEN"}}'
+
+# ── test_mq_model_exits_zero ─────────────────────────────────────────────────
+echo ""
+echo "--- test_mq_model_exits_zero ---"
+_snapshot_fail
+MQ_GOOD_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"review-sub-pr"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":['"$_MQ_MAIN_RULE"',{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"llm-review"}]}}]}]}'
+stub_bin_mq_good="$(_make_stub_bin "mq_good" "$MQ_GOOD_JSON")"
+mq_good_output=""; mq_good_exit=0
+mq_good_output="$(env PATH="$stub_bin_mq_good:$PATH" bash "$SCRIPT_UNDER_TEST" 2>&1)" || mq_good_exit=$?
+assert_eq "test_mq_model_exits_zero: exits 0 when MAIN has merge_queue + llm-review, no check-staged-head" \
+    "0" "$mq_good_exit"
+assert_contains "test_mq_model_exits_zero: output names the merge-queue model" \
+    "merge queue" "$mq_good_output"
+assert_pass_if_clean "test_mq_model_exits_zero"
+
+# ── test_mq_main_still_has_staged_head_fails ─────────────────────────────────
+# Under MQ, check-staged-head must be RETIRED from main. If the cutover left it,
+# the preflight must flag it (else a context nothing emits would block).
+echo ""
+echo "--- test_mq_main_still_has_staged_head_fails ---"
+_snapshot_fail
+MQ_STAGED_HEAD_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"review-sub-pr"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":['"$_MQ_MAIN_RULE"',{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"check-staged-head"},{"context":"llm-review"}]}}]}]}'
+stub_bin_mq_sh="$(_make_stub_bin "mq_staged_head" "$MQ_STAGED_HEAD_JSON")"
+mq_sh_output=""; mq_sh_exit=0
+mq_sh_output="$(env PATH="$stub_bin_mq_sh:$PATH" bash "$SCRIPT_UNDER_TEST" 2>&1)" || mq_sh_exit=$?
+assert_ne "test_mq_main_still_has_staged_head_fails: exits non-zero when check-staged-head lingers under MQ" \
+    "0" "$mq_sh_exit"
+assert_contains "test_mq_main_still_has_staged_head_fails: output mentions check-staged-head" \
+    "check-staged-head" "$mq_sh_output"
+assert_pass_if_clean "test_mq_main_still_has_staged_head_fails"
+
+# ── test_mq_missing_subpr_review_fails ───────────────────────────────────────
+# The sub-PR LLM review must survive under MQ (every commit reviewed at sub-PR).
+echo ""
+echo "--- test_mq_missing_subpr_review_fails ---"
+_snapshot_fail
+MQ_NO_SUBPR_JSON='{"rulesets":[{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":['"$_MQ_MAIN_RULE"',{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"llm-review"}]}}]}]}'
+stub_bin_mq_nosub="$(_make_stub_bin "mq_nosub" "$MQ_NO_SUBPR_JSON")"
+mq_nosub_output=""; mq_nosub_exit=0
+mq_nosub_output="$(env PATH="$stub_bin_mq_nosub:$PATH" bash "$SCRIPT_UNDER_TEST" 2>&1)" || mq_nosub_exit=$?
+assert_ne "test_mq_missing_subpr_review_fails: exits non-zero when no ruleset requires review-sub-pr under MQ" \
+    "0" "$mq_nosub_exit"
+assert_contains "test_mq_missing_subpr_review_fails: output mentions review-sub-pr" \
+    "review-sub-pr" "$mq_nosub_output"
+assert_pass_if_clean "test_mq_missing_subpr_review_fails"
+
+# ── test_two_tier_still_passes_after_mq_support (regression) ──────────────────
+# The fail-closed default: a ruleset set with NO merge_queue rule must still be
+# validated under the two-tier assertions (GOOD_RULESETS_JSON has no merge_queue).
+echo ""
+echo "--- test_two_tier_still_passes_after_mq_support ---"
+_snapshot_fail
+stub_bin_tt="$(_make_stub_bin "two_tier_regress" "$GOOD_RULESETS_JSON")"
+tt_output=""; tt_exit=0
+tt_output="$(env PATH="$stub_bin_tt:$PATH" bash "$SCRIPT_UNDER_TEST" 2>&1)" || tt_exit=$?
+assert_eq "test_two_tier_still_passes_after_mq_support: two-tier still exits 0 (fail-closed default)" \
+    "0" "$tt_exit"
+assert_contains "test_two_tier_still_passes_after_mq_support: output names the two-tier model" \
+    "two-tier" "$tt_output"
+assert_pass_if_clean "test_two_tier_still_passes_after_mq_support"
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 print_summary
