@@ -12,7 +12,7 @@ Do NOT fix any issues — only report status.
 
 ## DISPATCH (read this first)
 
-The orchestrator injects `staging.deploy_check` from `workflow-config.yaml`. Determine the dispatch mode before taking any action:
+The orchestrator injects `staging.deploy_check` from `.claude/dso-config.conf`. Determine the dispatch mode before taking any action:
 
 ### Mode A — Script dispatch (`staging.deploy_check` ends in `.sh`)
 

@@ -103,4 +103,38 @@ assert_eq "test_schemastore_no_yaml_filematch: no .yaml/.yml in fileMatch" "abse
 
 assert_pass_if_clean "test_schemastore_no_yaml_filematch"
 
+# ── test_no_workflow_config_yaml_in_skills ────────────────────────────────────
+# No active (non-comment) lines in skills/** should reference
+# workflow-config.yaml as a config file path.
+# Skills must direct agents to the canonical .claude/dso-config.conf path.
+# Exclusions: none — all skill files are in scope.
+_snapshot_fail
+
+skills_hits=$(
+    grep -rn 'workflow-config\.yaml\|workflow-config\.yml' \
+        "$DSO_PLUGIN_DIR/skills/" \
+    || true
+)
+
+# Strip pure comment lines from results
+skills_offenders=""
+while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    # Extract content after file:lineno: prefix
+    content="${line#*:*:}"
+    trimmed="${content#"${content%%[![:space:]]*}"}"
+    # Skip pure comment lines
+    [[ "$trimmed" == \#* ]] && continue
+    skills_offenders+="$line"$'\n'
+done <<< "$skills_hits"
+
+assert_eq "test_no_workflow_config_yaml_in_skills: no active refs" "" "$skills_offenders"
+
+if [[ -n "$skills_offenders" ]]; then
+    echo "  Remaining active workflow-config.yaml refs in skills/:" >&2
+    echo "$skills_offenders" | head -20 >&2
+fi
+
+assert_pass_if_clean "test_no_workflow_config_yaml_in_skills"
+
 print_summary

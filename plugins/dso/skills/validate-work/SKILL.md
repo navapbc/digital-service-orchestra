@@ -43,7 +43,7 @@ Batch 2 (gated):                              Staging Test
 
 ### Step 0: Read Config (/dso:validate-work)
 
-Before launching sub-agents, read all project-specific values from `workflow-config.yaml` via `read-config.sh`.
+Before launching sub-agents, read all project-specific values from `.claude/dso-config.conf` via `read-config.sh`.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -51,7 +51,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set by the plugin loader}"
 PLUGIN_SCRIPTS_DIR="$PLUGIN_ROOT/scripts"
 READ_CONFIG="$PLUGIN_SCRIPTS_DIR/read-config.sh"
-CONFIG_FILE="$REPO_ROOT/workflow-config.yaml"
+CONFIG_FILE="$REPO_ROOT/.claude/dso-config.conf"
 
 # Staging config
 STAGING_URL=$("$READ_CONFIG" staging.url "$CONFIG_FILE" 2>/dev/null || true)
@@ -366,4 +366,4 @@ Each prompt file in `prompts/` contains a `## READ-ONLY ENFORCEMENT` section wit
 - **Gate staging test on deploy health** — skip browser tests if staging is down
 - **Sub-agent model selection** — haiku for script-running sub-agents, sonnet for staging-test which requires judgment
 - **All sub-agents run `pwd` first** — per CLAUDE.md requirement
-- **Config-driven** — all project-specific values come from `workflow-config.yaml` via `read-config.sh`
+- **Config-driven** — all project-specific values come from `.claude/dso-config.conf` via `read-config.sh`

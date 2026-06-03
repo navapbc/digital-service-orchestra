@@ -23,7 +23,7 @@ Do NOT modify skill files, agent files, or prompt templates for llm-behavioral b
 Do NOT investigate inline as a substitute for sub-agent dispatch. Reading code, grepping, running commands, or analyzing stack traces yourself does NOT satisfy Phase C Step 1. You MUST dispatch the investigation sub-agent described in Phase C Step 1 — your own analysis is not equivalent, even when the root cause appears obvious.
 </HARD-GATE>
 
-## Config Resolution (reads project workflow-config.yaml)
+## Config Resolution (reads project .claude/dso-config.conf)
 
 At activation, load project commands via read-config.sh before executing any steps:
 

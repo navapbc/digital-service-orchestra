@@ -37,7 +37,7 @@ If `PLAYWRIGHT_AVAILABLE=false`, skip all Tier 2 browser checks and report them 
 
 ## DISPATCH (read this first)
 
-The orchestrator injects `staging.test` from `workflow-config.yaml`. Determine the dispatch mode before proceeding:
+The orchestrator injects `staging.test` from `.claude/dso-config.conf`. Determine the dispatch mode before proceeding:
 
 ### Mode A — Script dispatch (`staging.test` ends in `.sh`)
 
