@@ -191,6 +191,31 @@ The annotation is **mandatory** — it makes the bypass auditable. A retro-analy
 - Tie each one to a specific REVIEWER_HASH for the manual review's findings JSON
 - See the engineer's stated FP rationale, and that all other required checks were green
 
+### Step 5c: record the cleared SHAs in the admin-exemption ledger (REQUIRED for enforce)
+
+A clearance bypasses the review *check*, but the cleared commits still reach a
+protected branch with no passing review. Under enforce, the coverage invariant on
+the **next** PR (e.g. PR2 `staged`→main after an FP-recovered PR1 `source`→`staged`)
+walks those SHAs, finds no passing review, and fail-closes — forcing a SECOND
+admin override per PR. To propagate the single override, record the cleared SHAs in
+the HMAC-signed admin-exemption ledger (story 2730 / 3ebb DD4) so the invariant
+treats them as reviewed-equivalent:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/ci/fp-recovery-record-exemption.sh" --pr "<PR_NUMBER>" --reviewer-hash "<REVIEWER_HASH from Step 2>" --reason "<one-line FP rationale>"  # shim-exempt: doc example, explicit plugin-root invocation
+```
+
+This works for BOTH a `review-sub-pr` PR1 (source→staged, the common case where the
+LLM runs) and a main `llm-review` PR2 — the SHA set is `base..head` either way. Then
+**commit the updated `.admin-exemption-ledger` onto the PR's BASE branch** (the
+`staged-*` branch for a PR1; `main` for a PR2) so the next coverage walk reads it
+from the tree — for a PR1, do this on the `staged-*` branch after the web-UI merge
+and before PR2 opens. The append is idempotent (re-runs skip already-exempt SHAs)
+and HMAC-signed with the closure key, so a forged or hand-edited entry does not
+verify. If the ledger is not wired in CI (`DSO_ADMIN_EXEMPTION_LEDGER` unset), the
+`no-dormant-security-check` audit fails closed and the enforce-flip is blocked — so
+this step cannot silently no-op at go-live.
+
 ### Step 7 (post-hoc audit): sweep already-merged bypassed PRs
 
 When a bypass merge has already happened (web-UI override, or any merge whose
