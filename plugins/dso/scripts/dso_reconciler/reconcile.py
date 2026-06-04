@@ -202,6 +202,81 @@ def preflight_status_mapping(mutations) -> None:
             )
 
 
+def _commit_binding_store_snapshot(
+    binding_store: Any,
+    repo_root: Path,
+    pass_id: str,
+) -> None:
+    """Commit the binding-store snapshot to the tickets orphan branch.
+
+    Bug: binding_store.save() only writes bindings.json to the working-tree
+    filesystem.  When the ticket-CLI's _push_tickets_branch() runs between
+    reconciler passes and merges origin/tickets, the un-committed local copy
+    of bindings.json is silently overwritten by the version committed by a
+    concurrent GHA run — causing the NEXT reconciler pass to see previously-
+    bound tickets as unbound, generating outbound CREATE mutations instead of
+    UPDATE mutations and producing a no-op dedup-skip rather than field updates.
+
+    Fix: after every successful binding_store.save(), git-stage the file and
+    commit it to the tickets orphan branch inside the .tickets-tracker worktree.
+    This mirrors what the GHA workflow's "commit-back" step does via
+    ``git add -A``, but runs inline so local probe runs that don't go through
+    GHA also get durable bindings.
+
+    Degrades gracefully: any subprocess error (git not available, tickets branch
+    not checked out, no bindings path, etc.) is caught and logged to stderr;
+    the reconciler pass continues and the next GHA commit-back will persist the
+    bindings as normal.
+    """
+    import subprocess as _sp
+
+    tracker_dir = repo_root / ".tickets-tracker"  # tickets-boundary-ok
+    bindings_path = tracker_dir / ".bridge_state" / "bindings.json"
+    if not bindings_path.exists():
+        return  # Nothing to commit
+
+    try:
+        # Stage only bindings.json (never git add -A: avoid staging unrelated
+        # working-tree changes in the tickets worktree).
+        _sp.run(
+            ["git", "-C", str(tracker_dir), "add", ".bridge_state/bindings.json"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        # Check if there is actually a diff to commit (idempotent).
+        status = _sp.run(
+            ["git", "-C", str(tracker_dir), "diff", "--cached", "--name-only"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        if "bindings.json" not in status.stdout:
+            return  # Already up-to-date; nothing to commit.
+        _sp.run(
+            [
+                "git",
+                "-C",
+                str(tracker_dir),
+                "commit",
+                "--no-verify",
+                "-q",
+                "-m",
+                f"reconciler: persist binding-store snapshot [pass {pass_id}]",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(  # noqa: T201
+            f"reconcile: binding-store commit to tickets branch failed "
+            f"({exc!r}); bindings saved to filesystem only — "
+            f"GHA commit-back will persist them on next run.",
+            file=sys.stderr,
+        )
+
+
 def _load(name: str, relpath: str):
     """Load a sibling module by relative file path, registering it in sys.modules.
 
@@ -952,6 +1027,14 @@ def reconcile_once(
     # -------------------------------------------------------------------
     try:
         binding_store.save()
+        # Commit the updated bindings.json to the tickets orphan branch so
+        # it survives a concurrent ``git merge origin/tickets`` in the
+        # ticket-CLI's _push_tickets_branch() between reconciler passes.
+        # Without this commit, local probe runs lose newly-created bindings on
+        # the next ticket-CLI push, causing the next reconciler pass to see
+        # bound tickets as unbound and generate CREATE rather than UPDATE
+        # mutations (regression: outbound scalar-field edits never land).
+        _commit_binding_store_snapshot(binding_store, repo_root, pass_id)
     except Exception as exc:  # noqa: BLE001
         print(  # noqa: T201
             f"reconcile: binding store save failed ({exc})",
