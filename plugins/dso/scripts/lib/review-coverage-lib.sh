@@ -125,7 +125,11 @@ rc_diff_is_tickets_only() {
     # Per-commit file list vs first parent (--root handles the initial commit). A
     # merge commit produces NO entries here (no -m/--cc) -> empty -> NOT exempt,
     # which is correct: the clean-merge exemption is evaluated by the caller.
-    _files="$(git diff-tree --no-commit-id --name-only -r --root "$_sha" 2>/dev/null)" || return 2
+    # core.quotepath=false so a non-ASCII ticket-store path is emitted LITERALLY
+    # (not C-quoted as "\303\251…"); otherwise the leading-quote would fail the
+    # prefix case below and a genuinely ticket-only commit would be (fail-safe but
+    # wrong) classified NOT exempt. Consistent with build-integration-diff.sh.
+    _files="$(git -c core.quotepath=false diff-tree --no-commit-id --name-only -r --root "$_sha" 2>/dev/null)" || return 2
     [[ -z "$_files" ]] && return 1          # I-1: empty list is NOT exempt
     while IFS= read -r _f; do
         [[ -z "$_f" ]] && continue
