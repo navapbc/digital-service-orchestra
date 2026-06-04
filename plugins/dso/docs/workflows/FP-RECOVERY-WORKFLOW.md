@@ -201,8 +201,21 @@ admin override per PR. To propagate the single override, record the cleared SHAs
 the HMAC-signed admin-exemption ledger (story 2730 / 3ebb DD4) so the invariant
 treats them as reviewed-equivalent:
 
+**WHO SIGNS (ADR-0021 / C3 — load-bearing).** The exemption is HMAC-signed with a
+**dedicated** key (`DSO_ADMIN_EXEMPTION_KEY_FILE`) held ONLY by the **human
+bypass-actor** (to sign) and CI's **verify-only** secret — it is **NOT** the
+agent-reachable `.closure-key`. The autonomous agent is non-bypass and does **not**
+hold the key: it **prepares** this command but does **not** run it; the **human
+bypass-actor runs it with their key**, inline, as part of the same merge ritual, so
+the exemption row rides the FP-recovery PR they are bypass-merging and is covered by
+that **one** override (no second override, no async signer, no automated write to a
+protected branch). If an agent lacking the key runs it, `ael_append` **fails closed**
+(exit 2, "no signing key") — by design, this is the C3 forge-prevention boundary.
+
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/ci/fp-recovery-record-exemption.sh" --pr "<PR_NUMBER>" --reviewer-hash "<REVIEWER_HASH from Step 2>" --findings "<ARTIFACTS_DIR>/reviewer-findings.json" --reason "<one-line FP rationale>"  # shim-exempt: doc example, explicit plugin-root invocation
+# Run by the HUMAN bypass-actor with their dedicated key — NOT the agent, NOT .closure-key:
+DSO_ADMIN_EXEMPTION_KEY_FILE="<path to the bypass-actor's dedicated ledger key>" \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/ci/fp-recovery-record-exemption.sh" --pr "<PR_NUMBER>" --reviewer-hash "<REVIEWER_HASH from Step 2>" --findings "<ARTIFACTS_DIR>/reviewer-findings.json" --reason "<one-line FP rationale>"  # shim-exempt: doc example, explicit plugin-root invocation
 ```
 
 The recorder **code-enforces the opus-gate** (3ebb DD4 unit 5 / C1): it verifies `--reviewer-hash` against the `reviewer-findings.json` the Step-2 review wrote (sha256 integrity, same as `record-review.sh`) and **refuses to append unless that file parses to 0 critical/important/fragile findings**. A forged hash, a tampered findings file, or a review that wasn't actually cleared all fail closed (exit 2, no exemption). This makes an exemption *reviewed-equivalent by construction* — not merely a signed claim.
@@ -212,9 +225,10 @@ LLM runs) and a main `llm-review` PR2 — the SHA set is `base..head` either way
 **commit the updated `.admin-exemption-ledger` onto the PR's BASE branch** (the
 `staged-*` branch for a PR1; `main` for a PR2) so the next coverage walk reads it
 from the tree — for a PR1, do this on the `staged-*` branch after the web-UI merge
-and before PR2 opens. The append is idempotent (re-runs skip already-exempt SHAs)
-and HMAC-signed with the closure key, so a forged or hand-edited entry does not
-verify. If the ledger is not wired in CI (`DSO_ADMIN_EXEMPTION_LEDGER` unset), the
+and before PR2 opens (a procedural precondition for the single-override guarantee on
+the PR1 tier — see ADR-0021). The append is idempotent (re-runs skip already-exempt
+SHAs) and HMAC-signed with the **dedicated ledger key** (ADR-0021 / C3, not
+`.closure-key`), so a forged or hand-edited entry does not verify. If the ledger is not wired in CI (`DSO_ADMIN_EXEMPTION_LEDGER` unset), the
 `no-dormant-security-check` audit fails closed and the enforce-flip is blocked — so
 this step cannot silently no-op at go-live.
 
