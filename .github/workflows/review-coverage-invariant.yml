@@ -42,8 +42,15 @@ jobs:
       - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4
         with:
           path: .review-coverage-ledger
-          key: review-coverage-ledger-${{ github.base_ref }}-${{ github.run_id }}
+          # CF-6 (story 7b77): the SAVE key carries run_id ONLY so each run can persist
+          # its own progress (Actions caches are immutable per key). The STABLE part —
+          # the run_id-free restore-keys — is what makes a re-run WARM-HIT the prior
+          # ledger: it restores the most-recent ledger for this PR head first, then the
+          # branch, so the per-SHA walk converges across re-runs instead of cold-starting
+          # (a transient budget/cache miss must never wedge the team under enforce).
+          key: review-coverage-ledger-${{ github.base_ref }}-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
           restore-keys: |
+            review-coverage-ledger-${{ github.base_ref }}-${{ github.event.pull_request.head.sha }}-
             review-coverage-ledger-${{ github.base_ref }}-
 
       - name: Run coverage invariant
