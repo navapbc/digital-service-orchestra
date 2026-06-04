@@ -12,8 +12,13 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo '')"
 _wf=$(bash "$SCRIPT_DIR/read-config.sh" dso.workflow 2>/dev/null || echo "local")
 _sprint_active=0
 [[ -f "$REPO_ROOT/.sprint-active" ]] && _sprint_active=1
+# OR-alternative: DSO_SPRINT_TRAILER_REQUIRED=1 triggers enforcement in agent
+# sub-branch worktrees where .sprint-active must NOT be present (bug 3349-8532).
+# This widens WHEN enforcement triggers but does not weaken any existing cell.
+[[ "${DSO_SPRINT_TRAILER_REQUIRED:-}" == "1" ]] && _sprint_active=1
 
-# 4-cell matrix: enforce ONLY when dso.workflow=ci-pr AND .sprint-active exists
+# 4-cell matrix: enforce ONLY when dso.workflow=ci-pr AND (.sprint-active exists
+# OR DSO_SPRINT_TRAILER_REQUIRED=1). All existing cells remain intact.
 if [[ "$_wf" != "ci-pr" || "$_sprint_active" -eq 0 ]]; then
     exit 0
 fi
