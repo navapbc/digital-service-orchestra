@@ -128,15 +128,16 @@ FINDINGS_OUTPUT: <WORKTREE_ARTIFACTS value>/reviewer-findings.json
 
 **Step 3 — Record test status**: Run `record-test-status.sh` from the worktree context (`cd $WORKTREE_PATH && bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"`) to record test results in `$WORKTREE_ARTIFACTS` before commit.
 
-**Step 3.5 — Propagate sprint marker**: Copy `.sprint-active` from the session root into the worktree so `check-sprint-trailer.sh` enforces DSO-Story trailer correctly (bug e081-63c0). Run from the session root (no `cd $WORKTREE_PATH &&` prefix):
+**Step 3.5 — Signal trailer requirement via environment**: When `.sprint-active` is present at the session root, export `DSO_SPRINT_TRAILER_REQUIRED=1` into the environment of the Step 4 git commit invocation so `check-sprint-trailer.sh` enforces the DSO-Story trailer in the agent worktree (fix for bug 3349-8532-1183-4fc1). Do NOT copy `.sprint-active` into the worktree — doing so would cause `check-session-merge-only.sh` to reject the agent's legitimate non-merge per-task commits (the mutual-exclusion conflict documented in that bug).
 
 ```bash
 SESSION_ROOT=$(git rev-parse --show-toplevel)
 if [[ -f "$SESSION_ROOT/.sprint-active" ]]; then
-    cp "$SESSION_ROOT/.sprint-active" "$WORKTREE_PATH/.sprint-active" 2>/dev/null || \
-        echo "WARNING: failed to copy .sprint-active into $WORKTREE_PATH" >&2
+    export DSO_SPRINT_TRAILER_REQUIRED=1
 fi
 ```
+
+This export is effective for the duration of the current shell session (the orchestrator's Bash call), so the Step 4 commit invocation (which runs in the same shell via `cd $WORKTREE_PATH && ...`) inherits `DSO_SPRINT_TRAILER_REQUIRED=1` without requiring a file copy.
 
 **Step 3.6 — Design-md lint enforcement (config-gated)**: Runs after review (Step 2) and before commit (Step 4). Computes the set of files changed in the worktree, filters to scope-eligible extensions, and runs `design-md-lint.sh` to block on design-system violations. Skip when `design.lint_enabled=never` or when the config key is absent.
 
@@ -155,7 +156,7 @@ if [[ "$DESIGN_LINT_ENABLED" != "never" ]]; then
     if [[ -n "${DESIGN_LINT_FILES// /}" ]]; then
         # Run design-md-lint.sh in the worktree context; block on non-zero exit
         DESIGN_LINT_EXIT=0
-        cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/scripts/design-md-lint.sh" $DESIGN_LINT_FILES || DESIGN_LINT_EXIT=$?
+        cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/scripts/design-md-lint.sh" $DESIGN_LINT_FILES || DESIGN_LINT_EXIT=$?  # shim-exempt: internal orchestration script
         if [[ $DESIGN_LINT_EXIT -ne 0 ]]; then
             echo "ERROR: design-md-lint.sh reported violations in worktree $WORKTREE_PATH (exit $DESIGN_LINT_EXIT)." >&2
             echo "  Resolve design-system violations before commit, or use /dso:fp-recovery if this is a false positive." >&2
@@ -179,10 +180,16 @@ When `design.lint_enabled=auto` (the default), the lint step runs whenever scope
 
 ```bash
 RECIPE_REGISTRY_PATH="${CLAUDE_PLUGIN_ROOT}/recipes/recipe-registry.yaml"
-CLEANUP_RECIPES="$(cd "$WORKTREE_PATH" && RECIPE_REGISTRY_PATH="$RECIPE_REGISTRY_PATH" bash "${CLAUDE_PLUGIN_ROOT}/scripts/sprint/detect-cleanup-recipes.sh" 2>/dev/null || true)"
+CLEANUP_RECIPES="$(cd "$WORKTREE_PATH" && RECIPE_REGISTRY_PATH="$RECIPE_REGISTRY_PATH" bash "${CLAUDE_PLUGIN_ROOT}/scripts/sprint/detect-cleanup-recipes.sh" 2>/dev/null || true)"  # shim-exempt: internal orchestration script
 ```
 
-If `CLEANUP_RECIPES` is empty, skip this step (no applicable recipes). Otherwise, for each recipe: capture `PRE_CLEANUP_DIFF="$(cd "$WORKTREE_PATH" && git diff --staged)"`, run `cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/scripts/recipe-executor.sh" <recipe_name> --param language=<lang>`, and if the recipe reverted the sub-agent's staged changes, log a WARNING and skip that recipe for those files. Record a distinct `CLEANUP_DIFF:` ticket comment so reviewers/completion-verifier see the post-cleanup state. The recipe re-stages its output, so the subsequent Step 4 commit captures the cleaned diff.
+If `CLEANUP_RECIPES` is empty, skip this step (no applicable recipes). Otherwise, for each recipe: capture `PRE_CLEANUP_DIFF="$(cd "$WORKTREE_PATH" && git diff --staged)"`, run the recipe executor:
+
+```bash
+cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/scripts/recipe-executor.sh" <recipe_name> --param language=<lang>  # shim-exempt: internal orchestration script
+```
+
+and if the recipe reverted the sub-agent's staged changes, log a WARNING and skip that recipe for those files. Record a distinct `CLEANUP_DIFF:` ticket comment so reviewers/completion-verifier see the post-cleanup state. The recipe re-stages its output, so the subsequent Step 4 commit captures the cleaned diff.
 
 **Step 4 — Commit in worktree branch**: Execute COMMIT-WORKFLOW.md from the worktree context (all Bash calls prefixed with `cd $WORKTREE_PATH &&`). The commit happens in the worktree's branch (not the session branch). Review gate passes because review-status and diff_hash are in `$WORKTREE_ARTIFACTS`.
 
