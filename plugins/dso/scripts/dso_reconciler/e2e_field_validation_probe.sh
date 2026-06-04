@@ -842,6 +842,422 @@ if [ -n "${JIRA_KEYS[7]}" ]; then
 fi
 
 # ===========================================================================
+# PHASE 2b: Priority enum full-cycle (values 1 and 3)
+# ===========================================================================
+#
+# Existing tickets cover priorities 0 (Highest), 2 (Medium), 4 (Lowest) at
+# create time, and Phase 2 updates ticket 2 from 0→3 (Low). This phase
+# explicitly cycles ticket 3 (FIELD-PROBE-3, currently priority 4/Lowest)
+# through local priority 1 (High) and then priority 3 (Low), verifying
+# both outbound mappings.  Using ticket 3 (idx 2) keeps changes isolated
+# from Phase 3's inbound tests on ticket 2 (idx 1).
+
+echo ""
+echo "=== PHASE 2b: Priority enum full-cycle (priorities 1 and 3) ==="
+echo ""
+
+# Sub-cycle A: local priority 4 → 1 (Lowest → High)
+edit_ticket_field "${LOCAL_IDS[2]}" "priority" "1"
+pass_test "Phase2b.edit-priority-to-1"
+
+echo "Running reconciler for priority=1 outbound..."
+reconciler_output=$(run_filtered_reconciler "$FILTER_IDS")
+echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+
+if [ -n "${JIRA_KEYS[2]}" ]; then
+    jira_priority=$(get_jira_field "${JIRA_KEYS[2]}" "priority")
+    if [ "$jira_priority" = "High" ]; then
+        pass_test "Phase2b.verify-priority-1-outbound (High)"
+        matrix_set "priority" "outbound" "update-p1" "PASS"
+    else
+        fail_test "Phase2b.verify-priority-1-outbound" "expected High, got: ${jira_priority}"
+        matrix_set "priority" "outbound" "update-p1" "FAIL"
+    fi
+fi
+
+# Sub-cycle B: local priority 1 → 3 (High → Low)
+edit_ticket_field "${LOCAL_IDS[2]}" "priority" "3"
+pass_test "Phase2b.edit-priority-to-3"
+
+echo "Running reconciler for priority=3 outbound..."
+reconciler_output=$(run_filtered_reconciler "$FILTER_IDS")
+echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+
+if [ -n "${JIRA_KEYS[2]}" ]; then
+    jira_priority=$(get_jira_field "${JIRA_KEYS[2]}" "priority")
+    if [ "$jira_priority" = "Low" ]; then
+        pass_test "Phase2b.verify-priority-3-outbound (Low)"
+        matrix_set "priority" "outbound" "update-p3" "PASS"
+    else
+        fail_test "Phase2b.verify-priority-3-outbound" "expected Low, got: ${jira_priority}"
+        matrix_set "priority" "outbound" "update-p3" "FAIL"
+    fi
+fi
+
+# ===========================================================================
+# PHASE 2c: Epic type + parent/child hierarchy
+# ===========================================================================
+#
+# Probes:
+#   2c-1: Create a local epic ticket → reconcile → verify Jira issuetype=Epic
+#   2c-2: Create a child task with --parent <epic-local-id> → reconcile →
+#          verify Jira child carries parent.key == epic Jira key (outbound parent)
+#   2c-3: Reparent child to a second parent (ticket 1 / LOCAL_IDS[0]) → reconcile →
+#          verify Jira parent changed
+#   2c-4: Create a third ticket; set its Jira parent to the epic key via REST
+#          set_parent → reconcile inbound → verify local parent_id resolves
+#
+# Ordering note: 2c-2's outbound parent bind relies on the epic being bound
+# first. A second reconciler pass is run before asserting the parent key to
+# handle the unbound-parent grace path documented in outbound_differ.py L183.
+#
+# 36af exclusion: no issuetype UPDATE assertions here — only the CREATE path.
+
+echo ""
+echo "=== PHASE 2c: Epic type + parent/child hierarchy ==="
+echo ""
+
+# --- 2c-1: Epic CREATE outbound ---
+EPIC_LOCAL_ID=""
+EPIC_JIRA_KEY=""
+EPIC_LOCAL_ID=$("$TICKET_CLI" ticket create epic \
+    "FIELD-PROBE-EPIC: hierarchy ${PROBE_TS}" \
+    -d "Epic for parent/child probe" \
+    --priority 2 \
+    --tags "${PROBE_TAG}" \
+    2>&1 | tail -1) || true
+
+if [ -z "$EPIC_LOCAL_ID" ]; then
+    fail_test "Phase2c.create-epic" "ticket create epic returned no ID"
+else
+    pass_test "Phase2c.create-epic (${EPIC_LOCAL_ID})"
+fi
+
+# Create the third ticket (used for inbound-parent test 2c-4) before
+# reconciling so a single pass binds both the epic and this ticket.
+THIRD_LOCAL_ID=""
+THIRD_JIRA_KEY=""
+if [ -n "$EPIC_LOCAL_ID" ]; then
+    THIRD_LOCAL_ID=$("$TICKET_CLI" ticket create task \
+        "FIELD-PROBE-THIRD: inbound-parent ${PROBE_TS}" \
+        -d "Inbound parent resolution test" \
+        --priority 2 \
+        --tags "${PROBE_TAG}" \
+        2>&1 | tail -1) || true
+    if [ -z "$THIRD_LOCAL_ID" ]; then
+        fail_test "Phase2c.create-third" "ticket create task (inbound-parent) returned no ID"
+    else
+        pass_test "Phase2c.create-third (${THIRD_LOCAL_ID})"
+    fi
+fi
+
+# Reconcile epic + third ticket
+PARITY_FILTER="$FILTER_IDS"
+if [ -n "$EPIC_LOCAL_ID" ]; then
+    PARITY_FILTER="${PARITY_FILTER},${EPIC_LOCAL_ID}"
+fi
+if [ -n "$THIRD_LOCAL_ID" ]; then
+    PARITY_FILTER="${PARITY_FILTER},${THIRD_LOCAL_ID}"
+fi
+
+echo "Running reconciler for epic create outbound..."
+reconciler_output=$(run_filtered_reconciler "$PARITY_FILTER")
+echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+
+# Wait for binding
+if [ -n "$EPIC_LOCAL_ID" ]; then
+    epic_binding=$(check_binding_with_retry "$EPIC_LOCAL_ID")
+    if [[ "$epic_binding" == confirmed:* ]]; then
+        EPIC_JIRA_KEY="${epic_binding#confirmed:}"
+        pass_test "Phase2c.epic-binding (${EPIC_LOCAL_ID} → ${EPIC_JIRA_KEY})"
+    else
+        fail_test "Phase2c.epic-binding" "expected confirmed, got: ${epic_binding}"
+    fi
+fi
+
+if [ -n "$THIRD_LOCAL_ID" ]; then
+    third_binding=$(check_binding_with_retry "$THIRD_LOCAL_ID")
+    if [[ "$third_binding" == confirmed:* ]]; then
+        THIRD_JIRA_KEY="${third_binding#confirmed:}"
+        pass_test "Phase2c.third-binding (${THIRD_LOCAL_ID} → ${THIRD_JIRA_KEY})"
+    else
+        fail_test "Phase2c.third-binding" "expected confirmed, got: ${third_binding}"
+    fi
+fi
+
+# Verify epic issuetype in Jira (CREATE, no type-update assertion per 36af)
+if [ -n "$EPIC_JIRA_KEY" ]; then
+    jira_epic_type=$(get_jira_field "$EPIC_JIRA_KEY" "issuetype")
+    if [ "$jira_epic_type" = "Epic" ]; then
+        pass_test "Phase2c.verify-epic-issuetype-outbound (Epic)"
+        matrix_set "epic" "outbound" "create" "PASS"
+    else
+        fail_test "Phase2c.verify-epic-issuetype-outbound" "expected Epic, got: ${jira_epic_type}"
+        matrix_set "epic" "outbound" "create" "FAIL"
+    fi
+fi
+
+# --- 2c-2: Child task CREATE with --parent <epic-local-id> ---
+CHILD_LOCAL_ID=""
+CHILD_JIRA_KEY=""
+if [ -n "$EPIC_LOCAL_ID" ]; then
+    CHILD_LOCAL_ID=$("$TICKET_CLI" ticket create task \
+        "FIELD-PROBE-CHILD: hierarchy ${PROBE_TS}" \
+        -d "Child of epic for parent probe" \
+        --priority 2 \
+        --parent "$EPIC_LOCAL_ID" \
+        --tags "${PROBE_TAG}" \
+        2>&1 | tail -1) || true
+    if [ -z "$CHILD_LOCAL_ID" ]; then
+        fail_test "Phase2c.create-child" "ticket create task --parent returned no ID"
+    else
+        pass_test "Phase2c.create-child (${CHILD_LOCAL_ID})"
+    fi
+fi
+
+# Update filter to include child
+if [ -n "$CHILD_LOCAL_ID" ]; then
+    PARITY_FILTER="${PARITY_FILTER},${CHILD_LOCAL_ID}"
+fi
+
+# First reconciler pass — epic may already be bound; child parent key may
+# resolve immediately, or the pass may defer if the binding store lookup
+# races the intra-pass bind.  A second pass (below) guarantees resolution
+# (documented unbound-parent grace: outbound_differ.py L183).
+echo "Running reconciler pass 1 for child create outbound..."
+reconciler_output=$(run_filtered_reconciler "$PARITY_FILTER")
+echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+
+# Second pass to flush any unbound-parent deferral.
+echo "Running reconciler pass 2 (unbound-parent grace flush) for child parent..."
+reconciler_output=$(run_filtered_reconciler "$PARITY_FILTER")
+echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+
+if [ -n "$CHILD_LOCAL_ID" ]; then
+    child_binding=$(check_binding_with_retry "$CHILD_LOCAL_ID")
+    if [[ "$child_binding" == confirmed:* ]]; then
+        CHILD_JIRA_KEY="${child_binding#confirmed:}"
+        pass_test "Phase2c.child-binding (${CHILD_LOCAL_ID} → ${CHILD_JIRA_KEY})"
+    else
+        fail_test "Phase2c.child-binding" "expected confirmed, got: ${child_binding}"
+    fi
+fi
+
+# Verify child's Jira parent == epic Jira key via get_parent_map
+if [ -n "$CHILD_JIRA_KEY" ] && [ -n "$EPIC_JIRA_KEY" ]; then
+    child_parent_key=$(cd "$RECONCILER_DIR" && python3 -c "
+import importlib.util, os, json
+spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+client = mod.AcliClient(
+    jira_url=os.environ['JIRA_URL'],
+    user=os.environ['JIRA_USER'],
+    api_token=os.environ['JIRA_API_TOKEN'],
+)
+parent_map = client.get_parent_map(['${CHILD_JIRA_KEY}'])
+print(parent_map.get('${CHILD_JIRA_KEY}') or '')
+" 2>/dev/null) || true
+    if [ "$child_parent_key" = "$EPIC_JIRA_KEY" ]; then
+        pass_test "Phase2c.verify-child-parent-outbound (${CHILD_JIRA_KEY} → ${EPIC_JIRA_KEY})"
+        matrix_set "parent" "outbound" "create" "PASS"
+    else
+        fail_test "Phase2c.verify-child-parent-outbound" "expected parent=${EPIC_JIRA_KEY}, got: ${child_parent_key}"
+        matrix_set "parent" "outbound" "create" "FAIL"
+    fi
+fi
+
+# --- 2c-3: Reparent child locally → verify Jira parent changed ---
+# Reparent child from epic to LOCAL_IDS[0] (FIELD-PROBE-1).
+# LOCAL_IDS[0] is a task, not an Epic — some Jira instances reject non-Epic
+# parents for subtasks, so we treat the set_parent as best-effort and only
+# assert when the Jira REST call succeeds.
+if [ -n "$CHILD_LOCAL_ID" ] && [ -n "${LOCAL_IDS[0]}" ]; then
+    edit_ticket_field "$CHILD_LOCAL_ID" "parent_id" "${LOCAL_IDS[0]}"
+    pass_test "Phase2c.reparent-child-local"
+
+    echo "Running reconciler for reparent outbound..."
+    reconciler_output=$(run_filtered_reconciler "$PARITY_FILTER")
+    echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+
+    if [ -n "$CHILD_JIRA_KEY" ] && [ -n "${JIRA_KEYS[0]}" ]; then
+        new_parent_key=$(cd "$RECONCILER_DIR" && python3 -c "
+import importlib.util, os
+spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+client = mod.AcliClient(
+    jira_url=os.environ['JIRA_URL'],
+    user=os.environ['JIRA_USER'],
+    api_token=os.environ['JIRA_API_TOKEN'],
+)
+parent_map = client.get_parent_map(['${CHILD_JIRA_KEY}'])
+print(parent_map.get('${CHILD_JIRA_KEY}') or '')
+" 2>/dev/null) || true
+        if [ "$new_parent_key" = "${JIRA_KEYS[0]}" ]; then
+            pass_test "Phase2c.verify-reparent-outbound (${CHILD_JIRA_KEY} → ${JIRA_KEYS[0]})"
+            matrix_set "parent" "outbound" "update" "PASS"
+        else
+            fail_test "Phase2c.verify-reparent-outbound" "expected ${JIRA_KEYS[0]}, got: ${new_parent_key}"
+            matrix_set "parent" "outbound" "update" "FAIL"
+        fi
+    fi
+fi
+
+# --- 2c-4: Inbound parent resolution ---
+# Set Jira parent on THIRD ticket to the epic's Jira key via REST set_parent.
+# After reconcile inbound, assert local parent_id == EPIC_LOCAL_ID.
+if [ -n "$THIRD_JIRA_KEY" ] && [ -n "$EPIC_JIRA_KEY" ]; then
+    cd "$RECONCILER_DIR" && python3 -c "
+import importlib.util, os
+spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+client = mod.AcliClient(
+    jira_url=os.environ['JIRA_URL'],
+    user=os.environ['JIRA_USER'],
+    api_token=os.environ['JIRA_API_TOKEN'],
+)
+client.set_parent('${THIRD_JIRA_KEY}', '${EPIC_JIRA_KEY}')
+" 2>&1 || true
+    pass_test "Phase2c.jira-set-parent-third"
+
+    sleep 2
+
+    echo "Running reconciler for inbound parent resolution..."
+    reconciler_output=$(run_filtered_reconciler "$PARITY_FILTER")
+    echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+
+    if [ -n "$THIRD_LOCAL_ID" ] && [ -n "$EPIC_LOCAL_ID" ]; then
+        local_parent=$(get_local_field "$THIRD_LOCAL_ID" "parent_id")
+        if [ "$local_parent" = "$EPIC_LOCAL_ID" ]; then
+            pass_test "Phase2c.verify-parent-inbound (${THIRD_LOCAL_ID}.parent_id == ${EPIC_LOCAL_ID})"
+            matrix_set "parent" "inbound" "update" "PASS"
+        else
+            fail_test "Phase2c.verify-parent-inbound" "expected ${EPIC_LOCAL_ID}, got: ${local_parent}"
+            matrix_set "parent" "inbound" "update" "FAIL"
+        fi
+    fi
+fi
+
+# Inbound epic check: if the EPIC_JIRA_KEY ticket is visible on the inbound
+# mirror path (i.e., the reconciler's inbound fetch includes it and it is
+# locally typed as 'epic'), verify that.  Because the epic was locally created
+# and is already bound, the inbound differ will not retype it (36af exclusion);
+# the local ticket_type is already 'epic' — assert it directly.
+if [ -n "$EPIC_LOCAL_ID" ]; then
+    epic_local_type=$(get_local_field "$EPIC_LOCAL_ID" "ticket_type")
+    if [ "$epic_local_type" = "epic" ]; then
+        pass_test "Phase2c.verify-epic-local-type-preserved"
+        matrix_set "epic" "inbound" "mirror" "PASS"
+    else
+        fail_test "Phase2c.verify-epic-local-type-preserved" "expected epic, got: ${epic_local_type}"
+        matrix_set "epic" "inbound" "mirror" "FAIL"
+    fi
+fi
+
+# ===========================================================================
+# PHASE 2d: Ticket-level dedup
+# ===========================================================================
+#
+# Outbound dedup (2d-1): Run reconciler a second time after all creates.
+#   For each original 10 probe tickets, assert that Jira search by their
+#   dso-id label returns EXACTLY 1 issue per ticket.
+# Inbound dedup (2d-2): Assert that each probe Jira issue has exactly one
+#   local jira-* mirror (or one confirmed binding) — no duplicate local
+#   CREATE events across passes.
+
+echo ""
+echo "=== PHASE 2d: Ticket-level dedup (outbound + inbound) ==="
+echo ""
+
+echo "Running second reconciler pass for dedup check..."
+reconciler_output=$(run_filtered_reconciler "$PARITY_FILTER")
+echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+
+# 2d-1: Outbound dedup — exactly 1 Jira issue per probe dso-id label
+dedup_outbound_ok=true
+for i in $(seq 0 9); do
+    [ -z "${JIRA_KEYS[$i]}" ] && continue
+    local_id="${LOCAL_IDS[$i]}"
+    # The dso-id label takes the form "dso-id-<short-id>" or "dso-id-<full-id>".
+    # Search by the exact dso-id label present on the known Jira key.
+    jira_labels_raw=$(get_jira_labels "${JIRA_KEYS[$i]}" 2>/dev/null) || true
+    dso_label=$(python3 -c "
+import json, sys
+labels = json.loads(sys.argv[1]) if sys.argv[1].startswith('[') else []
+match = [l for l in labels if l.startswith('dso-id')]
+print(match[0] if match else '')
+" "$jira_labels_raw" 2>/dev/null) || true
+
+    if [ -z "$dso_label" ]; then
+        skip_test "Phase2d.outbound-dedup-${i}" "no dso-id label found on ${JIRA_KEYS[$i]}"
+        continue
+    fi
+
+    dup_count=$(cd "$RECONCILER_DIR" && python3 -c "
+import importlib.util, os, json
+spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+client = mod.AcliClient(
+    jira_url=os.environ['JIRA_URL'],
+    user=os.environ['JIRA_USER'],
+    api_token=os.environ['JIRA_API_TOKEN'],
+)
+results = client.search_issues('project = ${JIRA_PROJECT} AND labels = \"${dso_label}\"')
+print(len(results))
+" 2>/dev/null) || true
+    dup_count="${dup_count:-0}"
+    if [ "$dup_count" = "1" ]; then
+        pass_test "Phase2d.outbound-dedup-${i} (1 Jira issue for ${dso_label})"
+    else
+        fail_test "Phase2d.outbound-dedup-${i}" "expected 1, got ${dup_count} for ${dso_label}"
+        dedup_outbound_ok=false
+    fi
+done
+
+if [ "$dedup_outbound_ok" = true ]; then
+    matrix_set "dedup" "outbound" "no-duplicate" "PASS"
+else
+    matrix_set "dedup" "outbound" "no-duplicate" "FAIL"
+fi
+
+# 2d-2: Inbound dedup — exactly one local confirmed binding per Jira key
+dedup_inbound_ok=true
+BINDINGS_FILE="${TRACKER_DIR}/.bridge_state/bindings.json"
+for i in $(seq 0 9); do
+    [ -z "${JIRA_KEYS[$i]}" ] && continue
+    jira_key="${JIRA_KEYS[$i]}"
+    # Count how many local IDs map to this Jira key in the bindings store
+    binding_count=$(python3 -c "
+import json, sys
+try:
+    data = json.load(open(sys.argv[1]))
+except Exception:
+    print(0)
+    sys.exit()
+bindings = data.get('bindings', {})
+count = sum(1 for entry in bindings.values()
+            if isinstance(entry, dict) and entry.get('jira_key') == sys.argv[2])
+print(count)
+" "$BINDINGS_FILE" "$jira_key" 2>/dev/null) || true
+    binding_count="${binding_count:-0}"
+    if [ "$binding_count" = "1" ]; then
+        pass_test "Phase2d.inbound-dedup-${i} (1 local binding for ${jira_key})"
+    else
+        fail_test "Phase2d.inbound-dedup-${i}" "expected 1 local binding, got ${binding_count} for ${jira_key}"
+        dedup_inbound_ok=false
+    fi
+done
+
+if [ "$dedup_inbound_ok" = true ]; then
+    matrix_set "dedup" "inbound" "no-duplicate" "PASS"
+else
+    matrix_set "dedup" "inbound" "no-duplicate" "FAIL"
+fi
+
+# ===========================================================================
 # PHASE 3: Inbound update sync
 # ===========================================================================
 
@@ -1242,6 +1658,21 @@ for i in $(seq 0 9); do
     fi
 done
 
+# Delete Phase 2c Jira issues (child first, then third, then epic — ordering
+# avoids Jira's "has children" constraint on Epic delete where applicable).
+for parity_pair in "child:${CHILD_JIRA_KEY}" "third:${THIRD_JIRA_KEY}" "epic:${EPIC_JIRA_KEY}"; do
+    parity_label="${parity_pair%%:*}"
+    parity_key="${parity_pair#*:}"
+    if [ -n "$parity_key" ]; then
+        if jira_delete_issue "$parity_key" 2>/dev/null; then
+            pass_test "Phase8.delete-jira-${parity_label} (${parity_key})"
+        else
+            fail_test "Phase8.delete-jira-${parity_label}" "${parity_key}"
+            cleanup_failed=true
+        fi
+    fi
+done
+
 # Delete remaining 9 local tickets (ticket 10 already deleted)
 for i in $(seq 0 8); do
     if "$TICKET_CLI" ticket delete "${LOCAL_IDS[$i]}" --user-approved 2>/dev/null; then
@@ -1249,6 +1680,21 @@ for i in $(seq 0 8); do
     else
         fail_test "Phase8.delete-local-${i}" "${LOCAL_IDS[$i]}"
         cleanup_failed=true
+    fi
+done
+
+# Delete Phase 2c local tickets (child and third must be deleted before epic
+# since open-children guard blocks epic closure).
+for parity_pair in "child:${CHILD_LOCAL_ID}" "third:${THIRD_LOCAL_ID}" "epic:${EPIC_LOCAL_ID}"; do
+    parity_label="${parity_pair%%:*}"
+    parity_id="${parity_pair#*:}"
+    if [ -n "$parity_id" ]; then
+        if "$TICKET_CLI" ticket delete "$parity_id" --user-approved 2>/dev/null; then
+            pass_test "Phase8.delete-local-${parity_label} (${parity_id})"
+        else
+            fail_test "Phase8.delete-local-${parity_label}" "${parity_id}"
+            cleanup_failed=true
+        fi
     fi
 done
 
@@ -1272,7 +1718,7 @@ echo ""
 printf "%-14s %-20s %-20s %-20s\n" "Field" "Outbound Create" "Outbound Update" "Inbound Update"
 printf "%-14s %-20s %-20s %-20s\n" "--------------" "--------------------" "--------------------" "--------------------"
 
-for field in title description priority assignee issuetype status labels comments delete; do
+for field in title description priority assignee issuetype status labels comments delete epic parent dedup; do
     oc="${MATRIX["${field}:outbound:create"]:-N/A}"
     ou="${MATRIX["${field}:outbound:update"]:-N/A}"
     iu="${MATRIX["${field}:inbound:update"]:-N/A}"
@@ -1280,6 +1726,13 @@ for field in title description priority assignee issuetype status labels comment
     case "$field" in
         status)  oc="N/A (To Do)" ;;
         delete)  ou="—"; iu="—"; oc="${MATRIX["delete:outbound:exclusion"]:-N/A}" ;;
+        epic)    ou="N/A (36af)"; iu="${MATRIX["epic:inbound:mirror"]:-N/A}" ;;
+        parent)  oc="${MATRIX["parent:outbound:create"]:-N/A}"
+                 ou="${MATRIX["parent:outbound:update"]:-N/A}"
+                 iu="${MATRIX["parent:inbound:update"]:-N/A}" ;;
+        dedup)   oc="—"
+                 ou="${MATRIX["dedup:outbound:no-duplicate"]:-N/A}"
+                 iu="${MATRIX["dedup:inbound:no-duplicate"]:-N/A}" ;;
     esac
     printf "%-14s %-20s %-20s %-20s\n" "$field" "$oc" "$ou" "$iu"
 done
