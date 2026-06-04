@@ -257,22 +257,25 @@ def _route_status_via_draft5(mutation, *, client=None):
 
 
 def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyResult:
-    """v1 outbound update — push allowlisted fields via update_issue.
+    """v1 outbound update — push allowlisted fields, labels, and comments.
 
     Behavior:
       - Reads ``mutation.payload['changed_fields']`` (falls back to
         ``mutation.payload`` itself for callers that pass a flat dict).
-      - If ``status`` is present in changed_fields:
-          - When ``DSO_RECONCILER_STATUS_GATING != "1"``: raise
-            ``StatusMappingError`` with zero side-effects.
-          - When ``DSO_RECONCILER_STATUS_GATING == "1"``: delegate to
-            ``_route_status_via_draft5`` and strip ``status`` from the field
-            set before pushing the remaining allowlisted fields.
       - Filters the field set to ``_OUTBOUND_UPDATE_ALLOWLIST``; non-allowlisted
         fields are silently dropped (no side-effects on those fields).
-      - Pushes the allowlisted, non-status fields via ``client.update_issue``
+      - Pushes the allowlisted fields via ``client.update_issue``
         using the F3-pinned ``update_issue(jira_key, **fields)`` signature,
         routed through ``_call_with_retry``.
+      - Dispatches ``payload['labels']`` (list of {action, label} dicts) via
+        ``client.add_label`` / ``client.remove_label``, matching update_one.
+        Label failures are logged but non-fatal (scalar update already succeeded).
+      - Dispatches ``payload['comments']`` (list of {body} dicts) via
+        ``client.add_comment``, matching update_one. Comment failures are logged
+        but non-fatal.
+      - Emits a WARNING when the effective work set (allowed fields + labels +
+        comments) is empty — prevents a silent no-op masquerading as success
+        when the mutation carries only non-allowlisted fields.
     """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.outbound)
@@ -299,10 +302,84 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
     }
     if allowed:
         _call_with_retry(client.update_issue, mutation.target, **allowed)
+
+    # Dispatch label mutations: add_label / remove_label per entry.
+    # Mirrors update_one's label-dispatch logic (bug 87e4) for the typed-leaf path.
+    # Gap fix (bugs 3b5f / 85a1): _apply_outbound_update previously ignored
+    # payload['labels'] entirely, causing label changes to silently no-op when
+    # this leaf was invoked directly (single typed-mutation dispatch path).
+    labels = payload.get("labels") or []
+    labels_applied: list[str] = []
+    if isinstance(labels, list):
+        for entry in labels:
+            if not isinstance(entry, dict):
+                continue
+            action = entry.get("action")
+            label_name = entry.get("label", "")
+            if not label_name:
+                continue
+            try:
+                if action == "add":
+                    _call_with_retry(client.add_label, mutation.target, label_name)
+                    labels_applied.append(f"+{label_name}")
+                elif action == "remove":
+                    _call_with_retry(client.remove_label, mutation.target, label_name)
+                    labels_applied.append(f"-{label_name}")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "_apply_outbound_update: label %s failed for %s label=%r: %r",
+                    action,
+                    mutation.target,
+                    label_name,
+                    exc,
+                )
+
+    # Dispatch comment mutations: add_comment per entry.
+    # Mirrors update_one's comment-dispatch logic (bug 87e4) for the typed-leaf path.
+    # Gap fix (bugs 3b5f / 85a1): payload['comments'] was also silently dropped.
+    # Note: outbound comment bodies are pre-decorated with RECONCILER_MARKER by
+    # the outbound differ (_diff_comments → _decorate_outbound_comment) before
+    # being placed in the mutation payload. The applier emits them as-is — no
+    # decoration happens here to avoid double-decoration.
+    comments = payload.get("comments") or []
+    comments_applied: int = 0
+    if isinstance(comments, list):
+        for entry in comments:
+            if not isinstance(entry, dict):
+                continue
+            body = entry.get("body", "")
+            if not body:
+                continue
+            try:
+                _call_with_retry(client.add_comment, mutation.target, body)
+                comments_applied += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "_apply_outbound_update: add_comment failed for %s: %r",
+                    mutation.target,
+                    exc,
+                )
+
+    # Loud skip guard: warn when the effective work set is entirely empty so
+    # callers can distinguish a genuine no-op (no diff) from a misconfigured
+    # mutation that carried only non-allowlisted fields.
+    if not allowed and not labels_applied and not comments_applied:
+        logger.warning(
+            "_apply_outbound_update: no-op for %s — changed_fields %r "
+            "produced zero allowlisted fields and no labels/comments; "
+            "verify mutation payload is not empty or mis-keyed",
+            mutation.target,
+            list(changed_fields.keys()) if changed_fields else [],
+        )
+
     return ApplyResult(
         mutation.direction,
         mutation.action,
-        {"fields_pushed": sorted(allowed.keys())},
+        {
+            "fields_pushed": sorted(allowed.keys()),
+            "labels_applied": labels_applied,
+            "comments_applied": comments_applied,
+        },
     )
 
 
