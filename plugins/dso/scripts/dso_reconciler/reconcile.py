@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -688,12 +689,32 @@ def reconcile_once(
     local_label_intent = local_label_intent_mod.compute_label_intent_map(
         bound_local_ids, tracker_dir
     )
+
+    # Bug 4292: create an AcliClient for the outbound differ's live comment
+    # fetch path. Jira search results (used by fetcher.fetch_snapshot) do NOT
+    # include the comment field — so every live snapshot entry lacks "comment"
+    # data. Without a client, _diff_comments would fall back to jira_comments=[]
+    # and re-emit every local comment as an "add" on every pass. The client is
+    # used at most once per bound ticket with local comments (bounded call count).
+    # The client is created here (rather than inside outbound_differ.py) so the
+    # differ stays importable in test environments without JIRA_URL/JIRA_USER
+    # env vars set, and to keep the I/O-free fixture path intact.
+    # Use "acli_integration" as the sys.modules key — same canonical key used
+    # by applier._load_acli() so the module is shared and not double-loaded.
+    acli_mod_for_comments = _load("acli_integration", "../acli-integration.py")
+    outbound_diff_client = acli_mod_for_comments.AcliClient(
+        jira_url=os.environ.get("JIRA_URL", ""),
+        user=os.environ.get("JIRA_USER", ""),
+        api_token=os.environ.get("JIRA_API_TOKEN", ""),
+    )
+
     outbound_raw = outbound_differ_mod.compute_outbound_mutations(
         local_tickets,
         curr_snapshot,
         binding_store,
         excluded_statuses={"archived", "deleted"},
         local_label_intent=local_label_intent,
+        client=outbound_diff_client,
     )
     sync_logger.log(
         "outbound_differ_complete",

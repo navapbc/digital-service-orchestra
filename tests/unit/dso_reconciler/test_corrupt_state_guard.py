@@ -309,32 +309,41 @@ class TestPrevSnapshotCorrupt:
             f"Got: {[m.comments for m in comment_adds]}"
         )
 
-        # When the fix crashes/aborts the pass (curr_snapshot never received),
-        # the reconcile.py abort ensures outbound_differ is never called.
-        # We simulate the UNSAFE path (corrupt fallback = empty jira_snapshot)
-        # and assert that comment-adds WOULD occur — documenting why the fix
-        # must abort the pass rather than defaulting curr_snapshot to {}.
+        # Defense-in-depth (bug 4292): even when jira_snapshot is empty AND
+        # no client is provided, the outbound differ must NOT emit blind
+        # comment-add mutations. The corrupt-state guard in reconcile.py is
+        # the primary defense (it aborts the pass before outbound_differ runs).
+        # The differ-level safety invariant (bug 4292) is a secondary defense:
+        # when the snapshot entry lacks a 'comment' field and no client is
+        # available to fetch live comment state, _diff_comments skips comment
+        # mutations rather than emitting blind adds.
+        # Previously this block asserted that the UNSAFE path would emit adds
+        # (to document why the reconcile.py abort was necessary). With bug 4292
+        # fixed, that path is also safe — no adds, no client call. The corrupt-
+        # state guard is still load-bearing for the primary protection, but the
+        # differ is now hardened as a second layer.
         jira_snapshot_empty = {}
 
-        result_unsafe = outbound_differ_mod.compute_outbound_mutations(
+        result_no_client = outbound_differ_mod.compute_outbound_mutations(
             local_tickets=[ticket],
             jira_snapshot=jira_snapshot_empty,
             binding_store=StubBindingStore(),
+            # No client: _diff_comments must skip comment mutations rather than
+            # emitting blind adds against unknown Jira state.
         )
-        # With empty snapshot, the differ sees DIG-TEST-1 as having no comments
-        # → emits adds for both local comments.  This is the unsafe behavior
-        # that the reconcile.py fix prevents by aborting on corrupt prev_snapshot.
-        comment_adds_unsafe = [
-            m for m in result_unsafe if m.action == "update" and any(
+        # Bug 4292 fix: even with empty snapshot + no client, zero adds emitted.
+        comment_adds_no_client = [
+            m for m in result_no_client if m.action == "update" and any(
                 c.get("action") == "add" for c in m.comments
             )
         ]
-        assert len(comment_adds_unsafe) >= 1, (
-            "This assertion documents the UNSAFE path: when jira_snapshot={}, "
-            "the outbound differ incorrectly emits comment-add mutations. "
-            "The fix must prevent this by aborting the pass on corrupt prev_snapshot "
-            "rather than proceeding with an empty snapshot. "
-            f"Unsafe mutations: {[m.comments for m in result_unsafe]}"
+        assert len(comment_adds_no_client) == 0, (
+            "Bug 4292 defense-in-depth: when snapshot lacks 'comment' field and "
+            "no client is provided, the outbound differ must NOT emit blind comment-"
+            "add mutations. The corrupt-state guard in reconcile.py remains the "
+            "primary protection (it aborts before the differ runs); this is the "
+            "second defense layer at the differ level. "
+            f"Got unexpected comment adds: {[m.comments for m in comment_adds_no_client]}"
         )
 
 
