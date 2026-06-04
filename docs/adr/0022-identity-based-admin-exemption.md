@@ -1,6 +1,6 @@
 # ADR-0022: Identity-based admin exemption (supersedes ADR-0021)
 
-- **Status:** Accepted (rev. 2 — incorporates the 3-lens panel)
+- **Status:** Accepted (rev. 3 — corrects the `merged_by` data-source: the `/commits/{sha}/pulls` LIST endpoint omits `merged_by`; it is fetched from the single-PR GET on the bypass path. The rev.2 "zero new API calls" claim was false and made the exemption non-functional — caught live on PR #642.)
 - **Date:** 2026-06-04
 - **Epic/Story:** 588e / 3ebb DD4 (override-propagation) — re-architecture per maintainer direction
 - **Supersedes:** ADR-0021 (admin-exemption ledger trust boundary / C3) and the HMAC-signed-ledger propagation mechanism from story 2730 + DD4 units 1–5.
@@ -36,10 +36,10 @@ This means the override-propagation benefit holds for the **manual bypass** case
 ### Components
 
 Change (small, but at **three** sites — the two covering-PR filters are intentionally NOT consolidated and carry a standing "KEEP IN SYNC" hazard):
-- **Extend the covering-PR filters** to surface `merged_by.id` (currently they emit only `number`/`state`/`merged_at`/`head.sha`/`merge_commit_sha`): `plugins/dso/scripts/lib/review-coverage-lib.sh` (`rc_sha_is_reviewed`, ~:61-95) and `plugins/dso/scripts/verify-session-provenance.sh` (covering-PR block, ~:562-606). **Zero new API calls** — `merged_by` rides the `commits/{sha}/pulls` object already fetched. Each filter must treat `merged_by == null`/absent as not-exempt (fail closed).
+- **Fetch `merged_by.id` from the single-PR GET on the bypass path.** CORRECTION (rev.3): the `/repos/{owner}/{repo}/commits/{sha}/pulls` LIST endpoint returns the *simple* PR representation, which **does NOT include `merged_by`** (it is null/absent — verified live). The original "zero new API calls — `merged_by` rides the list object" assumption was **false** and made the exemption non-functional. The corrected design: in the covering-PR loop of `review-coverage-lib.sh` (`rc_sha_is_reviewed`) and `verify-session-provenance.sh` (G3), evaluate the review-check FIRST; ONLY when it did not pass (`failed`/`not_found` — the rare bypass path) fetch `merged_by.id` via `GET /repos/{owner}/{repo}/pulls/{number}` (`--jq '.merged_by.id // empty'`) and test set membership. Cost profile: **zero extra calls on the normally-reviewed path; one extra call per covering PR only on the bypass path.** `merged_by == null`/empty → not-exempt (fail closed).
 - **Replace** the `ael_sha_is_exempt` consult at `review-coverage-invariant.sh:179` and `verify-session-provenance.sh:438` with "`merged_by.id` ∈ bypass set".
 - **Read the bypass set** from config inside the gates; fail closed (not exempt) when unset/unresolvable.
-- **Audit trail:** add `merged_by.id` to `plugins/dso/scripts/ci/fp-recovery-audit-sweep.sh` markers (currently `pr|merge_sha|merged_at|review_status`). A marker with `review_status != passed` AND `merged_by` ∈ bypass set *is* the identity-exemption audit record.
+- **Audit trail:** add `merged_by.id` to `plugins/dso/scripts/ci/fp-recovery-audit-sweep.sh` markers (currently `pr|merge_sha|merged_at|review_status`). A marker with `review_status != passed` AND `merged_by` ∈ bypass set *is* the identity-exemption audit record. **NOTE (rev.3):** the audit-sweep sources PRs from `GET /pulls?state=closed&base=main`, which — like `/commits/{sha}/pulls` — **also omits `merged_by`** (verified live). Any future implementation MUST fetch `merged_by` per-PR via `GET /pulls/{n}` (same correction class as the gate fix), not read it from the list response.
 - **Liveness gate (replaces P-AEL / P-AEL-PROVENANCE):** add a `P-IDENTITY-EXEMPT` predicate to `no-dormant-security-check.sh` + a CI liveness test that injects a synthetic `merged_by == <bypass id>` covering PR and asserts the gate treats the SHA as exempt **in the CI environment**. This mirrors the ledger-liveness test 2730/DD4 mandated; retiring the old dormancy guards without a replacement would re-create the "unguarded silent-skip" failure DD4 exists to kill.
 
 Acceptance criteria (implementation, from the convergence review):

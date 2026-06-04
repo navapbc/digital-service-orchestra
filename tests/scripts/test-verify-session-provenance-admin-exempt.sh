@@ -38,9 +38,15 @@ MOCK="$_W/mockbin"; mkdir -p "$MOCK"
 cat > "$MOCK/gh" <<'GH'
 #!/usr/bin/env bash
 arg="$*"
-if [[ "$arg" == *"/pulls"* ]]; then
+# LIST endpoint (/commits/{sha}/pulls): real API omits merged_by (null/absent).
+if [[ "$arg" == *"/commits/"* && "$arg" == *"/pulls"* ]]; then
   if [[ "${MOCK_PULLS:-cover}" == empty ]]; then echo "[]"; exit 0; fi
-  printf '%s' '[{"number":77,"state":"closed","merged_at":"2026-06-04T00:00:00Z","merge_commit_sha":"zzzfixedmergecommit","head":{"sha":"deadbeefhead"},"merged_by":{"id":'"${MOCK_MERGED_BY:-0}"'}}]'
+  printf '%s' '[{"number":77,"state":"closed","merged_at":"2026-06-04T00:00:00Z","merge_commit_sha":"zzzfixedmergecommit","head":{"sha":"deadbeefhead"}}]'
+  exit 0
+fi
+# Single-PR GET (/pulls/77): merged_by present. Code calls with --jq '.merged_by.id'.
+if [[ "$arg" == *"/pulls/77"* ]]; then
+  if [[ "$arg" == *"--jq"* ]]; then printf '%s' "${MOCK_MERGED_BY:-}"; else printf '%s' '{"merged_by":{"id":'"${MOCK_MERGED_BY:-0}"'}}'; fi
   exit 0
 fi
 if [[ "$arg" == *"/check-runs"* ]]; then

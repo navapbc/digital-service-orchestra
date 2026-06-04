@@ -30,8 +30,16 @@ BYPASS_ID=207596960
 cat > "$BIN/gh" <<MOCK
 #!/usr/bin/env bash
 arg="\$*"
+# LIST endpoint: the REAL GitHub API does NOT include merged_by here (it is null /
+# absent in the simple PR representation). Model that — merged_by is intentionally omitted.
 if [[ "\$arg" == *"/commits/$SHA/pulls"* ]]; then
-  printf '%s' '[{"number":42,"state":"closed","merged_at":"2026-06-04T00:00:00Z","merge_commit_sha":"zzzzzzz","head":{"sha":"$HEAD"},"merged_by":{"id":'"\${MOCK_MERGED_BY:-0}"'}}]'
+  printf '%s' '[{"number":42,"state":"closed","merged_at":"2026-06-04T00:00:00Z","merge_commit_sha":"zzzzzzz","head":{"sha":"$HEAD"}}]'
+  exit 0
+fi
+# Single-PR GET: merged_by IS populated here. The code calls with --jq '.merged_by.id
+# // empty', so when --jq is present emit just the id (the mock does not run jq).
+if [[ "\$arg" == *"/pulls/42"* ]]; then
+  if [[ "\$arg" == *"--jq"* ]]; then printf '%s' "\${MOCK_MERGED_BY:-}"; else printf '%s' '{"merged_by":{"id":'"\${MOCK_MERGED_BY:-0}"'}}'; fi
   exit 0
 fi
 if [[ "\$arg" == *"/check-runs"* ]]; then

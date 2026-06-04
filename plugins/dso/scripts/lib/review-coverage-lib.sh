@@ -97,32 +97,38 @@ for pr in prs:
     # keeping it cannot launder. (Mirrors the W4 fix in verify-session-provenance.sh.)
     if pr.get('merge_commit_sha') == sha_u:
         continue
-    # ADR-0022: surface merged_by.id (server-set) so an admin bypass-merge can be
-    # recognized as reviewed-equivalent. Rides this same response — zero new calls.
-    mb = (pr.get('merged_by') or {}).get('id', '')
+    # NOTE: merged_by is intentionally NOT read here — the /commits/{sha}/pulls list
+    # representation does not include it (null). The identity-exemption check (ADR-0022)
+    # fetches merged_by from the single-PR GET, on the bypass path only.
     if head:
-        print(f\"{pr.get('number','')}\t{head}\t{mb}\")
+        print(f\"{pr.get('number','')}\t{head}\")
 " 2>/dev/null)"
     local _filter_rc=$?
     [[ $_filter_rc -eq 3 ]] && return 2          # parse error -> fail closed
     [[ -z "$covering" ]] && return 1             # no covering merged PR -> not reviewed
 
-    while IFS=$'\t' read -r cov_pr cov_head cov_merged_by; do
+    while IFS=$'\t' read -r cov_pr cov_head; do
         [[ -z "$cov_head" ]] && continue
-        # ADR-0022 identity-based admin exemption: if this covering PR was merged by
-        # a designated bypass-actor (server-set merged_by ∈ the configured set), the
-        # SHA is reviewed-equivalent — an admin web-UI bypass of a failing check.
-        # Short-circuits BEFORE the G3 check-run fetch (no extra API call). Forge-
-        # proof: the agent is current_user_can_bypass:never, so it cannot be the
-        # merged_by on a bypass; merged_by is set server-side by GitHub.
-        if bas_is_bypass_actor "$cov_merged_by"; then
-            printf 'admin-merged-by:%s:%s' "$cov_merged_by" "$cov_pr"; return 0
-        fi
         check_json="$(_rc_gh api "repos/${repo}/commits/${cov_head}/check-runs" 2>/dev/null)" || return 2
         verdict="$(printf '%s' "$check_json" | rc_review_check_verdict)"
         case "$verdict" in
             passed)    printf '%s:%s' "$cov_pr" "$cov_head"; return 0 ;;
-            failed|not_found) continue ;;
+            failed|not_found)
+                # ADR-0022 identity-based admin exemption: the review did not pass, but
+                # if this covering PR was merged by a DESIGNATED BYPASS-ACTOR it is an
+                # admin bypass and reviewed-equivalent. merged_by is NOT present in the
+                # /commits/{sha}/pulls LIST representation (it is null there) — it must
+                # be read from the single-PR GET. This extra call happens ONLY on the
+                # rare bypass path (a covering PR whose review failed/never ran), never
+                # for a normally-reviewed SHA. Forge-proof: the agent is
+                # current_user_can_bypass:never, so it cannot be the merged_by on a
+                # bypass; merged_by is set server-side by GitHub.
+                local _mby
+                _mby="$(_rc_gh api "repos/${repo}/pulls/${cov_pr}" --jq '.merged_by.id // empty' 2>/dev/null)" || _mby=""
+                if bas_is_bypass_actor "$_mby"; then
+                    printf 'admin-merged-by:%s:%s' "$_mby" "$cov_pr"; return 0
+                fi
+                continue ;;
             *)         return 2 ;;                # parse/unknown -> fail closed
         esac
     done <<< "$covering"
