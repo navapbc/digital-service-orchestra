@@ -16,6 +16,7 @@ import importlib.util
 import json
 import os
 import sys
+import urllib.error
 from pathlib import Path
 
 # Split-JQL contract (bug f6cc-b174-9e9a-435c — single JQL hit 1000-issue
@@ -333,6 +334,26 @@ def fetch_snapshot(
                         snapshot[snap_key]["parent"] = {"key": parent_jira_key}
                     # When parent_jira_key is None, leave the field absent
                     # (top-level issue) — consistent with Jira REST shape.
+    except urllib.error.HTTPError as exc:
+        # API retirements (HTTP 410 GONE) must be loud — a transient WARNING
+        # would let a permanent endpoint removal hide in the noise. Transient
+        # HTTP faults stay at WARNING (ticket 8b25). get_parent_map already
+        # swallows 410 internally; this catch is the defense-in-depth net for
+        # any 410 that surfaces from a future enrichment path.
+        if exc.code == 410:
+            _fetcher_log.error(
+                "fetch_snapshot: parent enrichment hit HTTP 410 GONE — the Jira "
+                "search endpoint has been RETIRED; snapshot written without parent "
+                "data (degraded). API retirement, not a transient fault: %r",
+                exc,
+            )
+        else:
+            _fetcher_log.warning(
+                "fetch_snapshot: parent enrichment failed (HTTP %s: %r); "
+                "snapshot written without parent data (degraded)",
+                exc.code,
+                exc,
+            )
     except Exception as exc:  # noqa: BLE001
         _fetcher_log.warning(
             "fetch_snapshot: parent enrichment failed (%r); "

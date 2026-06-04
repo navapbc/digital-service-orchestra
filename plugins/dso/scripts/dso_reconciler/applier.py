@@ -23,6 +23,7 @@ import os
 import sys
 import tempfile
 import time
+import urllib.error
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -316,6 +317,26 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
     if parent_key is not None:
         try:
             _call_with_retry(client.set_parent, mutation.target, parent_key)
+        except urllib.error.HTTPError as exc:
+            # Hierarchy guard (ticket 8b25): on this next-gen project only an
+            # Epic may be a parent; a Task→Task reparent (and any other unmet
+            # hierarchy constraint) is rejected by Jira with HTTP 400 carrying
+            # a misleading "same project" message. Treat any 400 as a
+            # hierarchy rejection: WARN + continue the pass. Non-400 errors
+            # keep the legacy generic-warning behaviour (still non-fatal).
+            if exc.code == 400:
+                logger.warning(
+                    "parent sync skipped: Jira hierarchy rejected %s→%s",
+                    mutation.target,
+                    parent_key,
+                )
+            else:
+                logger.warning(
+                    "_apply_outbound_update: set_parent failed for %s parent=%r: %r",
+                    mutation.target,
+                    parent_key,
+                    exc,
+                )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "_apply_outbound_update: set_parent failed for %s parent=%r: %r",

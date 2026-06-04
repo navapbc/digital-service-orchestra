@@ -143,6 +143,7 @@ _STATUS_ANNOTATION_LABEL: dict[str, str] = {
 def _map_local_to_jira_fields(
     ticket: dict[str, Any],
     binding_store: Any = None,
+    local_ticket_types: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Map local ticket fields to Jira field names/values.
 
@@ -176,6 +177,28 @@ def _map_local_to_jira_fields(
     local_parent_id = ticket.get("parent_id") or None
     if local_parent_id and binding_store is not None:
         import logging as _logging
+
+        # Hierarchy pre-check (ticket 8b25): on this next-gen Jira project only
+        # an Epic may be a parent. A non-epic parent (e.g. Task→Task) is
+        # rejected by Jira with HTTP 400. Suppress the parent diff entirely
+        # when the resolved local parent's ticket_type != "epic" so the differ
+        # never perpetually re-emits a parent mutation Jira will always reject.
+        # This is a sync exclusion mirroring the bug-36af issuetype pattern.
+        # When parent-type info is unavailable (map not supplied / parent
+        # absent from the map), fall through to the existing behaviour rather
+        # than guess — the applier-side 400-skip remains the backstop.
+        if local_ticket_types is not None and local_parent_id in local_ticket_types:
+            parent_type = (local_ticket_types.get(local_parent_id) or "").lower()
+            if parent_type != "epic":
+                _logging.getLogger(__name__).debug(
+                    "_map_local_to_jira_fields: parent_id=%r for ticket %r is a "
+                    "non-epic (%r); suppressing parent diff (Jira hierarchy only "
+                    "permits Epic parents — sync exclusion, ticket 8b25)",
+                    local_parent_id,
+                    ticket.get("ticket_id"),
+                    parent_type,
+                )
+                return result
 
         jira_parent_key = binding_store.get_jira_key(local_parent_id)
         if jira_parent_key:
@@ -257,6 +280,7 @@ def _diff_fields(
     ticket: dict[str, Any],
     jira_fields: dict[str, Any],
     binding_store: Any = None,
+    local_ticket_types: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Compare local ticket to Jira fields. Return only changed fields.
 
@@ -281,7 +305,9 @@ def _diff_fields(
     verbose = os.environ.get("DSO_RECONCILER_VERBOSE", "0") == "1"
     ticket_id = ticket.get("ticket_id") or ticket.get("id") or "<no-id>"
 
-    local_mapped = _map_local_to_jira_fields(ticket, binding_store=binding_store)
+    local_mapped = _map_local_to_jira_fields(
+        ticket, binding_store=binding_store, local_ticket_types=local_ticket_types
+    )
     changed: dict[str, Any] = {}
     for field_name, local_val in local_mapped.items():
         # Bug 36af: ticket_type/issuetype is governed by an approved sync
@@ -685,6 +711,16 @@ def compute_outbound_mutations(
 
     mutations: list[OutboundMutation] = []
 
+    # Hierarchy pre-check map (ticket 8b25): {local_id → ticket_type}. Used to
+    # suppress parent diffs whose resolved parent is a non-epic — Jira only
+    # permits Epic parents on this project, so emitting such a parent mutation
+    # would re-fail (HTTP 400) every pass. Cheap O(n) build over local state.
+    local_ticket_types: dict[str, str] = {
+        t["ticket_id"]: t.get("ticket_type", "")
+        for t in local_tickets
+        if t.get("ticket_id")
+    }
+
     for ticket in local_tickets:
         status = ticket.get("status", "")
         if status in excluded_statuses:
@@ -707,7 +743,9 @@ def compute_outbound_mutations(
                     jira_key=None,
                     action="create",
                     fields=_map_local_to_jira_fields(
-                        ticket, binding_store=binding_store
+                        ticket,
+                        binding_store=binding_store,
+                        local_ticket_types=local_ticket_types,
                     ),
                     comments=_map_comments_for_create(ticket),
                     labels=(
@@ -724,7 +762,12 @@ def compute_outbound_mutations(
         else:
             # Bound -> compare fields, emit update if different
             jira_fields = jira_snapshot.get(jira_key, {})
-            changed = _diff_fields(ticket, jira_fields, binding_store=binding_store)
+            changed = _diff_fields(
+                ticket,
+                jira_fields,
+                binding_store=binding_store,
+                local_ticket_types=local_ticket_types,
+            )
             comment_mutations = _diff_comments(
                 ticket, jira_key, jira_snapshot, client=client
             )
