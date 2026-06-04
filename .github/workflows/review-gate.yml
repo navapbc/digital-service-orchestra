@@ -1,0 +1,88 @@
+name: review-gate
+
+# 0cd7 (Option A, THE ARCHITECTURAL CORE) — the single always-runs, fail-closed
+# summary gate. Runs scripts/ci/review-gate.sh, which invokes the per-SHA coverage
+# invariant AND the dangling-references check INLINE in one process. This replaces
+# the conjunction of independently-skippable required checks (the no-op
+# merge-pipeline-checks umbrella + the separate review-coverage-invariant and
+# dangling-references workflows): a `needs:`/`if: failure()` aggregation greens when
+# an upstream job is SKIPPED, but this single script cannot — a sub-check skips to
+# success only if the script decides it, never the GH scheduler. The job has NO
+# code_changed/path skip: it runs on every base==main PR (DD1).
+#
+# ROLLOUT (current): MODE=warn — it LOGS sub-check violations (::warning::) but does
+# NOT block, and is NOT yet a required status check. It SHADOWS the existing
+# advisory review-coverage-invariant / dangling-references workflows so warn-mode
+# behavior can be compared against the real outcome on live PR2 traffic before
+# cutover. GO-LIVE is the enforce-flip (story 3ee4), an admin step:
+#   1. flip DSO_REVIEW_GATE_MODE to `enforce` below;
+#   2. add `review-gate` to .github/required-checks.txt and REMOVE the superseded
+#      merge-pipeline-checks (+ the standalone coverage/dangling contexts);
+#   3. provision `review-gate` into the live MAIN ruleset (admin token) — the W1
+#      round-trip drift test then keeps required-checks.txt == live in sync.
+# Until step 2/3, this check is advisory (visible, non-blocking).
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+jobs:
+  review-gate:
+    name: review-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@fd084cde189b7b76ec305d52e27be545a0172823  # v4
+        with:
+          fetch-depth: 0          # full history — both sub-checks fail closed on a shallow clone
+          persist-credentials: false
+
+      # Durable reviewed-SHA ledger across runs (perf prefilter for the coverage
+      # sub-check; preserves the review proof if a covering PR is later deleted).
+      # Same key scheme as review-coverage-invariant.yml (CF-6 / story 7b77): the
+      # run_id-free restore-keys make a re-run WARM-HIT the prior ledger so the
+      # per-SHA walk converges instead of cold-starting.
+      - uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57  # v4
+        with:
+          path: .review-coverage-ledger
+          key: review-gate-ledger-${{ github.base_ref }}-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          restore-keys: |
+            review-gate-ledger-${{ github.base_ref }}-${{ github.event.pull_request.head.sha }}-
+            review-gate-ledger-${{ github.base_ref }}-
+
+      # ast-grep powers the dangling-references sub-check's comment/string-aware
+      # matcher. Install the real binary via npm (node is preinstalled) — on Linux
+      # bare `sg` is shadow-utils; without ast-grep the matcher falls back to
+      # git-grep (FPs). Pin shared with ci.yml / dangling-references.yml (0.42.3 is
+      # the PyPI/npm max; bump all together).
+      - name: Install ast-grep
+        run: npm install -g @ast-grep/cli@0.42.3
+
+      - name: Verify ast-grep installed
+        run: ast-grep --version
+
+      - name: Run review-gate (coverage + dangling, inline)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DSO_REVIEWED_LEDGER: .review-coverage-ledger
+          # (Admin exemption is identity-based per ADR-0022: a covering PR merged by
+          # a designated bypass-actor — ruleset.bypass_user_ids — is reviewed-
+          # equivalent inside rc_sha_is_reviewed. No ledger env, no signing key.)
+          # ROLLOUT KNOB — flip to `enforce` at go-live (see header). This single
+          # knob is propagated to BOTH sub-checks by review-gate.sh.
+          DSO_REVIEW_GATE_MODE: warn
+        run: |
+          # review-gate.sh maps each sub-check's precondition (exit 78) through
+          # precondition-gate.sh with the gate mode internally, so in warn mode the
+          # step exits 0 even on a sub-check precondition/violation. No external
+          # precondition wrapper needed here — the single script owns the verdict.
+          bash plugins/dso/scripts/ci/review-gate.sh

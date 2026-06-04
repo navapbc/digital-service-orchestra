@@ -306,6 +306,13 @@ _BAS_LIB="$(dirname "${BASH_SOURCE[0]}")/lib/bypass-actor-set.sh"
 # shellcheck source=lib/bypass-actor-set.sh
 [[ -f "$_BAS_LIB" ]] && source "$_BAS_LIB"
 
+# Shared diff-scoped ticket-store exemption (0cd7 DD3). Sourced so this gate computes
+# the IDENTICAL exemption as review-coverage-invariant.sh and fp-recovery-audit-sweep.sh
+# (DD6 equivalence test). rc_diff_is_tickets_only operates on the local git tree only.
+_RCL_LIB="$(dirname "${BASH_SOURCE[0]}")/lib/review-coverage-lib.sh"
+# shellcheck source=lib/review-coverage-lib.sh
+[[ -f "$_RCL_LIB" ]] && source "$_RCL_LIB"
+
 assert_sha_reachable "$BASE_SHA" "BASE_SHA" "$GIT_REPO_PATH" || exit 4
 assert_sha_reachable "$SESSION_HEAD" "SESSION_HEAD" "$GIT_REPO_PATH" || exit 4
 
@@ -420,6 +427,22 @@ while IFS=' ' read -r sha subject; do
     # genuinely-unreviewed sibling commit still drives a DISPATCH, never masked by this.)
     if _vsp_is_clean_merge "$sha"; then
         echo "commit $sha status=CLEAN_MERGE; exempt (parents provenanced independently in this walk)"
+        _covered_shas+=("$sha")
+        _cache_set "$sha" "provenanced" || true
+        continue
+    fi
+
+    # Ticket-store diff-scoped exemption (0cd7 DD3). A commit whose ENTIRE diff is
+    # within the event-sourced ticket store carries no reviewable application code, so
+    # provenance must NOT dispatch llm-review for it. Computed by the shared
+    # rc_diff_is_tickets_only (review-coverage-lib.sh) so this gate agrees with the
+    # coverage invariant and the fp-recovery sweep (DD6). The helper uses bare `git`
+    # (cwd), so invoke it cd'd into GIT_REPO_PATH. rc 0 = exempt; rc 1/2 (not-exempt OR
+    # error) falls through to the normal covering-PR provenance path (which itself
+    # flags unprovenanced on doubt) — so an error here can never launder a SHA.
+    if declare -F rc_diff_is_tickets_only >/dev/null 2>&1 \
+       && ( cd "$GIT_REPO_PATH" 2>/dev/null && rc_diff_is_tickets_only "$sha" ); then
+        echo "commit $sha status=TICKETS_ONLY; exempt (diff entirely within the ticket store)"
         _covered_shas+=("$sha")
         _cache_set "$sha" "provenanced" || true
         continue

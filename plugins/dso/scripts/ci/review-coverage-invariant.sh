@@ -102,7 +102,7 @@ if [[ -z "$_SHAS" ]]; then
     exit 0
 fi
 
-_total=0; _ledger_hits=0; _verified=0; _unreviewed=0; _errors=0; _exempt_merges=0
+_total=0; _ledger_hits=0; _verified=0; _unreviewed=0; _errors=0; _exempt_merges=0; _exempt_tickets=0
 _violations=""
 
 # A merge commit (>=2 parents) that introduces NO content of its own (empty
@@ -151,6 +151,16 @@ while IFS= read -r _sha; do
         _exempt_merges=$(( _exempt_merges + 1 ))
         continue
     fi
+    # Ticket-store diff-scoped exemption (0cd7 DD3): a commit whose ENTIRE diff is
+    # within the event-sourced ticket store carries no reviewable application code.
+    # Computed by the shared rc_diff_is_tickets_only (review-coverage-lib.sh) so all
+    # three consumers agree (DD6). rc 0 = exempt; rc 1/2 (not-exempt OR error) falls
+    # through to the normal coverage path, which itself fails closed — so an error
+    # here can never launder an unreviewed SHA.
+    if rc_diff_is_tickets_only "$_sha"; then
+        _exempt_tickets=$(( _exempt_tickets + 1 ))
+        continue
+    fi
     # Perf prefilter: a ledger HIT (proven reviewed in a prior run) skips
     # re-verification. This is a ledger hit, NOT reachability-to-main.
     if _ledger_has "$_sha"; then
@@ -178,7 +188,7 @@ while IFS= read -r _sha; do
     esac
 done <<< "$_SHAS"
 
-echo "review-coverage-invariant: ${_total} SHA(s) in ${_BASE_REF}..${_HEAD} — verified=${_verified} exempt_merges=${_exempt_merges} ledger_hits=${_ledger_hits} unreviewed=${_unreviewed} errors=${_errors}"
+echo "review-coverage-invariant: ${_total} SHA(s) in ${_BASE_REF}..${_HEAD} — verified=${_verified} exempt_merges=${_exempt_merges} exempt_tickets=${_exempt_tickets} ledger_hits=${_ledger_hits} unreviewed=${_unreviewed} errors=${_errors}"
 
 if (( _unreviewed == 0 && _errors == 0 )); then
     echo "review-coverage-invariant: ok (every SHA proven reviewed)"
