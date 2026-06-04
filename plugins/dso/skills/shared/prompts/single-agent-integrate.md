@@ -218,18 +218,24 @@ cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
 
 ---
 
-## Step 7.5 — Propagate sprint marker
+## Step 7.5 — Signal trailer requirement via environment
 
-Copy `.sprint-active` from the session root into the worktree so `check-sprint-trailer.sh`
-enforces DSO-Story trailer correctly (bug e081-63c0). `ORCHESTRATOR_ROOT` is already set
+When `.sprint-active` is present at the session root, export `DSO_SPRINT_TRAILER_REQUIRED=1`
+into the environment of the Step 8 git commit invocation so `check-sprint-trailer.sh` enforces
+the DSO-Story trailer in the agent worktree (fix for bug 3349-8532-1183-4fc1). Do NOT copy
+`.sprint-active` into the worktree — doing so would cause `check-session-merge-only.sh` to
+reject the agent's legitimate non-merge per-task commits. `ORCHESTRATOR_ROOT` is already set
 from Step 1:
 
 ```bash
 if [[ -f "$ORCHESTRATOR_ROOT/.sprint-active" ]]; then
-    cp "$ORCHESTRATOR_ROOT/.sprint-active" "$WORKTREE_PATH/.sprint-active" 2>/dev/null || \
-        echo "WARNING: failed to copy .sprint-active into $WORKTREE_PATH" >&2
+    export DSO_SPRINT_TRAILER_REQUIRED=1
 fi
 ```
+
+This export is effective for the duration of the current shell session, so the Step 8 commit
+invocation (which runs via `cd "$WORKTREE_PATH" && ...`) inherits `DSO_SPRINT_TRAILER_REQUIRED=1`
+without requiring a file copy.
 
 ## Step 8 — Commit in worktree branch
 

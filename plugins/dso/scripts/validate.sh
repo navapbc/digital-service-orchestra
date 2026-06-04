@@ -89,11 +89,16 @@ CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
 
 # Use the caller's git toplevel as REPO_ROOT so that worktrees are tested
 # against their own working tree, not the main repo's.
+# Priority: git rev-parse (caller CWD) > PROJECT_ROOT > error.
+# Canonical pattern: mirrors check-persistence-coverage.sh (bug 8229 fix).
 CALLER_GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -n "$CALLER_GIT_ROOT" ]; then
     REPO_ROOT="$CALLER_GIT_ROOT"
+elif [ -n "${PROJECT_ROOT:-}" ]; then
+    REPO_ROOT="$PROJECT_ROOT"
 else
-    REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    echo "ERROR: cannot resolve REPO_ROOT (not in a git repo and PROJECT_ROOT is unset)" >&2
+    exit 1
 fi
 
 # --- Config-driven command and path resolution ---
