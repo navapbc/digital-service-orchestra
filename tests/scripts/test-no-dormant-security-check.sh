@@ -50,6 +50,17 @@ cat > "$_WIRED_YML" <<'YML'
         run: true   # fixture: the audit greps the env block, not the run step
 YML
 
+# A coverage-workflow fixture with the key present but EMPTY (fail-open trap).
+_EMPTY_YML="$_W/empty.yml"
+cat > "$_EMPTY_YML" <<'YML'
+      - name: Run coverage invariant
+        env:
+          DSO_REVIEWED_LEDGER: .review-coverage-ledger
+          DSO_ADMIN_EXEMPTION_LEDGER: ""
+          DSO_COVERAGE_INVARIANT_MODE: warn
+        run: true
+YML
+
 # A required-checks fixture WITHOUT review-convergence (to drive the P-CONV advisory).
 _REQ_NO_CONV="$_W/required-no-conv.txt"
 printf 'review-coverage-invariant\nmerge-pipeline-checks\n' > "$_REQ_NO_CONV"
@@ -61,6 +72,12 @@ if [[ $rc -eq 1 ]] && grep -q "P-AEL" <<<"$out"; then _pass "D1_dormant_enforce_
 # ── D2: wired config + enforce -> passes (exit 0) ────────────────────────────
 out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_WIRED_YML" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
 if [[ $rc -eq 0 ]]; then _pass "D2_wired_enforce_passes"; else _fail "D2_wired_enforce_passes" "rc=$rc out=$out"; fi
+
+# ── D6: key present but EMPTY value + enforce -> blocks (fail-open trap) ──────
+# A bare/empty DSO_ADMIN_EXEMPTION_LEDGER passes the script's `[[ -n ]]` guard as
+# unset, so the audit must NOT report it wired (else it fails OPEN).
+out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_EMPTY_YML" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "P-AEL" <<<"$out"; then _pass "D6_empty_value_is_dormant"; else _fail "D6_empty_value_is_dormant" "rc=$rc out=$out"; fi
 
 # ── D3: dormant config + warn -> non-blocking (exit 0) ───────────────────────
 out="$(DSO_DORMANT_MODE=warn DSO_COVERAGE_YML="$_DORMANT_YML" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?

@@ -67,6 +67,16 @@ fi
 
 [[ -z "${_resolved//[[:space:]]/}" ]] && { echo "fp-recovery-record-exemption: no SHAs to record" >&2; exit 1; }
 
+# Key precondition (fail LOUD and EARLY): the HMAC signing key must exist before
+# we append anything, so a missing/unreadable key is reported as a distinct
+# PROVISIONING error (exit 2) rather than surfacing as N identical per-SHA
+# ael_append failures. A deleted/corrupt key cannot silently no-op exemptions.
+_keyf="$(ael_key_file 2>/dev/null || true)"
+if [[ -z "$_keyf" || ! -f "$_keyf" || ! -r "$_keyf" ]]; then
+    echo "fp-recovery-record-exemption: HMAC signing key not provisioned/readable (${_keyf:-unresolved}) — cannot sign exemptions. Provision the closure-key to this environment (gap G-A) before recording." >&2
+    exit 2
+fi
+
 _count=0
 for _sha in $_resolved; do
     [[ -z "$_sha" ]] && continue

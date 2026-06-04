@@ -11,6 +11,14 @@ name: no-dormant-security-check
 # check. To enforce: flip DSO_DORMANT_MODE to `enforce`, add
 # `no-dormant-security-check` to .github/required-checks.txt, and provision it
 # into the live MAIN ruleset (admin). Until then it is advisory.
+#
+# SELF-PROTECTION (who guards the guard): adding this to required-checks.txt at
+# enforce is ALSO what defends the audit from being deleted/disabled — once it is
+# a required context, removing this workflow makes the required check NEVER REPORT
+# → the PR blocks (the never-reports fail-closed class), and a required-checks.txt
+# edit is caught by check-allowlist-correctness. While advisory (pre-enforce) a
+# manual removal is NOT auto-detected — which is precisely why 3ee4's enforce-flip
+# gate (P8) requires this audit be both green AND required before flipping.
 
 on:
   pull_request:
