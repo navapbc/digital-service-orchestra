@@ -1784,6 +1784,108 @@ class AcliClient:
 
         return result
 
+    def get_comment_map(
+        self,
+        project: str,
+        jql: str | None = None,
+    ) -> dict[str, Any]:
+        """Return a {jira_key → comment-field dict} map via ONE paged REST search.
+
+        Comment-state enrichment (Action viability): the live comment fetch
+        previously issued one ``acli comment list`` call per commented ticket
+        every pass (~1-2s each, fleet-wide — measured multi-hour passes). This
+        method amortises that into a SINGLE paged ``POST /rest/api/3/search/jql``
+        with ``fields=["comment"]`` so the differ can dedup comments without a
+        per-ticket round-trip.
+
+        Returns ``{jira_key: <comment field dict>}`` where the value is the raw
+        Jira ``comment`` field (``{"comments": [...], "total": N, ...}``) — the
+        exact shape ``outbound_differ._diff_comments`` reads from a snapshot
+        entry's ``comment`` key. Keys whose ``comment`` field is absent are
+        omitted so the caller can fall back to the per-ticket ``get_comments``
+        path for them (the never-emit-blind invariant stays intact).
+
+        Pagination + degradation contract mirror ``get_parent_map``: opaque
+        ``nextPageToken`` cursor (no ``startAt`` / ``total``); HTTP 410 →
+        ERROR (endpoint retirement is loud); other faults → WARNING; an empty
+        dict is returned on failure so the fetcher degrades gracefully.
+
+        Args:
+            project: Jira project key (e.g. "DIG").
+            jql: Optional JQL override.  Defaults to ``project = <project>``.
+        """
+        import logging as _logging
+
+        _log = _logging.getLogger(__name__)
+
+        effective_jql = jql or f"project = {project}"
+        result: dict[str, Any] = {}
+        page_size = 100
+        next_page_token: str | None = None
+
+        while True:
+            body: dict[str, Any] = {
+                "jql": effective_jql,
+                "maxResults": page_size,
+                "fields": ["comment"],
+            }
+            if next_page_token is not None:
+                body["nextPageToken"] = next_page_token
+            try:
+                resp = self._direct_rest_post_json("/rest/api/3/search/jql", body)
+            except urllib.error.HTTPError as exc:
+                if exc.code == 410:
+                    _log.error(
+                        "get_comment_map: endpoint POST /rest/api/3/search/jql "
+                        "returned HTTP 410 GONE — the Jira search endpoint has "
+                        "been RETIRED; comment enrichment is unavailable this pass. "
+                        "Per-ticket get_comments fallback applies. API retirement, "
+                        "not a transient fault: %r",
+                        exc,
+                    )
+                else:
+                    _log.warning(
+                        "get_comment_map: REST search failed (HTTP %s): %r; "
+                        "degrading gracefully — per-ticket fallback applies",
+                        exc.code,
+                        exc,
+                    )
+                break
+            except Exception as exc:  # noqa: BLE001
+                _log.warning(
+                    "get_comment_map: REST search failed: %r; "
+                    "degrading gracefully — per-ticket fallback applies",
+                    exc,
+                )
+                break
+
+            if not isinstance(resp, dict):
+                break
+            issues = resp.get("issues") or []
+            if not isinstance(issues, list):
+                break
+            for issue in issues:
+                if not isinstance(issue, dict):
+                    continue
+                key = issue.get("key")
+                if not key:
+                    continue
+                fields = issue.get("fields") or {}
+                comment_field = fields.get("comment")
+                # Only record keys the search actually returned a comment field
+                # for; omit the rest so the caller falls back to get_comments
+                # (preserves the never-emit-blind invariant).
+                if isinstance(comment_field, dict):
+                    result[key] = comment_field
+
+            if resp.get("isLast"):
+                break
+            next_page_token = resp.get("nextPageToken")
+            if not next_page_token:
+                break
+
+        return result
+
     def _direct_rest_post_json(self, path: str, body: Any) -> Any:
         """POST JSON to a Jira REST path and return the decoded JSON response.
 

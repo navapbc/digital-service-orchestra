@@ -361,6 +361,48 @@ def fetch_snapshot(
             exc,
         )
 
+    # Comment-state enrichment (Action viability): the per-commented-ticket
+    # ``acli comment list`` calls the differ would otherwise issue every pass
+    # (~1-2s each, fleet-wide) are amortised into ONE paged REST search via
+    # client.get_comment_map(). We merge the returned ``comment`` field into
+    # each snapshot entry so outbound_differ._diff_comments takes the
+    # snapshot-carried path (no client.get_comments round-trip).
+    #
+    # Invariant: only entries the search actually returned a comment field for
+    # are enriched; entries the search omits keep NO ``comment`` key, so the
+    # differ falls back to the per-ticket get_comments path for them (the
+    # never-emit-blind safety invariant stays intact). On any search failure
+    # the enrichment is skipped entirely and every ticket falls back — the
+    # reconciler pass still completes.
+    try:
+        if project_key and hasattr(client, "get_comment_map"):
+            comment_map = client.get_comment_map(project_key)
+            for snap_key, comment_field in comment_map.items():
+                if snap_key in snapshot and isinstance(comment_field, dict):
+                    snapshot[snap_key]["comment"] = comment_field
+    except urllib.error.HTTPError as exc:
+        if exc.code == 410:
+            _fetcher_log.error(
+                "fetch_snapshot: comment enrichment hit HTTP 410 GONE — the Jira "
+                "search endpoint has been RETIRED; snapshot written without "
+                "comment data (per-ticket fallback applies). API retirement, not "
+                "a transient fault: %r",
+                exc,
+            )
+        else:
+            _fetcher_log.warning(
+                "fetch_snapshot: comment enrichment failed (HTTP %s: %r); "
+                "snapshot written without comment data (per-ticket fallback)",
+                exc.code,
+                exc,
+            )
+    except Exception as exc:  # noqa: BLE001
+        _fetcher_log.warning(
+            "fetch_snapshot: comment enrichment failed (%r); "
+            "snapshot written without comment data (per-ticket fallback)",
+            exc,
+        )
+
     output_dir = repo_root / "bridge_state" / "snapshots"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{pass_id}.json"
