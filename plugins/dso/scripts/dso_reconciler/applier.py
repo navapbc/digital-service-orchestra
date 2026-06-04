@@ -2199,6 +2199,51 @@ def update_one(mutation: dict, client) -> dict | None:
     _OUTBOUND_BATCH_ALLOWLIST = frozenset(
         {"summary", "description", "assignee", "priority", "status"}
     )
+    issue_key = mutation.get("key")
+    # Parent reparent (ticket 8b25): the production outbound dispatch routes
+    # through this legacy batch path, NOT the typed leaf _apply_outbound_update.
+    # ACLI's ``jira workitem edit`` cannot reparent — the parent must go via
+    # client.set_parent (REST PUT /rest/api/3/issue/{key} {"fields":{"parent"}}).
+    # Before this fix, ``parent`` was not in _OUTBOUND_BATCH_ALLOWLIST, so it
+    # was silently dropped as an "unaccepted field" and set_parent was never
+    # called. The parent never landed, the next snapshot still showed no
+    # parent, and the differ re-emitted the identical parent mutation on every
+    # pass — the perpetual ``fields=['parent']`` re-emission (~230 steady-state
+    # mutations, Phase-6 idempotency churn) AND the parent OUTBOUND CREATE/UPDATE
+    # FAIL in the e2e field-validation probe. Mirror the typed leaf: pop parent
+    # BEFORE the allowlist filter and route it through set_parent, guarding
+    # HTTP 400 hierarchy rejections as non-fatal warnings.
+    parent_key = fields.pop("parent", None)
+    if parent_key is not None:
+        try:
+            _call_with_retry(client.set_parent, issue_key, parent_key)
+        except urllib.error.HTTPError as exc:
+            # Hierarchy guard (ticket 8b25): on this next-gen project only an
+            # Epic may be a parent; a Task→Task reparent (and any other unmet
+            # hierarchy constraint) is rejected with HTTP 400 carrying a
+            # misleading "same project" message. Treat any 400 as a hierarchy
+            # rejection: WARN + continue. Non-400 errors stay non-fatal too —
+            # a parent failure must not abort the rest of the batch.
+            if exc.code == 400:
+                logger.warning(
+                    "parent sync skipped: Jira hierarchy rejected %s->%s (HTTP 400)",
+                    issue_key,
+                    parent_key,
+                )
+            else:
+                logger.warning(
+                    "update_one: set_parent failed for %s parent=%r: %r",
+                    issue_key,
+                    parent_key,
+                    exc,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "update_one: set_parent failed for %s parent=%r: %r",
+                issue_key,
+                parent_key,
+                exc,
+            )
     _stripped = {k: v for k, v in fields.items() if k not in _OUTBOUND_BATCH_ALLOWLIST}
     if _stripped:
         print(  # noqa: T201
@@ -2207,29 +2252,40 @@ def update_one(mutation: dict, client) -> dict | None:
             file=sys.stderr,
         )
     fields = {k: v for k, v in fields.items() if k in _OUTBOUND_BATCH_ALLOWLIST}
-    issue_key = mutation.get("key")
-    result: dict | None
-    try:
-        result = _call_with_retry(client.update_issue, issue_key, **fields)
-    except JiraAPIError as exc:
-        if not _is_illegal_transition_400(exc):
-            raise
-        new_status = _attempted_status
-        comment = f"local status changed to {new_status}"
+    # When the only changed field was parent (the common reparent case), the
+    # allowlisted set is now empty AND set_parent already did the work — skip
+    # the otherwise-empty client.update_issue call so we don't issue a no-op
+    # ACLI edit purely to satisfy a parent-only mutation. The legacy
+    # "empty fields still calls update_issue" contract is preserved for the
+    # NON-parent case (e.g. an issuetype-only mutation that gets stripped):
+    # update_issue is skipped here ONLY when a parent op was the reason the
+    # field set is empty (label/comment dispatch below still runs).
+    result: dict | None = None
+    _skip_empty_update = parent_key is not None and not fields
+    if _skip_empty_update:
+        pass  # parent handled via set_parent; no scalar fields to edit
+    else:
         try:
-            client.add_comment(issue_key, comment)
-        except Exception:
-            pass  # secondary failure must not mask the comment-fallback path
-        log_entry = json.dumps(
-            {
-                "action": "comment_fallback",
-                "issue_key": issue_key,
-                "attempted_status": _attempted_status,
-                "reason": "400_illegal_transition",
-            }
-        )
-        print(log_entry, file=sys.stderr)
-        result = None
+            result = _call_with_retry(client.update_issue, issue_key, **fields)
+        except JiraAPIError as exc:
+            if not _is_illegal_transition_400(exc):
+                raise
+            new_status = _attempted_status
+            comment = f"local status changed to {new_status}"
+            try:
+                client.add_comment(issue_key, comment)
+            except Exception:
+                pass  # secondary failure must not mask the comment-fallback path
+            log_entry = json.dumps(
+                {
+                    "action": "comment_fallback",
+                    "issue_key": issue_key,
+                    "attempted_status": _attempted_status,
+                    "reason": "400_illegal_transition",
+                }
+            )
+            print(log_entry, file=sys.stderr)
+            result = None
 
     # Bug 87e4: propagate label add/remove and comment additions from the
     # mutation payload. The outbound differ emits these alongside changed
