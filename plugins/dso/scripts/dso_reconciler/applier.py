@@ -29,6 +29,11 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
+# Loop-breaker marker (mirrors inbound_differ.RECONCILER_MARKER).
+# Outbound comments embed this token so inbound passes — including the
+# bootstrap in _apply_inbound_create — can skip our own echoes.
+_RECONCILER_MARKER_APPLIER = "<!-- dso:reconciler-echo -->"
+
 # Typed-mutation dispatch layer.
 #
 # The applier was originally written as a single batch-style apply(mutations,
@@ -752,6 +757,51 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
     if client is not None:
         _call_with_retry(client.add_label, jira_key, f"dso-id:{local_id}")
         _call_with_retry(client.set_entity_property, jira_key, "dso_local_id", local_id)
+
+    # Bug 221b: bootstrap pre-existing Jira comments so the local ticket has
+    # a complete comment history immediately after inbound create.
+    #
+    # Strategy (mirrors _diff_comments_inbound in inbound_differ.py):
+    #   1. Fetch the issue's comments via client.get_comments(jira_key).
+    #   2. Skip any comment whose body (ADF-normalized) contains the
+    #      loop-breaker marker — those are our own outbound echoes.
+    #   3. Normalize ADF bodies to plain text (via _normalize_adf_body).
+    #   4. Write one COMMENT event per remaining comment, recording
+    #      jira_comment_id so the next-pass inbound comment diff dedupes.
+    #
+    # On get_comments failure: log a warning and skip comment bootstrap —
+    # the CREATE still succeeds.
+    if client is not None:
+        try:
+            raw_comments = client.get_comments(jira_key)
+            if not isinstance(raw_comments, list):
+                raw_comments = []
+        except Exception as exc:  # noqa: BLE001
+            import sys as _sys
+            print(  # noqa: T201
+                f"WARNING: inbound_create: get_comments for {jira_key!r} failed "
+                f"({exc!r}). Skipping comment bootstrap — ticket created without "
+                f"pre-existing comments. Alert: jira_key={jira_key!r}",
+                file=_sys.stderr,
+            )
+            raw_comments = []
+
+        for jc in raw_comments:
+            if not isinstance(jc, dict):
+                continue
+            jid = jc.get("id")
+            if jid is None:
+                continue
+            body_text = _normalize_adf_body(jc.get("body"))
+            if _RECONCILER_MARKER_APPLIER in body_text:
+                continue  # outbound echo — skip
+            if not body_text.strip():
+                continue
+            event_data: dict[str, Any] = {
+                "body": body_text,
+                "jira_comment_id": str(jid),
+            }
+            _write_event_file(tracker_dir, local_id, "COMMENT", event_data)
 
     return ApplyResult(
         mutation.direction,
