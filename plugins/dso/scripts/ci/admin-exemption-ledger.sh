@@ -105,7 +105,14 @@ ael_append() {
 #   HMAC changed but metadata not) recomputes to a different MAC and is REJECTED.
 #   Absent / empty / unreadable ledger -> 1 (NOT exempt: fail closed).
 ael_sha_is_exempt() {
-    local ledger="$1" sha="$2"
+    local ledger="$1" sha="$2" by_filter="${3:-}"
+    # by_filter (3ebb DD4 unit 5 / C2): when non-empty, ONLY an entry whose
+    # (HMAC-authenticated) exempt_by equals by_filter counts. The provenance
+    # consumer (verify-session-provenance) passes "fp-recovery" so it honors ONLY
+    # admin FP-recovery exemptions, never an arbitrary signed entry of another
+    # class. The coverage consumer may pass nothing (any valid entry). exempt_by
+    # is part of the signed payload, so a tampered class fails the HMAC regardless;
+    # the filter is additional narrowing on top of that.
     [[ -z "$ledger" || -z "$sha" ]] && return 1
     [[ -f "$ledger" ]] || return 1
     local key_file
@@ -119,6 +126,8 @@ ael_sha_is_exempt() {
         [[ -n "$e_by_b64" && -n "$e_reason_b64" && -n "$e_ts" && -n "$e_mac" ]] || continue
         local e_by e_reason
         e_by="$(_ael_b64dec "$e_by_b64")"
+        # C2 class filter: skip entries not of the requested exempt_by class.
+        [[ -z "$by_filter" || "$e_by" == "$by_filter" ]] || continue
         e_reason="$(_ael_b64dec "$e_reason_b64")"
         calc="$(ael_compute_hmac "$key_file" "$e_sha" "$e_by" "$e_reason" "$e_ts")" || continue
         # Constant-time compare; equality => HMAC-valid => SHA is covered.
@@ -138,8 +147,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             ael_append "$@"
             ;;
         verify)
-            ledger="${1:-}"; sha="${2:-}"
-            if ael_sha_is_exempt "$ledger" "$sha"; then
+            ledger="${1:-}"; sha="${2:-}"; by_filter="${3:-}"  # optional exempt_by class (C2)
+            if ael_sha_is_exempt "$ledger" "$sha" "$by_filter"; then
                 echo "EXEMPT $sha"
                 exit 0
             else

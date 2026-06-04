@@ -162,6 +162,25 @@ else
     _fail "T6c_forged_exemption_still_blocks" "rc=$rc out=$out"
 fi
 
+# ── T7: exempt_by class filter (C2) — provenance honors ONLY fp-recovery ─────
+# An entry of a DIFFERENT class is valid (HMAC-signed) and counts with no filter,
+# but must NOT count when the caller filters to exempt_by=fp-recovery. An
+# fp-recovery entry counts under both.
+L7="$_WORK/t7.ledger"
+SHA_FP="cccccccccccccccccccccccccccccccccccccccc"
+SHA_OTHER="dddddddddddddddddddddddddddddddddddddddd"
+bash "$LEDGER_LIB" append "$L7" "$SHA_FP" "fp-recovery" "opus 0 findings" 1700000000
+bash "$LEDGER_LIB" append "$L7" "$SHA_OTHER" "some-other-class" "signed but not fp-recovery" 1700000000
+# fp-recovery SHA: exempt under no filter AND under fp-recovery filter.
+if bash "$LEDGER_LIB" verify "$L7" "$SHA_FP" >/dev/null 2>&1 \
+   && bash "$LEDGER_LIB" verify "$L7" "$SHA_FP" "fp-recovery" >/dev/null 2>&1 \
+   && bash "$LEDGER_LIB" verify "$L7" "$SHA_OTHER" >/dev/null 2>&1 \
+   && ! bash "$LEDGER_LIB" verify "$L7" "$SHA_OTHER" "fp-recovery" >/dev/null 2>&1; then
+    _pass "T7_exempt_by_class_filter"
+else
+    _fail "T7_exempt_by_class_filter" "class filter did not scope to fp-recovery"
+fi
+
 echo ""
 echo "=== test-admin-exemption-ledger.sh: PASS=$PASS FAIL=$FAIL ==="
 [[ $FAIL -eq 0 ]]

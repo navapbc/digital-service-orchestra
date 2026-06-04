@@ -42,6 +42,7 @@ MODE="${DSO_DORMANT_MODE:-warn}"
 _ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"  # for sibling-script presence checks
 _COVERAGE_YML="${DSO_COVERAGE_YML:-$_ROOT/.github/workflows/review-coverage-invariant.yml}"
+_CI_YML="${DSO_CI_YML:-$_ROOT/.github/workflows/ci.yml}"
 _REQUIRED="${DSO_REQUIRED_CHECKS_FILE:-$_ROOT/.github/required-checks.txt}"
 
 [[ -f "$_COVERAGE_YML" ]] || _precondition_not_met "coverage workflow not found: $_COVERAGE_YML"
@@ -49,23 +50,38 @@ _REQUIRED="${DSO_REQUIRED_CHECKS_FILE:-$_ROOT/.github/required-checks.txt}"
 _dormant=""   # accumulates HARD dormant findings
 _warned=0
 
-# ── P-AEL (HARD): admin-exemption consult path must be wired in CI ────────────
-# review-coverage-invariant.sh consults ael_sha_is_exempt ONLY when
-# DSO_ADMIN_EXEMPTION_LEDGER is NON-EMPTY (its guard is `[[ -n "$ADMIN_EXEMPTION_-
-# LEDGER" ]]`); if the workflow never sets it — or sets it to an EMPTY value —
-# the consult path is dead and an admin-bypassed (FP-recovered) SHA re-wedges
-# every subsequent PR under enforce. So the audit must require a non-EMPTY value,
-# not merely the key's presence: a bare `DSO_ADMIN_EXEMPTION_LEDGER:` or
-# `DSO_ADMIN_EXEMPTION_LEDGER: ""` must STILL be reported dormant (else the audit
-# fails OPEN — the exact silent-skip class it exists to catch).
-_ael_val="$(grep -E '^[[:space:]]*DSO_ADMIN_EXEMPTION_LEDGER[[:space:]]*:' "$_COVERAGE_YML" 2>/dev/null \
-    | head -1 \
-    | sed -E 's/^[^:]*:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]*$//; s/^"//; s/"$//; s/^'\''//; s/'\''$//')"
-if [[ -z "$_ael_val" ]]; then
+# Extract the (non-empty) value DSO_ADMIN_EXEMPTION_LEDGER is set to in a workflow
+# file, or empty if unset/empty. Both consumers' guards are `[[ -n "$..." ]]`, so
+# a bare `DSO_ADMIN_EXEMPTION_LEDGER:` or `: ""` is effectively unset — the audit
+# must report DORMANT for those too (else it fails OPEN, the silent-skip class it
+# exists to catch). Strips trailing comments + surrounding quotes.
+_ael_ledger_value() {
+    grep -E '^[[:space:]]*DSO_ADMIN_EXEMPTION_LEDGER[[:space:]]*:' "$1" 2>/dev/null \
+        | head -1 \
+        | sed -E 's/^[^:]*:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]*$//; s/^"//; s/"$//; s/^'\''//; s/'\''$//'
+}
+
+# ── P-AEL (HARD): the COVERAGE consumer must wire the ledger ──────────────────
+# review-coverage-invariant.sh consults ael_sha_is_exempt only when the workflow
+# sets DSO_ADMIN_EXEMPTION_LEDGER non-empty; else the consult path is dead and an
+# admin-bypassed (FP-recovered) SHA re-wedges every later PR under enforce.
+if [[ -z "$(_ael_ledger_value "$_COVERAGE_YML")" ]]; then
     _dormant+="  P-AEL: admin-exemption ledger consult path is DORMANT — "
     _dormant+="${_COVERAGE_YML##*/} does not set DSO_ADMIN_EXEMPTION_LEDGER to a "
     _dormant+="non-empty value, so review-coverage-invariant.sh:ael_sha_is_exempt "
     _dormant+="is unreachable in CI."$'\n'
+fi
+
+# ── P-AEL-PROVENANCE (HARD, 3ebb DD4 unit 5/C4): the PROVENANCE consumer too ──
+# verify-session-provenance.sh (drives the llm-review DISPATCH) also consults the
+# ledger; if the ci.yml "Verify session provenance" step never sets the env, an
+# FP-recovered SHA re-dispatches llm-review on the downstream PR — the SECOND
+# override DD4 unit 5 exists to remove. Require ci.yml to set it non-empty.
+if [[ -f "$_CI_YML" ]] && [[ -z "$(_ael_ledger_value "$_CI_YML")" ]]; then
+    _dormant+="  P-AEL-PROVENANCE: provenance consult path is DORMANT — "
+    _dormant+="${_CI_YML##*/} does not set DSO_ADMIN_EXEMPTION_LEDGER, so "
+    _dormant+="verify-session-provenance.sh:ael_sha_is_exempt is unreachable in CI "
+    _dormant+="(FP-recovered SHAs re-dispatch llm-review = a second override)."$'\n'
 fi
 
 # ── P-CONV (ADVISORY): review-convergence-check.sh should be a required check ──
