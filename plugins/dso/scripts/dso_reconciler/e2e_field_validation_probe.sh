@@ -538,20 +538,41 @@ echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
 
 # Verify bindings and extract Jira keys.  The reconciler saves the binding
 # store at the end of a pass — if the pass partially failed (e.g. HeadDrift
-# or DirectionMismatch), the save may be skipped.  As a workaround, retry
-# the binding check up to 3 times with a short delay; if still unbound,
-# fall back to a tag-based Jira lookup so the cleanup phase still has keys.
+# or DirectionMismatch), the save may be skipped.  As a workaround, poll
+# until the binding is confirmed or a ~120s budget is exhausted, using
+# adaptive backoff (2s for the first 5 attempts, then 5s per attempt).
+# On success the function returns immediately — no fixed worst-case wait.
+# Bug 0877-2d0a-3c29-4292: the prior 3×2s (~6s) budget was too short for
+# reconciler passes that include Jira REST roundtrips; all Phase-2
+# outbound-UPDATE rows showed N/A because JIRA_KEYS were never populated.
 check_binding_with_retry() {
     local local_id="$1"
     local state
-    for _ in 1 2 3; do
+    local elapsed=0
+    local attempt=0
+    local sleep_secs
+    local budget=120
+
+    while [[ $elapsed -lt $budget ]]; do
         state=$(check_binding "$local_id")
         if [[ "$state" == confirmed:* ]]; then
             echo "$state"
             return
         fi
-        sleep 2
+        attempt=$(( attempt + 1 ))
+        # Adaptive backoff: 2s for first 5 attempts, then 5s per attempt.
+        if [[ $attempt -le 5 ]]; then
+            sleep_secs=2
+        else
+            sleep_secs=5
+        fi
+        echo "check_binding_with_retry: attempt ${attempt}, state=${state}, sleeping ${sleep_secs}s (elapsed=${elapsed}s / budget=${budget}s)" >&2
+        sleep "$sleep_secs"
+        elapsed=$(( elapsed + sleep_secs ))
     done
+
+    # Budget exhausted — return the last observed state.
+    echo "check_binding_with_retry: budget exhausted after ${elapsed}s (${attempt} attempts), last state=${state}" >&2
     echo "$state"
 }
 
