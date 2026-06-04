@@ -370,25 +370,32 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history is REQUIRED for the diff-scoping below (git diff
+          # base...head): a shallow clone cannot resolve the merge-base.
+          fetch-depth: 0
       - name: Mirror defenses to PR
         if: needs.changes.outputs.code_changed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.base_ref }}
         # Producer: review-defense-store.sh list scans the tickets orphan branch
-        # for all stored DEFENSE_RECORD entries and emits them on stdout (one per
-        # line in "DEFENSE_RECORD: <json>" form). mirror-defenses-to-pr.sh reads
-        # those lines from stdin and posts each as a PR comment.
-        # Bug cluster RC-A: this step used to invoke mirror-defenses-to-pr.sh
-        # with no stdin producer, so its `while read -r line` loop received
-        # nothing and the CI defense-suppression pipeline was a no-op.
+        # for stored DEFENSE_RECORD entries and emits those whose CITED LINES are
+        # within ±5 of a line THIS PR actually changed (--base-sha/--head-sha diff
+        # scoping) — bounding the cross-PR / over-time accumulation that pure
+        # file-overlap let through. mirror-defenses-to-pr.sh posts each as a PR
+        # comment. Bug cluster RC-A: this step used to receive no stdin producer
+        # (silent no-op); the producer now also emits an "emitted M of N" summary.
         run: |
           PR_NUMBER="${GITHUB_REF#refs/pull/}"
           PR_NUMBER="${PR_NUMBER%/merge}"
-          # Ensure the tickets ref is fetched so review-defense-store.sh list
-          # can read DEFENSE_RECORD comments from it. actions/checkout@v4 does
-          # not fetch the orphan tickets branch by default.
+          # Fetch the tickets orphan ref (defense store) AND the base branch tip
+          # (so `git diff origin/<base>...<head>` resolves the merge-base).
           git fetch --no-tags origin '+refs/heads/tickets:refs/remotes/origin/tickets' 2>/dev/null || true
+          git fetch --no-tags origin "$BASE_REF" 2>/dev/null || true
           bash plugins/dso/scripts/review-defense-store.sh list --pr "$PR_NUMBER" \
+            --base-sha "origin/${BASE_REF}" --head-sha "$PR_HEAD_SHA" \
             | bash plugins/dso/scripts/mirror-defenses-to-pr.sh "$PR_NUMBER" || true
 
   # ── Per-sub-PR LLM review (migrated from review-sub-pr.yml) ─────────
