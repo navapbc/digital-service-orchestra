@@ -293,18 +293,18 @@ fi
 # shellcheck source=lib/reachability.sh
 source "$_REACHABILITY_LIB"
 
-# Admin-exemption ledger (3ebb DD4 unit 5): provenance honors an HMAC-valid
-# fp-recovery exemption as reviewed-equivalent, so a downstream PR does NOT
-# re-dispatch llm-review on content already cleared via an admin FP-recovery
-# (whose covering PR's review-check FAILED-then-overridden). Sourced like the
-# coverage-invariant consumer; the per-SHA consult is additive + fail-closed —
-# absent lib/key/ledger or a non-fp-recovery/forged entry all fall through to the
-# covering-PR lookup. DEAD in CI until the closure-key is provisioned (gap G-A,
-# gated on the unit-5 security conditions); harmless until then.
-_AEL_LIB="$(dirname "${BASH_SOURCE[0]}")/ci/admin-exemption-ledger.sh"
-# shellcheck source=ci/admin-exemption-ledger.sh
-[[ -f "$_AEL_LIB" ]] && source "$_AEL_LIB"
-ADMIN_EXEMPTION_LEDGER="${DSO_ADMIN_EXEMPTION_LEDGER:-}"
+# Identity-based admin exemption (ADR-0022, supersedes the HMAC ledger): provenance
+# honors a covering PR merged by a designated bypass-actor (server-set merged_by ∈
+# the configured set) as reviewed-equivalent, so a downstream PR does NOT re-dispatch
+# llm-review on content an admin already bypass-merged. No signing key; forge-proof
+# by construction (the agent is current_user_can_bypass:never). The check is folded
+# into the G3 covering-PR loop below: review-check first, and ONLY on the bypass path
+# (review failed/not_found) fetch merged_by from the single-PR GET — the
+# /commits/{sha}/pulls LIST endpoint omits merged_by (ADR-0022 rev.3). Source the
+# set-membership helper (KEEP IN SYNC with review-coverage-lib.sh).
+_BAS_LIB="$(dirname "${BASH_SOURCE[0]}")/lib/bypass-actor-set.sh"
+# shellcheck source=lib/bypass-actor-set.sh
+[[ -f "$_BAS_LIB" ]] && source "$_BAS_LIB"
 
 assert_sha_reachable "$BASE_SHA" "BASE_SHA" "$GIT_REPO_PATH" || exit 4
 assert_sha_reachable "$SESSION_HEAD" "SESSION_HEAD" "$GIT_REPO_PATH" || exit 4
@@ -425,22 +425,11 @@ while IFS=' ' read -r sha subject; do
         continue
     fi
 
-    # Admin-exemption ledger (3ebb DD4 unit 5 / C2). An HMAC-valid fp-recovery
-    # exemption is reviewed-equivalent: the recorder code-enforces a CLEARED opus
-    # review before signing (unit 5/C1), so the covering PR's FP-recovered (failed-
-    # then-overridden) review must NOT force a downstream llm-review re-dispatch.
-    # Honor ONLY exempt_by=fp-recovery (C2). Additive + FAIL-CLOSED: unset ledger /
-    # missing lib / no key / forged / absent entry all fall through to the covering-
-    # PR lookup (never else-classify-as-provenanced). Call stays INSIDE the if so
-    # set -e cannot abort the loop before the marker write. Placed before the cache
-    # so a stale 'unprovenanced' entry cannot override it.
-    if [[ -n "$ADMIN_EXEMPTION_LEDGER" ]] && declare -F ael_sha_is_exempt >/dev/null 2>&1 \
-       && ael_sha_is_exempt "$ADMIN_EXEMPTION_LEDGER" "$sha" "fp-recovery"; then
-        echo "commit $sha status=ADMIN_EXEMPT; HMAC-valid fp-recovery exemption (reviewed-equivalent)"
-        _covered_shas+=("$sha")
-        _cache_set "$sha" "provenanced" || true
-        continue
-    fi
+    # Identity-based admin exemption (ADR-0022): handled in the G3 covering-PR loop
+    # below — a covering PR merged by a designated bypass-actor (server-set
+    # merged_by ∈ set) counts as reviewed-equivalent there, so an admin web-UI
+    # bypass propagates without a second override. No separate per-SHA consult and
+    # no signing key (the HMAC ledger this replaced is retired).
 
     # Step 1 (was: DSO-Story trailer shortcut) — REMOVED in v4 (PR-R1).
     # The trailer-presence shortcut was a self-attested claim, not evidence:
@@ -601,6 +590,9 @@ for pr in pr_list:
     # itself produced).
     if pr.get('merge_commit_sha') == sha_under_review:
         continue
+    # NOTE: merged_by is NOT read here — the /commits/{sha}/pulls list representation
+    # omits it (null). The identity check (ADR-0022) fetches merged_by from the
+    # single-PR GET, on the bypass path only.
     print(number if number is not None else '')
 " 2>/dev/null)" || covering_prs=""
 
@@ -713,11 +705,34 @@ else:
                     _verified_covering=$(( _verified_covering + 1 ))
                     echo "commit $sha covering-PR #${_cov_pr} review-check=PASSED"
                     ;;
-                failed)
-                    echo "commit $sha covering-PR #${_cov_pr} review-check=FAILED (not counting as covered)"
-                    ;;
-                not_found)
-                    echo "commit $sha covering-PR #${_cov_pr} review-check=NOT_FOUND (not counting as covered — no review evidence)"
+                failed|not_found)
+                    # ADR-0022 identity-based admin exemption: the review did not pass,
+                    # but if this covering PR was merged by a DESIGNATED BYPASS-ACTOR it
+                    # is an admin bypass and reviewed-equivalent. merged_by is NOT in the
+                    # /commits/{sha}/pulls list (null) — fetch it from the single-PR GET,
+                    # on this rare bypass path only. Forge-proof: the agent is
+                    # current_user_can_bypass:never, so it cannot be merged_by on a bypass.
+                    _cov_mby=""
+                    if [[ -n "${GH_REPO:-}" ]]; then
+                        if (( _api_call_count >= GH_BUDGET )); then
+                            # Budget-guard the bypass-path fetch too, so it cannot push
+                            # _api_call_count past the cap unaccounted. Skipping -> empty
+                            # -> not exempt -> SHA unprovenanced (fail closed).
+                            if (( _budget_exhausted == 0 )); then
+                                echo "BUDGET_EXHAUSTED during identity-exemption merged_by fetch" >&2
+                                _budget_exhausted=1
+                            fi
+                        else
+                            _api_call_count=$(( _api_call_count + 1 ))
+                            _cov_mby="$(_call_gh_with_backoff api "repos/${GH_REPO}/pulls/${_cov_pr}" --jq '.merged_by.id // empty' 2>/dev/null || echo "")"
+                        fi
+                    fi
+                    if bas_is_bypass_actor "$_cov_mby"; then
+                        _verified_covering=$(( _verified_covering + 1 ))
+                        echo "commit $sha covering-PR #${_cov_pr} merged-by-bypass-actor=${_cov_mby} (reviewed-equivalent)"
+                    else
+                        echo "commit $sha covering-PR #${_cov_pr} review-check=${_review_passed} (not counting as covered)"
+                    fi
                     ;;
                 *)
                     echo "WARNING: commit $sha covering-PR #${_cov_pr} review-check=UNKNOWN; treating as unverified" >&2

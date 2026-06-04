@@ -54,13 +54,9 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           DSO_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           DSO_REVIEWED_LEDGER: .review-coverage-ledger
-          # Admin-exemption ledger (story 2730 / 3ebb DD4): a committed, HMAC-signed
-          # record of admin-bypassed (FP-recovery) SHAs treated as reviewed-
-          # equivalent. WITHOUT this line, review-coverage-invariant.sh's
-          # ael_sha_is_exempt consult path is unreachable in CI and every
-          # FP-recovered SHA re-wedges subsequent PRs under enforce. The
-          # no-dormant-security-check audit fails closed if this is removed.
-          DSO_ADMIN_EXEMPTION_LEDGER: .admin-exemption-ledger
+          # (Admin exemption is identity-based per ADR-0022: a covering PR merged by a
+          # designated bypass-actor — ruleset.bypass_user_ids — is reviewed-equivalent
+          # inside rc_sha_is_reviewed. No ledger env, no signing key.)
           # ROLLOUT KNOB — flip to `enforce` at go-live (see header).
           DSO_COVERAGE_INVARIANT_MODE: warn
         run: |
