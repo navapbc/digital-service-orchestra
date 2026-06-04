@@ -1,0 +1,55 @@
+name: no-dormant-security-check
+
+# Fail-closed audit for built-but-unwired security checks (epic 588e / 3ebb DD4).
+# The canonical instance: the admin-exemption ledger (story 2730) shipped its
+# consult side but review-coverage-invariant.yml never set DSO_ADMIN_EXEMPTION_-
+# LEDGER, so the consult path was dead in CI. This audit makes "is every built
+# security check actually wired?" a machine gate — the enforce-flip (story 3ee4)
+# prerequisite P8: 3ee4 MUST NOT flip while this is red.
+#
+# ROLLOUT: MODE=warn (logs ::warning::, does not block) and NOT yet a required
+# check. To enforce: flip DSO_DORMANT_MODE to `enforce`, add
+# `no-dormant-security-check` to .github/required-checks.txt, and provision it
+# into the live MAIN ruleset (admin). Until then it is advisory.
+#
+# SELF-PROTECTION (who guards the guard): adding this to required-checks.txt at
+# enforce is ALSO what defends the audit from being deleted/disabled — once it is
+# a required context, removing this workflow makes the required check NEVER REPORT
+# → the PR blocks (the never-reports fail-closed class), and a required-checks.txt
+# edit is caught by check-allowlist-correctness. While advisory (pre-enforce) a
+# manual removal is NOT auto-detected — which is precisely why 3ee4's enforce-flip
+# gate (P8) requires this audit be both green AND required before flipping.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  no-dormant-security-check:
+    name: no-dormant-security-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fd084cde189b7b76ec305d52e27be545a0172823  # v4
+        with:
+          persist-credentials: false
+
+      - name: Run no-dormant-security-check
+        env:
+          # ROLLOUT KNOB — flip to `enforce` at go-live (see header).
+          DSO_DORMANT_MODE: warn
+        run: |
+          set +e
+          bash plugins/dso/scripts/ci/no-dormant-security-check.sh
+          rc=$?
+          # 78 = precondition not met (a file the audit needs is missing). In
+          # WARN mode this maps to exit 0 with a ::warning so the advisory check
+          # stays green during rollout; in ENFORCE it fail-closes. A dormant HARD
+          # predicate is exit 1, which the audit itself already suppresses to 0
+          # under warn (with a ::warning::) and surfaces as 1 under enforce — so
+          # precondition-gate's passthrough of non-78 codes is exactly right.
+          bash plugins/dso/scripts/ci/precondition-gate.sh \
+            "$rc" "${DSO_DORMANT_MODE:-warn}" "no-dormant-security-check"

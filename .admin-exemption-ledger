@@ -1,0 +1,11 @@
+# admin-exemption-ledger (story 2730 / 3ebb DD4) — HMAC-signed records of
+# admin-bypassed (FP-recovery) SHAs treated as reviewed-equivalent by
+# review-coverage-invariant.sh (ael_sha_is_exempt). DO NOT hand-edit: entries are
+# appended ONLY by ael_append (admin-exemption-ledger.sh) from the FP-recovery
+# flow, signed with the .closure-key HMAC. Each entry is a TAB-separated line:
+#   <sha>\t<b64(exempt_by)>\t<b64(reason)>\t<epoch_ts>\t<hmac_sha256>
+# This header (and any non-conforming line) is structurally incomplete and/or
+# does not match a queried SHA, so ael_sha_is_exempt skips it — it contributes no
+# exemption. Only a line whose recomputed HMAC matches its own fields verifies; a
+# forged or hand-edited entry does not. An empty/absent ledger fails closed (no
+# SHA exempt). Entries below:
