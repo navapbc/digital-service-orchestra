@@ -93,6 +93,50 @@ source "$_RCL_DIR/bypass-actor-set.sh"
 #     1 = NOT REVIEWED    (resolved cleanly; no covering PR with a passing review)
 #     2 = ERROR/AMBIGUOUS (API/parse failure — caller MUST fail closed)
 
+# ── 0cd7 DD3: shared diff-scoped EXEMPTION predicate ─────────────────────────
+# rc_diff_is_tickets_only <sha>
+#
+#   A commit is EXEMPT from per-SHA review coverage IFF its OWN diff is entirely
+#   within the event-sourced ticket store. This is the ONE   # tickets-boundary-ok
+#   shared helper sourced by all three coverage consumers (review-coverage-
+#   invariant.sh, verify-session-provenance.sh, fp-recovery-audit-sweep.sh) so they
+#   compute the IDENTICAL exemption (DD6 equivalence test guards the divergence).
+#
+#   AUTHORITATIVE SCOPE (2026-06-03 KEEP amendment): the ONLY exempt prefix is the
+#   ticket store. The version-file COVERAGE exemption was REMOVED — under KEEP the
+#   version bump rides PR1's review-sub-pr (plugin.json allowlisted) and is covered
+#   per-SHA like any commit, so no separate coverage exemption is needed here.
+#
+#   TREE EVIDENCE ONLY: the exemption is computed from git diff-tree, NEVER from a
+#   commit trailer/marker (the v4 fabricated-trailer lesson — a marker can be forged
+#   into an unreviewed commit; a tree cannot). A commit mixing a ticket-store change
+#   with ANY other path is NOT exempt (prevents laundering code through a ticket
+#   commit). I-1 GUARD: an EMPTY file list is NOT exempt — an empty/merge diff must
+#   never be silently read as "all paths are tickets"; merge handling is the caller's
+#   clean-merge concern, not this predicate's.
+#
+#   Returns: 0 EXEMPT (all changed paths under the ticket store, >=1 path)
+#            1 NOT exempt (some non-ticket path, OR empty file list)
+#            2 ERROR (bad SHA / git failure) — caller MUST fail closed
+RC_TICKET_STORE_PREFIX="${RC_TICKET_STORE_PREFIX:-.tickets-tracker/}"  # tickets-boundary-ok
+rc_diff_is_tickets_only() {
+    local _sha="${1:-}" _files _f
+    [[ -z "$_sha" ]] && return 2
+    # Per-commit file list vs first parent (--root handles the initial commit). A
+    # merge commit produces NO entries here (no -m/--cc) -> empty -> NOT exempt,
+    # which is correct: the clean-merge exemption is evaluated by the caller.
+    _files="$(git diff-tree --no-commit-id --name-only -r --root "$_sha" 2>/dev/null)" || return 2
+    [[ -z "$_files" ]] && return 1          # I-1: empty list is NOT exempt
+    while IFS= read -r _f; do
+        [[ -z "$_f" ]] && continue
+        case "$_f" in
+            "$RC_TICKET_STORE_PREFIX"*) ;;  # under the ticket store -> ok
+            *) return 1 ;;                  # any non-ticket path -> not exempt
+        esac
+    done <<< "$_files"
+    return 0
+}
+
 # rc_review_check_verdict  (check-runs JSON on STDIN)
 #   SINGLE SOURCE OF TRUTH for the poison-on-failure "did the review pass" verdict
 #   over a SHA's check-runs. Any failure-class conclusion (failure/cancelled/

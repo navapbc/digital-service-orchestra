@@ -43,6 +43,36 @@ fi
 # shellcheck source=../lib/review-coverage-lib.sh
 source "$_FPA_LIB"
 
+# ── 0cd7 DD3: exempt-merge scaffolding (the audit had none before this story) ──
+# A merged main PR whose content carries NO reviewable application code is NOT a
+# bypass — flagging it would be audit noise. Two diff-scoped exemptions, IDENTICAL
+# to the other two consumers (DD6 equivalence test):
+#   (a) a CLEAN merge commit (>=2 parents, empty combined diff) — its parents are
+#       reviewed independently;
+#   (b) a TICKETS_ONLY commit (shared rc_diff_is_tickets_only) — diff entirely in
+#       the ticket store.
+# AUDIT ERROR POSTURE (distinct from coverage's fail-closed-BLOCK): this is a
+# non-blocking REPORTING tool, so it must POSITIVELY CONFIRM the exemption to skip a
+# PR. Any doubt — local commit not checked out, git error, rc_diff returns 2 — yields
+# NOT-exempt, so the PR is RECORDED for manual follow-up rather than silently dropped.
+# Requires the merge SHA to be present locally (CI: actions/checkout fetch-depth 0);
+# when it is not, the PR is (correctly) recorded.
+_fpa_is_exempt_merge() {
+    local _s="${1:-}" _parents _cc
+    [[ -z "$_s" ]] && return 1
+    git rev-parse --verify --quiet "${_s}^{commit}" >/dev/null 2>&1 || return 1  # not local -> record
+    # (a) clean merge: >=2 parents AND empty combined diff (positive-confirm only).
+    _parents="$(git rev-list --parents -n1 "$_s" 2>/dev/null)" || return 1
+    if [[ "$(printf '%s' "$_parents" | wc -w)" -ge 3 ]]; then
+        _cc="$(git diff-tree --cc --no-commit-id "$_s" 2>/dev/null)" || return 1
+        [[ -z "$_cc" ]] && return 0      # clean merge -> exempt
+        return 1                         # evil merge -> record
+    fi
+    # (b) tickets-only (shared predicate; rc 0 = exempt, 1/2 = record).
+    declare -F rc_diff_is_tickets_only >/dev/null 2>&1 || return 1
+    rc_diff_is_tickets_only "$_s"
+}
+
 command -v "${DSO_GH_BIN:-gh}" >/dev/null 2>&1 || _precondition_not_met "gh not in PATH"
 command -v python3 >/dev/null 2>&1 || _precondition_not_met "python3 not in PATH"
 [[ -n "${DSO_AUDIT_HMAC_KEY:-}" ]] || _precondition_not_met "DSO_AUDIT_HMAC_KEY not set (cannot sign markers)"
@@ -112,6 +142,12 @@ while IFS=$'\t' read -r _num _merge _head _at; do
         esac
     fi
     [[ "$_verdict" == "passed" ]] && continue   # genuinely reviewed — not a bypass
+    # 0cd7 DD3: a PR carrying no reviewable content (clean merge / tickets-only) is
+    # not a bypass. Positive-confirm only — any doubt records the marker.
+    if _fpa_is_exempt_merge "$_merge"; then
+        echo "fp-recovery-audit-sweep: PR #${_num} (merge ${_merge:0:8}) exempt (no reviewable content) — not a bypass" >&2
+        continue
+    fi
     _bypassed=$(( _bypassed + 1 ))
     _sig="$(_hmac "${_num}|${_merge}|${_at}|${_verdict}")"
     _marker="$(printf '{"pr":%s,"merge_sha":"%s","merged_at":"%s","review_status":"%s","marker_version":1,"hmac_sha256":"%s"}' \
