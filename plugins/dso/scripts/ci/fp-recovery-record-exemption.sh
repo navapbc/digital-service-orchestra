@@ -31,7 +31,7 @@ _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$_DIR/admin-exemption-ledger.sh"
 
-_PR=""; _SHAS=""; _HASH=""; _REASON=""; _REPO="${GH_REPO:-}"
+_PR=""; _SHAS=""; _HASH=""; _REASON=""; _REPO="${GH_REPO:-}"; _FINDINGS=""
 _ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
 _LEDGER="$_ROOT/.admin-exemption-ledger"
 
@@ -43,12 +43,48 @@ while [[ $# -gt 0 ]]; do
         --reason) _REASON="$2"; shift 2 ;;
         --ledger) _LEDGER="$2"; shift 2 ;;
         --repo) _REPO="$2"; shift 2 ;;
+        --findings) _FINDINGS="$2"; shift 2 ;;
         *) echo "fp-recovery-record-exemption: unknown arg: $1" >&2; exit 1 ;;
     esac
 done
 
 [[ -z "$_HASH" ]] && { echo "fp-recovery-record-exemption: --reviewer-hash is required (the manual review's REVIEWER_HASH)" >&2; exit 1; }
 [[ -z "$_REASON" ]] && { echo "fp-recovery-record-exemption: --reason is required" >&2; exit 1; }
+
+# C1 — CODE-ENFORCE THE OPUS-GATE (3ebb DD4 unit 5 / panel showstopper). An
+# exemption may be recorded ONLY when backed by a REAL CLEARED review. Verify
+# --reviewer-hash against the reviewer-findings.json the FP-recovery opus review
+# produced (shasum integrity — the SAME mechanism as record-review.sh:274) AND
+# require ZERO blocking findings (critical/important/fragile). This refuses a
+# forged --reviewer-hash from minting a "reviewed-equivalent" exemption. RESIDUAL
+# (panel C3): a wholly-fabricated findings file is closed by the .closure-key
+# boundary, NOT by this check — provenance must not honor the ledger in CI until
+# C3 is an enforced control.
+_FINDINGS="${_FINDINGS:-${WORKFLOW_PLUGIN_ARTIFACTS_DIR:+${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/reviewer-findings.json}}"
+if [[ -z "$_FINDINGS" || ! -f "$_FINDINGS" ]]; then
+    echo "fp-recovery-record-exemption: --findings <reviewer-findings.json> (the opus review's output) is required — refusing to record an unverified exemption" >&2
+    exit 2
+fi
+_actual_hash="$(shasum -a 256 "$_FINDINGS" 2>/dev/null | awk '{print $1}')"
+if [[ -z "$_actual_hash" || "$_actual_hash" != "$_HASH" ]]; then
+    echo "fp-recovery-record-exemption: --reviewer-hash does not match ${_FINDINGS} (got ${_actual_hash:0:12}..., expected ${_HASH:0:12}...) — fabricated/tampered review; refusing" >&2
+    exit 2
+fi
+if ! python3 - "$_FINDINGS" <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception as e:
+    print(f"findings not valid JSON: {e}", file=sys.stderr); sys.exit(1)
+findings = d.get("findings", d if isinstance(d, list) else [])
+blocking = {"critical", "important", "fragile"}
+bad = [f for f in findings if isinstance(f, dict) and f.get("severity") in blocking]
+sys.exit(1 if bad else 0)
+PY
+then
+    echo "fp-recovery-record-exemption: the review at ${_FINDINGS} has blocking (critical/important/fragile) findings — NOT cleared; refusing to record an exemption" >&2
+    exit 2
+fi
 
 # Resolve the SHA set: explicit --shas, or the PR's introduced commits (base..head).
 _resolved=""
