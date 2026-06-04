@@ -73,16 +73,27 @@ fi
 if ! python3 - "$_FINDINGS" <<'PY'
 import json, sys
 try:
-    d = json.load(open(sys.argv[1]))
+    with open(sys.argv[1]) as fh:          # context manager — no leaked fd
+        d = json.load(fh)
 except Exception as e:
-    print(f"findings not valid JSON: {e}", file=sys.stderr); sys.exit(1)
-findings = d.get("findings", d if isinstance(d, list) else [])
+    print(f"findings file is not valid JSON: {e}", file=sys.stderr); sys.exit(1)
+# A valid reviewer-findings.json MUST carry a 'findings' array (or be a bare
+# list). A file lacking it is NOT a review and must FAIL the gate — NOT default
+# to empty (else {"summary": "..."} would pass with "0 blocking findings",
+# bypassing the opus-gate schema enforcement).
+if isinstance(d, list):
+    findings = d
+elif isinstance(d, dict) and isinstance(d.get("findings"), list):
+    findings = d["findings"]
+else:
+    print("findings file lacks a 'findings' array — not a valid review", file=sys.stderr); sys.exit(1)
 blocking = {"critical", "important", "fragile"}
-bad = [f for f in findings if isinstance(f, dict) and f.get("severity") in blocking]
-sys.exit(1 if bad else 0)
+if any(isinstance(f, dict) and f.get("severity") in blocking for f in findings):
+    print("review has blocking (critical/important/fragile) findings — not cleared", file=sys.stderr); sys.exit(1)
+sys.exit(0)
 PY
 then
-    echo "fp-recovery-record-exemption: the review at ${_FINDINGS} has blocking (critical/important/fragile) findings — NOT cleared; refusing to record an exemption" >&2
+    echo "fp-recovery-record-exemption: review at ${_FINDINGS} not cleared / not a valid review (see reason above) — refusing to record an exemption" >&2
     exit 2
 fi
 

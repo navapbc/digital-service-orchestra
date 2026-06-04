@@ -93,6 +93,12 @@ if [[ $rc -eq 2 ]] && grep -qi "NOT cleared" <<<"$out" && [[ ! -f "$L8" ]]; then
 L9="$_W/e9.ledger"
 out="$(bash "$REC" --shas "$SHA_A" --findings "$_W/nonexistent.json" --reviewer-hash "$CLEARED_HASH" --reason "x" --ledger "$L9" 2>&1)"; rc=$?
 if [[ $rc -eq 2 ]] && [[ ! -f "$L9" ]]; then _pass "C1_missing_findings_refused"; else _fail "C1_missing_findings_refused" "rc=$rc out=$out"; fi
+# E10: a findings file WITHOUT a 'findings' array -> refuse (exit 2). Prevents
+# {"summary": "..."} from passing the gate by defaulting to 0 findings.
+NOFIND="$_W/no-findings.json"; printf '%s' '{"summary": "no findings key"}' > "$NOFIND"
+NOFIND_HASH="$(shasum -a 256 "$NOFIND" | awk '{print $1}')"; L10="$_W/e10.ledger"
+out="$(bash "$REC" --shas "$SHA_A" --findings "$NOFIND" --reviewer-hash "$NOFIND_HASH" --reason "x" --ledger "$L10" 2>&1)"; rc=$?
+if [[ $rc -eq 2 ]] && grep -qi "not a valid review" <<<"$out" && [[ ! -f "$L10" ]]; then _pass "C1_no_findings_array_refused"; else _fail "C1_no_findings_array_refused" "rc=$rc out=$out"; fi
 
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"

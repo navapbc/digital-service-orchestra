@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # tests/scripts/test-staged-not-force-review.sh
 #
-# Invariant for 3ebb DD4 unit 5 (C5): a two-tier PR2 head branch (`staged-*`)
-# must NOT match the force-review regex that llm-review-dispatch-or-skip.sh builds
-# from config/sub-pr-branch-patterns.txt. force-review re-dispatches llm-review on
-# its own check-run history INDEPENDENT of provenance/the admin-exemption ledger;
-# if `staged-*` matched, PR2 would re-wedge regardless of unit 5's provenance
-# consult, reintroducing the second override. This catches a future regression
-# (e.g. someone adding `staged-**` to the patterns file).
+# CONFIG-INVARIANT guard for 3ebb DD4 unit 5 (C5). This is NOT a behavioral test
+# of the dispatcher (that lives in test-llm-review-dispatch-or-skip.sh, which
+# exercises the real force-review path with PR context + artifacts). This test
+# guards the SOURCE-OF-TRUTH instead: config/sub-pr-branch-patterns.txt must NOT
+# contain any prefix that a two-tier PR2 head branch (`staged-*`) would match.
 #
-# The regex build mirrors the dispatcher: strip a trailing /** -** _** glob from
-# each pattern -> literal prefix; union; match `^(<prefixes>)([-/_]|$)`.
+# WHY IT MATTERS: the dispatcher's force-review re-dispatches llm-review based on
+# a branch's own check-run history, INDEPENDENT of provenance / the admin-exemption
+# ledger. If `staged-*` were ever added to the patterns file, PR2 would re-wedge
+# regardless of unit 5's provenance consult — reintroducing the second override.
+# The dispatcher and this test both read the SAME file, so a `staged-**` addition
+# is caught here (and the sanity case below proves the glob->prefix translation
+# matches a known sub-PR branch, so the negative assertions are not vacuous).
 
 set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
