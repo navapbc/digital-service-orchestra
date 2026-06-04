@@ -14,19 +14,28 @@
 # ANTI-FABRICATION (the load-bearing requirement — §2.7/§2.10):
 #   An exemption MUST NOT be a self-attested trailer or a plaintext line anyone can
 #   append. It is HMAC-SIGNED evidence: each entry carries an HMAC-SHA256 over its
-#   own fields, keyed by the environment-local secret. A forged or tampered entry
-#   (wrong/missing HMAC, or modified metadata) does NOT verify and is treated as
-#   ABSENT — the invariant then fails closed for that SHA exactly as before. This
-#   mirrors the verdict-hash mechanism (compute-verdict-hash.sh): same key file
-#   (.closure-key), same HMAC-SHA256 construction, same pipe-joined data layout.
+#   own fields, keyed by the DEDICATED ledger signing key. A forged or tampered
+#   entry (wrong/missing HMAC, or modified metadata) does NOT verify and is treated
+#   as ABSENT — the invariant then fails closed for that SHA exactly as before. The
+#   HMAC-SHA256 construction + pipe-joined data layout mirror compute-verdict-hash.sh,
+#   but the KEY IS DELIBERATELY DISTINCT (see TRUST BOUNDARY below).
 #
-# HMAC SCHEME (patterned on the sibling compute-verdict-hash.sh):
-#   key  = contents of <tracker-dir>/.closure-key   (gitignored, per-environment)
+# TRUST BOUNDARY (ADR-0021 / C3 — load-bearing, do NOT regress):
+#   The ledger signing key is a DEDICATED secret (DSO_ADMIN_EXEMPTION_KEY_FILE),
+#   held ONLY by (a) the human bypass-actor (to sign an FP-recovery exemption inline)
+#   and (b) CI's gate-VERIFICATION jobs as a verify-only secret (gap G-A). It is NOT
+#   the agent-reachable closure-key (the per-environment tickets secret). If signing fell back to
+#   .closure-key, a non-bypass agent could mint an HMAC-valid exemption for an
+#   arbitrary un-reviewed SHA and piggyback it onto a legitimately bypass-merged PR
+#   — laundering un-reviewed code to main (the v4 self-attestation hole, in a new
+#   shape). Therefore ael_key_file() FAILS CLOSED when the dedicated key is unset;
+#   it MUST NOT fall back to .closure-key. Ledger-honoring is reviewed-equivalent
+#   ONLY while this key is unreachable by the dev/sub-agent.
+#
+# HMAC SCHEME:
+#   key  = contents of $DSO_ADMIN_EXEMPTION_KEY_FILE   (dedicated; agent-unreachable)
 #   data = "<sha>|<exempt_by>|<reason>|<timestamp>"
 #   mac  = HMAC-SHA256(key, data) hex
-#   The .closure-key is the SAME secret used to prove verifier verdicts, so an
-#   exemption cannot be minted without the environment's signing key. We do NOT
-#   invent a weaker scheme.
 #
 # LEDGER FILE FORMAT (one entry per line, tab-separated):
 #   <sha>\t<exempt_by>\t<reason>\t<timestamp>\t<hmac>
@@ -40,24 +49,26 @@
 #       (Forged / tampered / absent all -> exit 1, i.e. NOT covered.)
 #
 # Env:
-#   DSO_ADMIN_EXEMPTION_KEY_FILE  override key file path (tests). Default:
-#                                 <repo>/.tickets-tracker/.closure-key  # tickets-boundary-ok: doc ref
-#   PROJECT_ROOT                  repo root override (mirrors compute-verdict-hash.sh)
+#   DSO_ADMIN_EXEMPTION_KEY_FILE  REQUIRED — path to the dedicated ledger signing
+#                                 key. No default / no fallback (ADR-0021 / C3).
+#                                 Unset => sign + verify both fail closed.
 #
 # This file is a LIBRARY-with-CLI: review-coverage-invariant.sh sources it to call
 # ael_sha_is_exempt(); standalone invocation drives append/verify for operators.
 set -uo pipefail
 
-# ── Key resolution (identical secret to compute-verdict-hash.sh) ──────────────
+# ── Key resolution (DEDICATED key; ADR-0021 / C3) ─────────────────────────────
+# Returns the dedicated ledger signing key path, or FAILS (rc 1) when unset.
+# DO NOT restore a .closure-key (or any agent-reachable) fallback here — it reopens
+# the forge hole (ADR-0021: a non-bypass agent could self-sign an exemption). The
+# fail-closed behavior is intentional: absent the dedicated key, sign + verify both
+# treat every SHA as not-exempt (the same inert behavior as no-ledger).
 ael_key_file() {
     if [[ -n "${DSO_ADMIN_EXEMPTION_KEY_FILE:-}" ]]; then
         printf '%s' "$DSO_ADMIN_EXEMPTION_KEY_FILE"
         return 0
     fi
-    local root
-    root="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
-    [[ -z "$root" ]] && return 1
-    printf '%s/.tickets-tracker/.closure-key' "$root"  # tickets-boundary-ok: reads .closure-key for HMAC, same as compute-verdict-hash.sh
+    return 1
 }
 
 # ael_compute_hmac <key_file> <sha> <exempt_by> <reason> <timestamp>
