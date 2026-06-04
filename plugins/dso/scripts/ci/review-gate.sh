@@ -50,6 +50,14 @@
 #   0  all sub-checks ok (or warn mode)
 #   1  at least one sub-check failed or had an unmet precondition (enforce mode)
 
+# NOTE: `-e` (errexit) is DELIBERATELY omitted. This gate's whole job is to RUN each
+# sub-check, CAPTURE its non-zero exit code (`bash "$script"; rc=$?`), and AGGREGATE —
+# a failing sub-check must NOT abort the gate, or the DD1 "both sub-checks always run,
+# never short-circuit" property breaks (the second sub-check would never run after the
+# first fails). Failure handling is explicit: every sub-check rc is routed through
+# precondition-gate.sh and folded into _overall, and the final block decision is an
+# explicit `[[ "$_overall" -ne 0 ]]`. Do NOT add `set -e` — it would exit on the first
+# sub-check's non-zero rc before that rc is captured and aggregated.
 set -uo pipefail
 
 _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

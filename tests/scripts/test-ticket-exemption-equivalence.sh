@@ -28,6 +28,9 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 RCI="$REPO_ROOT/plugins/dso/scripts/ci/review-coverage-invariant.sh"   # shim-exempt: invokes the script under test
 VSP="$REPO_ROOT/plugins/dso/scripts/verify-session-provenance.sh"      # shim-exempt: invokes the script under test
 FPA="$REPO_ROOT/plugins/dso/scripts/ci/fp-recovery-audit-sweep.sh"     # shim-exempt: invokes the script under test
+LIB="$REPO_ROOT/plugins/dso/scripts/lib/review-coverage-lib.sh"        # shim-exempt: sources the helper under test
+# shellcheck source=/dev/null
+source "$LIB"   # provides rc_diff_is_tickets_only for the independent cross-check below
 
 PASS=0; FAIL=0
 _pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
@@ -100,18 +103,45 @@ _fpa_verdict() { # <repo> <base> <feat>
     if printf '%s' "$out" | grep -q '"pr":77'; then echo not; else echo exempt; fi
 }
 
+# Direct, INDEPENDENT verdict from the shared helper itself (not via a consumer):
+# rc 0 = exempt, rc 1 = not. This anchors the three-consumer agreement to a verdict
+# that is verified-correct against the actual fixture content, so the test cannot
+# pass if ALL THREE consumers (and the helper) were uniformly broken to the wrong
+# direction — the direct helper assertion would catch that, and the consumers are
+# then checked against the helper's confirmed-correct verdict.
+_helper_verdict() { # <repo> <feat>
+    ( cd "$1" && rc_diff_is_tickets_only "$2" >/dev/null 2>&1 ) && echo exempt || echo not
+}
+
+# ATTRIBUTION (why an "exempt" consumer verdict is caused by the ticket exemption,
+# not an unrelated exit-0 / skip — addresses the "could pass for the wrong reason"
+# class): the mock gh returns NO covering PR and NO passing review, and the fixtures
+# are plain non-merge commits (no clean-merge carve-out, no ledger). So for an
+# unreviewed SHA the ONLY pass-path through review-coverage-invariant.sh / the
+# provenance walk / the audit sweep is the ticket-store exemption. The F_CODE and
+# F_MIXED fixtures are the NEGATIVE CONTROLS: run through the SAME harness and mocks,
+# they are flagged (rci exits 1 / vsp writes the SHA to unprovenanced / fpa emits a
+# bypass marker), proving the consumers' exit-0/exempt on F_TICKETS is the exemption
+# firing, not blanket always-exempt behavior.
 _run() { # _run <name> <kind> <expected>
-    local name="$1" kind="$2" exp="$3" r bf b f rci vsp fpa
+    local name="$1" kind="$2" exp="$3" r bf b f hlp rci vsp fpa
     r="$(mktemp -d "$_W/repo.XXXXXX")"
     bf="$(_mk_repo "$kind" "$r")" || { _fail "$name" "fixture setup failed"; return; }
     b="${bf% *}"; f="${bf#* }"
+    # (1) Independently confirm the helper's verdict matches the fixture content.
+    hlp="$(_helper_verdict "$r" "$f")"
+    if [[ "$hlp" != "$exp" ]]; then
+        _fail "$name" "helper verdict=$hlp != expected=$exp — rc_diff_is_tickets_only wrong on fixture '$kind'"
+        return
+    fi
+    # (2) Then assert all three consumers agree with that confirmed-correct verdict.
     rci="$(_rci_verdict "$r" "$b" "$f")"
     vsp="$(_vsp_verdict "$r" "$b" "$f")"
     fpa="$(_fpa_verdict "$r" "$b" "$f")"
     if [[ "$rci" == "$exp" && "$vsp" == "$exp" && "$fpa" == "$exp" ]]; then
-        _pass "$name (all three=$exp)"
+        _pass "$name (helper+all three=$exp)"
     else
-        _fail "$name" "rci=$rci vsp=$vsp fpa=$fpa expected=$exp — CONSUMERS DISAGREE or wrong"
+        _fail "$name" "helper=$hlp rci=$rci vsp=$vsp fpa=$fpa expected=$exp — CONSUMERS DISAGREE or wrong"
     fi
 }
 
