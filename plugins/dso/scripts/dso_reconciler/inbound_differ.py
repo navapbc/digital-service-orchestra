@@ -104,9 +104,19 @@ _JIRA_TO_LOCAL_PRIORITY: dict[str, int] = {
 _JIRA_TO_LOCAL_STATUS: dict[str, str] = {
     "To Do": "open",
     "In Progress": "in_progress",
+    # "In Review" is a live DIG workflow state that was missing from the map,
+    # causing it to fall through to the "open" default (ticket 929a).
+    "In Review": "in_progress",
     "Blocked": "blocked",
     "Done": "closed",
     "Cancelled": "cancelled",
+}
+
+# dso-status: annotation labels that override the Jira workflow status on inbound.
+# Maps dso-status:<label> -> local status. Takes precedence over _JIRA_TO_LOCAL_STATUS.
+_DSO_STATUS_LABEL_TO_LOCAL: dict[str, str] = {
+    "dso-status:blocked": "blocked",
+    "dso-status:cancelled": "cancelled",
 }
 
 
@@ -126,7 +136,16 @@ def _extract_jira_field_value(jira_fields: dict[str, Any], field: str) -> Any:
 
 
 def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
-    """Map Jira fields to local ticket field names/values."""
+    """Map Jira fields to local ticket field names/values.
+
+    ticket 929a: when jira_fields carries a dso-status: annotation label
+    (e.g. ``dso-status:blocked``), the label takes precedence over the raw
+    Jira workflow status for the local status mapping. This preserves lossless
+    round-trip for statuses that have no direct Jira equivalent (blocked maps
+    to In Progress on Jira, cancelled maps to Done). Without this, a
+    blocked→In Progress outbound followed by an inbound pass would silently
+    overwrite local "blocked" with "in_progress".
+    """
     summary = _extract_jira_field_value(jira_fields, "summary") or ""
     # Bug 1bb2: ``_extract_jira_field_value`` returns nested dicts verbatim
     # for any field that isn't a {.name/.displayName} object — Jira's
@@ -140,12 +159,22 @@ def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
     status_raw = _extract_jira_field_value(jira_fields, "status") or "To Do"
     assignee = _extract_jira_field_value(jira_fields, "assignee") or ""
 
+    # Prefer dso-status: annotation label over raw Jira workflow status.
+    # Check labels list for any dso-status: entry and map to local status.
+    local_status: str | None = None
+    for label in (jira_fields.get("labels") or []):
+        if label in _DSO_STATUS_LABEL_TO_LOCAL:
+            local_status = _DSO_STATUS_LABEL_TO_LOCAL[label]
+            break
+    if local_status is None:
+        local_status = _JIRA_TO_LOCAL_STATUS.get(status_raw, "open")
+
     return {
         "title": summary,
         "description": description,
         "ticket_type": _JIRA_TO_LOCAL_TYPE.get(issuetype_raw, "task"),
         "priority": _JIRA_TO_LOCAL_PRIORITY.get(priority_raw, 2),
-        "status": _JIRA_TO_LOCAL_STATUS.get(status_raw, "open"),
+        "status": local_status,
         "assignee": assignee,
     }
 
@@ -219,7 +248,10 @@ def _diff_jira_vs_local(
 # ``_apply_outbound_create`` / ``_apply_inbound_create``; ``dso-id-`` is
 # preserved for backward compatibility with pre-cutover labels still on
 # legacy Jira issues.
-_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:")
+# dso-status: annotation labels are reconciler-managed (emitted/removed by
+# status logic); they must not leak into local ticket tags via inbound label
+# sync (ticket 929a). Exclude from both sides of the label diff.
+_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:", "dso-status:")
 
 
 def _normalize_jira_body(body: Any) -> str:
