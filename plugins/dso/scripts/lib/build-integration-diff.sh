@@ -46,7 +46,23 @@ build_net_integration_diff() {
     # pathspecs). diff-tree on a SHA gives that commit's own changed paths.
     while IFS= read -r sha; do
         [[ -z "$sha" ]] && continue
-        git -c core.quotepath=false diff-tree --no-commit-id --name-only -r "$sha" 2>/dev/null
+        # MERGE-COMMIT NET-DIFF (DD8 / bug 4ba5): plain `diff-tree` on a merge commit
+        # emits NO files (it needs -m/--cc), so a conflict-RESOLUTION merge whose real
+        # delta is e.g. a resolved version line mis-computes 0 touched files, the net
+        # diff comes out empty, and the caller false-trips its empty-net-diff
+        # fail-closed. For a merge (>=2 parents) use the COMBINED diff (--cc), which
+        # surfaces exactly the files the merge changed relative to ALL parents — i.e.
+        # the conflict-resolution / evil-merge content that genuinely needs review. A
+        # CLEAN merge (no own content) yields an empty --cc and correctly contributes
+        # nothing (it is also exempted upstream), so a genuinely-empty merge stays
+        # distinguishable from a mis-computed-empty one.
+        local _nparents
+        _nparents="$(git rev-list --parents -n1 "$sha" 2>/dev/null | wc -w)"
+        if [[ "${_nparents:-0}" -ge 3 ]]; then
+            git -c core.quotepath=false diff-tree --cc --no-commit-id --name-only "$sha" 2>/dev/null
+        else
+            git -c core.quotepath=false diff-tree --no-commit-id --name-only -r "$sha" 2>/dev/null
+        fi
     done < "$scope_file" | LC_ALL=C sort -u > "$touched"
 
     if [[ ! -s "$touched" ]]; then

@@ -144,6 +144,53 @@ else
     _fail "T7_net_zero_collapses" "net-zero introduce-then-revert still shows the transient"
 fi
 
+# ── DD8 / bug 4ba5: merge-commit net-diff disambiguation ─────────────────────
+# A CONTENT-BEARING merge (conflict-resolution edits that differ from ALL parents)
+# in the unprovenanced scope must compute a NON-EMPTY net diff. Plain `diff-tree`
+# on a merge yields NO files, so the touched set is empty and the caller false-trips
+# its empty-net-diff fail-closed (4ba5). The fix surfaces the merge's combined (--cc)
+# delta as touched.
+_git checkout -q -b mver "$_MAIN_SHA"
+printf '1.0.0\n' > "$_WORK/VERSION"; _git add VERSION; _git commit -qm "add VERSION 1.0.0"
+_MVER_BASE="$(_git rev-parse HEAD)"
+_git checkout -q -b vA
+printf '1.1.0\n' > "$_WORK/VERSION"; _git add VERSION; _git commit -qm "A: VERSION 1.1.0"
+_git checkout -q -b vB "$_MVER_BASE"
+printf '1.0.5\n' > "$_WORK/VERSION"; _git add VERSION; _git commit -qm "B: VERSION 1.0.5"
+_git checkout -q vA
+_git merge --no-commit vB >/dev/null 2>&1 || true     # conflicts on VERSION
+printf '1.2.0\n' > "$_WORK/VERSION"; _git add VERSION   # resolve to a value differing from BOTH parents
+_git commit -qm "merge: resolve VERSION to 1.2.0"
+_MERGE_SHA="$(_git rev-parse HEAD)"
+printf '%s\n' "$_MERGE_SHA" > "$_WORK/scope8.txt"
+_OUT8="$_WORK/net8.diff"
+( cd "$_WORK" && build_net_integration_diff "$_MVER_BASE" "$_MERGE_SHA" "$_WORK/scope8.txt" "$_OUT8" ) > "$_WORK/count8.txt"
+_c8="$(cat "$_WORK/count8.txt")"
+# T8: content-bearing merge -> non-empty net diff containing the resolved value.
+if [[ -s "$_OUT8" ]] && grep -q "1.2.0" "$_OUT8" && [[ "${_c8:-0}" -ge 1 ]]; then
+    _pass "T8_content_bearing_merge_net_diff_nonempty"
+else
+    _fail "T8_content_bearing_merge_net_diff_nonempty" \
+        "count=$_c8 empty=$([[ -s "$_OUT8" ]] && echo no || echo yes) — merge resolution delta mis-computed as empty (4ba5)"
+fi
+
+# T9: a CLEAN merge (no own content) stays EMPTY — the fix must distinguish a
+# genuinely-empty merge from a mis-computed-empty one, not over-include.
+_git checkout -q -b cm1 "$_MVER_BASE"
+printf 'x\n' > "$_WORK/cmfile.sh"; _git add cmfile.sh; _git commit -qm "cm: add cmfile"
+_git checkout -q -b cm2 "$_MVER_BASE"
+_git merge --no-ff -m "clean merge cm1" cm1 >/dev/null 2>&1
+_CLEAN_MERGE="$(_git rev-parse HEAD)"
+printf '%s\n' "$_CLEAN_MERGE" > "$_WORK/scope9.txt"
+_OUT9="$_WORK/net9.diff"
+( cd "$_WORK" && build_net_integration_diff "$_MVER_BASE" "$_CLEAN_MERGE" "$_WORK/scope9.txt" "$_OUT9" ) > "$_WORK/count9.txt"
+_c9="$(cat "$_WORK/count9.txt")"
+if [[ ! -s "$_OUT9" ]] && [[ "${_c9:-0}" -eq 0 ]]; then
+    _pass "T9_clean_merge_stays_empty"
+else
+    _fail "T9_clean_merge_stays_empty" "count=$_c9 — clean merge over-included (should be empty)"
+fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
