@@ -80,6 +80,15 @@ fi
 _count=0
 for _sha in $_resolved; do
     [[ -z "$_sha" ]] && continue
+    # Input validation (defense-in-depth): only a well-formed git object name may
+    # be recorded. Even though entries are HMAC-signed and the caller is the admin
+    # running FP-recovery, refusing a malformed SHA prevents a typo or a crafted
+    # --shas value from writing a junk exemption that could never match a real
+    # commit (or, worse, embedding control chars into the ledger row).
+    if ! [[ "$_sha" =~ ^[0-9a-fA-F]{7,40}$ ]]; then
+        echo "fp-recovery-record-exemption: refusing malformed SHA '$_sha' (expected 7-40 hex chars)" >&2
+        exit 1
+    fi
     # Idempotent: skip a SHA already validly exempt (re-runs must not duplicate).
     if ael_sha_is_exempt "$_LEDGER" "$_sha"; then
         echo "fp-recovery-record-exemption: $_sha already exempt — skipping" >&2

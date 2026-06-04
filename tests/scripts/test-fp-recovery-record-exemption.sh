@@ -65,6 +65,11 @@ bash "$REC" --shas "$SHA_A" --reviewer-hash deadbeef --reason "doc nit FP" --led
 printf '%s\t%s\t%s\t%s\t%s\n' "$SHA_B" "Zm9v" "YmFy" "123" "deadbeefforged" >> "$L5"
 if ael_sha_is_exempt "$L5" "$SHA_A" && ! ael_sha_is_exempt "$L5" "$SHA_B"; then _pass "E5_recorded_exempt_forged_rejected"; else _fail "E5_recorded_exempt_forged_rejected" "real-exempt or forged-accepted"; fi
 
+# ── E6: malformed SHA is refused (input validation) ─────────────────────────
+L6="$_W/e6.ledger"
+out="$(bash "$REC" --shas "not-a-sha" --reviewer-hash abc123 --reason "x" --ledger "$L6" 2>&1)"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "malformed SHA" <<<"$out" && [[ ! -f "$L6" ]]; then _pass "E6_malformed_sha_refused"; else _fail "E6_malformed_sha_refused" "rc=$rc out=$out"; fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
