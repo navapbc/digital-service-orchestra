@@ -158,8 +158,16 @@ _materialize_head_file() {
     wd="$(_sg_workdir)" || return 1
     dst="$wd/$file"
     mkdir -p "$(dirname "$dst")" 2>/dev/null || return 1
-    if git show "${_HEAD}:${file}" >"$dst" 2>/dev/null; then
+    # git show's exit gates the echo (a write/I/O failure → non-zero → no echo →
+    # caller skips). The extra -f guard makes the success path explicit: never
+    # echo a path that is not a regular file, so downstream sg can never operate
+    # on a missing/partial materialization. On any failure, remove the stub file
+    # the `>` redirect may have created and signal failure.
+    if git show "${_HEAD}:${file}" >"$dst" 2>/dev/null && [[ -f "$dst" ]]; then
         echo "$dst"
+    else
+        rm -f "$dst" 2>/dev/null
+        return 1
     fi
 }
 
@@ -177,34 +185,49 @@ _sg_code_references() {
     wd="$(_sg_workdir)" || return 1
     while IFS= read -r file; do
         [[ -z "$file" ]] && continue
-        local lang tmp _rc
+        local lang tmp _rc _excl
         lang="$(_sg_lang_of "$file")"; [[ -z "$lang" ]] && continue
         tmp="$(_materialize_head_file "$file")"; [[ -z "$tmp" ]] && continue
-        # sg matches the bare identifier syntactically (excludes comments/strings
-        # and substring/word-boundary noise). Re-anchor output to the repo path.
-        "$_ASTGREP" run -p "$sym" -l "$lang" "$tmp" --heading=never 2>/dev/null \
-            | sed -E "s#^${tmp}:#${file}:#"
-        _rc=${PIPESTATUS[0]}
-        # ast-grep exit: 0=match, 1=no-match, >=2=HARD error (bad invocation /
-        # unparseable file). A hard error must NOT be silently read as "no
-        # references" (that is the false-negative class this check exists to
-        # prevent) — fall back to a whole-word git grep for THIS file (over-
-        # reports, never under-reports). Candidate files all exist at HEAD
-        # (git grep -lw selected them), so rc=1 is a genuine no-match, not a miss.
-        if (( _rc >= 2 )); then
-            echo "WARN [dangling]: ast-grep rc=${_rc} on ${file}; whole-word grep fallback" >&2
-            git grep -nwE "${sym}" "$_HEAD" -- "$file" 2>/dev/null \
-                | sed -E "s#^${_HEAD}:##"
+        # Language-CORRECT definition-exclusion, applied per file using ONLY the
+        # pattern for this file's language. A combined (language-agnostic) filter
+        # would let the shell-def pattern drop a Python call `sym()` in a .py file
+        # that incidentally contains def-shaped text — a false negative. Mirrors
+        # the per-language probes in _defined_at_head.
+        if [[ "$lang" == "bash" ]]; then
+            _excl="(function[[:space:]]+)?${sym}[[:space:]]*\(\)[[:space:]]*\{"
+        else
+            _excl=":[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
         fi
-    done <<< "$cand" \
-        | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)[[:space:]]*\{|:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
+        {
+            # sg matches the bare identifier syntactically (excludes comments/
+            # strings and substring/word-boundary noise). Re-anchor to repo path.
+            "$_ASTGREP" run -p "$sym" -l "$lang" "$tmp" --heading=never 2>/dev/null \
+                | sed -E "s#^${tmp}:#${file}:#"
+            _rc=${PIPESTATUS[0]}
+            # ast-grep exit: 0=match, 1=no-match, >=2=HARD error (bad invocation /
+            # unparseable file). A hard error must NOT be silently read as "no
+            # references" (the false-negative class this check prevents) — fall
+            # back to a whole-word git grep for THIS file (over-reports, never
+            # under-reports). Candidate files all exist at HEAD (git grep -lw
+            # selected them), so rc=1 is a genuine no-match, not a miss.
+            if (( _rc >= 2 )); then
+                echo "WARN [dangling]: ast-grep rc=${_rc} on ${file}; whole-word grep fallback" >&2
+                git grep -nwE "${sym}" "$_HEAD" -- "$file" 2>/dev/null \
+                    | sed -E "s#^${_HEAD}:##"
+            fi
+        } | grep -vE "$_excl"
+    done <<< "$cand"
 }
 
-# Fallback (sg absent): guarded whole-word git grep for .sh/.py, minus def lines.
+# Fallback (sg absent): guarded whole-word git grep, minus def lines. Each
+# language is scanned with ONLY its own definition-exclusion pattern so a Python
+# call `sym()` is never dropped by the shell-definition filter (and vice versa).
 _grep_code_references() {
     local sym="$1"
-    git grep -nwE "${sym}" "$_HEAD" -- '*.sh' '*.py' 2>/dev/null \
-        | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)[[:space:]]*\{|^[^:]*:[0-9]+:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
+    git grep -nwE "${sym}" "$_HEAD" -- '*.sh' 2>/dev/null \
+        | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)[[:space:]]*\{"
+    git grep -nwE "${sym}" "$_HEAD" -- '*.py' 2>/dev/null \
+        | grep -vE "^[^:]*:[0-9]+:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
 }
 
 # Doc/config-carrier references (.md/.yml/.yaml/.txt/Makefile): a surviving
