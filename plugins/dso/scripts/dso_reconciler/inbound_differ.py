@@ -393,6 +393,14 @@ def _diff_labels_inbound(
 # ---------------------------------------------------------------------------
 
 
+# Bug 8b25: maps an outbound (Jira-side) field name to its inbound (local-side)
+# equivalent so bidirectional suppression compares like-named fields. The
+# outbound differ emits ``parent`` (Jira REST field); the inbound differ emits
+# ``parent_id`` (local ticket field). All other fields share a name across the
+# two directions, so the map only needs the parent entry.
+_OUTBOUND_TO_INBOUND_FIELD = {"parent": "parent_id"}
+
+
 def _build_outbound_context(
     outbound_mutations: list[Any] | None,
 ) -> dict[str, dict[str, Any]]:
@@ -430,7 +438,17 @@ def _build_outbound_context(
             elif action == "remove":
                 entry["label_removes"].add(label)
         for field_name in (getattr(om, "fields", {}) or {}).keys():
-            entry["fields"].add(field_name)
+            # Bug 8b25: the outbound differ emits the parent under the Jira
+            # field name ``parent`` (a bare key string), while the inbound
+            # differ emits the same logical change under the LOCAL field name
+            # ``parent_id``. Record the inbound-side name so the scalar
+            # suppression at the call site (which keys on inbound field names)
+            # actually matches. Without this canonicalisation, an outbound
+            # ``parent`` reparent never suppresses the inbound ``parent_id``
+            # re-emission, and the two differs oscillate every pass against a
+            # stale pre-pass Jira snapshot — the perpetual ``fields=['parent']``
+            # steady-state churn and the e2e probe's parent FAIL.
+            entry["fields"].add(_OUTBOUND_TO_INBOUND_FIELD.get(field_name, field_name))
     return ctx
 
 
