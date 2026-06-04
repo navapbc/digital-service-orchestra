@@ -10,6 +10,9 @@
 #   T6: end-to-end wiring — review-coverage-invariant treats an HMAC-valid
 #       exempt SHA as covered (exit 0), but a forged exemption for the same SHA
 #       still BLOCKS (exit 1).
+#   T7: exempt_by class filter (C2) — provenance honors ONLY fp-recovery entries.
+#   T8: fail-closed when the dedicated key is unset (C3 / ADR-0021) — no
+#       .closure-key fallback; sign + verify both fail closed.
 #
 # Behavioral standard: each test asserts observable verdicts (exempt / not exempt,
 # invariant exit code), never internal call counts.
@@ -179,6 +182,30 @@ if bash "$LEDGER_LIB" verify "$L7" "$SHA_FP" >/dev/null 2>&1 \
     _pass "T7_exempt_by_class_filter"
 else
     _fail "T7_exempt_by_class_filter" "class filter did not scope to fp-recovery"
+fi
+
+# ── T8: fail-closed when the dedicated key is unset (C3 / ADR-0021) ───────────
+# Part 1 removes the .closure-key fallback from ael_key_file: with
+# DSO_ADMIN_EXEMPTION_KEY_FILE UNSET, BOTH verify and append must fail closed even
+# when a .tickets-tracker/.closure-key exists at PROJECT_ROOT (the OLD fallback
+# target). This is the security boundary — an agent that can reach .closure-key but
+# not the dedicated key must be unable to sign OR have a closure-key-signed entry
+# honored. RED against the pre-C3 fallback code (which would resolve .closure-key
+# and both verify + append would succeed).
+L8="$_WORK/t8.ledger"
+PR8="$_WORK/proj8"; mkdir -p "$PR8/.tickets-tracker"
+CK8="$PR8/.tickets-tracker/.closure-key"; printf 'old-fallback-key\n' > "$CK8"
+# Pre-sign an entry with the closure-key (exactly what the OLD fallback resolved).
+DSO_ADMIN_EXEMPTION_KEY_FILE="$CK8" bash "$LEDGER_LIB" append \
+    "$L8" "$SHA_OK" "fp-recovery" "signed via closure-key" 1700000000
+v_rc=0; env -u DSO_ADMIN_EXEMPTION_KEY_FILE PROJECT_ROOT="$PR8" \
+    bash "$LEDGER_LIB" verify "$L8" "$SHA_OK" >/dev/null 2>&1 || v_rc=$?
+a_rc=0; env -u DSO_ADMIN_EXEMPTION_KEY_FILE PROJECT_ROOT="$PR8" \
+    bash "$LEDGER_LIB" append "$L8" "$SHA_FORGED" "fp-recovery" "should fail" 1700000000 >/dev/null 2>&1 || a_rc=$?
+if [[ $v_rc -ne 0 && $a_rc -ne 0 ]]; then
+    _pass "T8_fail_closed_when_dedicated_key_unset"
+else
+    _fail "T8_fail_closed_when_dedicated_key_unset" "verify_rc=$v_rc append_rc=$a_rc (expected both nonzero — .closure-key fallback not removed?)"
 fi
 
 echo ""
