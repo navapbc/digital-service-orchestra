@@ -570,6 +570,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DSO_ARTIFACT_DIR: ${{ runner.temp }}/dso-review
+          # Admin-exemption ledger (3ebb DD4 unit 5): verify-session-provenance.sh
+          # honors an HMAC-valid fp-recovery exemption as reviewed-equivalent so a
+          # downstream PR does not re-dispatch llm-review on FP-recovered content.
+          # FAIL-CLOSED + DEAD until the closure-key is provisioned (gap G-A, gated
+          # on the unit-5 security conditions) — until then ael_sha_is_exempt has no
+          # key and returns not-exempt. The no-dormant-security-check P-AEL-PROVENANCE
+          # predicate asserts this line is present.
+          DSO_ADMIN_EXEMPTION_LEDGER: .admin-exemption-ledger
           # PR_NUMBER must be exported so verify-session-provenance.sh's A1
           # self-exclusion filter (bug 8a77) can identify and reject the
           # PR-under-review when it appears in the GH API response. Without

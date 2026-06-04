@@ -65,13 +65,25 @@ YML
 _REQ_NO_CONV="$_W/required-no-conv.txt"
 printf 'review-coverage-invariant\nmerge-pipeline-checks\n' > "$_REQ_NO_CONV"
 
+# ci.yml fixtures for the P-AEL-PROVENANCE predicate (C4): WIRED sets the env on
+# the provenance step; DORMANT omits it. Tests pass DSO_CI_YML so they isolate
+# from the repo's real ci.yml.
+_WIRED_CI="$_W/wired-ci.yml"
+printf '      - name: Verify session provenance\n        env:\n          DSO_ADMIN_EXEMPTION_LEDGER: .admin-exemption-ledger\n        run: true\n' > "$_WIRED_CI"
+_DORMANT_CI="$_W/dormant-ci.yml"
+printf '      - name: Verify session provenance\n        env:\n          DSO_ARTIFACT_DIR: /tmp/x\n        run: true\n' > "$_DORMANT_CI"
+
 # ── D1: dormant config + enforce -> blocks (exit 1) ──────────────────────────
 out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_DORMANT_YML" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
 if [[ $rc -eq 1 ]] && grep -q "P-AEL" <<<"$out"; then _pass "D1_dormant_enforce_blocks"; else _fail "D1_dormant_enforce_blocks" "rc=$rc out=$out"; fi
 
-# ── D2: wired config + enforce -> passes (exit 0) ────────────────────────────
-out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_WIRED_YML" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
+# ── D2: wired coverage + wired provenance + enforce -> passes (exit 0) ────────
+out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_WIRED_YML" DSO_CI_YML="$_WIRED_CI" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
 if [[ $rc -eq 0 ]]; then _pass "D2_wired_enforce_passes"; else _fail "D2_wired_enforce_passes" "rc=$rc out=$out"; fi
+
+# ── D7: wired coverage but DORMANT provenance + enforce -> blocks (C4) ────────
+out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_WIRED_YML" DSO_CI_YML="$_DORMANT_CI" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "P-AEL-PROVENANCE" <<<"$out"; then _pass "D7_provenance_dormant_blocks"; else _fail "D7_provenance_dormant_blocks" "rc=$rc out=$out"; fi
 
 # ── D6: key present but EMPTY value + enforce -> blocks (fail-open trap) ──────
 # A bare/empty DSO_ADMIN_EXEMPTION_LEDGER passes the script's `[[ -n ]]` guard as
