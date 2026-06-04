@@ -265,6 +265,31 @@ restore_bindings_if_corrupt() {
     fi
 }
 
+# restore_prev_snapshot_if_corrupt: if prev_snapshot.json fails to parse,
+# restore it from the probe's own startup backup (PREV_SNAPSHOT_BACKUP).
+# If the backup is unavailable, delete the file to force a full re-fetch on
+# the next reconciler pass (the reconciler treats a missing prev_snapshot.json
+# as a clean-start signal).  Called before each sub-cycle reconcile that may
+# follow a git-push failure that can leave prev_snapshot.json in a
+# partially-written / conflict-marker state.
+restore_prev_snapshot_if_corrupt() {
+    if python3 -c "import json; json.load(open('${PREV_SNAPSHOT}'))" 2>/dev/null; then
+        return 0  # healthy — nothing to do
+    fi
+    echo "restore_prev_snapshot_if_corrupt: prev_snapshot.json unparseable — attempting restore..." >&2
+    if [ -n "$PREV_SNAPSHOT_BACKUP" ] && [ -f "$PREV_SNAPSHOT_BACKUP" ]; then
+        if python3 -c "import json; json.load(open('${PREV_SNAPSHOT_BACKUP}'))" 2>/dev/null; then
+            cp "$PREV_SNAPSHOT_BACKUP" "$PREV_SNAPSHOT"
+            echo "restore_prev_snapshot_if_corrupt: restored from probe startup backup." >&2
+            return 0
+        fi
+    fi
+    # Backup unavailable or also corrupt: delete to force full re-fetch.
+    echo "restore_prev_snapshot_if_corrupt: no usable backup — deleting prev_snapshot.json to force full re-fetch." >&2
+    rm -f "$PREV_SNAPSHOT"
+    return 0
+}
+
 edit_ticket_field() {
     # Edit a single ticket field via the ticket CLI's edit subcommand.
     # The local ticket store is event-sourced — no ticket.json to mutate —
@@ -928,9 +953,13 @@ fi
 edit_ticket_field "${LOCAL_IDS[2]}" "priority" "3"
 pass_test "Phase2b.edit-priority-to-3"
 
-# Restore bindings.json before this sub-cycle's reconcile in case the
-# priority-1 reconciler's git push left the file in a corrupt state.
+# Restore bindings.json and prev_snapshot.json before this sub-cycle's
+# reconcile in case the priority-1 reconciler's git push left either file
+# in a corrupt state (confirmed pattern: push failure after sub-cycle A
+# corrupts both files, causing sub-cycle B reconcile to abort and leaving
+# Jira at priority=1/High instead of priority=3/Low).
 restore_bindings_if_corrupt || true
+restore_prev_snapshot_if_corrupt || true
 
 echo "Running reconciler for priority=3 outbound..."
 reconciler_output=$(run_filtered_reconciler "$FILTER_IDS")
@@ -1017,6 +1046,12 @@ fi
 if [ -n "$THIRD_LOCAL_ID" ]; then
     PARITY_FILTER="${PARITY_FILTER},${THIRD_LOCAL_ID}"
 fi
+
+# Restore bridge-state files if corrupt before reconciling — a prior push
+# failure in Phase 2b can leave both bindings.json and prev_snapshot.json
+# in an unparseable state, causing the reconciler to abort immediately.
+restore_bindings_if_corrupt || true
+restore_prev_snapshot_if_corrupt || true
 
 echo "Running reconciler for epic create outbound..."
 reconciler_output=$(run_filtered_reconciler "$PARITY_FILTER")
