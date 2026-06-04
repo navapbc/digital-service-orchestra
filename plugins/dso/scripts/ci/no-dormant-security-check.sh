@@ -62,7 +62,8 @@ _warned=0
 # under enforce (a second override), the exact silent-skip this audit exists to
 # catch. Require a non-empty, VALIDATED bypass-actor set (the helper drops
 # malformed tokens, so this also catches an all-garbage config).
-_bas_lib="$_SELF_DIR/../lib/bypass-actor-set.sh"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SELF_DIR/../.." 2>/dev/null && pwd)}"
+_bas_lib="$_PLUGIN_ROOT/scripts/lib/bypass-actor-set.sh"
 _bypass_ids=""
 if [[ -f "$_bas_lib" ]]; then
     # shellcheck source=../lib/bypass-actor-set.sh

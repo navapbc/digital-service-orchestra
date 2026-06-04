@@ -22,9 +22,10 @@
 # Locate read-config.sh (sibling of this lib's parent: scripts/read-config.sh).
 _bas_read_config() {
     local key="$1"
-    local _dir _rc
+    local _dir _root _rc
     _dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    _rc="$_dir/../read-config.sh"
+    _root="${CLAUDE_PLUGIN_ROOT:-$(cd "$_dir/../.." 2>/dev/null && pwd)}"
+    _rc="$_root/scripts/read-config.sh"
     [[ -f "$_rc" ]] || return 1
     # DSO_BYPASS_CONFIG_FILE: test seam to point the read at a specific config file
     # (e.g. an empty file to simulate "no bypass-actor configured").
