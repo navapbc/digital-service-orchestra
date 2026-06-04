@@ -469,9 +469,64 @@ def reconcile_once(
     prev_dir = tracker_dir / ".bridge_state"
     prev_dir.mkdir(parents=True, exist_ok=True)
     prev_path = prev_dir / "prev_snapshot.json"
-    prev_snapshot: dict = (
-        json.loads(prev_path.read_text()) if prev_path.exists() else {}
-    )
+    if prev_path.exists():
+        try:
+            prev_snapshot: dict = json.loads(prev_path.read_text())
+        except (json.JSONDecodeError, ValueError, OSError) as _exc:
+            # SAFETY INVARIANT: a corrupt or conflict-marked prev_snapshot.json
+            # must NEVER cause the pass to proceed with an unknown Jira comment
+            # state.  If we continued with prev_snapshot={}, the inbound differ
+            # would re-derive all create mutations (expensive but safe).  However,
+            # the outbound differ uses curr_snapshot (the live fetch), not
+            # prev_snapshot, for comment dedup — so comment mutations would be
+            # correct IF we could reach that point.  The problem is we cannot
+            # trust that even prev_snapshot corruption is the only issue; the
+            # tickets branch may be in a partially-merged state that makes curr
+            # state unknown too.  Abort the pass with a loud ERROR and alert.
+            _alert_key = f"corrupt_prev_snapshot:{pass_id}"
+            print(  # noqa: T201
+                f"ERROR: prev_snapshot.json is corrupt or contains git conflict "
+                f"markers and cannot be parsed. Aborting reconcile pass "
+                f"'{pass_id}' to prevent emitting mutations against unknown "
+                f"Jira state. File: {prev_path}. Error: {_exc}. "
+                f"Recovery: resolve the merge conflict or delete the file to "
+                f"force a full re-fetch on the next pass.",
+                file=sys.stderr,
+            )
+            try:
+                _alert_store = _load(
+                    "plugins.dso.scripts.dso_reconciler.alert_store",
+                    "alert_store.py",
+                )
+                _alert_store.append(
+                    {
+                        "key": _alert_key,
+                        "severity": "critical",
+                        "reason": (
+                            f"prev_snapshot.json corrupt/unparseable at {prev_path}: "
+                            f"{_exc}"
+                        ),
+                        "pass_id": pass_id,
+                        "file": str(prev_path),
+                        "resolved": False,
+                        "timestamp_ns": __import__("time").time_ns(),
+                    },
+                    repo_root,
+                )
+            except Exception as _alert_exc:  # noqa: BLE001
+                print(  # noqa: T201
+                    f"ERROR: alert_store write also failed ({_alert_exc}); "
+                    f"corruption event not persisted to bridge_alerts.",
+                    file=sys.stderr,
+                )
+            raise RuntimeError(
+                f"Aborting reconcile pass '{pass_id}': prev_snapshot.json "
+                f"is corrupt or contains git conflict markers at {prev_path}. "
+                f"Original parse error: {_exc}. "
+                f"Recovery: resolve the merge conflict or delete the file."
+            ) from _exc
+    else:
+        prev_snapshot = {}
 
     # Fetch current remote state
     curr_path = fetcher.fetch_snapshot(pass_id, repo_root)

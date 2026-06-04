@@ -52,8 +52,26 @@ class BindingStore:
 
     def _load(self) -> dict[str, Any]:
         if self._path.exists():
-            with open(self._path, "r", encoding="utf-8") as f:
-                return json.load(f)
+            try:
+                with open(self._path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, ValueError, OSError) as exc:
+                # Fail CLOSED: corrupt or conflict-marked bindings.json must
+                # never silently degrade to empty bindings.  An empty store
+                # treats every local ticket as unbound → emits CREATE mutations
+                # for all of them on the next pass → mass duplicate Jira issues.
+                #
+                # Recovery hint: resolve the git merge conflict in the file or
+                # restore it from the most recent commit on the tickets branch.
+                raise ValueError(
+                    f"bindings.json is corrupt or contains git conflict markers "
+                    f"and cannot be parsed — aborting reconcile pass to prevent "
+                    f"duplicate Jira mutations. File: {self._path}. "  # tickets-boundary-ok
+                    f"Original error: {exc}. "
+                    f"Recovery: resolve the merge conflict or restore the file "  # tickets-boundary-ok
+                    f"from the tickets branch with: "
+                    f"git show tickets:.tickets-tracker/.bridge_state/bindings.json"  # tickets-boundary-ok
+                ) from exc
         return json.loads(json.dumps(_EMPTY_STORE))  # deep copy
 
     def save(self) -> None:
