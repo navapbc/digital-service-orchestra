@@ -31,11 +31,14 @@ jobs:
       # The matcher uses `ast-grep` for comment/string-aware reference matching.
       # Install the real binary — on Linux bare `sg` is shadow-utils (a different
       # tool); without ast-grep the check silently falls back to git-grep (FPs).
-      # Installed via pip to match .github/workflows/ci.yml (single install
-      # method across both ast-grep consumers). Pin: 0.43.0 is brew-only; the
-      # PyPI/npm maximum is 0.42.3. Bump both workflows in lockstep.
+      # Installed via npm here (node is preinstalled on ubuntu-latest) — this
+      # standalone workflow has no `actions/setup-python` step, so `pip install`
+      # would run against the runner's system Python (PEP 668 externally-managed
+      # / not pip-writable). ci.yml uses pip because it already sets up Python.
+      # The install methods differ BY DESIGN; the pin is shared. Pin: 0.43.0 is
+      # brew-only; the PyPI/npm maximum is 0.42.3. Bump both workflows together.
       - name: Install ast-grep
-        run: pip install 'ast-grep-cli==0.42.3'
+        run: npm install -g @ast-grep/cli@0.42.3
 
       - name: Verify ast-grep installed
         run: ast-grep --version

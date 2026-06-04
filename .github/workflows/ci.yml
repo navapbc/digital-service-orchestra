@@ -304,9 +304,10 @@ jobs:
       # ast-grep powers check-dangling-references.sh's syntactic matcher. Install
       # the real binary (`ast-grep`) — on Linux bare `sg` is shadow-utils, a
       # different tool that silently produces no matches (false negatives).
-      # Installed via pip to match .github/workflows/dangling-references.yml
-      # (single install method across both ast-grep consumers). Pin: 0.43.0 is
-      # brew-only; the PyPI/npm maximum is 0.42.3. Bump both workflows together.
+      # Installed via pip here because this job already ran `actions/setup-python`
+      # above (pip-writable env). The standalone dangling-references.yml uses npm
+      # instead (no Python setup there). Methods differ BY DESIGN; pin is shared:
+      # 0.43.0 is brew-only; the PyPI/npm maximum is 0.42.3. Bump both together.
       - name: Install ast-grep
         if: needs.changes.outputs.code_changed == 'true'
         run: pip install 'ast-grep-cli==0.42.3'

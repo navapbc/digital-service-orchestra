@@ -42,6 +42,10 @@ fi
 
 _W="$(mktemp -d "${TMPDIR:-/tmp}/dso-fpfn.XXXXXX")" || exit 2
 trap 'rm -rf "$_W"' EXIT
+# Isolate HOME (under _W so the trap cleans it): belt-and-suspenders with the
+# GIT_CONFIG_GLOBAL override above so no developer-environment git config,
+# template, hookspath, or credential store can skew FP/FN counts.
+export HOME="$_W/home"; mkdir -p "$HOME"
 
 # Build a synthetic repo from a case's base/ and head/ dirs; echo the head SHA.
 _build_repo() {

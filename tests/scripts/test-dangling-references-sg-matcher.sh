@@ -41,6 +41,11 @@ fi
 
 _W="$(mktemp -d "${TMPDIR:-/tmp}/dso-sg-matcher.XXXXXX")"
 trap 'rm -rf "$_W"' EXIT
+# Isolate HOME as well (under _W so the trap cleans it): the GIT_CONFIG_GLOBAL
+# override above already neutralizes ~/.gitconfig and ~/.config/git/config, but
+# a clean HOME also blocks any absolute-path templateDir/hookspath/credential
+# store a developer's environment might otherwise reach.
+export HOME="$_W/home"; mkdir -p "$HOME"
 
 _newrepo() {
     local r="$1"
