@@ -28,6 +28,10 @@ from unittest.mock import patch
 
 import pytest
 
+# Bug 3775-c17a-5c25-4ec8: these suites still reach real network seams; blanket
+# allow_network is a bridge until the per-test seam mocks land (tracked there).
+pytestmark = pytest.mark.allow_network
+
 
 class TestAcliClientCreateFieldExtraction:
     """Test which fields AcliClient.create_issue() actually sends to the ACLI subprocess.

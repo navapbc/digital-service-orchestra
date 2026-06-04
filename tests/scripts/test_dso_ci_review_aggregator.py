@@ -54,6 +54,12 @@ import pathlib
 import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+# Bug 3775-c17a-5c25-4ec8: these suites still reach real network seams; blanket
+# allow_network is a bridge until the per-test seam mocks land (tracked there).
+pytestmark = pytest.mark.allow_network
+
 
 # Ensure the plugin scripts directory is on sys.path so imports resolve.
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -106,6 +112,9 @@ def _make_finding(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skip(
+    reason="bug 3775-c17a-5c25-4ec8: makes real litellm/Anthropic HTTP calls; needs aggregation-seam mock"
+)
 class TestAggregateClusterFindings:
     """DD3.1: aggregate_cluster_findings synthesizes per-cluster results."""
 
@@ -325,6 +334,9 @@ class TestVisibilityTrailerNamespace:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skip(
+    reason="bug 3775-c17a-5c25-4ec8: makes real litellm/Anthropic HTTP calls; needs aggregation-seam mock"
+)
 class TestSingleLedgerEntryInvariant:
     """DD4: exactly one append_cycle call per aggregation pass."""
 
