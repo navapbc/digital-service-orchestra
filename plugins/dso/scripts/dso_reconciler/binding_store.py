@@ -168,16 +168,26 @@ class BindingStore:
         """Scan for pending bindings and attempt to recover.
 
         For each pending binding:
-        1. Search Jira for dso-id-{local_id} label
-        2. If found → confirm binding with discovered jira_key
-        3. If not found → unbind (the create never reached Jira)
+        1. Search Jira for ``dso-id:{local_id}`` label (canonical colon form —
+           written by applier.py outbound_create and inbound_create since the
+           identity-label write was introduced).
+        2. If not found, fall back to ``dso-id-{local_id}`` (legacy hyphen
+           form — old issues created before the colon form was adopted may
+           carry this label; differ.py:402-414 recognises both forms).
+        3. If found via either search → confirm binding with discovered key.
+        4. If not found by either → unbind (the create never reached Jira).
 
         Returns count of recovered bindings.
         """
         recovered = 0
         for local_id in list(self.pending_bindings()):
-            label = f"dso-id-{local_id}"
-            results = client.search_issues(f'labels = "{label}"')
+            # Primary: canonical colon-form label (applier.py:753, 1931).
+            colon_label = f"dso-id:{local_id}"
+            results = client.search_issues(f'labels = "{colon_label}"')
+            if not results:
+                # Legacy fallback: hyphen-form label (pre-colon-migration issues).
+                hyphen_label = f"dso-id-{local_id}"
+                results = client.search_issues(f'labels = "{hyphen_label}"')
             if results:
                 jira_key = results[0]["key"]
                 self.bind_confirm(local_id, jira_key)
