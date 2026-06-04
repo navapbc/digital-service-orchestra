@@ -306,7 +306,7 @@ jobs:
       # different tool that silently produces no matches (false negatives).
       - name: Install ast-grep
         if: needs.changes.outputs.code_changed == 'true'
-        run: pip install 'ast-grep-cli==0.43.0'
+        run: pip install 'ast-grep-cli==0.42.3'
 
       - name: Verify ast-grep installed
         if: needs.changes.outputs.code_changed == 'true'

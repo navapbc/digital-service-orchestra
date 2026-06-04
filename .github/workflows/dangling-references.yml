@@ -32,7 +32,7 @@ jobs:
       # Install the real binary — on Linux bare `sg` is shadow-utils (a different
       # tool); without ast-grep the check silently falls back to git-grep (FPs).
       - name: Install ast-grep
-        run: npm install -g @ast-grep/cli@0.43.0
+        run: npm install -g @ast-grep/cli@0.42.3
 
       - name: Verify ast-grep installed
         run: ast-grep --version
