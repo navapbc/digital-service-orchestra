@@ -213,16 +213,56 @@ check_binding() {
         return
     fi
     python3 -c "
-import json
+import json, sys
 data = json.load(open('${bindings_file}'))
-entry = data.get('bindings', {}).get('${local_id}')
+local_id = sys.argv[1]
+entry = data.get('bindings', {}).get(local_id)
 if entry is None:
     print('unbound')
 elif entry.get('state') == 'confirmed':
     print('confirmed:' + (entry.get('jira_key') or 'none'))
 else:
     print(entry.get('state', 'unknown'))
-"
+" "$local_id"
+}
+
+# is_valid_ticket_id: returns 0 (true) if the string looks like a probe-issued
+# UUID (4-segment hex, e.g. 7f6e-e5de-4613-473c), 1 (false) otherwise.
+# Used to guard Phase 2c create steps from propagating error strings as IDs.
+is_valid_ticket_id() {
+    local id="$1"
+    [[ "$id" =~ ^[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}$ ]]
+}
+
+# restore_bindings_if_corrupt: if bindings.json fails to parse, restore it
+# from the tickets branch using git show.  Called before each Phase-2b
+# reconciler sub-cycle to guard against corruption left by a prior push
+# failure (see probe run notes: the priority-1 pass succeeded but the
+# subsequent git push to origin/tickets failed, leaving the local tickets
+# branch ahead of origin; the next reconciler call found bindings.json
+# in a partially-merged / truncated state).
+restore_bindings_if_corrupt() {
+    local bindings_file="${TRACKER_DIR}/.bridge_state/bindings.json"
+    if python3 -c "import json; json.load(open('${bindings_file}'))" 2>/dev/null; then
+        return 0  # healthy — nothing to do
+    fi
+    echo "restore_bindings_if_corrupt: bindings.json unparseable — restoring from tickets branch..." >&2
+    if git -C "$REPO_ROOT" show "tickets:.bridge_state/bindings.json" \
+            > "${bindings_file}.probe-restore.tmp" 2>/dev/null; then  # tickets-boundary-ok
+        if python3 -c "import json; json.load(open('${bindings_file}.probe-restore.tmp'))" 2>/dev/null; then
+            mv "${bindings_file}.probe-restore.tmp" "${bindings_file}"
+            echo "restore_bindings_if_corrupt: restored successfully." >&2
+            return 0
+        else
+            rm -f "${bindings_file}.probe-restore.tmp"
+            echo "restore_bindings_if_corrupt: tickets-branch copy also unparseable — cannot restore." >&2
+            return 1
+        fi
+    else
+        rm -f "${bindings_file}.probe-restore.tmp"
+        echo "restore_bindings_if_corrupt: git show failed — cannot restore." >&2
+        return 1
+    fi
 }
 
 edit_ticket_field() {
@@ -553,6 +593,15 @@ check_binding_with_retry() {
     local sleep_secs
     local budget=120
 
+    # Guard: if local_id is an error string (not a valid ticket UUID), return
+    # immediately rather than interpolating it into Python and producing a
+    # SyntaxError that gets silently swallowed and loops for 120s.
+    if ! is_valid_ticket_id "$local_id"; then
+        echo "check_binding_with_retry: invalid ticket ID '${local_id}' — skipping" >&2
+        echo "invalid-id"
+        return
+    fi
+
     while [[ $elapsed -lt $budget ]]; do
         state=$(check_binding "$local_id")
         if [[ "$state" == confirmed:* ]]; then
@@ -879,6 +928,10 @@ fi
 edit_ticket_field "${LOCAL_IDS[2]}" "priority" "3"
 pass_test "Phase2b.edit-priority-to-3"
 
+# Restore bindings.json before this sub-cycle's reconcile in case the
+# priority-1 reconciler's git push left the file in a corrupt state.
+restore_bindings_if_corrupt || true
+
 echo "Running reconciler for priority=3 outbound..."
 reconciler_output=$(run_filtered_reconciler "$FILTER_IDS")
 echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
@@ -927,8 +980,12 @@ EPIC_LOCAL_ID=$("$TICKET_CLI" ticket create epic \
     --tags "${PROBE_TAG}" \
     2>&1 | tail -1) || true
 
-if [ -z "$EPIC_LOCAL_ID" ]; then
-    fail_test "Phase2c.create-epic" "ticket create epic returned no ID"
+# Validate that the returned value is a real ticket UUID, not an error string.
+# The ticket CLI prints errors to stderr and the ID to stdout; with 2>&1 both
+# land in the variable, so we must check the ID format explicitly.
+if ! is_valid_ticket_id "$EPIC_LOCAL_ID"; then
+    fail_test "Phase2c.create-epic" "ticket create epic returned no valid ID (got: ${EPIC_LOCAL_ID})"
+    EPIC_LOCAL_ID=""
 else
     pass_test "Phase2c.create-epic (${EPIC_LOCAL_ID})"
 fi
@@ -944,8 +1001,9 @@ if [ -n "$EPIC_LOCAL_ID" ]; then
         --priority 2 \
         --tags "${PROBE_TAG}" \
         2>&1 | tail -1) || true
-    if [ -z "$THIRD_LOCAL_ID" ]; then
-        fail_test "Phase2c.create-third" "ticket create task (inbound-parent) returned no ID"
+    if ! is_valid_ticket_id "$THIRD_LOCAL_ID"; then
+        fail_test "Phase2c.create-third" "ticket create task (inbound-parent) returned no valid ID (got: ${THIRD_LOCAL_ID})"
+        THIRD_LOCAL_ID=""
     else
         pass_test "Phase2c.create-third (${THIRD_LOCAL_ID})"
     fi
@@ -1008,8 +1066,9 @@ if [ -n "$EPIC_LOCAL_ID" ]; then
         --parent "$EPIC_LOCAL_ID" \
         --tags "${PROBE_TAG}" \
         2>&1 | tail -1) || true
-    if [ -z "$CHILD_LOCAL_ID" ]; then
-        fail_test "Phase2c.create-child" "ticket create task --parent returned no ID"
+    if ! is_valid_ticket_id "$CHILD_LOCAL_ID"; then
+        fail_test "Phase2c.create-child" "ticket create task --parent returned no valid ID (got: ${CHILD_LOCAL_ID})"
+        CHILD_LOCAL_ID=""
     else
         pass_test "Phase2c.create-child (${CHILD_LOCAL_ID})"
     fi
@@ -1073,7 +1132,9 @@ fi
 # parents for subtasks, so we treat the set_parent as best-effort and only
 # assert when the Jira REST call succeeds.
 if [ -n "$CHILD_LOCAL_ID" ] && [ -n "${LOCAL_IDS[0]}" ]; then
-    edit_ticket_field "$CHILD_LOCAL_ID" "parent_id" "${LOCAL_IDS[0]}"
+    # Use "parent" (not "parent_id") — ticket edit's allowed fields are:
+    # title priority assignee ticket_type description tags parent.
+    edit_ticket_field "$CHILD_LOCAL_ID" "parent" "${LOCAL_IDS[0]}"
     pass_test "Phase2c.reparent-child-local"
 
     echo "Running reconciler for reparent outbound..."
