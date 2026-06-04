@@ -66,14 +66,29 @@ def _adf_paragraph(text: str) -> dict:
     }
 
 
+def _jira_snapshot_with_comments(jira_key: str, comment_bodies_or_dicts) -> dict:
+    """Build a jira_snapshot with the correct Jira REST API comment shape.
+
+    Jira REST API places comments at fields["comment"]["comments"] — the outer
+    key is "comment", not "comments". Updated from the old incorrect shape to
+    match the fix for bug 4572.
+    """
+    jira_comments = [
+        (c if isinstance(c, dict) else {"body": c}) for c in comment_bodies_or_dicts
+    ]
+    return {
+        jira_key: {
+            "comment": {"comments": jira_comments, "total": len(jira_comments)},
+        }
+    }
+
+
 def test_diff_comments_does_not_crash_on_adf_jira_body(differ):
     """Pre-fix: set.add(adf_dict) raised TypeError. After fix: ADF normalized."""
     ticket = {"comments": [{"body": "Already mirrored"}]}
-    jira_snapshot = {
-        "DIG-1": {
-            "comments": [{"body": _adf_paragraph("Already mirrored")}],
-        }
-    }
+    jira_snapshot = _jira_snapshot_with_comments(
+        "DIG-1", [{"body": _adf_paragraph("Already mirrored")}]
+    )
     # Pre-fix this would raise; assertion is that it now succeeds and returns
     # zero mutations (the bodies match after normalization).
     out = differ._diff_comments(ticket, "DIG-1", jira_snapshot)
@@ -83,11 +98,9 @@ def test_diff_comments_does_not_crash_on_adf_jira_body(differ):
 def test_diff_comments_dedup_matches_adf_to_plain(differ):
     """When local plain body matches Jira ADF body, no duplicate-push mutation is emitted."""
     ticket = {"comments": [{"body": "Probe outbound comment"}]}
-    jira_snapshot = {
-        "DIG-1": {
-            "comments": [{"body": _adf_paragraph("Probe outbound comment")}],
-        }
-    }
+    jira_snapshot = _jira_snapshot_with_comments(
+        "DIG-1", [{"body": _adf_paragraph("Probe outbound comment")}]
+    )
     out = differ._diff_comments(ticket, "DIG-1", jira_snapshot)
     assert out == [], (
         f"local body matches Jira ADF body after adf_to_text — no diff expected; "
@@ -108,11 +121,9 @@ def test_diff_comments_emits_only_genuinely_new(differ):
             {"body": "Second probe comment"},
         ]
     }
-    jira_snapshot = {
-        "DIG-1": {
-            "comments": [{"body": _adf_paragraph("Probe outbound comment")}],
-        }
-    }
+    jira_snapshot = _jira_snapshot_with_comments(
+        "DIG-1", [{"body": _adf_paragraph("Probe outbound comment")}]
+    )
     out = differ._diff_comments(ticket, "DIG-1", jira_snapshot)
     assert len(out) == 1
     assert "Second probe comment" in out[0].get("body", "")

@@ -351,15 +351,33 @@ def _diff_comments(
 ) -> list[dict[str, Any]]:
     """Compare local comments to Jira comments. Return mutations for new comments.
 
-    Simple strategy: detect local comments not yet mirrored to Jira by
-    comparing comment bodies. This is a best-effort approach; PR #402
-    (ADF walker + comment binding) will provide exact comment ID binding.
-    Bodies are normalized via :func:`_normalize_comment_body` so a Jira
-    ADF body matches its local plain-text counterpart (bug 85a1).
+    Matching rule: emit a comment "add" only for local comment bodies NOT
+    already present in the Jira snapshot, after normalising both sides via
+    :func:`_normalize_comment_body` (ADF→text conversion + RECONCILER_MARKER
+    strip + whitespace strip). Body equality after normalisation → skip
+    (already mirrored); otherwise emit with outbound decoration.
+
+    Snapshot lookup: the Jira REST API places comments at
+    fields["comment"]["comments"] (outer key is "comment", not "comments").
+    The fetcher writes snapshot[jira_key] = {k: fields[k] for k in fields},
+    so we read jira_issue["comment"]["comments"] (bug 4572 fix).
+
+    Note: PR #402 (ADF walker + comment ID binding) will provide exact ID-
+    based binding once available; this body-equality match is the baseline.
     """
     local_comments = ticket.get("comments", [])
     jira_issue = jira_snapshot.get(jira_key, {})
-    jira_comments = jira_issue.get("comments", [])
+
+    # Bug 4572: Jira REST API snapshot stores comments under the "comment" key
+    # (not "comments"): {"comment": {"comments": [...], "total": N}}.
+    # The previous jira_issue.get("comments", []) always returned [] because
+    # the snapshot never has a top-level "comments" key — causing every local
+    # comment to be re-emitted as an "add" on every reconciler pass.
+    comment_field = jira_issue.get("comment", {})
+    if isinstance(comment_field, dict):
+        jira_comments = comment_field.get("comments", [])
+    else:
+        jira_comments = []
 
     jira_bodies: set[str] = set()
     for c in jira_comments:
