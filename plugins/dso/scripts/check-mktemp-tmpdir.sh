@@ -96,7 +96,9 @@ if [[ -n "$batch_output" ]]; then
     while IFS= read -r line; do
         echo "  $line" >&2
     done <<< "$batch_output"
-    violations=1
+    # violations = count of distinct offending files (grep -H output is file:line:text),
+    # preserving the pre-batch-refactor "count of violated files" semantics.
+    violations=$(printf '%s\n' "$batch_output" | cut -d: -f1 | sort -u | wc -l | tr -d ' ')
 fi
 
 if [[ $violations -gt 0 ]]; then

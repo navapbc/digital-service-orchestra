@@ -536,13 +536,17 @@ test_skill_prompts_contain_no_cp_sprint_active_instruction() {
     # Look for `cp` commands that copy `.sprint-active` into a worktree path.
     # The pattern is: `cp "$SESSION_ROOT/.sprint-active"` or
     # `cp "$ORCHESTRATOR_ROOT/.sprint-active"` (both variants used in the two files).
+    # Anchored to line start (after indentation) so it matches only actual
+    # command lines inside fenced code blocks — not prose or `#` comments that
+    # merely mention the old cp instruction (e.g. changelog-style notes).
+    local _cp_pattern='^[[:space:]]*cp[[:space:]][^#]*\.sprint-active'
     local _per_worktree_violation=0
     local _single_agent_violation=0
 
-    if grep -qE 'cp[[:space:]].*\.sprint-active' "$_per_worktree" 2>/dev/null; then
+    if grep -qE "$_cp_pattern" "$_per_worktree" 2>/dev/null; then
         _per_worktree_violation=1
     fi
-    if grep -qE 'cp[[:space:]].*\.sprint-active' "$_single_agent" 2>/dev/null; then
+    if grep -qE "$_cp_pattern" "$_single_agent" 2>/dev/null; then
         _single_agent_violation=1
     fi
 
