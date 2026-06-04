@@ -1115,6 +1115,55 @@ class AcliClient:
             self._myself_cache = {}
         return self._myself_cache
 
+    def _rest_urlopen_with_retry(
+        self,
+        req: urllib.request.Request,
+        *,
+        timeout: int = 10,
+    ) -> Any:
+        """Execute urlopen(req, timeout=timeout) with transient-fault retry.
+
+        Retries up to 2 times (3 total attempts) on transient connectivity
+        errors: builtin ``TimeoutError`` (read-timeout from ssl/socket layer),
+        ``urllib.error.URLError`` whose reason is a ``TimeoutError`` or
+        ``ConnectionError``, and bare ``ConnectionError``.  Backoff delays are
+        2 s after the first failure, 5 s after the second.
+
+        Does NOT retry on ``urllib.error.HTTPError`` (4xx / 5xx) — HTTP-level
+        error semantics are unchanged.  Raises the original exception after all
+        attempts are exhausted.
+
+        Retries are logged to stderr at WARNING level so they appear in the
+        probe run log without polluting normal output.
+        """
+        _BACKOFFS = (2, 5)  # seconds between attempt 1→2 and 2→3
+        last_exc: BaseException | None = None
+        for attempt in range(3):
+            try:
+                return urllib.request.urlopen(req, timeout=timeout)
+            except urllib.error.HTTPError:
+                # HTTP errors (4xx/5xx) are deterministic — do not retry.
+                raise
+            except (TimeoutError, ConnectionError) as exc:
+                last_exc = exc
+            except urllib.error.URLError as exc:
+                # URLError wraps lower-level errors in .reason; only retry
+                # when the root cause is a timeout or connection failure.
+                if isinstance(exc.reason, (TimeoutError, ConnectionError)):
+                    last_exc = exc
+                else:
+                    raise
+            if attempt < 2:
+                delay = _BACKOFFS[attempt]
+                print(
+                    f"[REST-retry] attempt {attempt + 1} failed "
+                    f"({last_exc!r}); retrying in {delay}s …",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+        assert last_exc is not None
+        raise last_exc
+
     def _direct_rest_put(self, path: str, data: Any) -> None:
         """PUT JSON data to a Jira issue-properties REST path using stored credentials.
 
@@ -1152,7 +1201,7 @@ class AcliClient:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             resp.read()
 
     def _direct_rest_put_raw(self, path: str, body: Any) -> None:
@@ -1177,7 +1226,7 @@ class AcliClient:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             resp.read()
 
     def set_issue_property(self, jira_key: str, property_key: str, value: Any) -> None:
@@ -1219,7 +1268,7 @@ class AcliClient:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
     def get_issue_property(self, jira_key: str, property_key: str) -> Any:
@@ -1516,7 +1565,7 @@ class AcliClient:
                 "Content-Type": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             resp.read()
 
     def get_comments(self, jira_key: str) -> list[dict[str, Any]]:
@@ -1644,7 +1693,7 @@ class AcliClient:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=30) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
     def update_priority(self, jira_key: str, priority_name: str) -> None:
@@ -1719,7 +1768,7 @@ class AcliClient:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             resp.read()
 
     def set_relationship(

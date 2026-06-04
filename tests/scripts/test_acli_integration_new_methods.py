@@ -365,3 +365,93 @@ def test_update_issue_routes_priority_to_rest(acli: ModuleType) -> None:
 
     mock_priority.assert_called_once_with("TEST-100", "High", acli_cmd=None)
     assert result["key"] == "TEST-100"
+
+
+# ---------------------------------------------------------------------------
+# 10. _rest_urlopen_with_retry — transient TimeoutError retries then succeeds
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_rest_urlopen_retry_on_timeout_succeeds(acli: ModuleType) -> None:
+    """_rest_urlopen_with_retry retries twice on TimeoutError then returns response.
+
+    Scenario: urlopen raises TimeoutError twice then returns a successful
+    response on the third call.  Asserts:
+    - urlopen is called exactly 3 times.
+    - The final return value is the successful response.
+    """
+    import urllib.request as _ureq
+
+    client = _make_client(acli)
+
+    success_resp = MagicMock()
+    success_resp.__enter__ = lambda s: s
+    success_resp.__exit__ = MagicMock(return_value=False)
+    success_resp.read = MagicMock(return_value=b'{"ok": true}')
+
+    call_count = 0
+
+    def fake_urlopen(req, timeout=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise TimeoutError("The read operation timed out")
+        return success_resp
+
+    req = _ureq.Request("https://example.atlassian.net/rest/api/3/test")
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with patch("time.sleep"):  # skip actual sleep in tests
+            result = client._rest_urlopen_with_retry(req, timeout=10)
+
+    assert call_count == 3, (
+        f"Expected 3 urlopen calls (2 TimeoutErrors + 1 success); got {call_count}"
+    )
+    assert result is success_resp, "Must return the successful response object"
+
+
+# ---------------------------------------------------------------------------
+# 11. _rest_urlopen_with_retry — 4xx HTTPError is NOT retried
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_rest_urlopen_no_retry_on_http_error(acli: ModuleType) -> None:
+    """_rest_urlopen_with_retry does NOT retry on HTTP 4xx errors.
+
+    Scenario: urlopen raises HTTPError(404) on the first call.  Asserts:
+    - urlopen is called exactly once (no retries).
+    - HTTPError is re-raised immediately.
+    """
+    import urllib.error as _uerr
+    import urllib.request as _ureq
+
+    client = _make_client(acli)
+
+    call_count = 0
+
+    def fake_urlopen(req, timeout=None):
+        nonlocal call_count
+        call_count += 1
+        raise _uerr.HTTPError(
+            url="https://example.atlassian.net/rest/api/3/missing",
+            code=404,
+            msg="Not Found",
+            hdrs=None,  # type: ignore[arg-type]
+            fp=None,
+        )
+
+    req = _ureq.Request("https://example.atlassian.net/rest/api/3/missing")
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        with patch("time.sleep"):
+            with pytest.raises(_uerr.HTTPError) as exc_info:
+                client._rest_urlopen_with_retry(req, timeout=10)
+
+    assert call_count == 1, (
+        f"HTTPError (4xx) must not be retried; urlopen called {call_count} time(s)"
+    )
+    assert exc_info.value.code == 404
