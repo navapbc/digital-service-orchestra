@@ -140,7 +140,10 @@ _STATUS_ANNOTATION_LABEL: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _map_local_to_jira_fields(ticket: dict[str, Any]) -> dict[str, Any]:
+def _map_local_to_jira_fields(
+    ticket: dict[str, Any],
+    binding_store: Any = None,
+) -> dict[str, Any]:
     """Map local ticket fields to Jira field names/values.
 
     Use ``.get(key) or default`` (not ``.get(key, default)``) for string
@@ -152,8 +155,15 @@ def _map_local_to_jira_fields(ticket: dict[str, Any]) -> dict[str, Any]:
     ``_diff_fields`` and becomes the literal string ``"None"`` after
     str() conversion at the ACLI boundary, causing ACLI to reject the
     edit with exit 1.
+
+    Parent resolution (ticket 8b25): when ``binding_store`` is supplied and
+    the ticket carries a ``parent_id``, attempt to resolve it to a Jira key
+    via ``binding_store.get_jira_key(parent_id)``.  An unbound parent is
+    silently omitted from the returned dict (not ``None`` / empty-string) so
+    the diff layer can distinguish "no parent set" from "parent set but
+    unbound this pass" and skip / retry accordingly.
     """
-    return {
+    result: dict[str, Any] = {
         "summary": ticket.get("title") or "",
         "description": ticket.get("description") or "",
         "issuetype": _LOCAL_TO_JIRA_TYPE.get(ticket.get("ticket_type", "task"), "Task"),
@@ -161,6 +171,23 @@ def _map_local_to_jira_fields(ticket: dict[str, Any]) -> dict[str, Any]:
         "status": _LOCAL_TO_JIRA_STATUS.get(ticket.get("status", "open"), "To Do"),
         "assignee": ticket.get("assignee") or "",
     }
+    # Parent sync (ticket 8b25): resolve local parent_id → Jira key.
+    # Omit the key entirely when unbound so _diff_fields skips it (retry next pass).
+    local_parent_id = ticket.get("parent_id") or None
+    if local_parent_id and binding_store is not None:
+        import logging as _logging
+
+        jira_parent_key = binding_store.get_jira_key(local_parent_id)
+        if jira_parent_key:
+            result["parent"] = jira_parent_key
+        else:
+            _logging.getLogger(__name__).debug(
+                "_map_local_to_jira_fields: parent_id=%r for ticket %r is unbound "
+                "this pass; skipping parent field (will retry next pass)",
+                local_parent_id,
+                ticket.get("ticket_id"),
+            )
+    return result
 
 
 def _extract_jira_field(jira_fields: dict[str, Any], field: str) -> Any:
@@ -226,7 +253,11 @@ def _assignee_matches(local_val: str, jira_raw: Any) -> bool:
     return (local_val or "").strip() in candidates
 
 
-def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[str, Any]:
+def _diff_fields(
+    ticket: dict[str, Any],
+    jira_fields: dict[str, Any],
+    binding_store: Any = None,
+) -> dict[str, Any]:
     """Compare local ticket to Jira fields. Return only changed fields.
 
     Uses local-wins: if local differs, push outbound regardless of Jira state.
@@ -238,13 +269,19 @@ def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[st
     one-line RECON record per detected field-diff with truncated local /
     jira values so operators can debug parity issues directly from the
     probe's side-car log. Off by default to keep production stderr quiet.
+
+    Parent diff (ticket 8b25): when ``binding_store`` is provided and the
+    ticket carries a ``parent_id``, the resolved Jira parent key is diffed
+    against ``jira_fields["parent"]["key"]``.  Unbound parents are omitted
+    from the mapped dict and therefore never emitted as changes.
     """
     import os
     import sys
+
     verbose = os.environ.get("DSO_RECONCILER_VERBOSE", "0") == "1"
     ticket_id = ticket.get("ticket_id") or ticket.get("id") or "<no-id>"
 
-    local_mapped = _map_local_to_jira_fields(ticket)
+    local_mapped = _map_local_to_jira_fields(ticket, binding_store=binding_store)
     changed: dict[str, Any] = {}
     for field_name, local_val in local_mapped.items():
         # Bug 36af: ticket_type/issuetype is governed by an approved sync
@@ -265,6 +302,25 @@ def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[st
                         f"RECON: field_diff ticket={ticket_id} "
                         f"field=assignee local={local_val!r:.80} "
                         f"jira={jira_fields.get('assignee')!r:.80}",
+                        file=sys.stderr,
+                    )
+            continue
+        if field_name == "parent":
+            # Jira returns parent as {"key": "DIG-N"}; local_val is the resolved
+            # Jira key string. Extract the Jira-side parent key for comparison.
+            jira_parent_raw = jira_fields.get("parent")
+            jira_parent_key = (
+                jira_parent_raw.get("key")
+                if isinstance(jira_parent_raw, dict)
+                else None
+            )
+            if local_val != jira_parent_key:
+                changed[field_name] = local_val
+                if verbose:
+                    print(  # noqa: T201
+                        f"RECON: field_diff ticket={ticket_id} "
+                        f"field=parent local={local_val!r:.80} "
+                        f"jira={jira_parent_key!r:.80}",
                         file=sys.stderr,
                     )
             continue
@@ -564,12 +620,14 @@ def _diff_status_annotation_labels(
     mutations: list[dict[str, Any]] = []
     desired_annotation = _STATUS_ANNOTATION_LABEL.get(local_status)
     jira_annotation_labels = {
-        label for label in jira_labels
-        if label.startswith("dso-status:")
+        label for label in jira_labels if label.startswith("dso-status:")
     }
 
     # Add desired annotation if not already present
-    if desired_annotation is not None and desired_annotation not in jira_annotation_labels:
+    if (
+        desired_annotation is not None
+        and desired_annotation not in jira_annotation_labels
+    ):
         mutations.append({"action": "add", "label": desired_annotation})
 
     # Remove stale annotations (dso-status: labels that no longer match)
@@ -648,7 +706,9 @@ def compute_outbound_mutations(
                     local_id=local_id,
                     jira_key=None,
                     action="create",
-                    fields=_map_local_to_jira_fields(ticket),
+                    fields=_map_local_to_jira_fields(
+                        ticket, binding_store=binding_store
+                    ),
                     comments=_map_comments_for_create(ticket),
                     labels=(
                         [
@@ -664,8 +724,10 @@ def compute_outbound_mutations(
         else:
             # Bound -> compare fields, emit update if different
             jira_fields = jira_snapshot.get(jira_key, {})
-            changed = _diff_fields(ticket, jira_fields)
-            comment_mutations = _diff_comments(ticket, jira_key, jira_snapshot, client=client)
+            changed = _diff_fields(ticket, jira_fields, binding_store=binding_store)
+            comment_mutations = _diff_comments(
+                ticket, jira_key, jira_snapshot, client=client
+            )
             # bug a06c: intent-gated REMOVE. When local_label_intent is
             # provided but lacks an entry for this local_id, fall back to
             # an empty intent set (lazy first-pass safety: suppresses all

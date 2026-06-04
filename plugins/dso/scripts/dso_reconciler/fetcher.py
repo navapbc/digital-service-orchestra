@@ -305,6 +305,41 @@ def fetch_snapshot(
                     fields = {}
                 snapshot[key] = {k: fields[k] for k in sorted(fields.keys())}
 
+    # Parent enrichment (ticket 8b25-ae7a-efc3-47f6):
+    # ACLI's -f field selector silently rejects the ``parent`` field, so
+    # the snapshot entries built from search_issues() above never carry a
+    # parent key.  We perform ONE extra paged REST search via
+    # client.get_parent_map() to retrieve {key → parent_key|None} for the
+    # full project scope, then merge the parent field into each snapshot entry.
+    #
+    # Degradation contract: get_parent_map logs a warning and returns {} on
+    # any REST failure; the snapshot is still written without parent data so
+    # the reconciler pass completes rather than blocking on a transient error.
+    import logging as _log_mod
+
+    _fetcher_log = _log_mod.getLogger(__name__)
+    try:
+        # Derive the project key from the first snapshot key (e.g. "DIG-123" → "DIG").
+        # Fall back to the JIRA_PROJECT env var when the snapshot is empty.
+        project_key = os.environ.get("JIRA_PROJECT", "")
+        if not project_key and snapshot:
+            first_key = next(iter(snapshot))
+            project_key = first_key.rsplit("-", 1)[0] if "-" in first_key else ""
+        if project_key and hasattr(client, "get_parent_map"):
+            parent_map = client.get_parent_map(project_key)
+            for snap_key, parent_jira_key in parent_map.items():
+                if snap_key in snapshot:
+                    if parent_jira_key:
+                        snapshot[snap_key]["parent"] = {"key": parent_jira_key}
+                    # When parent_jira_key is None, leave the field absent
+                    # (top-level issue) — consistent with Jira REST shape.
+    except Exception as exc:  # noqa: BLE001
+        _fetcher_log.warning(
+            "fetch_snapshot: parent enrichment failed (%r); "
+            "snapshot written without parent data (degraded)",
+            exc,
+        )
+
     output_dir = repo_root / "bridge_state" / "snapshots"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{pass_id}.json"

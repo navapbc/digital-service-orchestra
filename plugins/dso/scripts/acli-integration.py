@@ -1533,6 +1533,120 @@ class AcliClient:
         result = self._run(cmd)
         return _parse_acli_comments(json.loads(result.stdout))
 
+    def set_parent(self, jira_key: str, parent_key: str | None) -> None:
+        """Set or clear the parent of a Jira issue via REST PUT.
+
+        ACLI edit does NOT support --parent reparenting (verified live — ticket
+        8b25-ae7a-efc3-47f6).  Uses direct REST:
+        PUT /rest/api/3/issue/{key} {"fields":{"parent":{"key":"..."}}}
+
+        When ``parent_key`` is None or empty, clears the parent by passing
+        ``{"fields": {"parent": None}}``.
+
+        Probe-validated: returns 204 on success.
+        """
+        if parent_key:
+            body: Any = {"fields": {"parent": {"key": parent_key}}}
+        else:
+            body = {"fields": {"parent": None}}
+        self._direct_rest_put_raw(f"/rest/api/3/issue/{jira_key}", body)
+
+    def get_parent_map(
+        self,
+        project: str,
+        jql: str | None = None,
+    ) -> dict[str, str | None]:
+        """Return a {jira_key → parent_key | None} map via REST search.
+
+        Issues one paged REST search (POST /rest/api/3/search) with
+        ``fields=key,parent`` so we get parent data without hitting ACLI's
+        field-selector restriction (ACLI rejects ``-f parent``).
+
+        Paginates until the result set is exhausted.  Returns an empty dict
+        and logs a warning on any REST failure (fetcher degrades gracefully —
+        ticket 8b25).
+
+        Args:
+            project: Jira project key (e.g. "DIG").
+            jql: Optional JQL override.  Defaults to ``project = <project>``.
+        """
+        import logging as _logging
+
+        _log = _logging.getLogger(__name__)
+
+        effective_jql = jql or f"project = {project}"
+        result: dict[str, str | None] = {}
+        start_at = 0
+        page_size = 100
+
+        while True:
+            body = {
+                "jql": effective_jql,
+                "startAt": start_at,
+                "maxResults": page_size,
+                "fields": ["key", "parent"],
+            }
+            try:
+                resp = self._direct_rest_post_json("/rest/api/3/search", body)
+            except Exception as exc:  # noqa: BLE001
+                _log.warning(
+                    "get_parent_map: REST search failed (start_at=%d): %r; "
+                    "degrading gracefully — parent data will be absent this pass",
+                    start_at,
+                    exc,
+                )
+                break
+
+            if not isinstance(resp, dict):
+                break
+            issues = resp.get("issues") or []
+            if not isinstance(issues, list):
+                break
+            for issue in issues:
+                if not isinstance(issue, dict):
+                    continue
+                key = issue.get("key")
+                if not key:
+                    continue
+                fields = issue.get("fields") or {}
+                parent_raw = fields.get("parent")
+                parent_key_val: str | None = None
+                if isinstance(parent_raw, dict):
+                    parent_key_val = parent_raw.get("key") or None
+                result[key] = parent_key_val
+
+            total = resp.get("total", 0)
+            start_at += len(issues)
+            if not issues or start_at >= total:
+                break
+
+        return result
+
+    def _direct_rest_post_json(self, path: str, body: Any) -> Any:
+        """POST JSON to a Jira REST path and return the decoded JSON response.
+
+        Unlike ``_direct_rest_post_raw`` (which discards the response body),
+        this helper returns the parsed JSON — needed by ``get_parent_map`` to
+        read search results.
+
+        Raises ``urllib.error.HTTPError`` on non-2xx responses.
+        """
+        url = f"{self.jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            method="POST",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
     def update_priority(self, jira_key: str, priority_name: str) -> None:
         """Update priority on a Jira issue via REST PUT.
 

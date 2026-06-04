@@ -245,8 +245,12 @@ def _apply_outbound_create(mutation, *, client=None, repo_root=None) -> ApplyRes
 # fields in the changed_fields set are silently dropped — pushing arbitrary
 # fields outbound is a higher-blast-radius change that lands in a follow-up
 # story. Status is governed separately by DSO_RECONCILER_STATUS_GATING.
+# "parent" is intentionally included but routed to client.set_parent
+# (REST PUT /rest/api/3/issue/{key} {"fields":{"parent":{"key":K}}}) rather
+# than client.update_issue — ACLI edit does not support reparenting
+# (ticket 8b25-ae7a-efc3-47f6).
 _OUTBOUND_UPDATE_ALLOWLIST = frozenset(
-    {"summary", "description", "assignee", "priority", "status"}
+    {"summary", "description", "assignee", "priority", "status", "parent"}
 )
 
 
@@ -302,9 +306,23 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
     # status stays in changed_fields and is forwarded below.
 
     # Filter to allowlist. Non-allowlisted fields are silently dropped.
+    # "parent" is extracted before forwarding to update_issue — ACLI edit
+    # does not support reparenting; route via client.set_parent (REST PUT).
     allowed = {
         k: v for k, v in changed_fields.items() if k in _OUTBOUND_UPDATE_ALLOWLIST
     }
+    # Route parent reparent via client.set_parent (ticket 8b25).
+    parent_key = allowed.pop("parent", None)
+    if parent_key is not None:
+        try:
+            _call_with_retry(client.set_parent, mutation.target, parent_key)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "_apply_outbound_update: set_parent failed for %s parent=%r: %r",
+                mutation.target,
+                parent_key,
+                exc,
+            )
     if allowed:
         _call_with_retry(client.update_issue, mutation.target, **allowed)
 
@@ -368,7 +386,13 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
     # Loud skip guard: warn when the effective work set is entirely empty so
     # callers can distinguish a genuine no-op (no diff) from a misconfigured
     # mutation that carried only non-allowlisted fields.
-    if not allowed and not labels_applied and not comments_applied:
+    # parent_key is counted as work even when popped from allowed (ticket 8b25).
+    if (
+        not allowed
+        and not labels_applied
+        and not comments_applied
+        and parent_key is None
+    ):
         logger.warning(
             "_apply_outbound_update: no-op for %s — changed_fields %r "
             "produced zero allowlisted fields and no labels/comments; "
@@ -377,15 +401,15 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
             list(changed_fields.keys()) if changed_fields else [],
         )
 
-    return ApplyResult(
-        mutation.direction,
-        mutation.action,
-        {
-            "fields_pushed": sorted(allowed.keys()),
-            "labels_applied": labels_applied,
-            "comments_applied": comments_applied,
-        },
-    )
+    result_payload: dict[str, Any] = {
+        "fields_pushed": sorted(allowed.keys()),
+        "labels_applied": labels_applied,
+        "comments_applied": comments_applied,
+    }
+    if parent_key is not None:
+        result_payload["parent_set"] = parent_key
+
+    return ApplyResult(mutation.direction, mutation.action, result_payload)
 
 
 def _apply_outbound_delete(mutation, *, client=None, repo_root=None) -> ApplyResult:
@@ -725,12 +749,28 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
     tags = list(payload.get("labels", []) or [])
     if "imported:reconciler-bootstrap" not in tags:
         tags.append("imported:reconciler-bootstrap")
+    # Parent sync (ticket 8b25): resolve the Jira parent field to a local id.
+    # Three sources, in priority order:
+    #   1. payload["_parent_local_id"] — pre-resolved by reconcile.py for the
+    #      normal inbound-create path (reconcile already has binding_store).
+    #   2. fields["parent"]["key"] derived via _jira_key_to_local_id —
+    #      best-effort local-id derivation for jira-originated parents where the
+    #      local id is deterministic (jira-dig-N convention).
+    #   3. Empty string — safe fallback (hardcoded prior behaviour).
+    _raw_parent = fields.get("parent")
+    if payload.get("_parent_local_id"):
+        resolved_parent_id = payload["_parent_local_id"]
+    elif isinstance(_raw_parent, dict) and _raw_parent.get("key"):
+        resolved_parent_id = _jira_key_to_local_id(_raw_parent["key"])
+    else:
+        resolved_parent_id = ""
+
     create_data: dict[str, Any] = {
         "id": local_id,
         "ticket_type": ticket_type,
         "title": fields.get("summary", "") or jira_key,
         "description": fields.get("description", "") or "",
-        "parent_id": "",
+        "parent_id": resolved_parent_id,
         "tags": tags,
     }
     if "priority" in fields:
@@ -778,6 +818,7 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
                 raw_comments = []
         except Exception as exc:  # noqa: BLE001
             import sys as _sys
+
             print(  # noqa: T201
                 f"WARNING: inbound_create: get_comments for {jira_key!r} failed "
                 f"({exc!r}). Skipping comment bootstrap — ticket created without "
@@ -860,6 +901,10 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
         edit_fields["assignee"] = _extract_name(fields["assignee"])
     if "ticket_type" in fields:
         edit_fields["ticket_type"] = fields["ticket_type"]
+    # Parent sync (ticket 8b25): inbound parent_id change → include in EDIT.
+    # The inbound differ surfaces this as ``fields["parent_id"] = <local_id>``.
+    if "parent_id" in fields:
+        edit_fields["parent_id"] = fields["parent_id"] or ""
 
     written: list[str] = []
     if edit_fields:
@@ -3022,9 +3067,7 @@ def _apply_batch(
                     mutations_with_outcomes.append(outcome)
                     # Per-mutation RECON line matches the regular path.
                     _outcome_key = (
-                        mutation.get("key")
-                        or mutation.get("local_id")
-                        or "<unknown>"
+                        mutation.get("key") or mutation.get("local_id") or "<unknown>"
                     )
                     print(  # noqa: T201
                         f"RECON: batch_outcome action={action} "

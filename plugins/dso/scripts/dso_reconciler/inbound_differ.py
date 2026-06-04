@@ -65,6 +65,29 @@ class BindingStoreProtocol(Protocol):
     def get_local_id(self, jira_key: str) -> str | None: ...
 
 
+def _extract_parent_local_id(
+    jira_fields: dict[str, Any],
+    binding_store: Any,
+) -> str | None:
+    """Extract the local parent_id from a Jira snapshot entry's parent field.
+
+    Jira REST returns ``parent`` as ``{"key": "DIG-N", ...}`` (ticket 8b25).
+    Resolves the parent Jira key to a local id via
+    ``binding_store.get_local_id(key)``.  Returns ``None`` when:
+      - the snapshot entry has no ``parent`` field (top-level issue)
+      - the parent key is not yet bound (retry on next pass)
+    """
+    parent_raw = jira_fields.get("parent")
+    if not parent_raw:
+        return None
+    if not isinstance(parent_raw, dict):
+        return None
+    parent_jira_key = parent_raw.get("key")
+    if not parent_jira_key:
+        return None
+    return binding_store.get_local_id(parent_jira_key)
+
+
 # ---------------------------------------------------------------------------
 # InboundMutation dataclass
 # ---------------------------------------------------------------------------
@@ -162,7 +185,7 @@ def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
     # Prefer dso-status: annotation label over raw Jira workflow status.
     # Check labels list for any dso-status: entry and map to local status.
     local_status: str | None = None
-    for label in (jira_fields.get("labels") or []):
+    for label in jira_fields.get("labels") or []:
         if label in _DSO_STATUS_LABEL_TO_LOCAL:
             local_status = _DSO_STATUS_LABEL_TO_LOCAL[label]
             break
@@ -182,11 +205,17 @@ def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
 def _diff_jira_vs_local(
     jira_fields: dict[str, Any],
     local_ticket: dict[str, Any],
+    binding_store: Any = None,
 ) -> dict[str, Any]:
     """Compare Jira fields to local ticket. Return fields where Jira differs.
 
     Only returns fields where the Jira value (mapped to local conventions)
     differs from the current local value.
+
+    Parent sync (ticket 8b25): when ``binding_store`` is provided, the Jira
+    ``parent`` field is resolved to a local id and compared against
+    ``local_ticket["parent_id"]``.  Unbound parent keys are omitted (not
+    emitted as changes) so the next pass can retry once the parent is bound.
     """
     jira_mapped = _map_jira_to_local_fields(jira_fields)
     changed: dict[str, Any] = {}
@@ -230,6 +259,21 @@ def _diff_jira_vs_local(
             continue
         if jira_val != local_val:
             changed[local_field] = jira_val
+
+    # Parent sync (ticket 8b25): diff Jira parent against local parent_id.
+    # Skip when no binding_store provided (legacy call path).
+    if binding_store is not None:
+        jira_parent_local_id = _extract_parent_local_id(jira_fields, binding_store)
+        local_parent_id = local_ticket.get("parent_id") or None
+        if jira_parent_local_id is not None:
+            # Parent key IS bound — compare and emit diff when changed
+            if jira_parent_local_id != local_parent_id:
+                changed["parent_id"] = jira_parent_local_id
+        # When jira_parent_local_id is None: either Jira has no parent (skip),
+        # or parent key is unbound this pass (skip + retry next pass).
+        # We do NOT emit parent_id=None to avoid accidentally clearing
+        # a locally-set parent when we just can't resolve it yet.
+
     return changed
 
 
@@ -451,7 +495,9 @@ def compute_inbound_mutations(
             # Bound but local ticket missing — skip (may be deleted locally)
             continue
 
-        changed = _diff_jira_vs_local(jira_fields, local_ticket)
+        changed = _diff_jira_vs_local(
+            jira_fields, local_ticket, binding_store=binding_store
+        )
         label_mutations = _diff_labels_inbound(jira_fields, local_ticket)
         comment_mutations = _diff_comments_inbound(jira_fields, local_ticket)
 
