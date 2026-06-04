@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # tests/scripts/test-verify-session-provenance-admin-exempt.sh
 #
-# Behavioral tests for the admin-exemption ledger consult in
-# verify-session-provenance.sh (epic 588e / 3ebb DD4 unit 5). An HMAC-valid
-# fp-recovery exemption for a commit must classify it as PROVENANCED (covered),
-# so the downstream llm-review dispatcher SKIPs it (no second admin override).
-# The consult is ADDITIVE and FAIL-CLOSED: no ledger, no key, a forged entry, or
-# a non-fp-recovery class all leave the commit UNPROVENANCED (covering-PR lookup).
+# Behavioral tests for the IDENTITY-BASED admin exemption in
+# verify-session-provenance.sh (ADR-0022, supersedes the HMAC ledger). A commit
+# whose covering merged PR was merged by a designated bypass-actor (server-set
+# merged_by.id ∈ the configured set) must classify as PROVENANCED (covered), so
+# the downstream llm-review dispatcher SKIPs it (no second admin override). The
+# check is FAIL-CLOSED: no covering PR, or a covering PR merged by a non-bypass
+# actor with no passing review, leaves the commit UNPROVENANCED.
 #
-#   A1 valid fp-recovery exemption -> covered (NOT in unprovenanced-shas.txt)
-#   A2 no ledger configured        -> unprovenanced (fail-closed baseline)
-#   A3 forged HMAC entry           -> unprovenanced (fail-closed)
-#   A4 exempt_by != fp-recovery    -> unprovenanced (C2 class filter)
+#   I1 covering PR merged_by ∈ bypass set      -> covered (NOT unprovenanced),
+#      EVEN with no passing review check (it's an admin bypass).
+#   I2 no covering PR                          -> unprovenanced (fail-closed baseline)
+#   I3 covering PR merged_by ∉ set, no review  -> unprovenanced (no laundering)
+#   I4 covering PR merged_by ∉ set, review PASS -> covered (review path intact)
 
 set -uo pipefail
 unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY
@@ -19,28 +21,37 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_TERMINAL_PROM
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPT="$REPO_ROOT/plugins/dso/scripts/verify-session-provenance.sh"  # shim-exempt: test invokes the script under test by path
-LEDGER_LIB="$REPO_ROOT/plugins/dso/scripts/ci/admin-exemption-ledger.sh"  # shim-exempt: test signs ledger entries via the lib
 
 PASS=0; FAIL=0
 _pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 _fail() { echo "FAIL: $1 ($2)"; FAIL=$((FAIL+1)); }
 
-_W="$(mktemp -d "${TMPDIR:-/tmp}/vsp-ael.XXXXXX")"
+_W="$(mktemp -d "${TMPDIR:-/tmp}/vsp-id.XXXXXX")"
 trap 'rm -rf "$_W"' EXIT
 
-KEY="$_W/closure-key"; printf 'vsp-test-key-1\n' > "$KEY"
-export DSO_ADMIN_EXEMPTION_KEY_FILE="$KEY"
+BYPASS_ID=207596960
 
-# Mock gh: every `gh api` returns [] (no covering PR) so a non-exempt commit is
-# unprovenanced — isolating the admin-exemption path as the only thing that can
-# make the feature commit provenanced.
+# Mock gh: `commits/<sha>/pulls` returns one covering merged PR #77 with
+# merged_by.id=$MOCK_MERGED_BY (unless MOCK_PULLS=empty -> []). check-runs returns a
+# success run iff MOCK_CHECK=passed, else empty.
 MOCK="$_W/mockbin"; mkdir -p "$MOCK"
 cat > "$MOCK/gh" <<'GH'
 #!/usr/bin/env bash
-case "$1" in
-  api) echo "[]"; exit 0 ;;
-  *) echo "{}"; exit 0 ;;
-esac
+arg="$*"
+if [[ "$arg" == *"/pulls"* ]]; then
+  if [[ "${MOCK_PULLS:-cover}" == empty ]]; then echo "[]"; exit 0; fi
+  printf '%s' '[{"number":77,"state":"closed","merged_at":"2026-06-04T00:00:00Z","merge_commit_sha":"zzzfixedmergecommit","head":{"sha":"deadbeefhead"},"merged_by":{"id":'"${MOCK_MERGED_BY:-0}"'}}]'
+  exit 0
+fi
+if [[ "$arg" == *"/check-runs"* ]]; then
+  if [[ "${MOCK_CHECK:-none}" == passed ]]; then
+    printf '%s' '{"check_runs":[{"name":"review-sub-pr","status":"completed","conclusion":"success"}]}'
+  else
+    printf '%s' '{"check_runs":[]}'
+  fi
+  exit 0
+fi
+echo "[]"; exit 0
 GH
 chmod +x "$MOCK/gh"
 
@@ -55,42 +66,40 @@ _repo() {
       echo "$b $(git rev-parse HEAD) $r" )
 }
 
-# Run the verifier; echo whether FEATURE_SHA is in unprovenanced-shas.txt + the status line.
-# args: <ledger-or-empty> <repo> <base> <feat>
+# Run the verifier; echo "<unprov> <bypass>" — whether FEAT is unprovenanced, and
+# whether the bypass-actor status line fired.
+# args: <merged_by> <check:none|passed> <pulls:cover|empty> <repo> <base> <feat>
 _run() {
-    local ledger="$1" repo="$2" base="$3" feat="$4" ad; ad="$(mktemp -d "$_W/art.XXXXXX")"
+    local mb="$1" chk="$2" pulls="$3" repo="$4" base="$5" feat="$6" ad; ad="$(mktemp -d "$_W/art.XXXXXX")"
     PATH="$MOCK:$PATH" DSO_REPO_PATH="$repo" DSO_BASE_SHA="$base" DSO_SESSION_HEAD="$feat" \
       DSO_ARTIFACT_DIR="$ad" DSO_GH_REPO="navapbc/test" GH_RETRY_MAX=1 \
-      DSO_ADMIN_EXEMPTION_LEDGER="$ledger" \
+      DSO_RULESET_BYPASS_USER_IDS="$BYPASS_ID" \
+      MOCK_MERGED_BY="$mb" MOCK_CHECK="$chk" MOCK_PULLS="$pulls" \
       bash "$SCRIPT" >"$ad/out.txt" 2>&1
     local unprov="absent"; [[ -f "$ad/unprovenanced-shas.txt" ]] && grep -q "$feat" "$ad/unprovenanced-shas.txt" && unprov="yes"
-    local exempt="no"; grep -q "status=ADMIN_EXEMPT" "$ad/out.txt" && exempt="yes"
-    echo "$unprov $exempt"
+    local bypass="no"; grep -q "merged-by-bypass-actor" "$ad/out.txt" && bypass="yes"
+    echo "$unprov $bypass"
 }
 
-# ── A1: valid fp-recovery exemption -> covered (not unprovenanced) ────────────
+# ── I1: covering PR merged by bypass-actor -> covered (even w/ no review) ─────
 read -r B F R < <(_repo)
-L="$_W/a1.ledger"; bash "$LEDGER_LIB" append "$L" "$F" "fp-recovery" "opus 0 findings" 1700000000
-read -r unprov exempt < <(_run "$L" "$R" "$B" "$F")
-if [[ "$unprov" == "absent" || "$unprov" == "no" ]] && [[ "$exempt" == "yes" ]]; then _pass "A1_fp_recovery_exemption_covered"; else _fail "A1_fp_recovery_exemption_covered" "unprov=$unprov exempt=$exempt"; fi
+read -r unprov bypass < <(_run "$BYPASS_ID" none cover "$R" "$B" "$F")
+if [[ "$unprov" != "yes" && "$bypass" == "yes" ]]; then _pass "I1_bypass_merge_covered"; else _fail "I1_bypass_merge_covered" "unprov=$unprov bypass=$bypass"; fi
 
-# ── A2: no ledger -> unprovenanced (fail-closed baseline) ────────────────────
+# ── I2: no covering PR -> unprovenanced (fail-closed baseline) ───────────────
 read -r B F R < <(_repo)
-read -r unprov exempt < <(_run "" "$R" "$B" "$F")
-if [[ "$unprov" == "yes" ]] && [[ "$exempt" == "no" ]]; then _pass "A2_no_ledger_unprovenanced"; else _fail "A2_no_ledger_unprovenanced" "unprov=$unprov exempt=$exempt"; fi
+read -r unprov bypass < <(_run 0 none empty "$R" "$B" "$F")
+if [[ "$unprov" == "yes" && "$bypass" == "no" ]]; then _pass "I2_no_covering_unprovenanced"; else _fail "I2_no_covering_unprovenanced" "unprov=$unprov bypass=$bypass"; fi
 
-# ── A3: forged HMAC entry -> unprovenanced (fail-closed) ─────────────────────
+# ── I3: covering PR merged by NON-bypass actor, no review -> unprovenanced ────
 read -r B F R < <(_repo)
-L="$_W/a3.ledger"
-printf '%s\t%s\t%s\t%s\t%s\n' "$F" "$(printf fp-recovery|base64|tr -d '\n')" "$(printf x|base64|tr -d '\n')" 1700000000 "deadbeefforgedmac" > "$L"
-read -r unprov exempt < <(_run "$L" "$R" "$B" "$F")
-if [[ "$unprov" == "yes" ]] && [[ "$exempt" == "no" ]]; then _pass "A3_forged_unprovenanced"; else _fail "A3_forged_unprovenanced" "unprov=$unprov exempt=$exempt"; fi
+read -r unprov bypass < <(_run 999 none cover "$R" "$B" "$F")
+if [[ "$unprov" == "yes" && "$bypass" == "no" ]]; then _pass "I3_nonbypass_no_review_unprovenanced"; else _fail "I3_nonbypass_no_review_unprovenanced" "unprov=$unprov bypass=$bypass"; fi
 
-# ── A4: exempt_by != fp-recovery -> unprovenanced (C2 class filter) ──────────
+# ── I4: covering PR merged by NON-bypass actor, review PASSED -> covered ──────
 read -r B F R < <(_repo)
-L="$_W/a4.ledger"; bash "$LEDGER_LIB" append "$L" "$F" "some-other-class" "signed but wrong class" 1700000000
-read -r unprov exempt < <(_run "$L" "$R" "$B" "$F")
-if [[ "$unprov" == "yes" ]] && [[ "$exempt" == "no" ]]; then _pass "A4_other_class_unprovenanced"; else _fail "A4_other_class_unprovenanced" "unprov=$unprov exempt=$exempt"; fi
+read -r unprov bypass < <(_run 999 passed cover "$R" "$B" "$F")
+if [[ "$unprov" != "yes" && "$bypass" == "no" ]]; then _pass "I4_passing_review_covered"; else _fail "I4_passing_review_covered" "unprov=$unprov bypass=$bypass"; fi
 
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"

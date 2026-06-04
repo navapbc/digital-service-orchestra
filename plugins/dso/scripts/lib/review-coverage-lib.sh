@@ -18,6 +18,13 @@
 # Allow a mock gh in tests via DSO_GH_BIN (default: gh).
 _rc_gh() { "${DSO_GH_BIN:-gh}" "$@"; }
 
+# ADR-0022 (identity-based admin exemption): a covering PR merged by a designated
+# bypass-actor (server-set merged_by) makes the SHA reviewed-equivalent. Source the
+# set-membership helper (sibling lib). Replaces the HMAC admin-exemption ledger.
+_RCL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$_RCL_DIR/bypass-actor-set.sh"
+
 # rc_sha_is_reviewed REPO SHA [PR_UNDER_REVIEW]
 #
 #   Echoes "<covering_pr>:<covering_head_sha>" (the review evidence) on success.
@@ -90,15 +97,27 @@ for pr in prs:
     # keeping it cannot launder. (Mirrors the W4 fix in verify-session-provenance.sh.)
     if pr.get('merge_commit_sha') == sha_u:
         continue
+    # ADR-0022: surface merged_by.id (server-set) so an admin bypass-merge can be
+    # recognized as reviewed-equivalent. Rides this same response — zero new calls.
+    mb = (pr.get('merged_by') or {}).get('id', '')
     if head:
-        print(f\"{pr.get('number','')}\t{head}\")
+        print(f\"{pr.get('number','')}\t{head}\t{mb}\")
 " 2>/dev/null)"
     local _filter_rc=$?
     [[ $_filter_rc -eq 3 ]] && return 2          # parse error -> fail closed
     [[ -z "$covering" ]] && return 1             # no covering merged PR -> not reviewed
 
-    while IFS=$'\t' read -r cov_pr cov_head; do
+    while IFS=$'\t' read -r cov_pr cov_head cov_merged_by; do
         [[ -z "$cov_head" ]] && continue
+        # ADR-0022 identity-based admin exemption: if this covering PR was merged by
+        # a designated bypass-actor (server-set merged_by ∈ the configured set), the
+        # SHA is reviewed-equivalent — an admin web-UI bypass of a failing check.
+        # Short-circuits BEFORE the G3 check-run fetch (no extra API call). Forge-
+        # proof: the agent is current_user_can_bypass:never, so it cannot be the
+        # merged_by on a bypass; merged_by is set server-side by GitHub.
+        if bas_is_bypass_actor "$cov_merged_by"; then
+            printf 'admin-merged-by:%s:%s' "$cov_merged_by" "$cov_pr"; return 0
+        fi
         check_json="$(_rc_gh api "repos/${repo}/commits/${cov_head}/check-runs" 2>/dev/null)" || return 2
         verdict="$(printf '%s' "$check_json" | rc_review_check_verdict)"
         case "$verdict" in

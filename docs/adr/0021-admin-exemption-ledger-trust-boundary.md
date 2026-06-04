@@ -1,6 +1,6 @@
 # ADR-0021: Admin-exemption ledger trust boundary (C3)
 
-- **Status:** Accepted (rev. 3 — 3-lens panel + convergence review; converged)
+- **Status:** Superseded by ADR-0022 (identity-based admin exemption). The HMAC-signed-ledger approach this ADR hardened is replaced by a server-set `merged_by ∈ bypass-actor-set` check — no signing key, no PAT, per maintainer direction. The trust-boundary threat this ADR addressed (agent forging a signed row) evaporates by construction. Retained for history.
 - **Date:** 2026-06-04
 - **Epic/Story:** 588e / 3ebb DD4 unit 5 (C3 — the security gate on G-A key provisioning)
 - **Supersedes/relates:** ADR-0020 (two-tier hardening), story 2730 (admin-exemption ledger mechanism), 3ee4 P8c (enforce-flip gate)
