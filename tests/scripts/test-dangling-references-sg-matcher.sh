@@ -16,6 +16,10 @@
 
 set -uo pipefail
 unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY
+# Isolate the git environment: a developer's / CI runner's global or system git
+# config (commit hooks, templates, init.defaultBranch, credential helpers,
+# gpgsign) must not leak into the synthetic fixture repos and skew results.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_TERMINAL_PROMPT=0
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHECK="$REPO_ROOT/plugins/dso/scripts/ci/check-dangling-references.sh"
@@ -124,6 +128,38 @@ printf '# run_pipeline gone\n' > "$r/lib.sh"
 git -C "$r" add lib.sh; git -C "$r" commit -qm "drop run_pipeline, docs still reference it"
 out="$(_run "$r")"; rc=$?
 if [[ $rc -eq 1 ]] && grep -q "SYMBOL 'run_pipeline'" <<<"$out" && grep -q "README.md" <<<"$out" && grep -q "ci.yml" <<<"$out"; then _pass "N6_doc_config_reference_caught"; else _fail "N6_doc_config_reference_caught" "rc=$rc out=$out"; fi
+
+# ── N7: removed Python 0-arg function still CALLED as bar() → caught. The
+#        def-exclusion filter must NOT drop a 0-arg call (it is not a def). ─────
+# RED before the fix: the exclusion `${sym}()` matched the Python call `bar()`
+# and dropped it → silent false negative. Fixed by requiring `{` after `()`.
+r="$_W/n7"; mkdir -p "$r"; _newrepo "$r"
+printf 'def bar():\n    return 1\n' > "$r/mod.py"
+printf 'from mod import bar\n\ndef use():\n    return bar()\n' > "$r/app.py"
+git -C "$r" add mod.py app.py; git -C "$r" commit -qm base
+_origin "$r"
+printf '# bar removed\n' > "$r/mod.py"
+git -C "$r" add mod.py; git -C "$r" commit -qm "drop bar, 0-arg call remains"
+out="$(_run "$r")"; rc=$?
+if [[ $_HAVE_ASTGREP -eq 0 ]]; then _skip "N7_zero_arg_call_not_excluded_sg" "ast-grep absent"
+elif [[ $rc -eq 1 ]] && grep -q "SYMBOL 'bar'" <<<"$out" && grep -q "app.py" <<<"$out"; then _pass "N7_zero_arg_call_not_excluded_sg"; else _fail "N7_zero_arg_call_not_excluded_sg" "rc=$rc out=$out"; fi
+# N7b: same 0-arg call through the git-grep FALLBACK path (sg forced absent).
+out="$(_run "$r" DSO_DANGLING_FORCE_NO_SG=1)"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "SYMBOL 'bar'" <<<"$out" && grep -q "app.py" <<<"$out"; then _pass "N7b_zero_arg_call_not_excluded_fallback"; else _fail "N7b_zero_arg_call_not_excluded_fallback" "rc=$rc out=$out"; fi
+
+# ── N8: a non-numeric DSO_DANGLING_MIN_LEN must not break the arithmetic guard
+#        or emit a shell error; the check still runs and catches a real ref. ────
+# RED before the fix: `(( ${#sym} < _MIN_LEN ))` with _MIN_LEN='1 2' is a bash
+# arithmetic syntax error. Fixed by validating the knob → default 3.
+r="$_W/n8"; mkdir -p "$r"; _newrepo "$r"
+printf 'greet_user() { echo hi; }\n' > "$r/lib.sh"
+printf '. ./lib.sh\ngreet_user\n' > "$r/caller.sh"
+git -C "$r" add lib.sh caller.sh; git -C "$r" commit -qm base
+_origin "$r"
+printf '# greet_user gone\n' > "$r/lib.sh"
+git -C "$r" add lib.sh; git -C "$r" commit -qm "drop greet_user"
+out="$(_run "$r" DSO_DANGLING_MIN_LEN='1 2')"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "SYMBOL 'greet_user'" <<<"$out" && ! grep -qiE "syntax error" <<<"$out"; then _pass "N8_nonnumeric_min_len_safe"; else _fail "N8_nonnumeric_min_len_safe" "rc=$rc out=$out"; fi
 
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL  SKIPPED: $SKIP"

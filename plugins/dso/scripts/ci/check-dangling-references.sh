@@ -51,6 +51,14 @@ command -v git >/dev/null 2>&1 || _precondition_not_met "git not in PATH"
 MODE="${DSO_DANGLING_MODE:-enforce}"
 _BASE_REF="origin/${GITHUB_BASE_REF:-main}"
 _MIN_LEN="${DSO_DANGLING_MIN_LEN:-3}"
+# Validate the tuning knob: a non-numeric value would break the arithmetic
+# short-symbol guard below (`(( ${#sym} < _MIN_LEN ))`) — bash arithmetic on a
+# non-numeric operand errors under set -u-adjacent strictness or silently
+# evaluates to 0, disabling the guard. Reject → default 3.
+if ! [[ "$_MIN_LEN" =~ ^[0-9]+$ ]]; then
+    echo "WARN [dangling]: DSO_DANGLING_MIN_LEN='${_MIN_LEN}' is not a non-negative integer; using default 3" >&2
+    _MIN_LEN=3
+fi
 
 # ast-grep availability — drives syntactic reference matching for .sh/.py.
 # CRITICAL: invoke `ast-grep`, NEVER bare `sg`. On Linux (incl. CI runners) `sg`
@@ -64,7 +72,7 @@ _ASTGREP=""
 if [[ "${DSO_DANGLING_FORCE_NO_SG:-0}" != "1" ]]; then
     if command -v ast-grep >/dev/null 2>&1; then
         _ASTGREP="ast-grep"
-    elif command -v sg >/dev/null 2>&1 && sg --version 2>/dev/null | grep -qi 'ast-grep'; then
+    elif command -v sg >/dev/null 2>&1 && sg --version 2>/dev/null | grep -qE '^(sg|ast-grep) [0-9]'; then
         _ASTGREP="sg"
     fi
 fi
@@ -124,9 +132,14 @@ _lang_of() {
 # Is SYMBOL defined ANYWHERE in the repo at HEAD? (def patterns, both langs)
 _defined_at_head() {
     local sym="$1"
-    # shell: `sym() {` or `function sym`; python: `def sym`/`class sym`
-    git grep -lE "(^|[[:space:]])(function[[:space:]]+)?${sym}[[:space:]]*\(\)|^[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)" \
-        "$_HEAD" -- '*.sh' '*.py' 2>/dev/null | head -1
+    # Language-SCOPED definition probes. A combined pattern over both pathspecs
+    # let a Python 0-arg CALL `sym()` in a .py file match the SHELL definition
+    # pattern `${sym}()`, falsely reporting sym as still-defined and MASKING a
+    # real dangling reference (false negative). Shell defs (`sym() {` /
+    # `function sym`) exist only in .sh; Python `def`/`class` only in .py.
+    { git grep -lE "(^|[[:space:]])(function[[:space:]]+)?${sym}[[:space:]]*\(\)" "$_HEAD" -- '*.sh' 2>/dev/null
+      git grep -lE "^[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)" "$_HEAD" -- '*.py' 2>/dev/null
+    } | head -1
 }
 
 # sg lang for a path, or empty if not an sg-scanned code file.
@@ -164,22 +177,34 @@ _sg_code_references() {
     wd="$(_sg_workdir)" || return 1
     while IFS= read -r file; do
         [[ -z "$file" ]] && continue
-        local lang tmp
+        local lang tmp _rc
         lang="$(_sg_lang_of "$file")"; [[ -z "$lang" ]] && continue
         tmp="$(_materialize_head_file "$file")"; [[ -z "$tmp" ]] && continue
         # sg matches the bare identifier syntactically (excludes comments/strings
         # and substring/word-boundary noise). Re-anchor output to the repo path.
         "$_ASTGREP" run -p "$sym" -l "$lang" "$tmp" --heading=never 2>/dev/null \
             | sed -E "s#^${tmp}:#${file}:#"
+        _rc=${PIPESTATUS[0]}
+        # ast-grep exit: 0=match, 1=no-match, >=2=HARD error (bad invocation /
+        # unparseable file). A hard error must NOT be silently read as "no
+        # references" (that is the false-negative class this check exists to
+        # prevent) — fall back to a whole-word git grep for THIS file (over-
+        # reports, never under-reports). Candidate files all exist at HEAD
+        # (git grep -lw selected them), so rc=1 is a genuine no-match, not a miss.
+        if (( _rc >= 2 )); then
+            echo "WARN [dangling]: ast-grep rc=${_rc} on ${file}; whole-word grep fallback" >&2
+            git grep -nwE "${sym}" "$_HEAD" -- "$file" 2>/dev/null \
+                | sed -E "s#^${_HEAD}:##"
+        fi
     done <<< "$cand" \
-        | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)|:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
+        | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)[[:space:]]*\{|:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
 }
 
 # Fallback (sg absent): guarded whole-word git grep for .sh/.py, minus def lines.
 _grep_code_references() {
     local sym="$1"
     git grep -nwE "${sym}" "$_HEAD" -- '*.sh' '*.py' 2>/dev/null \
-        | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)|^[^:]*:[0-9]+:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
+        | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)[[:space:]]*\{|^[^:]*:[0-9]+:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
 }
 
 # Doc/config-carrier references (.md/.yml/.yaml/.txt/Makefile): a surviving

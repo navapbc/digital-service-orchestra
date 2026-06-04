@@ -22,6 +22,10 @@
 
 set -uo pipefail
 unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY
+# Isolate the git environment: a developer's / CI runner's global or system git
+# config (commit hooks, templates, init.defaultBranch, credential helpers,
+# gpgsign) must not leak into the synthetic fixture repos and skew FP/FN counts.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null GIT_TERMINAL_PROMPT=0
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHECK="$REPO_ROOT/plugins/dso/scripts/ci/check-dangling-references.sh"
@@ -42,20 +46,26 @@ trap 'rm -rf "$_W"' EXIT
 # Build a synthetic repo from a case's base/ and head/ dirs; echo the head SHA.
 _build_repo() {
     local case_dir="$1" repo="$2"
-    mkdir -p "$repo"
-    git -C "$repo" init -q -b main
-    git -C "$repo" config user.email t@e.st
-    git -C "$repo" config user.name t
-    git -C "$repo" config commit.gpgsign false
+    # Fail LOUDLY on any git op: a silently-corrupted fixture repo would produce
+    # misleading FP/FN counts (the only validation this harness provides). Each
+    # step is checked; a failure returns 2 so the caller records ERR, not a
+    # bogus TP/FP/FN.
+    mkdir -p "$repo" || return 2
+    git -C "$repo" init -q -b main || return 2
+    git -C "$repo" config user.email t@e.st || return 2
+    git -C "$repo" config user.name t || return 2
+    git -C "$repo" config commit.gpgsign false || return 2
     cp -R "$case_dir/base/." "$repo/" 2>/dev/null
-    git -C "$repo" add -A; git -C "$repo" commit -qm base
-    git -C "$repo" init -q --bare "$repo/origin.git"
-    git -C "$repo" remote add origin "$repo/origin.git"
-    git -C "$repo" push -q origin main
+    git -C "$repo" add -A || return 2
+    git -C "$repo" commit -qm base || return 2
+    git -C "$repo" init -q --bare "$repo/origin.git" || return 2
+    git -C "$repo" remote add origin "$repo/origin.git" || return 2
+    git -C "$repo" push -q origin main || return 2
     # Apply head: wipe tracked files, lay down head/.
     git -C "$repo" rm -q -rf . >/dev/null 2>&1
     cp -R "$case_dir/head/." "$repo/" 2>/dev/null
-    git -C "$repo" add -A; git -C "$repo" commit -qm head
+    git -C "$repo" add -A || return 2
+    git -C "$repo" commit -qm head || return 2
     git -C "$repo" rev-parse HEAD
 }
 
