@@ -191,46 +191,34 @@ The annotation is **mandatory** — it makes the bypass auditable. A retro-analy
 - Tie each one to a specific REVIEWER_HASH for the manual review's findings JSON
 - See the engineer's stated FP rationale, and that all other required checks were green
 
-### Step 5c: record the cleared SHAs in the admin-exemption ledger (REQUIRED for enforce)
+### Step 5c: the override propagates automatically — nothing to record (ADR-0022)
 
 A clearance bypasses the review *check*, but the cleared commits still reach a
-protected branch with no passing review. Under enforce, the coverage invariant on
-the **next** PR (e.g. PR2 `staged`→main after an FP-recovered PR1 `source`→`staged`)
-walks those SHAs, finds no passing review, and fail-closes — forcing a SECOND
-admin override per PR. To propagate the single override, record the cleared SHAs in
-the HMAC-signed admin-exemption ledger (story 2730 / 3ebb DD4) so the invariant
-treats them as reviewed-equivalent:
+protected branch with no passing review. Under enforce, the coverage/provenance
+gates on the **next** PR (e.g. PR2 `staged`→main after an FP-recovered PR1
+`source`→`staged`) walk those SHAs and would, naively, find no passing review and
+force a SECOND override per PR.
 
-**WHO SIGNS (ADR-0021 / C3 — load-bearing).** The exemption is HMAC-signed with a
-**dedicated** key (`DSO_ADMIN_EXEMPTION_KEY_FILE`) held ONLY by the **human
-bypass-actor** (to sign) and CI's **verify-only** secret — it is **NOT** the
-agent-reachable `.closure-key`. The autonomous agent is non-bypass and does **not**
-hold the key: it **prepares** this command but does **not** run it; the **human
-bypass-actor runs it with their key**, inline, as part of the same merge ritual, so
-the exemption row rides the FP-recovery PR they are bypass-merging and is covered by
-that **one** override (no second override, no async signer, no automated write to a
-protected branch). If an agent lacking the key runs it, `ael_append` **fails closed**
-(exit 2, "no signing key") — by design, this is the C3 forge-prevention boundary.
+**Identity-based exemption removes that second override with zero extra steps.** The
+admin's single action — **merging the failing PR via the GitHub web UI** as the
+designated ruleset bypass-actor — IS the propagation. Both gates resolve each SHA's
+covering merged PR and treat it as reviewed-equivalent when its server-set
+`merged_by.id` is in `ruleset.bypass_user_ids` (ADR-0022). So:
 
-```bash
-# Run by the HUMAN bypass-actor with their dedicated key — NOT the agent, NOT .closure-key:
-DSO_ADMIN_EXEMPTION_KEY_FILE="<path to the bypass-actor's dedicated ledger key>" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/ci/fp-recovery-record-exemption.sh" --pr "<PR_NUMBER>" --reviewer-hash "<REVIEWER_HASH from Step 2>" --findings "<ARTIFACTS_DIR>/reviewer-findings.json" --reason "<one-line FP rationale>"  # shim-exempt: doc example, explicit plugin-root invocation
-```
+- **No signing key, no PAT, no recorder command, no ledger file to commit.** The
+  prior HMAC-ledger mechanism (and its `fp-recovery-record-exemption.sh` recorder)
+  is **retired**.
+- **Forge-proof by construction:** the agent is `current_user_can_bypass: never`, so
+  it cannot merge a failing PR and cannot appear as `merged_by` on a bypass —
+  `merged_by` is set server-side by GitHub.
+- **Works for both tiers automatically:** PR1's commits, when PR2's gate walks them,
+  resolve to PR1's covering PR (merged by the bypass-actor) — covered, no ordering
+  precondition.
 
-The recorder **code-enforces the opus-gate** (3ebb DD4 unit 5 / C1): it verifies `--reviewer-hash` against the `reviewer-findings.json` the Step-2 review wrote (sha256 integrity, same as `record-review.sh`) and **refuses to append unless that file parses to 0 critical/important/fragile findings**. A forged hash, a tampered findings file, or a review that wasn't actually cleared all fail closed (exit 2, no exemption). This makes an exemption *reviewed-equivalent by construction* — not merely a signed claim.
-
-This works for BOTH a `review-sub-pr` PR1 (source→staged, the common case where the
-LLM runs) and a main `llm-review` PR2 — the SHA set is `base..head` either way. Then
-**commit the updated `.admin-exemption-ledger` onto the PR's BASE branch** (the
-`staged-*` branch for a PR1; `main` for a PR2) so the next coverage walk reads it
-from the tree — for a PR1, do this on the `staged-*` branch after the web-UI merge
-and before PR2 opens (a procedural precondition for the single-override guarantee on
-the PR1 tier — see ADR-0021). The append is idempotent (re-runs skip already-exempt
-SHAs) and HMAC-signed with the **dedicated ledger key** (ADR-0021 / C3, not
-`.closure-key`), so a forged or hand-edited entry does not verify. If the ledger is not wired in CI (`DSO_ADMIN_EXEMPTION_LEDGER` unset), the
-`no-dormant-security-check` audit fails closed and the enforce-flip is blocked — so
-this step cannot silently no-op at go-live.
+The "cleared opus review before bypass" guarantee is now **procedural** (the admin
+sees the Step-4 verdict before merging) plus the mandatory annotation (Step 5b) and
+the post-hoc audit sweep (Step 7) — see ADR-0022 for the explicit preventive→detective
+trade-off. **Just merge via the UI; do not run any recorder.**
 
 ### Step 7 (post-hoc audit): sweep already-merged bypassed PRs
 

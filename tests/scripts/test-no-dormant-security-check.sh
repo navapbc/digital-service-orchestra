@@ -1,22 +1,20 @@
 #!/usr/bin/env bash
 # tests/scripts/test-no-dormant-security-check.sh
 #
-# Behavioral tests for no-dormant-security-check.sh (epic 588e / 3ebb DD4 — the
-# enforce-flip prerequisite P8 machine gate). Proves the audit fails CLOSED when a
-# built security check is unwired, and passes once it is wired. Asserts only
-# observable verdicts (exit code, ::warning:: emission), never internals.
+# Behavioral tests for no-dormant-security-check.sh (epic 588e — the enforce-flip
+# prerequisite P8 machine gate). After ADR-0022 the guarded mechanism is the
+# IDENTITY-BASED admin exemption: the audit fails CLOSED when no bypass-actor is
+# configured (the exemption is dormant) under enforce, and passes once a
+# bypass-actor resolves. Asserts only observable verdicts (exit code, ::warning::).
 #
-#   D1  coverage workflow WITHOUT DSO_ADMIN_EXEMPTION_LEDGER, enforce -> exit 1
-#       (the admin-exemption consult path is dormant — the dead-on-both-ends gap).
-#   D2  coverage workflow WITH DSO_ADMIN_EXEMPTION_LEDGER, enforce -> exit 0.
-#   D3  dormant config under warn mode -> exit 0 (advisory, non-blocking rollout).
-#   D4  missing coverage workflow -> exit 78 (precondition, never a silent pass).
-#   D5  P-CONV advisory: wired coverage + convergence-check present but not in
-#       required-checks -> exit 0 with a ::warning:: (does not block on the
-#       advisory predicate alone).
+#   N1  no bypass-actor + enforce  -> exit 1 (P-IDENTITY-EXEMPT dormant)
+#   N2  bypass-actor configured + enforce -> exit 0
+#   N3  no bypass-actor + warn     -> exit 0 with ::warning:: (advisory rollout)
+#   N4  missing coverage workflow  -> exit 78 (precondition, never a silent pass)
+#   N5  P-CONV advisory: convergence-check present but not required -> exit 0 + warning
 
 set -uo pipefail
-unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY
+unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY DSO_RULESET_BYPASS_USER_IDS DSO_RULESET_BYPASS_USER_ID
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -29,83 +27,34 @@ _fail() { echo "FAIL: $1 ($2)"; FAIL=$((FAIL+1)); }
 _W="$(mktemp -d "${TMPDIR:-/tmp}/dso-dormant.XXXXXX")"
 trap 'rm -rf "$_W"' EXIT
 
-# A coverage-workflow fixture missing the admin-exemption env (dormant).
-_DORMANT_YML="$_W/dormant.yml"
-cat > "$_DORMANT_YML" <<'YML'
-      - name: Run coverage invariant
-        env:
-          DSO_REVIEWED_LEDGER: .review-coverage-ledger
-          DSO_COVERAGE_INVARIANT_MODE: warn
-        run: true   # fixture: the audit greps the env block, not the run step
-YML
+# Minimal coverage-workflow fixture (only needed now for the precondition + P-CONV).
+_COV="$_W/cov.yml"; printf 'jobs:\n  x:\n    steps:\n      - run: true\n' > "$_COV"
+_REQ_NO_CONV="$_W/req.txt"; printf 'review-coverage-invariant\n' > "$_REQ_NO_CONV"
+# Empty config => no bypass-actor resolves (simulate the dormant case).
+_EMPTY_CFG="$_W/empty.conf"; : > "$_EMPTY_CFG"
 
-# A coverage-workflow fixture WITH the admin-exemption env (wired).
-_WIRED_YML="$_W/wired.yml"
-cat > "$_WIRED_YML" <<'YML'
-      - name: Run coverage invariant
-        env:
-          DSO_REVIEWED_LEDGER: .review-coverage-ledger
-          DSO_ADMIN_EXEMPTION_LEDGER: .admin-exemption-ledger
-          DSO_COVERAGE_INVARIANT_MODE: warn
-        run: true   # fixture: the audit greps the env block, not the run step
-YML
+# ── N1: no bypass-actor + enforce -> blocks (exit 1) ─────────────────────────
+out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_COV" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" DSO_BYPASS_CONFIG_FILE="$_EMPTY_CFG" bash "$AUDIT" 2>&1)"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "P-IDENTITY-EXEMPT" <<<"$out"; then _pass "N1_no_bypass_actor_enforce_blocks"; else _fail "N1_no_bypass_actor_enforce_blocks" "rc=$rc out=$out"; fi
 
-# A coverage-workflow fixture with the key present but EMPTY (fail-open trap).
-_EMPTY_YML="$_W/empty.yml"
-cat > "$_EMPTY_YML" <<'YML'
-      - name: Run coverage invariant
-        env:
-          DSO_REVIEWED_LEDGER: .review-coverage-ledger
-          DSO_ADMIN_EXEMPTION_LEDGER: ""
-          DSO_COVERAGE_INVARIANT_MODE: warn
-        run: true
-YML
+# ── N2: bypass-actor configured + enforce -> passes (exit 0) ─────────────────
+out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_COV" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" DSO_RULESET_BYPASS_USER_IDS=207596960 DSO_BYPASS_CONFIG_FILE="$_EMPTY_CFG" bash "$AUDIT" 2>&1)"; rc=$?
+if [[ $rc -eq 0 ]]; then _pass "N2_bypass_actor_set_passes"; else _fail "N2_bypass_actor_set_passes" "rc=$rc out=$out"; fi
 
-# A required-checks fixture WITHOUT review-convergence (to drive the P-CONV advisory).
-_REQ_NO_CONV="$_W/required-no-conv.txt"
-printf 'review-coverage-invariant\nmerge-pipeline-checks\n' > "$_REQ_NO_CONV"
+# ── N3: no bypass-actor + warn -> non-blocking (exit 0) + ::warning:: ────────
+out="$(DSO_DORMANT_MODE=warn DSO_COVERAGE_YML="$_COV" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" DSO_BYPASS_CONFIG_FILE="$_EMPTY_CFG" bash "$AUDIT" 2>&1)"; rc=$?
+if [[ $rc -eq 0 ]] && grep -q "::warning::" <<<"$out"; then _pass "N3_dormant_warn_nonblocking"; else _fail "N3_dormant_warn_nonblocking" "rc=$rc out=$out"; fi
 
-# ci.yml fixtures for the P-AEL-PROVENANCE predicate (C4): WIRED sets the env on
-# the provenance step; DORMANT omits it. Tests pass DSO_CI_YML so they isolate
-# from the repo's real ci.yml.
-_WIRED_CI="$_W/wired-ci.yml"
-printf '      - name: Verify session provenance\n        env:\n          DSO_ADMIN_EXEMPTION_LEDGER: .admin-exemption-ledger\n        run: true\n' > "$_WIRED_CI"
-_DORMANT_CI="$_W/dormant-ci.yml"
-printf '      - name: Verify session provenance\n        env:\n          DSO_ARTIFACT_DIR: /tmp/x\n        run: true\n' > "$_DORMANT_CI"
+# ── N4: missing coverage workflow -> precondition (exit 78) ──────────────────
+out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_W/does-not-exist.yml" DSO_RULESET_BYPASS_USER_IDS=207596960 bash "$AUDIT" 2>&1)"; rc=$?
+if [[ $rc -eq 78 ]]; then _pass "N4_missing_workflow_precondition"; else _fail "N4_missing_workflow_precondition" "rc=$rc out=$out"; fi
 
-# ── D1: dormant config + enforce -> blocks (exit 1) ──────────────────────────
-out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_DORMANT_YML" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
-if [[ $rc -eq 1 ]] && grep -q "P-AEL" <<<"$out"; then _pass "D1_dormant_enforce_blocks"; else _fail "D1_dormant_enforce_blocks" "rc=$rc out=$out"; fi
-
-# ── D2: wired coverage + wired provenance + enforce -> passes (exit 0) ────────
-out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_WIRED_YML" DSO_CI_YML="$_WIRED_CI" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
-if [[ $rc -eq 0 ]]; then _pass "D2_wired_enforce_passes"; else _fail "D2_wired_enforce_passes" "rc=$rc out=$out"; fi
-
-# ── D7: wired coverage but DORMANT provenance + enforce -> blocks (C4) ────────
-out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_WIRED_YML" DSO_CI_YML="$_DORMANT_CI" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
-if [[ $rc -eq 1 ]] && grep -q "P-AEL-PROVENANCE" <<<"$out"; then _pass "D7_provenance_dormant_blocks"; else _fail "D7_provenance_dormant_blocks" "rc=$rc out=$out"; fi
-
-# ── D6: key present but EMPTY value + enforce -> blocks (fail-open trap) ──────
-# A bare/empty DSO_ADMIN_EXEMPTION_LEDGER passes the script's `[[ -n ]]` guard as
-# unset, so the audit must NOT report it wired (else it fails OPEN).
-out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_EMPTY_YML" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
-if [[ $rc -eq 1 ]] && grep -q "P-AEL" <<<"$out"; then _pass "D6_empty_value_is_dormant"; else _fail "D6_empty_value_is_dormant" "rc=$rc out=$out"; fi
-
-# ── D3: dormant config + warn -> non-blocking (exit 0) ───────────────────────
-out="$(DSO_DORMANT_MODE=warn DSO_COVERAGE_YML="$_DORMANT_YML" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
-if [[ $rc -eq 0 ]] && grep -q "::warning::" <<<"$out"; then _pass "D3_dormant_warn_nonblocking"; else _fail "D3_dormant_warn_nonblocking" "rc=$rc out=$out"; fi
-
-# ── D4: missing coverage workflow -> precondition (exit 78) ───────────────────
-out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_W/does-not-exist.yml" bash "$AUDIT" 2>&1)"; rc=$?
-if [[ $rc -eq 78 ]]; then _pass "D4_missing_workflow_precondition"; else _fail "D4_missing_workflow_precondition" "rc=$rc out=$out"; fi
-
-# ── D5: P-CONV advisory — wired AEL but convergence-check unwired -> warn+pass ─
-# Only meaningful when the real convergence-check script exists in the tree.
+# ── N5: P-CONV advisory — convergence-check present but not required -> warn+pass ─
 if [[ -f "$REPO_ROOT/plugins/dso/scripts/ci/review-convergence-check.sh" ]]; then  # shim-exempt: test mirrors the audit's sibling-presence check
-    out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_WIRED_YML" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" bash "$AUDIT" 2>&1)"; rc=$?
-    if [[ $rc -eq 0 ]] && grep -q "review-convergence" <<<"$out"; then _pass "D5_convergence_advisory_warns_not_blocks"; else _fail "D5_convergence_advisory_warns_not_blocks" "rc=$rc out=$out"; fi
+    out="$(DSO_DORMANT_MODE=enforce DSO_COVERAGE_YML="$_COV" DSO_REQUIRED_CHECKS_FILE="$_REQ_NO_CONV" DSO_RULESET_BYPASS_USER_IDS=207596960 DSO_BYPASS_CONFIG_FILE="$_EMPTY_CFG" bash "$AUDIT" 2>&1)"; rc=$?
+    if [[ $rc -eq 0 ]] && grep -q "review-convergence" <<<"$out"; then _pass "N5_convergence_advisory_warns_not_blocks"; else _fail "N5_convergence_advisory_warns_not_blocks" "rc=$rc out=$out"; fi
 else
-    echo "SKIP: D5_convergence_advisory (review-convergence-check.sh absent)"
+    echo "SKIP: N5_convergence_advisory (review-convergence-check.sh absent)"
 fi
 
 echo ""

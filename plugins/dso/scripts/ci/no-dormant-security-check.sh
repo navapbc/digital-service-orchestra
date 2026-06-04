@@ -7,9 +7,10 @@
 # entry, a workflow wiring line — is never done. The activation step is itself an
 # unguarded silent-skip: under warn-mode rollout the dormant check is invisible,
 # and at the enforce-flip it surfaces as a team-wide wedge or, worse, a silent
-# coverage hole. The canonical instance: the admin-exemption ledger (story 2730)
-# built `ael_append`/`ael_sha_is_exempt`, but review-coverage-invariant.yml never
-# set DSO_ADMIN_EXEMPTION_LEDGER, so the consult path was dead in CI.
+# coverage hole. The canonical historical instance: the admin-exemption ledger
+# (story 2730) shipped a full HMAC sign/verify mechanism, but the workflow env that
+# would have made it reachable in CI was never wired, so the consult path was dead.
+# (That ledger was later superseded by identity-based exemption — ADR-0022.)
 #
 # THIS AUDIT makes "is every built security check actually wired?" a machine gate.
 # It is the enforce-flip (story 3ee4) prerequisite P8: 3ee4 MUST NOT flip while
@@ -17,17 +18,20 @@
 # the other 588e checks.
 #
 # Predicates (each = one built check + its required activation):
-#   P-AEL  admin-exemption consult path is LIVE: review-coverage-invariant.yml
-#          sets DSO_ADMIN_EXEMPTION_LEDGER (else ael_sha_is_exempt is unreachable
-#          in CI — the dead-on-both-ends gap DD4 closes). HARD.
+#   P-IDENTITY-EXEMPT  identity-based admin exemption is LIVE (ADR-0022, supersedes
+#          the HMAC ledger): a designated bypass-actor resolves from
+#          ruleset.bypass_user_ids / bypass_user_id, so a covering PR merged by an
+#          admin counts as reviewed-equivalent in BOTH gates. If none resolves the
+#          exemption is dormant (every admin bypass re-wedges the next PR). HARD.
 #   P-CONV review-convergence-check.sh, if present, is a required check (bug 2195).
 #          ADVISORY today (the wiring is owned by 2195); emitted as a ::warning::
-#          so this audit can go green on the DD4 wiring alone while 2195 lands.
+#          so this audit can go green while 2195 lands.
 #
 # Inputs (env):
 #   DSO_DORMANT_MODE          enforce | warn (default warn)
 #   DSO_COVERAGE_YML          override path (tests). Default: the repo workflow.
 #   DSO_REQUIRED_CHECKS_FILE  override path (tests). Default: .github/required-checks.txt
+#   DSO_BYPASS_CONFIG_FILE    override config for bypass-actor resolution (tests).
 #
 # Exit codes:
 #   0  no dormant HARD predicate (or warn mode)
@@ -42,7 +46,6 @@ MODE="${DSO_DORMANT_MODE:-warn}"
 _ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"  # for sibling-script presence checks
 _COVERAGE_YML="${DSO_COVERAGE_YML:-$_ROOT/.github/workflows/review-coverage-invariant.yml}"
-_CI_YML="${DSO_CI_YML:-$_ROOT/.github/workflows/ci.yml}"
 _REQUIRED="${DSO_REQUIRED_CHECKS_FILE:-$_ROOT/.github/required-checks.txt}"
 
 [[ -f "$_COVERAGE_YML" ]] || _precondition_not_met "coverage workflow not found: $_COVERAGE_YML"
@@ -50,38 +53,27 @@ _REQUIRED="${DSO_REQUIRED_CHECKS_FILE:-$_ROOT/.github/required-checks.txt}"
 _dormant=""   # accumulates HARD dormant findings
 _warned=0
 
-# Extract the (non-empty) value DSO_ADMIN_EXEMPTION_LEDGER is set to in a workflow
-# file, or empty if unset/empty. Both consumers' guards are `[[ -n "$..." ]]`, so
-# a bare `DSO_ADMIN_EXEMPTION_LEDGER:` or `: ""` is effectively unset — the audit
-# must report DORMANT for those too (else it fails OPEN, the silent-skip class it
-# exists to catch). Strips trailing comments + surrounding quotes.
-_ael_ledger_value() {
-    grep -E '^[[:space:]]*DSO_ADMIN_EXEMPTION_LEDGER[[:space:]]*:' "$1" 2>/dev/null \
-        | head -1 \
-        | sed -E 's/^[^:]*:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]*$//; s/^"//; s/"$//; s/^'\''//; s/'\''$//'
-}
-
-# ── P-AEL (HARD): the COVERAGE consumer must wire the ledger ──────────────────
-# review-coverage-invariant.sh consults ael_sha_is_exempt only when the workflow
-# sets DSO_ADMIN_EXEMPTION_LEDGER non-empty; else the consult path is dead and an
-# admin-bypassed (FP-recovered) SHA re-wedges every later PR under enforce.
-if [[ -z "$(_ael_ledger_value "$_COVERAGE_YML")" ]]; then
-    _dormant+="  P-AEL: admin-exemption ledger consult path is DORMANT — "
-    _dormant+="${_COVERAGE_YML##*/} does not set DSO_ADMIN_EXEMPTION_LEDGER to a "
-    _dormant+="non-empty value, so review-coverage-invariant.sh:ael_sha_is_exempt "
-    _dormant+="is unreachable in CI."$'\n'
+# ── P-IDENTITY-EXEMPT (HARD, ADR-0022): a bypass-actor must be configured ─────
+# Admin exemption is identity-based (supersedes the HMAC ledger): a covering PR
+# merged by a designated bypass-actor (ruleset.bypass_user_ids / bypass_user_id) is
+# reviewed-equivalent in BOTH gates (review-coverage-invariant + verify-session-
+# provenance, via rc_sha_is_reviewed / the G3 loop). If NO bypass-actor resolves,
+# the exemption path is DORMANT — every admin web-UI bypass re-wedges the next PR
+# under enforce (a second override), the exact silent-skip this audit exists to
+# catch. Require a non-empty, VALIDATED bypass-actor set (the helper drops
+# malformed tokens, so this also catches an all-garbage config).
+_bas_lib="$_SELF_DIR/../lib/bypass-actor-set.sh"
+_bypass_ids=""
+if [[ -f "$_bas_lib" ]]; then
+    # shellcheck source=../lib/bypass-actor-set.sh
+    source "$_bas_lib"
+    _bypass_ids="$(bas_bypass_actor_ids 2>/dev/null || true)"
 fi
-
-# ── P-AEL-PROVENANCE (HARD, 3ebb DD4 unit 5/C4): the PROVENANCE consumer too ──
-# verify-session-provenance.sh (drives the llm-review DISPATCH) also consults the
-# ledger; if the ci.yml "Verify session provenance" step never sets the env, an
-# FP-recovered SHA re-dispatches llm-review on the downstream PR — the SECOND
-# override DD4 unit 5 exists to remove. Require ci.yml to set it non-empty.
-if [[ -f "$_CI_YML" ]] && [[ -z "$(_ael_ledger_value "$_CI_YML")" ]]; then
-    _dormant+="  P-AEL-PROVENANCE: provenance consult path is DORMANT — "
-    _dormant+="${_CI_YML##*/} does not set DSO_ADMIN_EXEMPTION_LEDGER, so "
-    _dormant+="verify-session-provenance.sh:ael_sha_is_exempt is unreachable in CI "
-    _dormant+="(FP-recovered SHAs re-dispatch llm-review = a second override)."$'\n'
+if [[ -z "$_bypass_ids" ]]; then
+    _dormant+="  P-IDENTITY-EXEMPT: identity-based admin exemption is DORMANT — no "
+    _dormant+="bypass-actor resolves from ruleset.bypass_user_ids / bypass_user_id, so "
+    _dormant+="a covering PR merged by an admin is never recognized as reviewed-"
+    _dormant+="equivalent — FP-recovered SHAs re-wedge every later PR (a second override)."$'\n'
 fi
 
 # ── P-CONV (ADVISORY): review-convergence-check.sh should be a required check ──
