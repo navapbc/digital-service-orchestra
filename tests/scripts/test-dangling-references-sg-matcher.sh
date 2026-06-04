@@ -20,9 +20,20 @@ unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHECK="$REPO_ROOT/plugins/dso/scripts/ci/check-dangling-references.sh"
 
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 _pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
 _fail() { echo "FAIL: $1 ($2)"; FAIL=$((FAIL+1)); }
+_skip() { echo "SKIP: $1 ($2)"; SKIP=$((SKIP+1)); }
+
+# N1/N2 assert ast-grep's comment/string-aware FP elimination — meaningful ONLY
+# when the REAL ast-grep binary is present. On Linux bare `sg` is shadow-utils
+# (a different tool), so detect ast-grep specifically and skip (not fail) the
+# FP-elimination cases when it is absent (the git-grep fallback cannot do it).
+_HAVE_ASTGREP=0
+if command -v ast-grep >/dev/null 2>&1 \
+   || { command -v sg >/dev/null 2>&1 && sg --version 2>/dev/null | grep -qi 'ast-grep'; }; then
+    _HAVE_ASTGREP=1
+fi
 
 _W="$(mktemp -d "${TMPDIR:-/tmp}/dso-sg-matcher.XXXXXX")"
 trap 'rm -rf "$_W"' EXIT
@@ -51,7 +62,8 @@ printf '# compute_total removed\n' > "$r/lib.sh"
 printf '. ./lib.sh\n# compute_total used to be called here\necho done\n' > "$r/caller.sh"
 git -C "$r" add lib.sh caller.sh; git -C "$r" commit -qm "drop compute_total, comment remains"
 out="$(_run "$r")"; rc=$?
-if [[ $rc -eq 0 ]] && grep -q "no dangling references" <<<"$out"; then _pass "N1_comment_only_not_false_positive"; else _fail "N1_comment_only_not_false_positive" "rc=$rc out=$out"; fi
+if [[ $_HAVE_ASTGREP -eq 0 ]]; then _skip "N1_comment_only_not_false_positive" "ast-grep absent — FP elimination not available"
+elif [[ $rc -eq 0 ]] && grep -q "no dangling references" <<<"$out"; then _pass "N1_comment_only_not_false_positive"; else _fail "N1_comment_only_not_false_positive" "rc=$rc out=$out"; fi
 
 # ── N2: removed symbol surviving ONLY in a string literal → NOT dangling ──────
 r="$_W/n2"; mkdir -p "$r"; _newrepo "$r"
@@ -63,7 +75,8 @@ printf '# compute_sum gone\n' > "$r/mod.py"
 printf 'msg = "please run compute_sum manually"\nprint(msg)\n' > "$r/app.py"
 git -C "$r" add mod.py app.py; git -C "$r" commit -qm "drop compute_sum, only a string mentions it"
 out="$(_run "$r")"; rc=$?
-if [[ $rc -eq 0 ]] && grep -q "no dangling references" <<<"$out"; then _pass "N2_string_only_not_false_positive"; else _fail "N2_string_only_not_false_positive" "rc=$rc out=$out"; fi
+if [[ $_HAVE_ASTGREP -eq 0 ]]; then _skip "N2_string_only_not_false_positive" "ast-grep absent — FP elimination not available"
+elif [[ $rc -eq 0 ]] && grep -q "no dangling references" <<<"$out"; then _pass "N2_string_only_not_false_positive"; else _fail "N2_string_only_not_false_positive" "rc=$rc out=$out"; fi
 
 # ── N3: real code reference still caught via sg path (true positive) ──────────
 r="$_W/n3"; mkdir -p "$r"; _newrepo "$r"
@@ -113,5 +126,5 @@ out="$(_run "$r")"; rc=$?
 if [[ $rc -eq 1 ]] && grep -q "SYMBOL 'run_pipeline'" <<<"$out" && grep -q "README.md" <<<"$out" && grep -q "ci.yml" <<<"$out"; then _pass "N6_doc_config_reference_caught"; else _fail "N6_doc_config_reference_caught" "rc=$rc out=$out"; fi
 
 echo ""
-echo "PASSED: $PASS  FAILED: $FAIL"
+echo "PASSED: $PASS  FAILED: $FAIL  SKIPPED: $SKIP"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1

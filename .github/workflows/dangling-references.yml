@@ -28,6 +28,15 @@ jobs:
           fetch-depth: 0          # full history — the check fails closed on a shallow clone
           persist-credentials: false
 
+      # The matcher uses `ast-grep` for comment/string-aware reference matching.
+      # Install the real binary — on Linux bare `sg` is shadow-utils (a different
+      # tool); without ast-grep the check silently falls back to git-grep (FPs).
+      - name: Install ast-grep
+        run: npm install -g @ast-grep/cli@0.43.0
+
+      - name: Verify ast-grep installed
+        run: ast-grep --version
+
       - name: Run dangling-reference check
         env:
           GITHUB_BASE_REF: ${{ github.base_ref }}

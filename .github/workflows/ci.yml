@@ -301,6 +301,17 @@ jobs:
         if: needs.changes.outputs.code_changed == 'true'
         run: hyperfine --version
 
+      # ast-grep powers check-dangling-references.sh's syntactic matcher. Install
+      # the real binary (`ast-grep`) — on Linux bare `sg` is shadow-utils, a
+      # different tool that silently produces no matches (false negatives).
+      - name: Install ast-grep
+        if: needs.changes.outputs.code_changed == 'true'
+        run: pip install 'ast-grep-cli==0.43.0'
+
+      - name: Verify ast-grep installed
+        if: needs.changes.outputs.code_changed == 'true'
+        run: ast-grep --version
+
       - name: Run script tests
         if: needs.changes.outputs.code_changed == 'true'
         shell: bash

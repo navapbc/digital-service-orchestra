@@ -52,12 +52,23 @@ MODE="${DSO_DANGLING_MODE:-enforce}"
 _BASE_REF="origin/${GITHUB_BASE_REF:-main}"
 _MIN_LEN="${DSO_DANGLING_MIN_LEN:-3}"
 
-# sg (ast-grep) availability — drives syntactic reference matching for .sh/.py.
-# DSO_DANGLING_FORCE_NO_SG=1 forces the git-grep fallback path (tested).
-_HAVE_SG=0
-if [[ "${DSO_DANGLING_FORCE_NO_SG:-0}" != "1" ]] && command -v sg >/dev/null 2>&1; then
-    _HAVE_SG=1
+# ast-grep availability — drives syntactic reference matching for .sh/.py.
+# CRITICAL: invoke `ast-grep`, NEVER bare `sg`. On Linux (incl. CI runners) `sg`
+# is the shadow-utils setgroups command — a DIFFERENT tool. `command -v sg`
+# succeeds there but `sg run ...` is gibberish to it → empty output → SILENT
+# FALSE NEGATIVES (the check passes vacuously, never catching a real dangling
+# reference). Resolve the real ast-grep binary: prefer `ast-grep`; accept `sg`
+# only if it self-identifies as ast-grep (e.g. macOS brew where both names map
+# to ast-grep). DSO_DANGLING_FORCE_NO_SG=1 forces the git-grep fallback (tested).
+_ASTGREP=""
+if [[ "${DSO_DANGLING_FORCE_NO_SG:-0}" != "1" ]]; then
+    if command -v ast-grep >/dev/null 2>&1; then
+        _ASTGREP="ast-grep"
+    elif command -v sg >/dev/null 2>&1 && sg --version 2>/dev/null | grep -qi 'ast-grep'; then
+        _ASTGREP="sg"
+    fi
 fi
+_HAVE_SG=0; [[ -n "$_ASTGREP" ]] && _HAVE_SG=1
 
 # Reference-side doc/config carriers scanned via whole-word git grep.
 _REF_DOC_PATHSPEC=( '*.md' '*.yml' '*.yaml' '*.txt' 'Makefile' '*/Makefile' )
@@ -158,7 +169,7 @@ _sg_code_references() {
         tmp="$(_materialize_head_file "$file")"; [[ -z "$tmp" ]] && continue
         # sg matches the bare identifier syntactically (excludes comments/strings
         # and substring/word-boundary noise). Re-anchor output to the repo path.
-        sg run -p "$sym" -l "$lang" "$tmp" --heading=never 2>/dev/null \
+        "$_ASTGREP" run -p "$sym" -l "$lang" "$tmp" --heading=never 2>/dev/null \
             | sed -E "s#^${tmp}:#${file}:#"
     done <<< "$cand" \
         | grep -vE "(function[[:space:]]+)?${sym}[[:space:]]*\(\)|:[[:space:]]*(def|class)[[:space:]]+${sym}([[:space:](:]|\$)"
