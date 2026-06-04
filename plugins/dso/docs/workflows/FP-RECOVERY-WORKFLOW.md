@@ -202,8 +202,10 @@ the HMAC-signed admin-exemption ledger (story 2730 / 3ebb DD4) so the invariant
 treats them as reviewed-equivalent:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/ci/fp-recovery-record-exemption.sh" --pr "<PR_NUMBER>" --reviewer-hash "<REVIEWER_HASH from Step 2>" --reason "<one-line FP rationale>"  # shim-exempt: doc example, explicit plugin-root invocation
+"${CLAUDE_PLUGIN_ROOT}/scripts/ci/fp-recovery-record-exemption.sh" --pr "<PR_NUMBER>" --reviewer-hash "<REVIEWER_HASH from Step 2>" --findings "<ARTIFACTS_DIR>/reviewer-findings.json" --reason "<one-line FP rationale>"  # shim-exempt: doc example, explicit plugin-root invocation
 ```
+
+The recorder **code-enforces the opus-gate** (3ebb DD4 unit 5 / C1): it verifies `--reviewer-hash` against the `reviewer-findings.json` the Step-2 review wrote (sha256 integrity, same as `record-review.sh`) and **refuses to append unless that file parses to 0 critical/important/fragile findings**. A forged hash, a tampered findings file, or a review that wasn't actually cleared all fail closed (exit 2, no exemption). This makes an exemption *reviewed-equivalent by construction* — not merely a signed claim.
 
 This works for BOTH a `review-sub-pr` PR1 (source→staged, the common case where the
 LLM runs) and a main `llm-review` PR2 — the SHA set is `base..head` either way. Then

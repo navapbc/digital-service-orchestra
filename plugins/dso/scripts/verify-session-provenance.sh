@@ -293,6 +293,19 @@ fi
 # shellcheck source=lib/reachability.sh
 source "$_REACHABILITY_LIB"
 
+# Admin-exemption ledger (3ebb DD4 unit 5): provenance honors an HMAC-valid
+# fp-recovery exemption as reviewed-equivalent, so a downstream PR does NOT
+# re-dispatch llm-review on content already cleared via an admin FP-recovery
+# (whose covering PR's review-check FAILED-then-overridden). Sourced like the
+# coverage-invariant consumer; the per-SHA consult is additive + fail-closed —
+# absent lib/key/ledger or a non-fp-recovery/forged entry all fall through to the
+# covering-PR lookup. DEAD in CI until the closure-key is provisioned (gap G-A,
+# gated on the unit-5 security conditions); harmless until then.
+_AEL_LIB="$(dirname "${BASH_SOURCE[0]}")/ci/admin-exemption-ledger.sh"
+# shellcheck source=ci/admin-exemption-ledger.sh
+[[ -f "$_AEL_LIB" ]] && source "$_AEL_LIB"
+ADMIN_EXEMPTION_LEDGER="${DSO_ADMIN_EXEMPTION_LEDGER:-}"
+
 assert_sha_reachable "$BASE_SHA" "BASE_SHA" "$GIT_REPO_PATH" || exit 4
 assert_sha_reachable "$SESSION_HEAD" "SESSION_HEAD" "$GIT_REPO_PATH" || exit 4
 
@@ -407,6 +420,23 @@ while IFS=' ' read -r sha subject; do
     # genuinely-unreviewed sibling commit still drives a DISPATCH, never masked by this.)
     if _vsp_is_clean_merge "$sha"; then
         echo "commit $sha status=CLEAN_MERGE; exempt (parents provenanced independently in this walk)"
+        _covered_shas+=("$sha")
+        _cache_set "$sha" "provenanced" || true
+        continue
+    fi
+
+    # Admin-exemption ledger (3ebb DD4 unit 5 / C2). An HMAC-valid fp-recovery
+    # exemption is reviewed-equivalent: the recorder code-enforces a CLEARED opus
+    # review before signing (unit 5/C1), so the covering PR's FP-recovered (failed-
+    # then-overridden) review must NOT force a downstream llm-review re-dispatch.
+    # Honor ONLY exempt_by=fp-recovery (C2). Additive + FAIL-CLOSED: unset ledger /
+    # missing lib / no key / forged / absent entry all fall through to the covering-
+    # PR lookup (never else-classify-as-provenanced). Call stays INSIDE the if so
+    # set -e cannot abort the loop before the marker write. Placed before the cache
+    # so a stale 'unprovenanced' entry cannot override it.
+    if [[ -n "$ADMIN_EXEMPTION_LEDGER" ]] && declare -F ael_sha_is_exempt >/dev/null 2>&1 \
+       && ael_sha_is_exempt "$ADMIN_EXEMPTION_LEDGER" "$sha" "fp-recovery"; then
+        echo "commit $sha status=ADMIN_EXEMPT; HMAC-valid fp-recovery exemption (reviewed-equivalent)"
         _covered_shas+=("$sha")
         _cache_set "$sha" "provenanced" || true
         continue
