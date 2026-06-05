@@ -36,6 +36,36 @@ _COMMENT_FIELD_KEY = "comment"
 _ADF_KEY = "plugins.dso.scripts.dso_reconciler.adf"
 _AdfModule = None
 
+_COMMENT_LIMITS_KEY = "plugins.dso.scripts.dso_reconciler.comment_limits"
+_CommentLimitsModule = None
+
+
+def _load_comment_limits():
+    """Lazy-load the sibling comment_limits module (same pattern as _load_adf).
+
+    Bug 6afc-20ee-84e5-4dd5: the truncation rule MUST be identical on the send
+    path (acli-integration.add_comment) and this differ comparison path, so both
+    import the single shared ``truncate_comment_body`` helper. Loaded by file
+    path (not ``from . import``) because the differ may be imported via
+    ``importlib.util.spec_from_file_location`` in tests, which does not establish
+    package context.
+    """
+    global _CommentLimitsModule
+    if _CommentLimitsModule is not None:
+        return _CommentLimitsModule
+    if _COMMENT_LIMITS_KEY in sys.modules:
+        _CommentLimitsModule = sys.modules[_COMMENT_LIMITS_KEY]
+        return _CommentLimitsModule
+    cl_path = Path(__file__).parent / "comment_limits.py"
+    spec = importlib.util.spec_from_file_location(_COMMENT_LIMITS_KEY, cl_path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"comment_limits.py not found at {cl_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[_COMMENT_LIMITS_KEY] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    _CommentLimitsModule = mod
+    return mod
+
 
 def _load_adf():
     """Lazy-load the sibling adf module.
@@ -446,6 +476,49 @@ def _decorate_outbound_comment(body: str) -> str:
     return f"{body}\n\n{RECONCILER_MARKER}"
 
 
+# Bug 6afc-20ee-84e5-4dd5: machine-metadata comment exclusion.
+#
+# These prefixes mark skill-to-skill (machine-to-machine) ticket-comment
+# payloads — NOT human comments. They are written onto local tickets purely to
+# hand context between DSO skills/sub-agents and must NEVER be mirrored outbound
+# to Jira: they are large (PREPLANNING_CONTEXT bodies routinely exceed Jira's
+# 32,767-char comment cap), internal, and meaningless to a Jira reader. Syncing
+# them outbound also drove the outbound comment-sync loop (over-length adds fail
+# silently and re-emit every pass).
+#
+# This is the comment-side analogue of the label `_EXCLUDED_PREFIXES` constant
+# below; kept here, beside the comment-diff logic, for locality with the only
+# consumer (_diff_comments).
+#
+# Prefixes (each a genuine machine payload written via `dso ticket comment`):
+#   - PREPLANNING_CONTEXT: / PREPLANNING_CONTEXT_LIGHTWEIGHT:
+#       PIL handoff payload (see ${CLAUDE_PLUGIN_ROOT}/docs/contracts/pil-handoff.md):
+#       preplanning → implementation-plan context, serialized JSON.
+#   - RESEARCH_FINDINGS:  JSON array merged by preplanning across skill runs.
+#   - DEFENSE_RECORD:     machine-readable review-defense JSON (review-defense-store.sh).
+#   - CHECKPOINT          sub-agent progress notes ("CHECKPOINT N/6: ...").
+#   - WORKTREE_TRACKING:  fail-silent worktree lifecycle tracking comment.
+# Only genuine machine markers are listed — human comments are never excluded.
+_EXCLUDED_COMMENT_PREFIXES: tuple[str, ...] = (
+    "PREPLANNING_CONTEXT:",
+    "PREPLANNING_CONTEXT_LIGHTWEIGHT:",
+    "RESEARCH_FINDINGS:",
+    "DEFENSE_RECORD:",
+    "CHECKPOINT",
+    "WORKTREE_TRACKING:",
+)
+
+
+def _is_machine_marker_comment(normalized_body: str) -> bool:
+    """True when a normalised comment body is a bridge-internal machine payload.
+
+    Match is prefix-based on the already-normalised (ADF→text, marker-stripped,
+    leading/trailing-whitespace-stripped) body so it is robust to ADF round-trip
+    and the RECONCILER_MARKER decoration.
+    """
+    return normalized_body.startswith(_EXCLUDED_COMMENT_PREFIXES)
+
+
 def _diff_comments(
     ticket: dict[str, Any],
     jira_key: str,
@@ -549,7 +622,20 @@ def _diff_comments(
     for c in local_comments:
         raw = c.get("body", "") if isinstance(c, dict) else c
         body = _normalize_comment_body(raw)
-        if body and body not in jira_bodies:
+        # Bug 6afc-20ee-84e5-4dd5: never mirror skill-to-skill machine-marker
+        # comments (PREPLANNING_CONTEXT:, etc.) outbound to Jira. Symmetric with
+        # the label _EXCLUDED_PREFIXES exclusion.
+        if _is_machine_marker_comment(body):
+            continue
+        # Bug 6afc-20ee-84e5-4dd5 (convergence): the send path truncates an
+        # over-length body to Jira's 32,767-char limit before it lands, so the
+        # body that comes back in jira_bodies is the TRUNCATED form. Apply the
+        # SAME shared truncation to the expected local body before the membership
+        # test; otherwise the full local body never matches the truncated Jira
+        # body and the diff re-emits forever. The local store is NOT mutated —
+        # `body` here is an in-memory comparison key only.
+        compare_body = _load_comment_limits().truncate_comment_body(body)
+        if compare_body and compare_body not in jira_bodies:
             # Decorate the outbound body with the reconciler marker so the
             # inbound differ can identify (and filter) our own echoes on the
             # next pass (Gap 1 loop-breaker).

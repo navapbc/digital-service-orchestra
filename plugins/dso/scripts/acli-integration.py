@@ -25,6 +25,10 @@ import urllib.request
 from typing import Any
 
 from dso_reconciler.adf import text_to_adf as _text_to_adf  # canonical location
+from dso_reconciler.comment_limits import (  # shared send/diff truncation
+    _JIRA_COMMENT_MAX_CHARS,
+    truncate_comment_body as _truncate_comment_body,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +147,37 @@ def _sanitize_summary(summary: str) -> str:
         len(stripped),
         len(truncated),
     )
+    return truncated
+
+
+def _sanitize_comment(body: str) -> str:
+    """Truncate an over-length comment body to fit Jira's hard limit.
+
+    Bug 6afc-20ee-84e5-4dd5. Jira Cloud rejects comment bodies > 32,767 chars,
+    but ``acli ... comment create`` exits 0 on the rejection; ``_check_mutation_
+    failure`` then raises ``AcliMutationError`` and the comment never lands —
+    driving the outbound comment-sync loop (re-emitted every pass). Truncating
+    here (mirroring ``_sanitize_summary``) lets the comment land.
+
+    The actual truncation rule lives in the shared ``dso_reconciler.comment_
+    limits.truncate_comment_body`` helper so the differ's comparison path
+    (``outbound_differ._diff_comments``) applies the IDENTICAL transform and the
+    diff converges. A truncation warning is emitted so an operator can
+    investigate; the local ticket store is never mutated (truncation is
+    in-memory, send-side only).
+    """
+    if not isinstance(body, str):
+        raise ValueError(
+            f"Comment body must be str, got {type(body).__name__}: {body!r}"
+        )
+    truncated = _truncate_comment_body(body)
+    if truncated is not body and len(truncated) != len(body):
+        logger.warning(
+            "Comment exceeded Jira's %d-char limit (%d chars); truncated to %d chars",
+            _JIRA_COMMENT_MAX_CHARS,
+            len(body),
+            len(truncated),
+        )
     return truncated
 
 
@@ -883,6 +918,10 @@ def add_comment(
     acli_cmd: list[str] | None = None,
 ) -> dict[str, Any]:
     """Add a comment to a Jira issue via ACLI."""
+    # Bug 6afc-20ee-84e5-4dd5: guard Jira's 32,767-char comment limit before the
+    # send (ACLI exits 0 on an over-length rejection, so an unguarded body fails
+    # silently and re-emits every pass).
+    body = _sanitize_comment(body)
     cmd = [
         "jira",
         "workitem",
