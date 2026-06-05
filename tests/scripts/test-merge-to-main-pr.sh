@@ -250,10 +250,13 @@ t_pr_create_invocation
 
 # ---------------------------------------------------------------------------
 # Test 2: t_pr_auto_merge_queued
-# Asserts gh is invoked with `pr merge 42 --auto --merge` after pr create.
+# Asserts gh is invoked with `pr merge 42 --auto --rebase` after pr create.
+# cca8 (linear-history cutover, DD1): the two-tier flow rebase-merges so no
+# merge commit ever reaches main under required_linear_history. The auto-merge
+# enqueue MUST use --rebase, never --merge.
 # ---------------------------------------------------------------------------
 t_pr_auto_merge_queued() {
-    local _T branch _argv _has_merge_42 _uses_merge_strategy _has_auto
+    local _T branch _argv _has_merge_42 _uses_rebase_strategy _no_merge_strategy _has_auto
     _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
@@ -274,20 +277,26 @@ t_pr_auto_merge_queued() {
     _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
 
     _has_merge_42="false"
-    _uses_merge_strategy="false"
+    _uses_rebase_strategy="false"
+    _no_merge_strategy="true"
     _has_auto="false"
     if echo "$_argv" | grep -qE "^pr merge 42"; then
         _has_merge_42="true"
     fi
-    if echo "$_argv" | grep -E "^pr merge 42" | grep -q -- "--merge"; then
-        _uses_merge_strategy="true"
+    if echo "$_argv" | grep -E "^pr merge 42" | grep -q -- "--rebase"; then
+        _uses_rebase_strategy="true"
+    fi
+    # Linear-history invariant: NO pr merge call may use --merge.
+    if echo "$_argv" | grep -E "^pr merge " | grep -q -- "--merge"; then
+        _no_merge_strategy="false"
     fi
     if echo "$_argv" | grep -E "^pr merge 42" | grep -q -- "--auto"; then
         _has_auto="true"
     fi
 
     assert_eq "t_pr_auto_merge_queued_invokes_pr_merge_with_pr_number" "true" "$_has_merge_42"
-    assert_eq "t_pr_auto_merge_queued_uses_merge_not_squash" "true" "$_uses_merge_strategy"
+    assert_eq "t_pr_auto_merge_queued_uses_rebase_not_merge" "true" "$_uses_rebase_strategy"
+    assert_eq "t_pr_auto_merge_queued_never_uses_merge_commit" "true" "$_no_merge_strategy"
     assert_eq "t_pr_auto_merge_queued_passes_auto_flag" "true" "$_has_auto"
 }
 t_pr_auto_merge_queued
@@ -3683,7 +3692,8 @@ t_auto_merge_disabled_emits_warning_and_continues
 
 t_auto_merge_disabled_invokes_manual_merge_in_poll() {
     # In the poll phase, when auto_merge_disabled is set and all checks pass,
-    # the script must invoke `gh pr merge <num> --merge` without --auto.
+    # the script must invoke `gh pr merge <num> --rebase` without --auto.
+    # cca8 DD1: the manual fallback must rebase-merge too (no merge commit).
     local _T branch _argv _has_manual_merge
     _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
@@ -3704,11 +3714,11 @@ t_auto_merge_disabled_invokes_manual_merge_in_poll() {
 
     _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
 
-    # Look for a `pr merge 42 --merge` invocation that does NOT include --auto.
+    # Look for a `pr merge 42 --rebase` invocation that does NOT include --auto.
     # The auto-attempt earlier in _phase_merge does include --auto and refuses,
     # so we need a separate non-auto call to confirm the fallback fired.
     _has_manual_merge="false"
-    if echo "$_argv" | grep -E "^pr merge 42" | grep -v -- "--auto" | grep -q -- "--merge"; then
+    if echo "$_argv" | grep -E "^pr merge 42" | grep -v -- "--auto" | grep -q -- "--rebase"; then
         _has_manual_merge="true"
     fi
 
