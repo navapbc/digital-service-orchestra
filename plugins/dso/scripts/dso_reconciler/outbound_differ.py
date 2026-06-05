@@ -757,6 +757,34 @@ def _diff_comments(
         # `body` here is an in-memory comparison key only.
         compare_body = _load_comment_limits().truncate_comment_body(body)
         if compare_body and compare_body not in jira_bodies:
+            if os.environ.get("DSO_RECONCILER_VERBOSE") == "1":
+                # TEMP 57d1 diagnostic — why does this local comment match no
+                # jira body? Log the first-divergence window vs the nearest jira
+                # body (longest-common-prefix). Revert before landing.
+                import os.path as _osp
+
+                _cands = sorted(
+                    jira_bodies,
+                    key=lambda jb: -len(_osp.commonprefix([compare_body, jb])),
+                )
+                _near = _cands[0] if _cands else ""
+                _i = next(
+                    (
+                        k
+                        for k in range(min(len(compare_body), len(_near)))
+                        if compare_body[k] != _near[k]
+                    ),
+                    min(len(compare_body), len(_near)),
+                )
+                _w = 30
+                print(  # noqa: T201
+                    f"RECON: comment_nomatch key={jira_key} "
+                    f"clen={len(compare_body)} nlen={len(_near)} "
+                    f"njira={len(jira_bodies)} firstdiff={_i} "
+                    f"cwin={compare_body[max(0, _i - _w) : _i + _w]!r} "
+                    f"nwin={_near[max(0, _i - _w) : _i + _w]!r}",
+                    file=sys.stderr,
+                )
             # Decorate the outbound body with the reconciler marker so the
             # inbound differ can identify (and filter) our own echoes on the
             # next pass (Gap 1 loop-breaker).
