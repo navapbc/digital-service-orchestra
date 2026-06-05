@@ -65,7 +65,12 @@ _run() { # _run <repo> <head> <mockdir> [extra VAR=val ...]
     # `env` applies the trailing VAR=val tokens (incl. those from "$@") as real
     # environment — a bare `"$@" cmd` would treat VAR=val as a command word.
     local repo="$1" head="$2" mock="$3"; shift 3
-    ( cd "$repo" && env "PATH=$_MOCK_BIN:$PATH" GH_REPO="test/repo" DSO_HEAD_SHA="$head" \
+    # Pin CLAUDE_PLUGIN_ROOT to the checkout under test so the script resolves its
+    # libs (review-coverage-lib.sh, review-tristate-lib.sh) from THIS tree — not an
+    # ambient value leaked from the caller's session (which would point elsewhere
+    # and miss a newly-added lib). Hermetic regardless of the runner's environment.
+    ( cd "$repo" && env "PATH=$_MOCK_BIN:$PATH" CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        GH_REPO="test/repo" DSO_HEAD_SHA="$head" \
         DSO_MOCK_DIR="$mock" "$@" bash "$CHECK" ) 2>&1
 }
 
@@ -93,13 +98,21 @@ printf '[]' > "$md/pulls_$sha"
 out="$(_run "$r" "$sha" "$md")"; rc=$?
 if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${sha}" <<<"$out"; then _pass "T3_no_covering_pr_blocks"; else _fail "T3_no_covering_pr_blocks" "rc=$rc out=$out"; fi
 
-# ── T4: API error fails CLOSED (never passes on uncertainty) ────────────────
+# ── T4: API error (could-not-confirm only) -> INDETERMINATE (75); still blocks, never passes (3ebb DD1) ──
 r="$_WORK/t4"; mkdir -p "$r"; sf="$_WORK/t4.shas"; md="$_WORK/t4.mock"; mkdir -p "$md"
 _mk_repo "$r" "$sf" "feat-D"
 sha="$(sed -n 1p "$sf")"
-# no pulls fixture -> mock returns API error
+# no pulls fixture -> mock returns API error -> errors-only -> INDETERMINATE (exit 75)
 out="$(_run "$r" "$sha" "$md")"; rc=$?
-if [[ $rc -eq 1 ]] && grep -q "FAIL_CLOSED ${sha}" <<<"$out"; then _pass "T4_api_error_fails_closed"; else _fail "T4_api_error_fails_closed" "rc=$rc out=$out"; fi
+if [[ $rc -eq 75 ]] && grep -q "INDETERMINATE ${sha}" <<<"$out"; then _pass "T4_api_error_indeterminate"; else _fail "T4_api_error_indeterminate" "rc=$rc out=$out"; fi
+
+# ── T4b: a genuine unreviewed SHA + an API error -> FAIL (1) dominates (safe bottom, 3ebb DD1) ──
+r="$_WORK/t4b"; mkdir -p "$r"; sf="$_WORK/t4b.shas"; md="$_WORK/t4b.mock"; mkdir -p "$md"
+_mk_repo "$r" "$sf" "feat-D1" "feat-D2"
+sha1="$(sed -n 1p "$sf")"; sha2="$(sed -n 2p "$sf")"
+printf '[]' > "$md/pulls_$sha1"   # sha1 unreviewed (genuine violation); sha2 has no fixture -> API error
+out="$(_run "$r" "$sha2" "$md")"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${sha1}" <<<"$out"; then _pass "T4b_violation_dominates_error"; else _fail "T4b_violation_dominates_error" "rc=$rc out=$out"; fi
 
 # ── T5: ledger HIT skips re-verification (perf prefilter; only on a hit) ─────
 r="$_WORK/t5"; mkdir -p "$r"; sf="$_WORK/t5.shas"; md="$_WORK/t5.mock"; mkdir -p "$md"
