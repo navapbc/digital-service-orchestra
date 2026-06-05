@@ -1101,6 +1101,23 @@ def compute_outbound_mutations(
             label_mutations = label_mutations + annotation_mutations
 
             if changed or comment_mutations or label_mutations:
+                # Sync-hardening P5 / bug 57d1 diagnosis enabler: emit a
+                # one-line CHANGED-FIELD BREADCRUMB whenever a bound key gets
+                # an outbound UPDATE carrying field diffs. Logs the changed
+                # FIELD NAMES only (never values — descriptions/assignees may
+                # be large or sensitive) so a re-emitting (non-converging)
+                # field becomes visible in CI logs without live Jira creds.
+                # The field list is the keys of the same `changed` dict
+                # _diff_fields already computed — no recomputation. Comment-
+                # only / label-only updates carry no field diff, so `changed`
+                # is empty and the breadcrumb is skipped (keeps stderr quiet
+                # for the common comment-mirror case).
+                if changed:
+                    print(  # noqa: T201
+                        f"RECON: outbound_update key={jira_key} "
+                        f"changed=[{','.join(sorted(changed))}]",
+                        file=sys.stderr,
+                    )
                 mutations.append(
                     OutboundMutation(
                         local_id=local_id,
