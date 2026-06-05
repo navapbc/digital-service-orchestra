@@ -72,8 +72,16 @@ tristate_classify_verdict() {
 tristate_is_transient_error() {
     local _m
     _m=$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')
+    # Numeric status codes (5xx, 429) must appear as a STANDALONE token, not
+    # embedded in a larger number (a byte count, offset, PR number, SHA fragment)
+    # — otherwise "504800 bytes" or "...42900" would wrongly read as transient and
+    # flip a non-transient INDETERMINATE into a retry (violating lattice rule 4,
+    # "conservative: anything not provably transient is NON-transient"). Anchor on
+    # non-digit boundaries.
+    if printf '%s' "$_m" | grep -qE '(^|[^0-9])(5[0-9]{2}|429)([^0-9]|$)'; then
+        return 0
+    fi
     case "$_m" in
-        *50[0-9]*|*429*) return 0 ;;                                  # 5xx / Too Many Requests
         *"rate limit"*|*"rate-limit"*|*ratelimit*) return 0 ;;        # rate limiting
         *timeout*|*"timed out"*) return 0 ;;                          # timeouts
         *"connection reset"*|*"connection refused"*) return 0 ;;      # transient connectivity
