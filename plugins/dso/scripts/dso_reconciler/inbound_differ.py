@@ -158,6 +158,35 @@ def _extract_jira_field_value(jira_fields: dict[str, Any], field: str) -> Any:
     return raw
 
 
+def _assignee_matches(local_val: str, jira_raw: Any) -> bool:
+    """Permissive assignee equality (mirror of outbound_differ._assignee_matches).
+
+    Convergence-churn fix (bug 85a1 family): a live Jira fetch returns
+    ``assignee`` as ``{accountId, displayName, emailAddress}``; local tickets
+    store assignee as a bare string that may be an email (ticket-create
+    default), a displayName (probe), or "Test" (git-config default). The
+    outbound differ already tolerates all three identity forms; without the
+    same tolerance here, the inbound differ extracts only ``displayName`` and
+    reports a phantom ``assignee`` change on every pass whenever local stores a
+    DIFFERENT identity form than Jira returns — the assignee field never
+    converges.
+
+    Treat ``local_val`` as matching when it equals ANY of {emailAddress,
+    accountId, displayName}. Both sides empty (unassigned) also match.
+    """
+    if jira_raw is None:
+        return (local_val or "") == ""
+    if not isinstance(jira_raw, dict):
+        return (local_val or "") == str(jira_raw)
+    candidates = {
+        (jira_raw.get("emailAddress") or "").strip(),
+        (jira_raw.get("accountId") or "").strip(),
+        (jira_raw.get("displayName") or "").strip(),
+    }
+    candidates.discard("")
+    return (local_val or "").strip() in candidates
+
+
 def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
     """Map Jira fields to local ticket field names/values.
 
@@ -237,6 +266,17 @@ def _diff_jira_vs_local(
     }
 
     for local_field, ticket_field in field_map.items():
+        # Assignee: shape-tolerant equality. A live Jira fetch returns the
+        # assignee as a {accountId, displayName, emailAddress} dict while local
+        # stores a bare string in any one of those forms. Compare against the
+        # RAW Jira value (not the displayName-only mapped value) so a local
+        # email matching the Jira dict's emailAddress does not emit a phantom
+        # inbound update every pass (bug 85a1 family — assignee convergence).
+        if local_field == "assignee":
+            local_assignee = local_ticket.get(ticket_field) or ""
+            if not _assignee_matches(local_assignee, jira_fields.get("assignee")):
+                changed[local_field] = jira_mapped.get(local_field)
+            continue
         jira_val = jira_mapped.get(local_field)
         local_val = local_ticket.get(ticket_field)
         # Normalise None to empty string for string fields
