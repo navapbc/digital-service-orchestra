@@ -21,7 +21,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -37,6 +37,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 _ADF_PATH = SCRIPTS_DIR / "dso_reconciler" / "adf.py"
 if "dso_reconciler" not in sys.modules:
     import types as _types
+
     _dr = _types.ModuleType("dso_reconciler")
     _dr.__path__ = [str(SCRIPTS_DIR / "dso_reconciler")]
     sys.modules["dso_reconciler"] = _dr
@@ -45,6 +46,16 @@ if "dso_reconciler.adf" not in sys.modules:
     _adf_mod = importlib.util.module_from_spec(_adf_spec)
     sys.modules["dso_reconciler.adf"] = _adf_mod
     _adf_spec.loader.exec_module(_adf_mod)
+# acli-integration.py also imports ``from dso_reconciler.comment_limits import ...``
+# (bug 6afc-20ee-84e5-4dd5). Bootstrap it explicitly alongside adf.
+_CL_PATH = SCRIPTS_DIR / "dso_reconciler" / "comment_limits.py"
+if "dso_reconciler.comment_limits" not in sys.modules:
+    _cl_spec = importlib.util.spec_from_file_location(
+        "dso_reconciler.comment_limits", _CL_PATH
+    )
+    _cl_mod = importlib.util.module_from_spec(_cl_spec)
+    sys.modules["dso_reconciler.comment_limits"] = _cl_mod
+    _cl_spec.loader.exec_module(_cl_mod)
 
 
 def _load_acli():

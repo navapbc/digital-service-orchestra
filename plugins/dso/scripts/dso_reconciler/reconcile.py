@@ -236,15 +236,20 @@ def _commit_binding_store_snapshot(
     import subprocess as _sp
 
     tracker_dir = repo_root / ".tickets-tracker"  # tickets-boundary-ok
-    bindings_path = tracker_dir / ".bridge_state" / "bindings.json"
-    if not bindings_path.exists():
+    # Bug 1e08: stage BOTH the live store and the retired-binding store. The
+    # absence-lifecycle GC writes bindings-retired.json; a retirement-only pass
+    # must also be committed (else a soft-deleted binding is silently lost on
+    # the next ``git merge origin/tickets``).
+    _rel_files = [".bridge_state/bindings.json", ".bridge_state/bindings-retired.json"]
+    _existing_rel = [rel for rel in _rel_files if (tracker_dir / rel).exists()]
+    if not _existing_rel:
         return True  # Nothing to commit — not a failure
 
     try:
-        # Stage only bindings.json (never git add -A: avoid staging unrelated
-        # working-tree changes in the tickets worktree).
+        # Stage only our two state files (never git add -A: avoid staging
+        # unrelated working-tree changes in the tickets worktree).
         _sp.run(
-            ["git", "-C", str(tracker_dir), "add", ".bridge_state/bindings.json"],
+            ["git", "-C", str(tracker_dir), "add", *_existing_rel],
             check=True,
             capture_output=True,
             text=True,
@@ -256,7 +261,17 @@ def _commit_binding_store_snapshot(
             capture_output=True,
             text=True,
         )
-        if "bindings.json" not in status.stdout:
+        # PER-FILE idempotency (bug 1e08): the prior substring test
+        # ``"bindings.json" not in status.stdout`` does NOT match
+        # ``bindings-retired.json`` as a distinct file, so a retirement-only
+        # change (only bindings-retired.json staged) would be silently skipped.
+        # Match on basename membership over the staged-file lines instead.
+        _staged_basenames = {
+            os.path.basename(line.strip())
+            for line in status.stdout.splitlines()
+            if line.strip()
+        }
+        if not ({"bindings.json", "bindings-retired.json"} & _staged_basenames):
             return True  # Already up-to-date; nothing to commit.
         _sp.run(
             [
@@ -825,6 +840,7 @@ def reconcile_once(
         excluded_statuses={"archived", "deleted"},
         local_label_intent=local_label_intent,
         client=outbound_diff_client,
+        pass_id=pass_id,
     )
     sync_logger.log(
         "outbound_differ_complete",

@@ -62,6 +62,18 @@ if "dso_reconciler.adf" not in sys.modules:
     _adf_mod = importlib.util.module_from_spec(_adf_spec)
     sys.modules["dso_reconciler.adf"] = _adf_mod
     _adf_spec.loader.exec_module(_adf_mod)  # type: ignore[union-attr]
+# acli-integration.py also imports ``from dso_reconciler.comment_limits import ...``
+# (bug 6afc-20ee-84e5-4dd5). Bootstrap it explicitly alongside adf so the loader
+# chain resolves regardless of which sibling test first registered the
+# ``dso_reconciler`` namespace stub.
+_CL_PATH = SCRIPTS_DIR / "dso_reconciler" / "comment_limits.py"
+if "dso_reconciler.comment_limits" not in sys.modules:
+    _cl_spec = importlib.util.spec_from_file_location(
+        "dso_reconciler.comment_limits", _CL_PATH
+    )
+    _cl_mod = importlib.util.module_from_spec(_cl_spec)
+    sys.modules["dso_reconciler.comment_limits"] = _cl_mod
+    _cl_spec.loader.exec_module(_cl_mod)  # type: ignore[union-attr]
 
 
 def _load_module(name: str, path: Path) -> ModuleType:
@@ -179,12 +191,12 @@ def test_assignee_not_found_soft_fails_batch_continues(
     # Alert record DID land for the bad one
     records = _read_alert_records(tmp_path)
     assignee_alerts = [
-        r for r in records
+        r
+        for r in records
         if "assignee" in r.get("kind", "") and r.get("key") == "DIG-4276"
     ]
     assert len(assignee_alerts) >= 1, (
-        f"expected an assignee-unresolved alert for DIG-4276; "
-        f"got records: {records}"
+        f"expected an assignee-unresolved alert for DIG-4276; got records: {records}"
     )
 
 
@@ -226,6 +238,5 @@ def test_assignee_not_found_alone_does_not_raise(
 
     records = _read_alert_records(tmp_path)
     assert any(
-        r.get("key") == "DIG-4276" and "assignee" in r.get("kind", "")
-        for r in records
+        r.get("key") == "DIG-4276" and "assignee" in r.get("kind", "") for r in records
     ), f"expected assignee alert; got {records}"
