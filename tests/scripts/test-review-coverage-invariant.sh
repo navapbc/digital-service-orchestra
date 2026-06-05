@@ -113,8 +113,19 @@ _mk_repo "$r" "$sf" "feat-D1" "feat-D2"
 sha1="$(sed -n 1p "$sf")"; sha2="$(sed -n 2p "$sf")"
 printf '[]' > "$md/pulls_$sha1"   # sha1 unreviewed (genuine violation); sha2 has no fixture -> API error
 out="$(_run "$r" "$sha2" "$md")"; rc=$?
-# Behavioral assertion: exit 1 (FAIL) dominates when a genuine unreviewed SHA coexists with an error; confirm the unreviewed SHA is surfaced (presence, not the prose verdict word).
-if [[ $rc -eq 1 ]] && grep -q "${sha1}" <<<"$out"; then _pass "T4b_violation_dominates_error"; else _fail "T4b_violation_dominates_error" "rc=$rc out=$out"; fi
+# Behavioral assertion: BOTH SHAs in origin/main..sha2 are walked in one pass —
+# sha1 is the genuine UNREVIEWED violation, sha2 the could-not-confirm error — and
+# FAIL (1) dominates. Asserting both per-SHA verdict lines (not just sha1) proves
+# the combined violation+error scenario was actually exercised, and the summary
+# tally proves the dual condition (one unreviewed + one error), not a lone case.
+if [[ $rc -eq 1 ]] \
+    && grep -q "UNREVIEWED ${sha1}" <<<"$out" \
+    && grep -q "INDETERMINATE ${sha2}" <<<"$out" \
+    && grep -q "unreviewed=1 errors=1" <<<"$out"; then
+    _pass "T4b_violation_dominates_error"
+else
+    _fail "T4b_violation_dominates_error" "rc=$rc out=$out"
+fi
 
 # ── T5: ledger HIT skips re-verification (perf prefilter; only on a hit) ─────
 r="$_WORK/t5"; mkdir -p "$r"; sf="$_WORK/t5.shas"; md="$_WORK/t5.mock"; mkdir -p "$md"
