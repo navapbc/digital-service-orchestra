@@ -833,6 +833,13 @@ def reconcile_once(
         api_token=os.environ.get("JIRA_API_TOKEN", ""),
     )
 
+    # Bug 0702-3b6d-c1db-4ed3 (inbound counterpart to 1e08): collect the
+    # bound-but-absent ALIVE direct-GET results so the inbound differ can mirror
+    # Jira-side changes for out-of-window keys WITHOUT a second GET. The
+    # outbound differ records each alive (HTTP 200) absent key's raw fields
+    # here; we merge them into the inbound snapshot below. 404/transport keys
+    # are intentionally absent from this dict (retirement stays outbound-owned).
+    absent_alive_fields: dict[str, dict] = {}
     outbound_raw = outbound_differ_mod.compute_outbound_mutations(
         local_tickets,
         curr_snapshot,
@@ -841,6 +848,7 @@ def reconcile_once(
         local_label_intent=local_label_intent,
         client=outbound_diff_client,
         pass_id=pass_id,
+        absent_alive_fields=absent_alive_fields,
     )
     sync_logger.log(
         "outbound_differ_complete",
@@ -922,8 +930,17 @@ def reconcile_once(
     # ``(mutations, suppression_count)`` — the count of inbound field/label
     # items dropped by bidirectional outbound-context filtering. Single-pass
     # to avoid O(2n) differ cost on every reconcile pass.
+    # Bug 0702: merge the outbound differ's alive bound-but-absent GET results
+    # into the snapshot the inbound differ sees, so out-of-window Jira issues
+    # are mirrored Jira→local with the GET shared across both directions (no
+    # double-GET). curr_snapshot is left unmutated (shallow copy) so downstream
+    # snapshot persistence is unaffected.
+    inbound_snapshot = curr_snapshot
+    if absent_alive_fields:
+        inbound_snapshot = dict(curr_snapshot)
+        inbound_snapshot.update(absent_alive_fields)
     inbound_new, _ib_suppressed = inbound_differ_mod.compute_inbound_mutations(
-        curr_snapshot,
+        inbound_snapshot,
         binding_store,
         local_by_id,
         outbound_mutations=outbound_raw,
