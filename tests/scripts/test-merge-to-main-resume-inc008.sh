@@ -76,11 +76,15 @@ else
     GCW=$(mktemp -d "${TMPDIR:-/tmp}/inc008-gc.XXXXXX")
     ORIGIN="$GCW/origin.git"; git init -q --bare "$ORIGIN"
     SEED="$GCW/seed"; git clone -q "$ORIGIN" "$SEED" 2>/dev/null
+    # Push HEAD directly to named remote refs — do NOT reference a local branch
+    # name ('main'/'master' varies by git init.defaultBranch and broke in CI).
     ( cd "$SEED" || exit 1
       git config user.email t@e.st; git config user.name t; git config commit.gpgsign false
-      echo base > b.txt; git add b.txt; git commit -qm M0; git push -q origin HEAD:main
-      git branch staged-spent main; git push -q origin staged-spent          # 0 ahead -> spent
-      git checkout -q -b staged-live main; echo x > x.txt; git add x.txt; git commit -qm L1; git push -q origin staged-live ) # 1 ahead -> live
+      echo base > b.txt; git add b.txt; git commit -qm M0
+      git push -q origin HEAD:refs/heads/main
+      git push -q origin HEAD:refs/heads/staged-spent          # == main -> 0 ahead -> spent
+      echo x > x.txt; git add x.txt; git commit -qm L1
+      git push -q origin HEAD:refs/heads/staged-live )         # 1 ahead -> live
     RUN="$GCW/run"; git clone -q "$ORIGIN" "$RUN" 2>/dev/null
     SD="$GCW/state"; mkdir -p "$SD"
     echo '{}' > "$SD/merge-to-main-state-staged-spent.json"
