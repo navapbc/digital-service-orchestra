@@ -100,7 +100,10 @@ assert_eq "A1: documentation/ file skips review (exit 0)" "0" "$(skip_exit "$CON
 assert_eq "A2: nested project-docs/ file skips review (exit 0)" "0" "$(skip_exit "$CONF_A" "project-docs/adr/0001-decision.md")"
 assert_eq "A3: code file still requires review (exit 1)" "1" "$(skip_exit "$CONF_A" "src/main.py")"
 assert_eq "A4: skills/ file force-reviewed despite config (exit 1)" "1" "$(skip_exit "$CONF_A" "skills/my-skill.md")"
-assert_eq "A5: shipped docs/** exemption still works (exit 0)" "0" "$(skip_exit "$CONF_A" "docs/architecture.md")"
+# story 3783: there is NO shipped docs/** exemption anymore — docs/ is reviewable by
+# default. CONF_A does NOT list `docs` in review.non_reviewable_doc_dirs, so a docs/
+# file now REQUIRES review (exit 1). Only host-CONFIGURED doc dirs (A1/A2) are exempt.
+assert_eq "A5: shipped docs/** is now REVIEWABLE (exit 1; only configured dirs exempt)" "1" "$(skip_exit "$CONF_A" "docs/architecture.md")"
 
 # ============================================================================
 # Part B — misconfiguration: a protected LLM-instruction dir is ignored + warned

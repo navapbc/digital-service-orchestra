@@ -74,6 +74,17 @@ _CODE_PROBES=(
 _CRITICAL_PROBES=(
     CLAUDE.md .github/workflows/ci.yml .claude/dso-config.conf .claude/settings.json
 )
+# 3b) Behavior-bearing INSTRUCTION SURFACES that story 3783 made reviewable — must
+# NOT match the allowlist. In an agentic codebase a documentation/lint-config/hook/
+# host-shim surface shapes agent or enforcement behavior, so an un-reviewed edit is
+# an attack vector. (LLM-instruction dirs skills/, hooks/, agents/ were never
+# allowlisted; they are covered by the _CODE-style review path already.)
+_INSTRUCTION_PROBES=(
+    docs/architecture.md docs/nested/guide.md
+    .claude/docs/runbook.md
+    .semgrep.yml .pre-commit-config.yaml
+    .claude/scripts/dso .claude/scripts/helper.sh
+)
 
 _matches_any() {  # _matches_any <path> ; echoes the matching pattern, returns 0 if matched
     local f="$1" pat
@@ -93,6 +104,12 @@ done
 for _probe in "${_CRITICAL_PROBES[@]}"; do
     if _m="$(_matches_any "$_probe")"; then
         echo "ERROR [allowlist]: critical-must-review file '$_probe' is matched by allowlist pattern '$_m' — would skip review" >&2
+        _fail=1
+    fi
+done
+for _probe in "${_INSTRUCTION_PROBES[@]}"; do
+    if _m="$(_matches_any "$_probe")"; then
+        echo "ERROR [allowlist]: behavior-bearing instruction surface '$_probe' is matched by allowlist pattern '$_m' — would skip review (story 3783 requires it be reviewable)" >&2
         _fail=1
     fi
 done
