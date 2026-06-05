@@ -13,8 +13,8 @@
 #   test_sync_state_non_reviewable_both_consumers
 #   test_images_non_reviewable_both_consumers
 #   test_binary_docs_non_reviewable_both_consumers
-#   test_docs_non_reviewable_both_consumers
-#   test_claude_docs_non_reviewable_both_consumers
+#   test_docs_reviewable_both_consumers
+#   test_claude_docs_reviewable_both_consumers
 #   test_claude_session_logs_non_reviewable_both_consumers
 #   test_python_file_reviewable_both_consumers
 #   test_shell_script_reviewable_both_consumers
@@ -50,7 +50,7 @@ fi
 TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
-cd "$TMPDIR_TEST"
+cd "$TMPDIR_TEST" || exit 1
 git init -q -b main
 git config user.email "test@test.com"
 git config user.name "Test"
@@ -222,35 +222,39 @@ test_binary_docs_non_reviewable_both_consumers() {
 # ============================================================
 # Pattern group 6: Non-agent documentation (docs/**)
 # ============================================================
-test_docs_non_reviewable_both_consumers() {
+test_docs_reviewable_both_consumers() {
+    # story 3783: documentation is REVIEWABLE — both consumers must now INCLUDE it
+    # (helpers return 1 for reviewable). The equivalence property is unchanged: both
+    # consumers must still AGREE — now that docs is reviewable, not skippable.
     local file="docs/architecture.md"
 
     local skip_rc=0
     skip_review_classifies_non_reviewable "$file" || skip_rc=$?
-    assert_eq "docs: skip-review-check classifies as non-reviewable" "0" "$skip_rc"
+    assert_eq "docs: skip-review-check classifies as REVIEWABLE" "1" "$skip_rc"
 
     local hash_rc=0
     compute_diff_hash_excludes_file "$file" || hash_rc=$?
-    assert_eq "docs: compute-diff-hash excludes file" "0" "$hash_rc"
+    assert_eq "docs: compute-diff-hash INCLUDES file (reviewable)" "1" "$hash_rc"
 
-    assert_eq "docs: both consumers agree (non-reviewable)" "$skip_rc" "$hash_rc"
+    assert_eq "docs: both consumers agree (reviewable)" "$skip_rc" "$hash_rc"
 }
 
 # ============================================================
 # Pattern group 7: .claude/docs/**
 # ============================================================
-test_claude_docs_non_reviewable_both_consumers() {
+test_claude_docs_reviewable_both_consumers() {
+    # story 3783: .claude/docs/** is REVIEWABLE — both consumers must INCLUDE it.
     local file=".claude/docs/KNOWN-ISSUES.md"
 
     local skip_rc=0
     skip_review_classifies_non_reviewable "$file" || skip_rc=$?
-    assert_eq "claude-docs: skip-review-check classifies as non-reviewable" "0" "$skip_rc"
+    assert_eq "claude-docs: skip-review-check classifies as REVIEWABLE" "1" "$skip_rc"
 
     local hash_rc=0
     compute_diff_hash_excludes_file "$file" || hash_rc=$?
-    assert_eq "claude-docs: compute-diff-hash excludes file" "0" "$hash_rc"
+    assert_eq "claude-docs: compute-diff-hash INCLUDES file (reviewable)" "1" "$hash_rc"
 
-    assert_eq "claude-docs: both consumers agree (non-reviewable)" "$skip_rc" "$hash_rc"
+    assert_eq "claude-docs: both consumers agree (reviewable)" "$skip_rc" "$hash_rc"
 }
 
 # ============================================================
@@ -326,8 +330,8 @@ test_tickets_non_reviewable_both_consumers
 test_sync_state_non_reviewable_both_consumers
 test_images_non_reviewable_both_consumers
 test_binary_docs_non_reviewable_both_consumers
-test_docs_non_reviewable_both_consumers
-test_claude_docs_non_reviewable_both_consumers
+test_docs_reviewable_both_consumers
+test_claude_docs_reviewable_both_consumers
 test_claude_session_logs_non_reviewable_both_consumers
 test_python_file_reviewable_both_consumers
 test_shell_script_reviewable_both_consumers

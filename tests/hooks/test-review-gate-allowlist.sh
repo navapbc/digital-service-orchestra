@@ -61,14 +61,17 @@ test_allowlist_contains_image_patterns() {
     fi
 }
 
-test_allowlist_contains_docs_patterns() {
-    local has_docs has_claude_docs
-    has_docs=$(grep -c '^docs/' "$ALLOWLIST" 2>/dev/null || echo "0")
-    has_claude_docs=$(grep -c '\.claude/docs/' "$ALLOWLIST" 2>/dev/null || echo "0")
-    if [[ "$has_docs" -gt 0 && "$has_claude_docs" -gt 0 ]]; then
-        assert_eq "contains docs patterns" "true" "true"
+test_allowlist_excludes_docs_patterns() {
+    # story 3783: documentation is REVIEWABLE — docs/** and .claude/docs/** must NOT
+    # appear as ACTIVE (non-comment) allowlist patterns. Comment prose may mention
+    # them (the conf explains why they were removed), so match only non-comment lines.
+    local active_docs active_claude_docs
+    active_docs=$(grep -v '^[[:space:]]*#' "$ALLOWLIST" | grep -cE '^docs/\*\*[[:space:]]*$' || true)
+    active_claude_docs=$(grep -v '^[[:space:]]*#' "$ALLOWLIST" | grep -cE '^\.claude/docs/\*\*[[:space:]]*$' || true)
+    if [[ "$active_docs" -eq 0 && "$active_claude_docs" -eq 0 ]]; then
+        assert_eq "docs patterns removed (now reviewable)" "true" "true"
     else
-        assert_eq "contains docs patterns" "true" "false"
+        assert_eq "docs patterns removed (now reviewable)" "true" "false"
     fi
 }
 
@@ -114,7 +117,7 @@ test_allowlist_file_parseable
 test_allowlist_contains_tickets_pattern
 test_allowlist_contains_sync_state_pattern
 test_allowlist_contains_image_patterns
-test_allowlist_contains_docs_patterns
+test_allowlist_excludes_docs_patterns
 test_allowlist_no_code_patterns
 test_allowlist_contains_package_json
 test_allowlist_contains_package_lock_json

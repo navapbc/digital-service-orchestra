@@ -123,10 +123,11 @@ allowlist_tickets=1
 printf '.tickets-tracker/some-ticket.md\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null && allowlist_tickets=0
 assert_eq "test_skip_review_check_reads_from_allowlist: .tickets-tracker/ file exits 0" "0" "$allowlist_tickets"
 
-# Sub-test 2: docs/ file → exit 0 (allowlist covers it)
-allowlist_docs=1
-printf 'docs/architecture.md\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null && allowlist_docs=0
-assert_eq "test_skip_review_check_reads_from_allowlist: docs/ file exits 0" "0" "$allowlist_docs"
+# Sub-test 2: docs/ file → exit 1 (story 3783: documentation is REVIEWABLE — an
+# un-reviewed instruction surface is an attack vector in an agentic codebase)
+allowlist_docs=0
+{ printf 'docs/architecture.md\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null; test $? -ne 0; } && allowlist_docs=1
+assert_eq "test_skip_review_check_reads_from_allowlist: docs/ file reviewable (exit 1)" "1" "$allowlist_docs"
 
 # Sub-test 3: *.png file → exit 0 (allowlist covers it)
 allowlist_png=1
@@ -172,9 +173,7 @@ for f in \
     "hero.webp" \
     "manual.pdf" \
     "report.docx" \
-    ".claude/session-logs/2024-01-01.log" \
-    ".claude/docs/GUIDE.md" \
-    "docs/README.md"; do
+    ".claude/session-logs/2024-01-01.log"; do
     printf '%s\n' "$f" | bash "$CANONICAL_SCRIPT" 2>/dev/null
     if [[ $? -ne 0 ]]; then
         equiv_pass=0
@@ -191,7 +190,12 @@ for f in \
     "skills/my-skill.md" \
     "docs/workflows/WF.md" \
     ".claude/hooks/hook.sh" \
-    "app/src/main.py"; do
+    "app/src/main.py" \
+    "docs/README.md" \
+    ".claude/docs/GUIDE.md" \
+    ".semgrep.yml" \
+    ".pre-commit-config.yaml" \
+    ".claude/scripts/helper.sh"; do
     printf '%s\n' "$f" | bash "$CANONICAL_SCRIPT" 2>/dev/null
     if [[ $? -eq 0 ]]; then
         equiv_block=0
