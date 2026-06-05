@@ -93,3 +93,33 @@ tristate_code_to_name() {
         *)  echo "UNKNOWN" ;;
     esac
 }
+
+# tristate_indeterminate_escalation <gate_label> <reason> [pr_or_branch_ref]
+# 3ebb DD3 — the UNIVERSAL in-channel escalation surface. Any gate that resolves
+# to INDETERMINATE (after exhausting its bounded transient-retry budget) calls
+# this to route the operator to the existing /dso:fp-recovery escape valve —
+# instead of a bare red check or manual git surgery. Emits to stderr:
+#   1. a single greppable JSON marker (machine routing + FP-rate telemetry), and
+#   2. a human-readable, actionable banner.
+# This is a LAST-RESORT surface: callers MUST have already retried any
+# observably-transient cause (lattice rule 4). It does NOT exit — the caller
+# exits TRISTATE_INDETERMINATE so the gate still blocks. It NEVER downgrades a
+# genuine FAIL (only INDETERMINATE verdicts reach here).
+tristate_indeterminate_escalation() {
+    local _gate="${1:-unknown-gate}" _reason="${2:-verdict could not be computed}" _ref="${3:-}"
+    # JSON-safe the free-text fields (collapse quotes/newlines) so the marker is
+    # always parseable for telemetry regardless of the caller's reason string.
+    local _gs="${_gate//\"/\'}"; _gs="${_gs//$'\n'/ }"
+    local _rs="${_reason//\"/\'}"; _rs="${_rs//$'\n'/ }"
+    local _next="/dso:fp-recovery${_ref:+ $_ref}"
+    printf 'INDETERMINATE_ESCALATION: {"gate":"%s","reason":"%s","next_action":"%s","recovery":"in-channel"}\n' \
+        "$_gs" "$_rs" "$_next" >&2
+    {
+        echo "================================================================="
+        echo "INDETERMINATE verdict from gate '${_gate}' — the verdict could NOT be computed."
+        echo "Reason: ${_reason}"
+        echo "This is NOT a confirmed review violation, and transient retries are exhausted."
+        echo "In-channel recovery (do NOT hand-edit git state): ${_next}"
+        echo "================================================================="
+    } >&2
+}
