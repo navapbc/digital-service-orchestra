@@ -208,10 +208,17 @@ def test_http_404_on_update_soft_fails_batch_continues(
         f"recorded error should name the 404; got {stale_outcomes[0]['error']!r}"
     )
 
-    # The good mutation has no error.
+    # The good mutation succeeded: assert BOTH the absence of an error AND a
+    # positive success marker (the recorded ``result`` payload). Asserting only
+    # the error's absence would pass vacuously if a regression nulled the
+    # result, so pin the success indicator explicitly.
     good_outcomes = [o for o in outcomes if o.get("key") == "DIG-4275"]
     assert good_outcomes and not good_outcomes[0].get("error"), (
         f"good mutation should have no error; got {good_outcomes}"
+    )
+    assert good_outcomes[0].get("result") == {"key": "DIG-4275", "ok": True}, (
+        "good mutation outcome must record the positive update_issue result, "
+        f"not just the absence of an error; got {good_outcomes[0]}"
     )
 
 

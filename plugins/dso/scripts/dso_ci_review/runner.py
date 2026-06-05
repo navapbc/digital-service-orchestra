@@ -831,6 +831,27 @@ def _resolve_artifacts_dir() -> str:
     return _ledger_artifacts_dir()
 
 
+def _is_wellformed_repo_slug(candidate: str) -> bool:
+    """True iff ``candidate`` is a well-formed ``<owner>/<repo>`` slug.
+
+    A bare ``"/" in candidate`` check is insufficient: ``owner/``, ``/repo``,
+    and ``owner//repo`` all contain a "/" yet are NOT well-formed and produce
+    invalid GitHub API endpoints (e.g. ``/repos/owner//pulls/...``) when
+    interpolated. Require exactly two "/"-delimited, non-empty components and
+    reject any embedded whitespace (e.g. a trailing newline ``"owner/repo\n"``
+    from an unstripped env var, or an internal space) so both the env and gh
+    paths are validated uniformly.
+    """
+    if (
+        not candidate
+        or candidate != candidate.strip()
+        or any(c.isspace() for c in candidate)
+    ):
+        return False
+    parts = candidate.split("/")
+    return len(parts) == 2 and all(parts)
+
+
 def _resolve_repo(*, allow_gh_fallback: bool = False) -> str | None:
     """Resolve <owner>/<repo>, preferring GITHUB_REPOSITORY then `gh repo view`.
 
@@ -840,10 +861,14 @@ def _resolve_repo(*, allow_gh_fallback: bool = False) -> str | None:
     multi-surface. The gh fallback is opt-in so unconditional call sites (e.g.
     cycle-ledger init, which runs even on push events) do not introduce a gh
     subprocess where none happened before. A return value is only accepted if it
-    is a well-formed `<owner>/<repo>` slug.
+    is a well-formed `<owner>/<repo>` slug (enforced via
+    ``_is_wellformed_repo_slug`` so a malformed env var or gh output is rejected
+    rather than returned and interpolated into a broken API endpoint).
     """
-    env_repo = os.environ.get("GITHUB_REPOSITORY") or ""
-    if env_repo and "/" in env_repo:
+    # Strip so the env path matches the gh-fallback path (which strips
+    # ``result.stdout``); a trailing newline in GITHUB_REPOSITORY is benign noise.
+    env_repo = (os.environ.get("GITHUB_REPOSITORY") or "").strip()
+    if _is_wellformed_repo_slug(env_repo):
         return env_repo
     if not allow_gh_fallback:
         return None
@@ -856,7 +881,7 @@ def _resolve_repo(*, allow_gh_fallback: bool = False) -> str | None:
         )
         if result.returncode == 0:
             derived = result.stdout.strip()
-            if derived and "/" in derived:
+            if _is_wellformed_repo_slug(derived):
                 return derived
     except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
@@ -1833,6 +1858,17 @@ def _fetch_pr_defenses(pr_number: int | str) -> list[dict]:
 
     # Parse both surfaces and deduplicate identical records (a defense mirrored
     # to both surfaces, or a record returned twice, must count once).
+    #
+    # Dedup contract: identity is the EXACT canonical JSON serialization of the
+    # record (`json.dumps(..., sort_keys=True)`), NOT fingerprint equality. Two
+    # records collapse only when byte-identical after key-sorting. This is the
+    # safe choice for cross-surface merge: if the two surfaces ever transform a
+    # DEFENSE_RECORD differently (e.g. one re-encodes whitespace or drops a
+    # field), the serializations diverge and BOTH variants are retained rather
+    # than one silently masking the other — over-retention degrades to a
+    # duplicate finding-suppression entry (harmless), whereas fingerprint-based
+    # identity could drop a genuinely distinct record. Records are plain dicts
+    # of JSON scalars, so sort_keys yields a stable, order-independent key.
     parsed = _parse_defense_records(bodies)
     deduped: list[dict] = []
     seen: set[str] = set()

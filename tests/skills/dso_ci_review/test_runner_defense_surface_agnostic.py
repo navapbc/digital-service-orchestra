@@ -20,6 +20,8 @@ These tests were RED before the fix:
 import subprocess
 from unittest.mock import patch
 
+import pytest
+
 import dso_ci_review.runner as runner_mod
 
 
@@ -252,9 +254,7 @@ def test_reviews_api_422_logs_per_finding_anchor_warning(monkeypatch, capsys):
         return _completed(stdout="")
 
     # _resolve_pr_head_sha falls back to GITHUB_SHA env when gh calls return "".
-    with patch.object(
-        runner_mod.subprocess, "run", side_effect=_fake_run
-    ) as mock_run:
+    with patch.object(runner_mod.subprocess, "run", side_effect=_fake_run) as mock_run:
         runner_mod._post_pr_review(findings)
 
     stderr = capsys.readouterr().err
@@ -279,4 +279,113 @@ def test_reviews_api_422_logs_per_finding_anchor_warning(monkeypatch, capsys):
         "after the Reviews API 422, anchored findings must be re-routed to the "
         "`gh pr comment` issue-comment fallback; calls were:\n"
         + "\n".join(str(c) for c in calls)
+    )
+
+
+# ---------------------------------------------------------------------------
+# (c) _resolve_repo enforces a well-formed <owner>/<repo> slug.
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "malformed",
+    ["owner/", "/repo", "owner//repo", "noseparator", "", "a/b/c"],
+)
+def test_resolve_repo_rejects_malformed_env_slug(monkeypatch, malformed):
+    """A malformed GITHUB_REPOSITORY must NOT be returned.
+
+    RED before fix: the guard only checked `"/" in env_repo`, so `owner/`,
+    `/repo`, and `owner//repo` were returned and interpolated into invalid
+    GitHub API endpoints (e.g. `/repos/owner//pulls/<n>/comments`). The
+    docstring's "well-formed <owner>/<repo>" contract is now enforced.
+    """
+    monkeypatch.setenv("GITHUB_REPOSITORY", malformed)
+    # allow_gh_fallback=False isolates the env-var validation path.
+    assert runner_mod._resolve_repo(allow_gh_fallback=False) is None
+
+
+def test_resolve_repo_accepts_wellformed_env_slug(monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    assert runner_mod._resolve_repo(allow_gh_fallback=False) == "owner/repo"
+
+
+def test_resolve_repo_strips_env_whitespace(monkeypatch):
+    """A trailing newline in GITHUB_REPOSITORY (benign env noise) is stripped
+    and accepted, matching the gh-fallback path which strips its stdout — no
+    asymmetry where the env path interpolates `owner/repo\\n` into an endpoint.
+    """
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo\n")
+    assert runner_mod._resolve_repo(allow_gh_fallback=False) == "owner/repo"
+
+
+def test_resolve_repo_rejects_malformed_gh_fallback(monkeypatch):
+    """A malformed `gh repo view` derivation is rejected, not returned."""
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+
+    def _fake_run(cmd, *args, **kwargs):
+        # gh repo view returns a malformed slug (no repo component).
+        if cmd[:3] == ["gh", "repo", "view"]:
+            return _completed(stdout="owner/\n")
+        return _completed(stdout="")
+
+    with patch.object(runner_mod.subprocess, "run", side_effect=_fake_run):
+        assert runner_mod._resolve_repo(allow_gh_fallback=True) is None
+
+
+@pytest.mark.parametrize(
+    "candidate,expected",
+    [
+        ("owner/repo", True),
+        ("owner/", False),
+        ("/repo", False),
+        ("owner//repo", False),
+        ("noseparator", False),
+        ("", False),
+        ("a/b/c", False),
+        # Whitespace must be rejected on BOTH paths (the validator is shared).
+        ("owner/repo\n", False),
+        (" owner/repo", False),
+        ("owner /repo", False),
+        ("owner/ repo", False),
+        ("own er/repo", False),
+    ],
+)
+def test_is_wellformed_repo_slug(candidate, expected):
+    assert runner_mod._is_wellformed_repo_slug(candidate) is expected
+
+
+def test_fetch_pr_defenses_dedupes_differently_formatted_records(monkeypatch):
+    """Cross-surface dedup keys on canonical JSON, not the raw line.
+
+    The two surfaces carry the SAME logical defense record but with different
+    raw JSON formatting (key order + whitespace). A raw-string-keyed or no-op
+    dedup would return TWO records; canonical `json.dumps(..., sort_keys=True)`
+    keying collapses them to one. This pins the dedup CONTRACT, not just the
+    identical-bytes case.
+    """
+    monkeypatch.setenv("GITHUB_TOKEN", "token-stub")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+
+    # Same parsed dict; deliberately different key order and spacing.
+    issue_surface = (
+        'DEFENSE_RECORD: {"finding_fingerprint": "F5", "ticket_id": "T-5", '
+        '"defense_type": "resolved", "defense_text": "dup"}'
+    )
+    review_surface = (
+        'DEFENSE_RECORD: {"defense_text":"dup","defense_type":"resolved",'
+        '"ticket_id":"T-5","finding_fingerprint":"F5"}'
+    )
+
+    def _fake_run(cmd, *args, **kwargs):
+        if cmd[:3] == ["gh", "pr", "view"]:
+            return _completed(stdout=issue_surface + "\n")
+        if cmd[:2] == ["gh", "api"]:
+            return _completed(stdout=review_surface + "\n")
+        return _completed(stdout="")
+
+    with patch.object(runner_mod.subprocess, "run", side_effect=_fake_run):
+        defenses = runner_mod._fetch_pr_defenses(658)
+
+    f5 = [d for d in defenses if d.get("finding_fingerprint") == "F5"]
+    assert len(f5) == 1, (
+        "The same record carried on both surfaces with different JSON "
+        f"formatting must dedupe to exactly one; got: {defenses!r}"
     )
