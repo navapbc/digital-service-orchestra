@@ -577,6 +577,12 @@ test_dispatcher_no_marker_exits_1() {
     stderr_content=$(cat "$stderr_file")
     assert_contains "test_dispatcher_no_marker_exits_1: stderr names the marker" \
         "provenance-complete.marker" "$stderr_content"
+    # DD3 (review-tristate-lattice.md): an INDETERMINATE verdict must emit the
+    # greppable INDETERMINATE_ESCALATION: marker to stderr for machine routing to
+    # /dso:fp-recovery + FP-rate telemetry. Asserting exit 75 alone would pass a
+    # partial impl that exits 75 without escalating, silently breaking DD3 recovery.
+    assert_contains "test_dispatcher_no_marker_exits_1: stderr emits INDETERMINATE_ESCALATION marker (DD3)" \
+        "INDETERMINATE_ESCALATION:" "$stderr_content"
 
     rm -rf "$artifact_dir" "$stderr_file"
     assert_pass_if_clean "test_dispatcher_no_marker_exits_1"
