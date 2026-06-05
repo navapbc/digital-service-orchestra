@@ -179,3 +179,30 @@ def test_no_breadcrumb_when_fields_converge(
 
     assert result == []
     assert "RECON: outbound_update" not in capsys.readouterr().err
+
+
+def test_breadcrumb_reports_comment_and_label_counts(
+    outbound_differ: ModuleType,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A label-only update (no scalar field diff) still logs a breadcrumb with
+    `changed=[]` plus the comment/label counts — so a comment/label re-emitter
+    (bug 57d1: in-window keys re-emitting with an empty field diff) is visible,
+    not silently suppressed."""
+    ticket = _make_ticket(ticket_id="local-4", tags=["urgent"])
+    store = StubBindingStore({"local-4": "DIG-5529"})
+    # Fields all match; only the label set diverges (local 'urgent' not in Jira).
+    snapshot = {"DIG-5529": _jira_fields()}
+
+    result = outbound_differ.compute_outbound_mutations(
+        local_tickets=[ticket],
+        jira_snapshot=snapshot,
+        binding_store=store,
+    )
+
+    assert len(result) == 1
+    assert result[0].action == "update"
+    err = capsys.readouterr().err
+    assert "RECON: outbound_update key=DIG-5529" in err
+    assert "changed=[]" in err  # no scalar field diff
+    assert "labels=1" in err  # the label re-emit IS visible

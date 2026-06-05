@@ -1112,12 +1112,13 @@ def compute_outbound_mutations(
                 # only / label-only updates carry no field diff, so `changed`
                 # is empty and the breadcrumb is skipped (keeps stderr quiet
                 # for the common comment-mirror case).
-                if changed:
-                    print(  # noqa: T201
-                        f"RECON: outbound_update key={jira_key} "
-                        f"changed=[{','.join(sorted(changed))}]",
-                        file=sys.stderr,
-                    )
+                print(  # noqa: T201
+                    f"RECON: outbound_update key={jira_key} "
+                    f"changed=[{','.join(sorted(changed))}] "
+                    f"comments={len(comment_mutations)} "
+                    f"labels={len(label_mutations)}",
+                    file=sys.stderr,
+                )
                 mutations.append(
                     OutboundMutation(
                         local_id=local_id,
