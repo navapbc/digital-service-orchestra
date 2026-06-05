@@ -619,6 +619,14 @@ def _decorate_outbound_comment(body: str) -> str:
 #   - DEFENSE_RECORD:     machine-readable review-defense JSON (review-defense-store.sh).
 #   - CHECKPOINT          sub-agent progress notes ("CHECKPOINT N/6: ...").
 #   - WORKTREE_TRACKING:  fail-silent worktree lifecycle tracking comment.
+#   - BRIDGE_CANARY_ALERT: heartbeat-canary staleness alert (reconcile-bridge-
+#       canary.yml). Bug 57d1: the canary appends a fresh-TIMESTAMPED "Still
+#       stale as of <ts>: ..." comment to its alert ticket every run; mirrored
+#       outbound, the volatile timestamp never matches a prior Jira body, so the
+#       comment re-adds every pass and accumulates duplicate Jira comments (20+
+#       observed on DIG-5383). It is internal monitoring noise, not human Jira
+#       content — exclude it (the canary now prefixes the marker; see
+#       reconcile-bridge-canary.yml).
 # Only genuine machine markers are listed — human comments are never excluded.
 _EXCLUDED_COMMENT_PREFIXES: tuple[str, ...] = (
     "PREPLANNING_CONTEXT:",
@@ -627,6 +635,7 @@ _EXCLUDED_COMMENT_PREFIXES: tuple[str, ...] = (
     "DEFENSE_RECORD:",
     "CHECKPOINT",
     "WORKTREE_TRACKING:",
+    "BRIDGE_CANARY_ALERT:",
 )
 
 
@@ -884,6 +893,7 @@ def compute_outbound_mutations(
     local_label_intent: dict[str, set[str]] | None = None,
     client: Any = None,
     pass_id: str = "",
+    absent_alive_fields: dict[str, dict[str, Any]] | None = None,
 ) -> list[OutboundMutation]:
     """Diff local tickets against Jira snapshot and return outbound mutations.
 
@@ -914,6 +924,17 @@ def compute_outbound_mutations(
             Used as the rotation bookkeeping key for bound-but-absent direct
             GETs (bug 1e08) — recorded via ``binding_store.set_last_get`` so the
             least-recently-GET'd absent keys are serviced first next pass.
+        absent_alive_fields: Optional out-param dict. When provided, each
+            bound-but-absent jira_key that the bounded direct GET resolves as
+            ALIVE (HTTP 200) this pass is recorded as
+            ``absent_alive_fields[jira_key] = <raw fields dict>``. This is the
+            inbound-direction GET-sharing seam (bug 0702-3b6d-c1db-4ed3): the
+            reconcile orchestrator merges these entries into the snapshot it
+            hands to the inbound differ, so each out-of-window-alive key is
+            GET'd exactly ONCE per pass and BOTH directions consume the result.
+            404/deleted and transport-error keys are deliberately NOT recorded
+            (a gone issue must not be inbound-mirrored; retirement stays owned
+            by the outbound 404-counter). None → no recording (legacy callers).
 
     Returns:
         List of OutboundMutation objects describing changes to push to Jira.
@@ -1051,6 +1072,13 @@ def compute_outbound_mutations(
                 jira_fields = fields
                 comment_snapshot = dict(jira_snapshot)
                 comment_snapshot[jira_key] = fields
+                # Bug 0702: share this alive GET result with the inbound differ
+                # so the out-of-window key is mirrored Jira→local without a
+                # second GET. Only the alive (200) case is recorded — 404 and
+                # transport errors are intentionally left out so a gone issue is
+                # never inbound-mirrored (retirement stays outbound-owned).
+                if absent_alive_fields is not None:
+                    absent_alive_fields[jira_key] = fields
 
             changed = _diff_fields(
                 ticket,
@@ -1082,6 +1110,24 @@ def compute_outbound_mutations(
             label_mutations = label_mutations + annotation_mutations
 
             if changed or comment_mutations or label_mutations:
+                # Sync-hardening P5 / bug 57d1 diagnosis enabler: emit a
+                # one-line CHANGED-FIELD BREADCRUMB whenever a bound key gets
+                # an outbound UPDATE carrying field diffs. Logs the changed
+                # FIELD NAMES only (never values — descriptions/assignees may
+                # be large or sensitive) so a re-emitting (non-converging)
+                # field becomes visible in CI logs without live Jira creds.
+                # The field list is the keys of the same `changed` dict
+                # _diff_fields already computed — no recomputation. Comment-
+                # only / label-only updates carry no field diff, so `changed`
+                # is empty and the breadcrumb is skipped (keeps stderr quiet
+                # for the common comment-mirror case).
+                print(  # noqa: T201
+                    f"RECON: outbound_update key={jira_key} "
+                    f"changed=[{','.join(sorted(changed))}] "
+                    f"comments={len(comment_mutations)} "
+                    f"labels={len(label_mutations)}",
+                    file=sys.stderr,
+                )
                 mutations.append(
                     OutboundMutation(
                         local_id=local_id,

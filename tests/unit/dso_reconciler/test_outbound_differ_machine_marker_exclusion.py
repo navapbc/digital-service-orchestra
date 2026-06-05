@@ -136,3 +136,33 @@ def test_human_comment_still_emitted_alongside_excluded_marker(
     )
     assert human_body in emitted[0]["body"]
     assert "RESEARCH_FINDINGS" not in emitted[0]["body"]
+
+
+def test_bridge_canary_alert_comments_not_emitted(
+    outbound_differ: ModuleType,
+) -> None:
+    """Bug 57d1: the heartbeat canary appends a fresh-TIMESTAMPED
+    ``BRIDGE_CANARY_ALERT: Still stale as of <ts>: ...`` comment every run. The
+    volatile timestamp means the body never matches a prior Jira comment, so
+    pre-fix it re-added every pass and accumulated duplicate Jira comments
+    (20+ observed on DIG-5383). Two such comments with DIFFERENT timestamps must
+    BOTH be excluded from outbound sync — proving the re-emitter is killed."""
+    jira_key = "DIG-5383"
+    c1 = "BRIDGE_CANARY_ALERT: Still stale as of 2026-06-04T20:42:59Z: Last successful run was 3h ago."
+    c2 = "BRIDGE_CANARY_ALERT: Still stale as of 2026-06-04T23:29:33Z: Last successful run was 6h ago."
+    ticket = _make_ticket_with_comments("local-canary", [c1, c2])
+    store = StubBindingStore({"local-canary": jira_key})
+    snapshot = _make_jira_snapshot_with_comments(jira_key, [])
+
+    result = outbound_differ.compute_outbound_mutations(
+        local_tickets=[ticket],
+        jira_snapshot=snapshot,
+        binding_store=store,
+    )
+
+    comment_mutations = [m for m in result if m.comments]
+    assert comment_mutations == [], (
+        "BRIDGE_CANARY_ALERT: heartbeat comments (volatile timestamp) must be "
+        "excluded from outbound sync so they stop re-emitting/accumulating in "
+        f"Jira. Got comment mutations: {[m.comments for m in comment_mutations]}"
+    )
