@@ -1149,7 +1149,7 @@ client = mod.AcliClient(
     user=os.environ['JIRA_USER'],
     api_token=os.environ['JIRA_API_TOKEN'],
 )
-parent_map = client.get_parent_map(['${CHILD_JIRA_KEY}'])
+parent_map = client.get_parent_map('${JIRA_PROJECT}', jql='key = ${CHILD_JIRA_KEY}')
 print(parent_map.get('${CHILD_JIRA_KEY}') or '')
 " 2>/dev/null) || true
     if [ "$child_parent_key" = "$EPIC_JIRA_KEY" ]; then
@@ -1161,22 +1161,56 @@ print(parent_map.get('${CHILD_JIRA_KEY}') or '')
     fi
 fi
 
-# --- 2c-3: Reparent child locally → verify Jira parent changed ---
-# Reparent child from epic to LOCAL_IDS[0] (FIELD-PROBE-1).
-# LOCAL_IDS[0] is a task, not an Epic — some Jira instances reject non-Epic
-# parents for subtasks, so we treat the set_parent as best-effort and only
-# assert when the Jira REST call succeeds.
-if [ -n "$CHILD_LOCAL_ID" ] && [ -n "${LOCAL_IDS[0]}" ]; then
+# --- 2c-3: Reparent child to a SECOND epic → verify Jira parent changed ---
+# Jira's next-gen hierarchy permits ONLY an Epic as a parent (outbound_differ
+# suppresses non-epic parents; the applier 400-skips them). A Task→Task
+# reparent is therefore rejected by design — reparenting to a task would never
+# land and is not a valid outbound-reparent assertion. We create + bind a
+# second epic (EPIC2) and reparent the child epic→epic, which is the real
+# supported outbound reparent path (live-proven, ticket 8b25).
+EPIC2_LOCAL_ID=""
+EPIC2_JIRA_KEY=""
+if [ -n "$CHILD_LOCAL_ID" ] && [ -n "$EPIC_JIRA_KEY" ]; then
+    EPIC2_LOCAL_ID=$("$TICKET_CLI" ticket create epic \
+        "FIELD-PROBE-EPIC2: reparent-target ${PROBE_TS}" \
+        -d "Second epic for reparent probe" \
+        --priority 2 \
+        --tags "${PROBE_TAG}" \
+        2>&1 | tail -1) || true
+    if ! is_valid_ticket_id "$EPIC2_LOCAL_ID"; then
+        fail_test "Phase2c.create-epic2" "ticket create epic2 returned no valid ID (got: ${EPIC2_LOCAL_ID})"
+        EPIC2_LOCAL_ID=""
+    else
+        pass_test "Phase2c.create-epic2 (${EPIC2_LOCAL_ID})"
+        PARITY_FILTER="${PARITY_FILTER},${EPIC2_LOCAL_ID}"
+    fi
+fi
+
+if [ -n "$EPIC2_LOCAL_ID" ]; then
+    # Bind EPIC2 first so the differ can resolve the child's new parent key.
+    echo "Running reconciler to bind EPIC2..."
+    reconciler_output=$(run_filtered_reconciler "$PARITY_FILTER")
+    echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
+    epic2_binding=$(check_binding_with_retry "$EPIC2_LOCAL_ID")
+    if [[ "$epic2_binding" == confirmed:* ]]; then
+        EPIC2_JIRA_KEY="${epic2_binding#confirmed:}"
+        pass_test "Phase2c.epic2-binding (${EPIC2_LOCAL_ID} → ${EPIC2_JIRA_KEY})"
+    else
+        fail_test "Phase2c.epic2-binding" "expected confirmed, got: ${epic2_binding}"
+    fi
+fi
+
+if [ -n "$CHILD_LOCAL_ID" ] && [ -n "$EPIC2_LOCAL_ID" ]; then
     # Use "parent" (not "parent_id") — ticket edit's allowed fields are:
     # title priority assignee ticket_type description tags parent.
-    edit_ticket_field "$CHILD_LOCAL_ID" "parent" "${LOCAL_IDS[0]}"
+    edit_ticket_field "$CHILD_LOCAL_ID" "parent" "${EPIC2_LOCAL_ID}"
     pass_test "Phase2c.reparent-child-local"
 
     echo "Running reconciler for reparent outbound..."
     reconciler_output=$(run_filtered_reconciler "$PARITY_FILTER")
     echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
 
-    if [ -n "$CHILD_JIRA_KEY" ] && [ -n "${JIRA_KEYS[0]}" ]; then
+    if [ -n "$CHILD_JIRA_KEY" ] && [ -n "$EPIC2_JIRA_KEY" ]; then
         new_parent_key=$(cd "$RECONCILER_DIR" && python3 -c "
 import importlib.util, os
 spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
@@ -1187,14 +1221,14 @@ client = mod.AcliClient(
     user=os.environ['JIRA_USER'],
     api_token=os.environ['JIRA_API_TOKEN'],
 )
-parent_map = client.get_parent_map(['${CHILD_JIRA_KEY}'])
+parent_map = client.get_parent_map('${JIRA_PROJECT}', jql='key = ${CHILD_JIRA_KEY}')
 print(parent_map.get('${CHILD_JIRA_KEY}') or '')
 " 2>/dev/null) || true
-        if [ "$new_parent_key" = "${JIRA_KEYS[0]}" ]; then
-            pass_test "Phase2c.verify-reparent-outbound (${CHILD_JIRA_KEY} → ${JIRA_KEYS[0]})"
+        if [ "$new_parent_key" = "$EPIC2_JIRA_KEY" ]; then
+            pass_test "Phase2c.verify-reparent-outbound (${CHILD_JIRA_KEY} → ${EPIC2_JIRA_KEY})"
             matrix_set "parent" "outbound" "update" "PASS"
         else
-            fail_test "Phase2c.verify-reparent-outbound" "expected ${JIRA_KEYS[0]}, got: ${new_parent_key}"
+            fail_test "Phase2c.verify-reparent-outbound" "expected ${EPIC2_JIRA_KEY}, got: ${new_parent_key}"
             matrix_set "parent" "outbound" "update" "FAIL"
         fi
     fi
@@ -1756,7 +1790,7 @@ done
 
 # Delete Phase 2c Jira issues (child first, then third, then epic — ordering
 # avoids Jira's "has children" constraint on Epic delete where applicable).
-for parity_pair in "child:${CHILD_JIRA_KEY}" "third:${THIRD_JIRA_KEY}" "epic:${EPIC_JIRA_KEY}"; do
+for parity_pair in "child:${CHILD_JIRA_KEY}" "third:${THIRD_JIRA_KEY}" "epic2:${EPIC2_JIRA_KEY}" "epic:${EPIC_JIRA_KEY}"; do
     parity_label="${parity_pair%%:*}"
     parity_key="${parity_pair#*:}"
     if [ -n "$parity_key" ]; then
@@ -1781,7 +1815,7 @@ done
 
 # Delete Phase 2c local tickets (child and third must be deleted before epic
 # since open-children guard blocks epic closure).
-for parity_pair in "child:${CHILD_LOCAL_ID}" "third:${THIRD_LOCAL_ID}" "epic:${EPIC_LOCAL_ID}"; do
+for parity_pair in "child:${CHILD_LOCAL_ID}" "third:${THIRD_LOCAL_ID}" "epic2:${EPIC2_LOCAL_ID}" "epic:${EPIC_LOCAL_ID}"; do
     parity_label="${parity_pair%%:*}"
     parity_id="${parity_pair#*:}"
     if [ -n "$parity_id" ]; then

@@ -119,6 +119,62 @@ def test_get_parent_map_jql_endpoint_two_page_pagination(acli: ModuleType) -> No
 
 @pytest.mark.unit
 @pytest.mark.scripts
+def test_get_parent_map_single_key_jql_resolves_parent(acli: ModuleType) -> None:
+    """Calling convention contract (bug 8b25 continuation): the supported way to
+    look up ONE issue's parent is ``get_parent_map(project, jql='key = DIG-N')``
+    — ``project`` is a STRING project key and the per-key narrowing goes through
+    ``jql``. This is the call shape the e2e field-validation probe must use.
+
+    The prior probe regression passed a 1-element LIST of issue keys as the
+    ``project`` positional (``get_parent_map(['DIG-N'])``), which produced the
+    JQL ``project = ['DIG-N']`` → HTTP 400 → empty map → a false-negative
+    "parent not set" verdict even though the reconciler had correctly attached
+    the parent. This test pins the correct convention so that mistake cannot
+    silently re-enter via the probe assertion path.
+    """
+    client = _make_client(acli)
+    page = {
+        "issues": [{"key": "DIG-5491", "fields": {"parent": {"key": "DIG-5490"}}}],
+        "isLast": True,
+        "nextPageToken": None,
+    }
+    with patch.object(
+        client, "_direct_rest_post_json", side_effect=[page]
+    ) as mock_post:
+        result = client.get_parent_map("DIG", jql="key = DIG-5491")
+
+    assert result.get("DIG-5491") == "DIG-5490"
+    # The per-key narrowing is carried in the JQL body, not by misusing the
+    # project positional. The endpoint receives the explicit key-scoped JQL.
+    body = mock_post.call_args_list[0].args[1]
+    assert body["jql"] == "key = DIG-5491"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_parent_map_project_arg_is_string_not_list(acli: ModuleType) -> None:
+    """Guard the probe bug class: when no ``jql`` override is given, the default
+    JQL is ``project = <project>`` built from the STRING project positional.
+
+    A list passed as ``project`` would stringify into ``project = ['DIG-N']`` —
+    a malformed JQL Jira rejects with HTTP 400. This test documents that the
+    default JQL embeds the bare project token, so callers must pass a project
+    KEY string here and route per-issue filtering through ``jql=``.
+    """
+    client = _make_client(acli)
+    page = {"issues": [], "isLast": True, "nextPageToken": None}
+    with patch.object(
+        client, "_direct_rest_post_json", side_effect=[page]
+    ) as mock_post:
+        client.get_parent_map("DIG")
+    body = mock_post.call_args_list[0].args[1]
+    assert body["jql"] == "project = DIG"
+    # A list would have produced "project = ['DIG']" — explicitly NOT this.
+    assert "[" not in body["jql"]
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
 def test_get_parent_map_stops_on_islast_without_token(acli: ModuleType) -> None:
     """A single isLast=True page (token present but isLast wins) stops the walk."""
     client = _make_client(acli)
