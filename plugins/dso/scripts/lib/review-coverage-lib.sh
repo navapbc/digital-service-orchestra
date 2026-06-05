@@ -112,8 +112,9 @@ source "$_RCL_DIR/bypass-actor-set.sh"
 #   into an unreviewed commit; a tree cannot). A commit mixing a ticket-store change
 #   with ANY other path is NOT exempt (prevents laundering code through a ticket
 #   commit). I-1 GUARD: an EMPTY file list is NOT exempt — an empty/merge diff must
-#   never be silently read as "all paths are tickets"; merge handling is the caller's
-#   clean-merge concern, not this predicate's.
+#   never be silently read as "all paths are tickets". (Since cca8 there is no
+#   caller-side clean-merge exemption either: a merge commit falls through to the
+#   normal fail-closed coverage path — see review-coverage-invariant.sh.)
 #
 #   Returns: 0 EXEMPT (all changed paths under the ticket store, >=1 path)
 #            1 NOT exempt (some non-ticket path, OR empty file list)
@@ -124,7 +125,8 @@ rc_diff_is_tickets_only() {
     [[ -z "$_sha" ]] && return 2
     # Per-commit file list vs first parent (--root handles the initial commit). A
     # merge commit produces NO entries here (no -m/--cc) -> empty -> NOT exempt,
-    # which is correct: the clean-merge exemption is evaluated by the caller.
+    # which is correct: a merge commit is never ticket-only and (since cca8) has no
+    # caller-side clean-merge exemption — it must be proven-reviewed like any SHA.
     # core.quotepath=false so a non-ASCII ticket-store path is emitted LITERALLY
     # (not C-quoted as "\303\251…"); otherwise the leading-quote would fail the
     # prefix case below and a genuinely ticket-only commit would be (fail-safe but
