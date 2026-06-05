@@ -831,9 +831,36 @@ def _resolve_artifacts_dir() -> str:
     return _ledger_artifacts_dir()
 
 
-def _resolve_repo() -> str | None:
-    """Resolve <owner>/<repo> from GITHUB_REPOSITORY env var."""
-    return os.environ.get("GITHUB_REPOSITORY") or None
+def _resolve_repo(*, allow_gh_fallback: bool = False) -> str | None:
+    """Resolve <owner>/<repo>, preferring GITHUB_REPOSITORY then `gh repo view`.
+
+    In CI, GITHUB_REPOSITORY is always set. Local runs (env unset) would
+    otherwise silently lose any surface that requires the repo slug; when
+    ``allow_gh_fallback`` is set we derive it from the gh CLI so behaviour stays
+    multi-surface. The gh fallback is opt-in so unconditional call sites (e.g.
+    cycle-ledger init, which runs even on push events) do not introduce a gh
+    subprocess where none happened before. A return value is only accepted if it
+    is a well-formed `<owner>/<repo>` slug.
+    """
+    env_repo = os.environ.get("GITHUB_REPOSITORY") or ""
+    if env_repo and "/" in env_repo:
+        return env_repo
+    if not allow_gh_fallback:
+        return None
+    try:
+        result = subprocess.run(
+            ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            derived = result.stdout.strip()
+            if derived and "/" in derived:
+                return derived
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return None
 
 
 def _resolve_validator_script(plugin_root: str | None = None) -> str:
@@ -1757,8 +1784,8 @@ def _fetch_pr_defenses(pr_number: int | str) -> list[dict]:
     # Surface 2: PR review-thread comments (Reviews-API happy path). Findings/
     # defenses anchored as resolvable review threads live here and are NOT
     # returned by `gh pr view --json comments`.
-    repository = os.environ.get("GITHUB_REPOSITORY", "")
-    if repository and "/" in repository:
+    repository = _resolve_repo(allow_gh_fallback=True)
+    if repository:
         try:
             result = subprocess.run(
                 [
@@ -1788,6 +1815,18 @@ def _fetch_pr_defenses(pr_number: int | str) -> list[dict]:
                 "review-thread surface unavailable for cycle-2 defense lookup",
                 file=sys.stderr,
             )
+    else:
+        # Could not resolve <owner>/<repo> (GITHUB_REPOSITORY unset/malformed
+        # AND `gh repo view` derivation failed). Surface 2 is the review-thread
+        # surface; skipping it silently would regress local runs to a single
+        # surface and re-orphan cross-surface defenses (bug 40cd). Make the
+        # skip visible so the both-surfaces-fail -> [] semantics stay honest.
+        print(
+            "WARNING: could not resolve <owner>/<repo> (GITHUB_REPOSITORY "
+            "unset/malformed and gh repo view derivation failed); review-thread "
+            "surface (Surface 2) skipped for cycle-2 defense lookup",
+            file=sys.stderr,
+        )
 
     if not any_surface_succeeded:
         return []

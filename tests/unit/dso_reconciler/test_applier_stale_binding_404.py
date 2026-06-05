@@ -33,6 +33,7 @@ import json
 import sys
 import time
 import urllib.error
+from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock, patch
@@ -64,22 +65,41 @@ if "dso_reconciler.adf" not in sys.modules:
 
 
 def _load_module(name: str, path: Path) -> ModuleType:
+    """Load ``path`` as a fresh module under ``name``.
+
+    Unlike ``sys.modules.setdefault``, this always executes a fresh module and
+    registers it under a file-unique key. The module is registered before
+    ``exec_module`` so any self-referential imports resolve. Callers are
+    responsible for popping ``name`` from ``sys.modules`` on teardown (see the
+    yield fixtures below) so the cache does not leak across test files or
+    review cycles (the 4cc1 leakage class).
+    """
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
-    sys.modules.setdefault(name, mod)
+    sys.modules[name] = mod
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
 
 @pytest.fixture(scope="module")
-def applier_mod() -> ModuleType:
-    return _load_module("applier_stale_binding_404", APPLIER_PATH)
+def applier_mod() -> Iterator[ModuleType]:
+    name = "applier_stale_binding_404"
+    mod = _load_module(name, APPLIER_PATH)
+    try:
+        yield mod
+    finally:
+        sys.modules.pop(name, None)
 
 
 @pytest.fixture(scope="module")
-def acli_mod() -> ModuleType:
-    return _load_module("acli_stale_binding_404", ACLI_PATH)
+def acli_mod() -> Iterator[ModuleType]:
+    name = "acli_stale_binding_404"
+    mod = _load_module(name, ACLI_PATH)
+    try:
+        yield mod
+    finally:
+        sys.modules.pop(name, None)
 
 
 def _make_fake_acli(acli_mod: ModuleType, client: MagicMock) -> MagicMock:

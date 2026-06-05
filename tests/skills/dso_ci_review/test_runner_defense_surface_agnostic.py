@@ -120,6 +120,70 @@ def test_fetch_pr_defenses_still_reads_issue_surface(monkeypatch):
     )
 
 
+def test_fetch_pr_defenses_derives_repo_when_env_unset(monkeypatch):
+    """GITHUB_REPOSITORY unset (local run): Surface 2 must derive the repo via
+    `gh repo view` rather than silently skip the review-thread surface.
+
+    Guards the F1/F2 regression: a malformed/absent env var must NOT regress a
+    run to a single surface when the slug is otherwise discoverable.
+    """
+    monkeypatch.setenv("GITHUB_TOKEN", "token-stub")
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+
+    defense_body = (
+        'DEFENSE_RECORD: {"finding_fingerprint": "F4", "ticket_id": "T-4", '
+        '"defense_type": "resolved", "defense_text": "review-thread defense"}'
+    )
+
+    def _fake_run(cmd, *args, **kwargs):
+        # gh repo view derives the slug.
+        if cmd[:3] == ["gh", "repo", "view"]:
+            return _completed(stdout="owner/repo\n")
+        # Issue surface: empty.
+        if cmd[:3] == ["gh", "pr", "view"]:
+            return _completed(stdout="")
+        # Review-thread surface (now reachable via derived slug).
+        if cmd[:2] == ["gh", "api"] and any(
+            "/pulls/" in str(c) and str(c).endswith("/comments") for c in cmd
+        ):
+            return _completed(stdout=defense_body + "\n")
+        return _completed(stdout="")
+
+    with patch.object(runner_mod.subprocess, "run", side_effect=_fake_run):
+        defenses = runner_mod._fetch_pr_defenses(658)
+
+    assert [d.get("finding_fingerprint") for d in defenses] == ["F4"], (
+        "With GITHUB_REPOSITORY unset, the review-thread surface must still be "
+        f"queried via gh-derived slug; got: {defenses!r}"
+    )
+
+
+def test_fetch_pr_defenses_warns_when_repo_unresolvable(monkeypatch, capsys):
+    """When the repo slug cannot be resolved (env unset AND gh derivation
+    fails), Surface 2 is skipped with a visible WARNING — not silently."""
+    monkeypatch.setenv("GITHUB_TOKEN", "token-stub")
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+
+    def _fake_run(cmd, *args, **kwargs):
+        if cmd[:3] == ["gh", "repo", "view"]:
+            return _completed(returncode=1, stderr="not a git repo")
+        if cmd[:3] == ["gh", "pr", "view"]:
+            return _completed(stdout="")
+        return _completed(stdout="")
+
+    with patch.object(runner_mod.subprocess, "run", side_effect=_fake_run):
+        defenses = runner_mod._fetch_pr_defenses(658)
+
+    stderr = capsys.readouterr().err
+    assert "Surface 2" in stderr and "skipped" in stderr, (
+        "An unresolvable repo slug must emit a visible WARNING that Surface 2 "
+        f"was skipped; stderr was:\n{stderr}"
+    )
+    # Surface 1 succeeded (returncode 0, empty body) so the function does not
+    # return [] — it returns the (empty) deduped parse of Surface 1.
+    assert defenses == []
+
+
 def test_fetch_pr_defenses_returns_empty_when_both_surfaces_fail(monkeypatch):
     """When neither surface fetch succeeds, return [] (best-effort, no raise)."""
     monkeypatch.setenv("GITHUB_TOKEN", "token-stub")
@@ -165,13 +229,22 @@ def test_reviews_api_422_logs_per_finding_anchor_warning(monkeypatch, capsys):
         },
     ]
 
-    def _fake_run(cmd, *args, **kwargs):
-        # Reviews API call fails with a 422.
-        if (
+    def _is_reviews_api_call(cmd) -> bool:
+        # Dispatch on argv STRUCTURE, not substring sniffing: the Reviews API
+        # POST is `gh api -X POST /repos/<repo>/pulls/<n>/reviews`.
+        return (
             isinstance(cmd, list)
-            and "api" in cmd
-            and "/reviews" in " ".join(str(x) for x in cmd)
-        ):
+            and cmd[:2] == ["gh", "api"]
+            and any(str(c).endswith("/reviews") for c in cmd)
+        )
+
+    def _is_pr_comment_call(cmd) -> bool:
+        # The issue-comment fallback is `gh pr comment <n> --body <body>`.
+        return isinstance(cmd, list) and cmd[:3] == ["gh", "pr", "comment"]
+
+    def _fake_run(cmd, *args, **kwargs):
+        # Reviews API call fails with a 422, forcing the issue-comment fallback.
+        if _is_reviews_api_call(cmd):
             raise subprocess.CalledProcessError(
                 returncode=1, cmd=cmd, output="", stderr="422 Unprocessable Entity"
             )
@@ -179,7 +252,9 @@ def test_reviews_api_422_logs_per_finding_anchor_warning(monkeypatch, capsys):
         return _completed(stdout="")
 
     # _resolve_pr_head_sha falls back to GITHUB_SHA env when gh calls return "".
-    with patch.object(runner_mod.subprocess, "run", side_effect=_fake_run):
+    with patch.object(
+        runner_mod.subprocess, "run", side_effect=_fake_run
+    ) as mock_run:
         runner_mod._post_pr_review(findings)
 
     stderr = capsys.readouterr().err
@@ -189,4 +264,19 @@ def test_reviews_api_422_logs_per_finding_anchor_warning(monkeypatch, capsys):
     )
     assert "runner.py:42" in stderr, (
         f"All anchored findings' anchors must be logged; stderr was:\n{stderr}"
+    )
+
+    # The warnings are printed BEFORE the fallback runs, so asserting on stderr
+    # alone passes vacuously if the fallback were ever skipped. Pin the contract:
+    # the Reviews-API 422 MUST re-route anchored findings to the issue-comment
+    # fallback (`gh pr comment`).
+    calls = [c.args[0] for c in mock_run.call_args_list]
+    assert any(_is_reviews_api_call(cmd) for cmd in calls), (
+        "the Reviews API must have been attempted; calls were:\n"
+        + "\n".join(str(c) for c in calls)
+    )
+    assert any(_is_pr_comment_call(cmd) for cmd in calls), (
+        "after the Reviews API 422, anchored findings must be re-routed to the "
+        "`gh pr comment` issue-comment fallback; calls were:\n"
+        + "\n".join(str(c) for c in calls)
     )
