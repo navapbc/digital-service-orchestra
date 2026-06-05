@@ -149,11 +149,15 @@ def _sanitize_summary(summary: str) -> str:
 # Local status string → Jira workflow state name.
 # status.capitalize() produces "In_progress" for snake_case inputs; this mapping
 # ensures correct Jira state names are used in ACLI transition commands.
+# ticket 929a: blocked/cancelled map to the nearest live DIG workflow state
+# ({To Do, In Progress, In Review, Done} only); lossless information is
+# preserved via dso-status: annotation labels managed by outbound_differ.
 _LOCAL_STATUS_TO_JIRA: dict[str, str] = {
     "open": "To Do",
     "in_progress": "In Progress",
     "closed": "Done",
-    "blocked": "Blocked",
+    "blocked": "In Progress",
+    "cancelled": "Done",
 }
 
 
@@ -420,27 +424,91 @@ def _verify_created_issue(
     return verified
 
 
+def _extract_parent_key(raw: Any) -> str | None:
+    """Normalise an outbound create-payload parent value to a bare Jira key.
+
+    Accepts the two shapes a create payload may carry (ticket 8b25):
+      - a bare Jira key string (``"DIG-123"``) — the shape
+        ``outbound_differ._map_local_to_jira_fields`` actually emits today;
+      - a Jira REST nested object ``{"key": "DIG-123"}`` — accepted defensively
+        so a future differ change does not silently drop the parent.
+
+    Returns the key string, or ``None`` when no usable parent is present.
+    """
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    if isinstance(raw, dict):
+        key = raw.get("key")
+        if isinstance(key, str) and key.strip():
+            return key.strip()
+    return None
+
+
+def _attach_parent_guarded(client: Any, child_key: str, parent_key: str) -> None:
+    """Attach *child_key* under *parent_key* via ``client.set_parent``, guarded.
+
+    Hierarchy guard (ticket 8b25): on this next-gen project only an Epic may be
+    a parent — a Task→Task reparent is rejected by Jira with HTTP 400 (and a
+    misleading "same project" message). Any HTTP 400 from the parent op is
+    treated as a hierarchy rejection: log a WARNING and continue the pass
+    (generic 400-skip — also covers Epic-as-child and other unmet hierarchy
+    constraints without bespoke probing). Non-400 errors propagate.
+    """
+    import logging as _logging
+
+    try:
+        client.set_parent(child_key, parent_key)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 400:
+            _logging.getLogger(__name__).warning(
+                "parent sync skipped: Jira hierarchy rejected %s→%s (HTTP 400)",
+                child_key,
+                parent_key,
+            )
+            return
+        raise
+
+
 def create_issue(
     project: str,
     issue_type: str,
     summary: str,
     *,
     acli_cmd: list[str] | None = None,
+    client: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Create a Jira issue via ACLI and verify it exists.
 
     Priority is set via ``--from-json`` with ``additionalAttributes``
     because ACLI does not expose a ``--priority`` CLI flag.
+
+    Parent (ticket 8b25): when ``parent`` is supplied, the no-JSON path
+    attaches it at create time via ``--parent <key>`` (live-proven working).
+    The ``--from-json`` path cannot attach parent inline, so after a
+    successful create it falls back to ``client.set_parent(new_key, parent)``
+    — the universal fallback. Both parent ops are wrapped so a Jira hierarchy
+    rejection (HTTP 400) logs a WARNING and continues rather than aborting the
+    create.
     """
     priority = kwargs.pop("priority", None)
+    parent_key = kwargs.pop("parent", None)
 
     # When priority is requested, use --from-json so we can pass
     # additionalAttributes.priority (the only ACLI-supported path).
     if priority is not None:
-        return _create_issue_from_json(
+        created = _create_issue_from_json(
             project, issue_type, summary, priority, acli_cmd=acli_cmd, **kwargs
         )
+        # --from-json has no inline parent attachment — set_parent fallback.
+        if parent_key and client is not None:
+            new_key = created.get("key")
+            if new_key:
+                _attach_parent_guarded(client, new_key, parent_key)
+        return created
+
+    if parent_key:
+        kwargs["parent"] = parent_key
 
     result = _create_issue_no_json(
         project, issue_type, summary, acli_cmd=acli_cmd, **kwargs
@@ -497,6 +565,11 @@ def _create_issue_no_json(
     for field in ("description", "assignee"):
         if field in kwargs and kwargs[field] is not None:
             cmd.extend([f"--{field}", str(kwargs[field])])
+    # Parent sync (ticket 8b25): ACLI ``workitem create`` DOES accept
+    # ``--parent <key>`` for parent attachment at create time (live-proven).
+    # Previously the parent was dropped silently on the create path.
+    if kwargs.get("parent"):
+        cmd.extend(["--parent", str(kwargs["parent"])])
     try:
         return _run_acli(cmd, acli_cmd=acli_cmd)
     except subprocess.CalledProcessError as exc:
@@ -935,8 +1008,23 @@ class AcliClient:
             optional_fields["priority"] = ticket_data["priority"]
         if ticket_data.get("assignee"):
             optional_fields["assignee"] = ticket_data["assignee"]
+        # Parent sync (ticket 8b25): outbound_differ emits the resolved Jira
+        # parent key into the create payload. The differ writes a BARE string
+        # (``_map_local_to_jira_fields`` sets ``result["parent"] = jira_key``),
+        # but accept the Jira REST nested shape ``{"key": K}`` too so a future
+        # differ change does not silently drop the parent. create_issue then
+        # attaches the parent at create time (--parent) or via set_parent
+        # fallback (--from-json path). Previously dropped silently — bug 8b25.
+        parent_key = _extract_parent_key(ticket_data.get("parent"))
+        if parent_key:
+            optional_fields["parent"] = parent_key
         return create_issue(
-            project, issue_type, summary, acli_cmd=self._acli_cmd, **optional_fields
+            project,
+            issue_type,
+            summary,
+            acli_cmd=self._acli_cmd,
+            client=self,
+            **optional_fields,
         )
 
     def update_issue(self, jira_key: str, **kwargs: Any) -> dict[str, Any]:
@@ -1111,6 +1199,55 @@ class AcliClient:
             self._myself_cache = {}
         return self._myself_cache
 
+    def _rest_urlopen_with_retry(
+        self,
+        req: urllib.request.Request,
+        *,
+        timeout: int = 10,
+    ) -> Any:
+        """Execute urlopen(req, timeout=timeout) with transient-fault retry.
+
+        Retries up to 2 times (3 total attempts) on transient connectivity
+        errors: builtin ``TimeoutError`` (read-timeout from ssl/socket layer),
+        ``urllib.error.URLError`` whose reason is a ``TimeoutError`` or
+        ``ConnectionError``, and bare ``ConnectionError``.  Backoff delays are
+        2 s after the first failure, 5 s after the second.
+
+        Does NOT retry on ``urllib.error.HTTPError`` (4xx / 5xx) — HTTP-level
+        error semantics are unchanged.  Raises the original exception after all
+        attempts are exhausted.
+
+        Retries are logged to stderr at WARNING level so they appear in the
+        probe run log without polluting normal output.
+        """
+        _BACKOFFS = (2, 5)  # seconds between attempt 1→2 and 2→3
+        last_exc: BaseException | None = None
+        for attempt in range(3):
+            try:
+                return urllib.request.urlopen(req, timeout=timeout)
+            except urllib.error.HTTPError:
+                # HTTP errors (4xx/5xx) are deterministic — do not retry.
+                raise
+            except (TimeoutError, ConnectionError) as exc:
+                last_exc = exc
+            except urllib.error.URLError as exc:
+                # URLError wraps lower-level errors in .reason; only retry
+                # when the root cause is a timeout or connection failure.
+                if isinstance(exc.reason, (TimeoutError, ConnectionError)):
+                    last_exc = exc
+                else:
+                    raise
+            if attempt < 2:
+                delay = _BACKOFFS[attempt]
+                print(
+                    f"[REST-retry] attempt {attempt + 1} failed "
+                    f"({last_exc!r}); retrying in {delay}s …",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+        assert last_exc is not None
+        raise last_exc
+
     def _direct_rest_put(self, path: str, data: Any) -> None:
         """PUT JSON data to a Jira issue-properties REST path using stored credentials.
 
@@ -1148,7 +1285,7 @@ class AcliClient:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             resp.read()
 
     def _direct_rest_put_raw(self, path: str, body: Any) -> None:
@@ -1173,7 +1310,7 @@ class AcliClient:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             resp.read()
 
     def set_issue_property(self, jira_key: str, property_key: str, value: Any) -> None:
@@ -1215,7 +1352,7 @@ class AcliClient:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
     def get_issue_property(self, jira_key: str, property_key: str) -> Any:
@@ -1512,7 +1649,7 @@ class AcliClient:
                 "Content-Type": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             resp.read()
 
     def get_comments(self, jira_key: str) -> list[dict[str, Any]]:
@@ -1528,6 +1665,251 @@ class AcliClient:
         ]
         result = self._run(cmd)
         return _parse_acli_comments(json.loads(result.stdout))
+
+    def set_parent(self, jira_key: str, parent_key: str | None) -> None:
+        """Set or clear the parent of a Jira issue via REST PUT.
+
+        ACLI edit does NOT support --parent reparenting (verified live — ticket
+        8b25-ae7a-efc3-47f6).  Uses direct REST:
+        PUT /rest/api/3/issue/{key} {"fields":{"parent":{"key":"..."}}}
+
+        When ``parent_key`` is None or empty, clears the parent by passing
+        ``{"fields": {"parent": None}}``.
+
+        Probe-validated: returns 204 on success.
+        """
+        if parent_key:
+            body: Any = {"fields": {"parent": {"key": parent_key}}}
+        else:
+            body = {"fields": {"parent": None}}
+        self._direct_rest_put_raw(f"/rest/api/3/issue/{jira_key}", body)
+
+    def get_parent_map(
+        self,
+        project: str,
+        jql: str | None = None,
+    ) -> dict[str, str | None]:
+        """Return a {jira_key → parent_key | None} map via REST search.
+
+        Issues one paged REST search (POST ``/rest/api/3/search/jql``) with
+        ``fields=["parent"]`` so we get parent data without hitting ACLI's
+        field-selector restriction (ACLI rejects ``-f parent``).
+
+        Endpoint contract (ticket 8b25, live-proven): the legacy
+        ``POST /rest/api/3/search`` endpoint is RETIRED (HTTP 410). The
+        replacement ``/rest/api/3/search/jql`` paginates via an opaque
+        ``nextPageToken`` cursor — there is NO ``total`` field and sending
+        ``startAt`` is rejected with HTTP 400. The first request body carries
+        ``{jql, fields, maxResults}``; each subsequent request adds
+        ``{nextPageToken: <token>}``. The loop terminates when the response
+        reports ``isLast: true`` or yields a null/absent ``nextPageToken``.
+
+        Paginates until the cursor is exhausted.  Returns an empty dict and
+        logs on any REST failure (fetcher degrades gracefully — ticket 8b25).
+        An HTTP 410 (endpoint retirement) is logged at ERROR (loud — API
+        retirements must be noticed); transient faults stay at WARNING.
+
+        Args:
+            project: Jira project key (e.g. "DIG").
+            jql: Optional JQL override.  Defaults to ``project = <project>``.
+        """
+        import logging as _logging
+
+        _log = _logging.getLogger(__name__)
+
+        effective_jql = jql or f"project = {project}"
+        result: dict[str, str | None] = {}
+        page_size = 100
+        next_page_token: str | None = None
+
+        while True:
+            body: dict[str, Any] = {
+                "jql": effective_jql,
+                "maxResults": page_size,
+                "fields": ["parent"],
+            }
+            if next_page_token is not None:
+                body["nextPageToken"] = next_page_token
+            try:
+                resp = self._direct_rest_post_json("/rest/api/3/search/jql", body)
+            except urllib.error.HTTPError as exc:
+                if exc.code == 410:
+                    _log.error(
+                        "get_parent_map: endpoint POST /rest/api/3/search/jql "
+                        "returned HTTP 410 GONE — the Jira search endpoint has "
+                        "been RETIRED; parent enrichment is unavailable this pass. "
+                        "This is an API retirement, not a transient fault: %r",
+                        exc,
+                    )
+                else:
+                    _log.warning(
+                        "get_parent_map: REST search failed (HTTP %s): %r; "
+                        "degrading gracefully — parent data absent this pass",
+                        exc.code,
+                        exc,
+                    )
+                break
+            except Exception as exc:  # noqa: BLE001
+                _log.warning(
+                    "get_parent_map: REST search failed: %r; "
+                    "degrading gracefully — parent data will be absent this pass",
+                    exc,
+                )
+                break
+
+            if not isinstance(resp, dict):
+                break
+            issues = resp.get("issues") or []
+            if not isinstance(issues, list):
+                break
+            for issue in issues:
+                if not isinstance(issue, dict):
+                    continue
+                key = issue.get("key")
+                if not key:
+                    continue
+                fields = issue.get("fields") or {}
+                parent_raw = fields.get("parent")
+                parent_key_val: str | None = None
+                if isinstance(parent_raw, dict):
+                    parent_key_val = parent_raw.get("key") or None
+                result[key] = parent_key_val
+
+            # nextPageToken cursor contract: stop when isLast or token absent.
+            if resp.get("isLast"):
+                break
+            next_page_token = resp.get("nextPageToken")
+            if not next_page_token:
+                break
+
+        return result
+
+    def get_comment_map(
+        self,
+        project: str,
+        jql: str | None = None,
+    ) -> dict[str, Any]:
+        """Return a {jira_key → comment-field dict} map via ONE paged REST search.
+
+        Comment-state enrichment (Action viability): the live comment fetch
+        previously issued one ``acli comment list`` call per commented ticket
+        every pass (~1-2s each, fleet-wide — measured multi-hour passes). This
+        method amortises that into a SINGLE paged ``POST /rest/api/3/search/jql``
+        with ``fields=["comment"]`` so the differ can dedup comments without a
+        per-ticket round-trip.
+
+        Returns ``{jira_key: <comment field dict>}`` where the value is the raw
+        Jira ``comment`` field (``{"comments": [...], "total": N, ...}``) — the
+        exact shape ``outbound_differ._diff_comments`` reads from a snapshot
+        entry's ``comment`` key. Keys whose ``comment`` field is absent are
+        omitted so the caller can fall back to the per-ticket ``get_comments``
+        path for them (the never-emit-blind invariant stays intact).
+
+        Pagination + degradation contract mirror ``get_parent_map``: opaque
+        ``nextPageToken`` cursor (no ``startAt`` / ``total``); HTTP 410 →
+        ERROR (endpoint retirement is loud); other faults → WARNING; an empty
+        dict is returned on failure so the fetcher degrades gracefully.
+
+        Args:
+            project: Jira project key (e.g. "DIG").
+            jql: Optional JQL override.  Defaults to ``project = <project>``.
+        """
+        import logging as _logging
+
+        _log = _logging.getLogger(__name__)
+
+        effective_jql = jql or f"project = {project}"
+        result: dict[str, Any] = {}
+        page_size = 100
+        next_page_token: str | None = None
+
+        while True:
+            body: dict[str, Any] = {
+                "jql": effective_jql,
+                "maxResults": page_size,
+                "fields": ["comment"],
+            }
+            if next_page_token is not None:
+                body["nextPageToken"] = next_page_token
+            try:
+                resp = self._direct_rest_post_json("/rest/api/3/search/jql", body)
+            except urllib.error.HTTPError as exc:
+                if exc.code == 410:
+                    _log.error(
+                        "get_comment_map: endpoint POST /rest/api/3/search/jql "
+                        "returned HTTP 410 GONE — the Jira search endpoint has "
+                        "been RETIRED; comment enrichment is unavailable this pass. "
+                        "Per-ticket get_comments fallback applies. API retirement, "
+                        "not a transient fault: %r",
+                        exc,
+                    )
+                else:
+                    _log.warning(
+                        "get_comment_map: REST search failed (HTTP %s): %r; "
+                        "degrading gracefully — per-ticket fallback applies",
+                        exc.code,
+                        exc,
+                    )
+                break
+            except Exception as exc:  # noqa: BLE001
+                _log.warning(
+                    "get_comment_map: REST search failed: %r; "
+                    "degrading gracefully — per-ticket fallback applies",
+                    exc,
+                )
+                break
+
+            if not isinstance(resp, dict):
+                break
+            issues = resp.get("issues") or []
+            if not isinstance(issues, list):
+                break
+            for issue in issues:
+                if not isinstance(issue, dict):
+                    continue
+                key = issue.get("key")
+                if not key:
+                    continue
+                fields = issue.get("fields") or {}
+                comment_field = fields.get("comment")
+                # Only record keys the search actually returned a comment field
+                # for; omit the rest so the caller falls back to get_comments
+                # (preserves the never-emit-blind invariant).
+                if isinstance(comment_field, dict):
+                    result[key] = comment_field
+
+            if resp.get("isLast"):
+                break
+            next_page_token = resp.get("nextPageToken")
+            if not next_page_token:
+                break
+
+        return result
+
+    def _direct_rest_post_json(self, path: str, body: Any) -> Any:
+        """POST JSON to a Jira REST path and return the decoded JSON response.
+
+        Unlike ``_direct_rest_post_raw`` (which discards the response body),
+        this helper returns the parsed JSON — needed by ``get_parent_map`` to
+        read search results.
+
+        Raises ``urllib.error.HTTPError`` on non-2xx responses.
+        """
+        url = f"{self.jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            method="POST",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+        with self._rest_urlopen_with_retry(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
 
     def update_priority(self, jira_key: str, priority_name: str) -> None:
         """Update priority on a Jira issue via REST PUT.
@@ -1601,7 +1983,7 @@ class AcliClient:
                 "Accept": "application/json",
             },
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with self._rest_urlopen_with_retry(req, timeout=10) as resp:
             resp.read()
 
     def set_relationship(

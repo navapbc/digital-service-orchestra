@@ -37,7 +37,9 @@ class TestAcliClientCreateFieldExtraction:
     for the ACLI command. These tests reveal what actually reaches Jira.
     """
 
-    def test_acli_create_sends_summary(self, acli_mod: Any, acli_capture: Any) -> None:
+    def test_acli_create_sends_summary(
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
+    ) -> None:
         """AcliClient.create_issue() should send the title/summary to ACLI.
 
         When priority is present, create uses --from-json (so --summary is in
@@ -68,7 +70,9 @@ class TestAcliClientCreateFieldExtraction:
         summary_idx = create_cmd.index("--summary")
         assert create_cmd[summary_idx + 1] == "Test Summary"
 
-    def test_acli_create_sends_type(self, acli_mod: Any, acli_capture: Any) -> None:
+    def test_acli_create_sends_type(
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
+    ) -> None:
         """AcliClient.create_issue() should send the ticket type to ACLI."""
         client, captured_cmds, fake_run_acli = acli_capture
 
@@ -92,7 +96,7 @@ class TestAcliClientCreateFieldExtraction:
         assert create_cmd[type_idx + 1] == "Bug"  # capitalized
 
     def test_acli_create_sends_description(
-        self, acli_mod: Any, acli_capture: Any
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
     ) -> None:
         """AcliClient.create_issue() should send the description to ACLI."""
         client, captured_cmds, fake_run_acli = acli_capture
@@ -118,7 +122,7 @@ class TestAcliClientCreateFieldExtraction:
         )
 
     def test_acli_create_sends_priority_via_from_json(
-        self, acli_mod: Any, acli_capture: Any
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
     ) -> None:
         """AcliClient.create_issue() should send priority via --from-json.
 
@@ -171,7 +175,7 @@ class TestAcliClientCreateFieldExtraction:
         )
 
     def test_acli_create_extracts_name_from_dict_shape_priority(
-        self, acli_mod: Any, acli_capture: Any
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
     ) -> None:
         """AcliClient.create_issue() must extract priority.name when priority
         is a Jira REST-shape dict, not stringify the whole dict.
@@ -220,7 +224,7 @@ class TestAcliClientCreateFieldExtraction:
         )
 
     def test_acli_create_priority_dict_id_only_falls_back_via_reverse_map(
-        self, acli_mod: Any, acli_capture: Any
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
     ) -> None:
         """When the priority dict lacks `name` but has `id`, fall back to the
         reverse-id lookup against _LOCAL_PRIORITY_TO_JIRA. id="2" -> "High"."""
@@ -248,7 +252,7 @@ class TestAcliClientCreateFieldExtraction:
         )
 
     def test_acli_create_priority_malformed_dict_defaults_to_medium(
-        self, acli_mod: Any, acli_capture: Any
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
     ) -> None:
         """When the priority dict is malformed (no name, no usable id), the
         fallback must default to 'Medium' rather than crashing or sending an
@@ -276,7 +280,9 @@ class TestAcliClientCreateFieldExtraction:
             f"{payload['additionalAttributes']['priority']!r}"
         )
 
-    def test_acli_create_sends_assignee(self, acli_mod: Any, acli_capture: Any) -> None:
+    def test_acli_create_sends_assignee(
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
+    ) -> None:
         """AcliClient.create_issue() should send the assignee to ACLI."""
         client, captured_cmds, fake_run_acli = acli_capture
 
@@ -506,7 +512,7 @@ class TestAcliContractRegression:
     # --- CREATE contract --------------------------------------------------
 
     def test_create_with_priority_payload_uses_projectKey_not_project(
-        self, acli_mod: Any, acli_capture: Any
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
     ) -> None:
         """CREATE --from-json payload MUST use 'projectKey' (NOT 'project').
 
@@ -544,7 +550,7 @@ class TestAcliContractRegression:
         )
 
     def test_create_priority_payload_uses_additionalAttributes_priority_name(
-        self, acli_mod: Any, acli_capture: Any
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
     ) -> None:
         """CREATE priority MUST live under additionalAttributes.priority.name.
 
@@ -785,7 +791,7 @@ class TestAcliSanitizers:
         )
 
     def test_create_issue_truncates_oversize_title(
-        self, acli_mod: Any, acli_capture: Any
+        self, acli_mod: Any, acli_capture: Any, mock_jira_verify: Any
     ) -> None:
         """Oversize titles must be truncated, not crash the reconciler."""
         client, captured_cmds, fake_run_acli = acli_capture

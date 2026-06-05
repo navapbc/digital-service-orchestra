@@ -50,10 +50,14 @@ Failure modes (F4a / F4b / F4c):
 
 from __future__ import annotations
 
+import contextlib
+import json
 import pathlib
 import sys
+from typing import Any, Iterator
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 # Ensure the plugin scripts directory is on sys.path so imports resolve.
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -102,14 +106,64 @@ def _make_finding(
 
 
 # ---------------------------------------------------------------------------
+# litellm aggregation-seam mock (bug 3775)
+# ---------------------------------------------------------------------------
+# aggregate_cluster_findings -> _synthesize_via_llm calls litellm.completion
+# directly, which reaches the real Anthropic API and trips the socket guard
+# (tests/conftest.py _dso_network_guard). _synthesize_via_llm already
+# deduplicates findings BEFORE the LLM call, so a faithful offline mock is one
+# that echoes the deduped findings the synthesis prompt was handed (identity
+# synthesis). This preserves the DD3.1 behavioral assertions (every input
+# finding survives, cross-file dedup) without a live call. The DD4 tests assert
+# on append_cycle, not on findings, so the echo shape is harmless there too.
+
+
+def _echo_synthesis_completion(**kwargs: Any) -> MagicMock:
+    """Stand in for litellm.completion: echo the prompt's per-cluster findings.
+
+    The synthesis prompt embeds ``json.dumps({"findings": all_findings})`` as
+    its trailing block. We parse that back out and return it verbatim as the
+    synthesized payload, so the aggregator's post-call assertions see exactly
+    the (already-deduplicated) findings it submitted.
+    """
+    prompt = kwargs["messages"][0]["content"]
+    start = prompt.find("{", prompt.find("## Per-cluster findings"))
+    findings: list[dict] = []
+    if start != -1:
+        with contextlib.suppress(json.JSONDecodeError):
+            findings = json.loads(prompt[start:]).get("findings", [])
+    return MagicMock(
+        choices=[
+            MagicMock(message=MagicMock(content=json.dumps({"findings": findings})))
+        ]
+    )
+
+
+@pytest.fixture
+def mock_synthesis_llm() -> Iterator[MagicMock]:
+    """Patch the aggregator's litellm.completion with the echo synthesis mock."""
+    with patch(
+        "dso_ci_review.aggregator.litellm.completion",
+        side_effect=_echo_synthesis_completion,
+    ) as mock_llm:
+        yield mock_llm
+
+
+# ---------------------------------------------------------------------------
 # Scenario DD3.1 — Cross-file synthesis via aggregate_cluster_findings
 # ---------------------------------------------------------------------------
 
 
 class TestAggregateClusterFindings:
-    """DD3.1: aggregate_cluster_findings synthesizes per-cluster results."""
+    """DD3.1: aggregate_cluster_findings synthesizes per-cluster results.
 
-    def test_aggregate_returns_unified_findings_list(self) -> None:
+    The litellm.completion seam is mocked via mock_synthesis_llm (echo
+    synthesis) so these run fully offline under the socket guard (bug 3775).
+    """
+
+    def test_aggregate_returns_unified_findings_list(
+        self, mock_synthesis_llm: MagicMock
+    ) -> None:
         """Given: 3 clusters each with distinct findings.
         When: aggregate_cluster_findings is called.
         Then: all findings appear in the returned unified payload.
@@ -171,7 +225,9 @@ class TestAggregateClusterFindings:
             f"got descriptions: {all_descriptions!r}"
         )
 
-    def test_cross_file_finding_preserved_without_duplication(self) -> None:
+    def test_cross_file_finding_preserved_without_duplication(
+        self, mock_synthesis_llm: MagicMock
+    ) -> None:
         """Given: a finding citing files from two different clusters.
         When: aggregate_cluster_findings is called.
         Then: the cross-file finding appears EXACTLY ONCE in the unified payload.
@@ -202,7 +258,9 @@ class TestAggregateClusterFindings:
             "The aggregator must deduplicate cross-cluster findings."
         )
 
-    def test_aggregate_with_five_findings_per_cluster(self) -> None:
+    def test_aggregate_with_five_findings_per_cluster(
+        self, mock_synthesis_llm: MagicMock
+    ) -> None:
         """Given: 3 clusters with 5 findings each (15 total, no duplicates).
         When: aggregate_cluster_findings is called.
         Then: unified payload contains all 15 findings.
@@ -326,10 +384,16 @@ class TestVisibilityTrailerNamespace:
 
 
 class TestSingleLedgerEntryInvariant:
-    """DD4: exactly one append_cycle call per aggregation pass."""
+    """DD4: exactly one append_cycle call per aggregation pass.
+
+    The litellm.completion seam is mocked via mock_synthesis_llm (echo
+    synthesis) so these run fully offline under the socket guard (bug 3775).
+    The append_cycle assertions are unchanged — the mock only supplies the
+    synthesis response that previously required a live Anthropic call.
+    """
 
     def test_single_ledger_entry_regardless_of_cluster_count(
-        self, tmp_path: pathlib.Path
+        self, tmp_path: pathlib.Path, mock_synthesis_llm: MagicMock
     ) -> None:
         """Given: 3 region-split clusters dispatched for one PR+sha+cycle.
         When: aggregate_cluster_findings is called with ledger_path + pr_number +
@@ -362,7 +426,7 @@ class TestSingleLedgerEntryInvariant:
         )
 
     def test_append_cycle_receives_pr_number_matching_fixture(
-        self, tmp_path: pathlib.Path
+        self, tmp_path: pathlib.Path, mock_synthesis_llm: MagicMock
     ) -> None:
         """Given: pr_number=42 passed to aggregate_cluster_findings.
         When: the single append_cycle call is made.
@@ -397,7 +461,7 @@ class TestSingleLedgerEntryInvariant:
         )
 
     def test_append_cycle_receives_commit_sha_matching_fixture(
-        self, tmp_path: pathlib.Path
+        self, tmp_path: pathlib.Path, mock_synthesis_llm: MagicMock
     ) -> None:
         """Given: commit_sha='feed1234abcd...' passed to aggregate_cluster_findings.
         When: the single append_cycle call is made.

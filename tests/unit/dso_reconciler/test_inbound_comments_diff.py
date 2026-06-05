@@ -205,7 +205,9 @@ def test_outbound_decorates_with_marker(outbound):
 def test_outbound_diff_emits_decorated_body(outbound):
     """When the differ emits a new outbound comment, the body carries the marker."""
     ticket = {"comments": [{"body": "First probe comment"}]}
-    jira_snapshot = {"DIG-1": {"comments": []}}
+    # Use the correct Jira snapshot shape: comment field with nested comments list
+    # (bug 4572 fix: key is "comment" not "comments").
+    jira_snapshot = {"DIG-1": {"comment": {"comments": [], "total": 0}}}
     out = outbound._diff_comments(ticket, "DIG-1", jira_snapshot)
     assert len(out) == 1
     assert outbound.RECONCILER_MARKER in out[0]["body"]
@@ -215,30 +217,35 @@ def test_outbound_diff_emits_decorated_body(outbound):
 def test_outbound_normalize_strips_marker_for_dedup(outbound):
     """A Jira comment with our marker normalizes to the user body — dedup catches it."""
     ticket = {"comments": [{"body": "First probe comment"}]}
+    # Use the correct Jira snapshot shape: comment field with nested comments list
+    # (bug 4572 fix: key is "comment" not "comments").
     jira_snapshot = {
         "DIG-1": {
-            "comments": [
-                {
-                    "body": {
-                        "type": "doc",
-                        "version": 1,
-                        "content": [
-                            {
-                                "type": "paragraph",
-                                "content": [
-                                    {"type": "text", "text": "First probe comment"}
-                                ],
-                            },
-                            {
-                                "type": "paragraph",
-                                "content": [
-                                    {"type": "text", "text": outbound.RECONCILER_MARKER}
-                                ],
-                            },
-                        ],
+            "comment": {
+                "comments": [
+                    {
+                        "body": {
+                            "type": "doc",
+                            "version": 1,
+                            "content": [
+                                {
+                                    "type": "paragraph",
+                                    "content": [
+                                        {"type": "text", "text": "First probe comment"}
+                                    ],
+                                },
+                                {
+                                    "type": "paragraph",
+                                    "content": [
+                                        {"type": "text", "text": outbound.RECONCILER_MARKER}
+                                    ],
+                                },
+                            ],
+                        }
                     }
-                }
-            ]
+                ],
+                "total": 1,
+            }
         }
     }
     out = outbound._diff_comments(ticket, "DIG-1", jira_snapshot)

@@ -23,11 +23,17 @@ import os
 import sys
 import tempfile
 import time
+import urllib.error
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
+
+# Loop-breaker marker (mirrors inbound_differ.RECONCILER_MARKER).
+# Outbound comments embed this token so inbound passes — including the
+# bootstrap in _apply_inbound_create — can skip our own echoes.
+_RECONCILER_MARKER_APPLIER = "<!-- dso:reconciler-echo -->"
 
 # Typed-mutation dispatch layer.
 #
@@ -240,8 +246,12 @@ def _apply_outbound_create(mutation, *, client=None, repo_root=None) -> ApplyRes
 # fields in the changed_fields set are silently dropped — pushing arbitrary
 # fields outbound is a higher-blast-radius change that lands in a follow-up
 # story. Status is governed separately by DSO_RECONCILER_STATUS_GATING.
+# "parent" is intentionally included but routed to client.set_parent
+# (REST PUT /rest/api/3/issue/{key} {"fields":{"parent":{"key":K}}}) rather
+# than client.update_issue — ACLI edit does not support reparenting
+# (ticket 8b25-ae7a-efc3-47f6).
 _OUTBOUND_UPDATE_ALLOWLIST = frozenset(
-    {"summary", "description", "assignee", "priority", "status"}
+    {"summary", "description", "assignee", "priority", "status", "parent"}
 )
 
 
@@ -257,22 +267,25 @@ def _route_status_via_draft5(mutation, *, client=None):
 
 
 def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyResult:
-    """v1 outbound update — push allowlisted fields via update_issue.
+    """v1 outbound update — push allowlisted fields, labels, and comments.
 
     Behavior:
       - Reads ``mutation.payload['changed_fields']`` (falls back to
         ``mutation.payload`` itself for callers that pass a flat dict).
-      - If ``status`` is present in changed_fields:
-          - When ``DSO_RECONCILER_STATUS_GATING != "1"``: raise
-            ``StatusMappingError`` with zero side-effects.
-          - When ``DSO_RECONCILER_STATUS_GATING == "1"``: delegate to
-            ``_route_status_via_draft5`` and strip ``status`` from the field
-            set before pushing the remaining allowlisted fields.
       - Filters the field set to ``_OUTBOUND_UPDATE_ALLOWLIST``; non-allowlisted
         fields are silently dropped (no side-effects on those fields).
-      - Pushes the allowlisted, non-status fields via ``client.update_issue``
+      - Pushes the allowlisted fields via ``client.update_issue``
         using the F3-pinned ``update_issue(jira_key, **fields)`` signature,
         routed through ``_call_with_retry``.
+      - Dispatches ``payload['labels']`` (list of {action, label} dicts) via
+        ``client.add_label`` / ``client.remove_label``, matching update_one.
+        Label failures are logged but non-fatal (scalar update already succeeded).
+      - Dispatches ``payload['comments']`` (list of {body} dicts) via
+        ``client.add_comment``, matching update_one. Comment failures are logged
+        but non-fatal.
+      - Emits a WARNING when the effective work set (allowed fields + labels +
+        comments) is empty — prevents a silent no-op masquerading as success
+        when the mutation carries only non-allowlisted fields.
     """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.outbound)
@@ -294,16 +307,130 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
     # status stays in changed_fields and is forwarded below.
 
     # Filter to allowlist. Non-allowlisted fields are silently dropped.
+    # "parent" is extracted before forwarding to update_issue — ACLI edit
+    # does not support reparenting; route via client.set_parent (REST PUT).
     allowed = {
         k: v for k, v in changed_fields.items() if k in _OUTBOUND_UPDATE_ALLOWLIST
     }
+    # Route parent reparent via client.set_parent (ticket 8b25).
+    parent_key = allowed.pop("parent", None)
+    if parent_key is not None:
+        try:
+            _call_with_retry(client.set_parent, mutation.target, parent_key)
+        except urllib.error.HTTPError as exc:
+            # Hierarchy guard (ticket 8b25): on this next-gen project only an
+            # Epic may be a parent; a Task→Task reparent (and any other unmet
+            # hierarchy constraint) is rejected by Jira with HTTP 400 carrying
+            # a misleading "same project" message. Treat any 400 as a
+            # hierarchy rejection: WARN + continue the pass. Non-400 errors
+            # keep the legacy generic-warning behaviour (still non-fatal).
+            if exc.code == 400:
+                logger.warning(
+                    "parent sync skipped: Jira hierarchy rejected %s→%s",
+                    mutation.target,
+                    parent_key,
+                )
+            else:
+                logger.warning(
+                    "_apply_outbound_update: set_parent failed for %s parent=%r: %r",
+                    mutation.target,
+                    parent_key,
+                    exc,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "_apply_outbound_update: set_parent failed for %s parent=%r: %r",
+                mutation.target,
+                parent_key,
+                exc,
+            )
     if allowed:
         _call_with_retry(client.update_issue, mutation.target, **allowed)
-    return ApplyResult(
-        mutation.direction,
-        mutation.action,
-        {"fields_pushed": sorted(allowed.keys())},
-    )
+
+    # Dispatch label mutations: add_label / remove_label per entry.
+    # Mirrors update_one's label-dispatch logic (bug 87e4) for the typed-leaf path.
+    # Gap fix (bugs 3b5f / 85a1): _apply_outbound_update previously ignored
+    # payload['labels'] entirely, causing label changes to silently no-op when
+    # this leaf was invoked directly (single typed-mutation dispatch path).
+    labels = payload.get("labels") or []
+    labels_applied: list[str] = []
+    if isinstance(labels, list):
+        for entry in labels:
+            if not isinstance(entry, dict):
+                continue
+            action = entry.get("action")
+            label_name = entry.get("label", "")
+            if not label_name:
+                continue
+            try:
+                if action == "add":
+                    _call_with_retry(client.add_label, mutation.target, label_name)
+                    labels_applied.append(f"+{label_name}")
+                elif action == "remove":
+                    _call_with_retry(client.remove_label, mutation.target, label_name)
+                    labels_applied.append(f"-{label_name}")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "_apply_outbound_update: label %s failed for %s label=%r: %r",
+                    action,
+                    mutation.target,
+                    label_name,
+                    exc,
+                )
+
+    # Dispatch comment mutations: add_comment per entry.
+    # Mirrors update_one's comment-dispatch logic (bug 87e4) for the typed-leaf path.
+    # Gap fix (bugs 3b5f / 85a1): payload['comments'] was also silently dropped.
+    # Note: outbound comment bodies are pre-decorated with RECONCILER_MARKER by
+    # the outbound differ (_diff_comments → _decorate_outbound_comment) before
+    # being placed in the mutation payload. The applier emits them as-is — no
+    # decoration happens here to avoid double-decoration.
+    comments = payload.get("comments") or []
+    comments_applied: int = 0
+    if isinstance(comments, list):
+        for entry in comments:
+            if not isinstance(entry, dict):
+                continue
+            body = entry.get("body", "")
+            if not body:
+                continue
+            try:
+                _call_with_retry(client.add_comment, mutation.target, body)
+                comments_applied += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "_apply_outbound_update: add_comment failed for %s: %r",
+                    mutation.target,
+                    exc,
+                )
+
+    # Loud skip guard: warn when the effective work set is entirely empty so
+    # callers can distinguish a genuine no-op (no diff) from a misconfigured
+    # mutation that carried only non-allowlisted fields.
+    # parent_key is counted as work even when popped from allowed (ticket 8b25).
+    if (
+        not allowed
+        and not labels_applied
+        and not comments_applied
+        and parent_key is None
+    ):
+        logger.warning(
+            "_apply_outbound_update: no-op for %s — changed_fields %r "
+            "produced zero allowlisted fields and no labels/comments; "
+            "verify mutation payload is not empty or mis-keyed",
+            mutation.target,
+            list(changed_fields.keys()) if changed_fields else [],
+        )
+
+    result_payload: dict[str, Any] = {
+        "fields_pushed": sorted(allowed.keys()),
+        "labels_applied": labels_applied,
+        "comments_applied": comments_applied,
+    }
+    if parent_key is not None:
+        result_payload["parent_set"] = parent_key
+
+    return ApplyResult(mutation.direction, mutation.action, result_payload)
 
 
 def _apply_outbound_delete(mutation, *, client=None, repo_root=None) -> ApplyResult:
@@ -643,12 +770,28 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
     tags = list(payload.get("labels", []) or [])
     if "imported:reconciler-bootstrap" not in tags:
         tags.append("imported:reconciler-bootstrap")
+    # Parent sync (ticket 8b25): resolve the Jira parent field to a local id.
+    # Three sources, in priority order:
+    #   1. payload["_parent_local_id"] — pre-resolved by reconcile.py for the
+    #      normal inbound-create path (reconcile already has binding_store).
+    #   2. fields["parent"]["key"] derived via _jira_key_to_local_id —
+    #      best-effort local-id derivation for jira-originated parents where the
+    #      local id is deterministic (jira-dig-N convention).
+    #   3. Empty string — safe fallback (hardcoded prior behaviour).
+    _raw_parent = fields.get("parent")
+    if payload.get("_parent_local_id"):
+        resolved_parent_id = payload["_parent_local_id"]
+    elif isinstance(_raw_parent, dict) and _raw_parent.get("key"):
+        resolved_parent_id = _jira_key_to_local_id(_raw_parent["key"])
+    else:
+        resolved_parent_id = ""
+
     create_data: dict[str, Any] = {
         "id": local_id,
         "ticket_type": ticket_type,
         "title": fields.get("summary", "") or jira_key,
         "description": fields.get("description", "") or "",
-        "parent_id": "",
+        "parent_id": resolved_parent_id,
         "tags": tags,
     }
     if "priority" in fields:
@@ -675,6 +818,52 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
     if client is not None:
         _call_with_retry(client.add_label, jira_key, f"dso-id:{local_id}")
         _call_with_retry(client.set_entity_property, jira_key, "dso_local_id", local_id)
+
+    # Bug 221b: bootstrap pre-existing Jira comments so the local ticket has
+    # a complete comment history immediately after inbound create.
+    #
+    # Strategy (mirrors _diff_comments_inbound in inbound_differ.py):
+    #   1. Fetch the issue's comments via client.get_comments(jira_key).
+    #   2. Skip any comment whose body (ADF-normalized) contains the
+    #      loop-breaker marker — those are our own outbound echoes.
+    #   3. Normalize ADF bodies to plain text (via _normalize_adf_body).
+    #   4. Write one COMMENT event per remaining comment, recording
+    #      jira_comment_id so the next-pass inbound comment diff dedupes.
+    #
+    # On get_comments failure: log a warning and skip comment bootstrap —
+    # the CREATE still succeeds.
+    if client is not None:
+        try:
+            raw_comments = client.get_comments(jira_key)
+            if not isinstance(raw_comments, list):
+                raw_comments = []
+        except Exception as exc:  # noqa: BLE001
+            import sys as _sys
+
+            print(  # noqa: T201
+                f"WARNING: inbound_create: get_comments for {jira_key!r} failed "
+                f"({exc!r}). Skipping comment bootstrap — ticket created without "
+                f"pre-existing comments. Alert: jira_key={jira_key!r}",
+                file=_sys.stderr,
+            )
+            raw_comments = []
+
+        for jc in raw_comments:
+            if not isinstance(jc, dict):
+                continue
+            jid = jc.get("id")
+            if jid is None:
+                continue
+            body_text = _normalize_adf_body(jc.get("body"))
+            if _RECONCILER_MARKER_APPLIER in body_text:
+                continue  # outbound echo — skip
+            if not body_text.strip():
+                continue
+            event_data: dict[str, Any] = {
+                "body": body_text,
+                "jira_comment_id": str(jid),
+            }
+            _write_event_file(tracker_dir, local_id, "COMMENT", event_data)
 
     return ApplyResult(
         mutation.direction,
@@ -733,6 +922,10 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
         edit_fields["assignee"] = _extract_name(fields["assignee"])
     if "ticket_type" in fields:
         edit_fields["ticket_type"] = fields["ticket_type"]
+    # Parent sync (ticket 8b25): inbound parent_id change → include in EDIT.
+    # The inbound differ surfaces this as ``fields["parent_id"] = <local_id>``.
+    if "parent_id" in fields:
+        edit_fields["parent_id"] = fields["parent_id"] or ""
 
     written: list[str] = []
     if edit_fields:
@@ -2006,6 +2199,51 @@ def update_one(mutation: dict, client) -> dict | None:
     _OUTBOUND_BATCH_ALLOWLIST = frozenset(
         {"summary", "description", "assignee", "priority", "status"}
     )
+    issue_key = mutation.get("key")
+    # Parent reparent (ticket 8b25): the production outbound dispatch routes
+    # through this legacy batch path, NOT the typed leaf _apply_outbound_update.
+    # ACLI's ``jira workitem edit`` cannot reparent — the parent must go via
+    # client.set_parent (REST PUT /rest/api/3/issue/{key} {"fields":{"parent"}}).
+    # Before this fix, ``parent`` was not in _OUTBOUND_BATCH_ALLOWLIST, so it
+    # was silently dropped as an "unaccepted field" and set_parent was never
+    # called. The parent never landed, the next snapshot still showed no
+    # parent, and the differ re-emitted the identical parent mutation on every
+    # pass — the perpetual ``fields=['parent']`` re-emission (~230 steady-state
+    # mutations, Phase-6 idempotency churn) AND the parent OUTBOUND CREATE/UPDATE
+    # FAIL in the e2e field-validation probe. Mirror the typed leaf: pop parent
+    # BEFORE the allowlist filter and route it through set_parent, guarding
+    # HTTP 400 hierarchy rejections as non-fatal warnings.
+    parent_key = fields.pop("parent", None)
+    if parent_key is not None:
+        try:
+            _call_with_retry(client.set_parent, issue_key, parent_key)
+        except urllib.error.HTTPError as exc:
+            # Hierarchy guard (ticket 8b25): on this next-gen project only an
+            # Epic may be a parent; a Task→Task reparent (and any other unmet
+            # hierarchy constraint) is rejected with HTTP 400 carrying a
+            # misleading "same project" message. Treat any 400 as a hierarchy
+            # rejection: WARN + continue. Non-400 errors stay non-fatal too —
+            # a parent failure must not abort the rest of the batch.
+            if exc.code == 400:
+                logger.warning(
+                    "parent sync skipped: Jira hierarchy rejected %s->%s (HTTP 400)",
+                    issue_key,
+                    parent_key,
+                )
+            else:
+                logger.warning(
+                    "update_one: set_parent failed for %s parent=%r: %r",
+                    issue_key,
+                    parent_key,
+                    exc,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "update_one: set_parent failed for %s parent=%r: %r",
+                issue_key,
+                parent_key,
+                exc,
+            )
     _stripped = {k: v for k, v in fields.items() if k not in _OUTBOUND_BATCH_ALLOWLIST}
     if _stripped:
         print(  # noqa: T201
@@ -2014,29 +2252,40 @@ def update_one(mutation: dict, client) -> dict | None:
             file=sys.stderr,
         )
     fields = {k: v for k, v in fields.items() if k in _OUTBOUND_BATCH_ALLOWLIST}
-    issue_key = mutation.get("key")
-    result: dict | None
-    try:
-        result = _call_with_retry(client.update_issue, issue_key, **fields)
-    except JiraAPIError as exc:
-        if not _is_illegal_transition_400(exc):
-            raise
-        new_status = _attempted_status
-        comment = f"local status changed to {new_status}"
+    # When the only changed field was parent (the common reparent case), the
+    # allowlisted set is now empty AND set_parent already did the work — skip
+    # the otherwise-empty client.update_issue call so we don't issue a no-op
+    # ACLI edit purely to satisfy a parent-only mutation. The legacy
+    # "empty fields still calls update_issue" contract is preserved for the
+    # NON-parent case (e.g. an issuetype-only mutation that gets stripped):
+    # update_issue is skipped here ONLY when a parent op was the reason the
+    # field set is empty (label/comment dispatch below still runs).
+    result: dict | None = None
+    _skip_empty_update = parent_key is not None and not fields
+    if _skip_empty_update:
+        pass  # parent handled via set_parent; no scalar fields to edit
+    else:
         try:
-            client.add_comment(issue_key, comment)
-        except Exception:
-            pass  # secondary failure must not mask the comment-fallback path
-        log_entry = json.dumps(
-            {
-                "action": "comment_fallback",
-                "issue_key": issue_key,
-                "attempted_status": _attempted_status,
-                "reason": "400_illegal_transition",
-            }
-        )
-        print(log_entry, file=sys.stderr)
-        result = None
+            result = _call_with_retry(client.update_issue, issue_key, **fields)
+        except JiraAPIError as exc:
+            if not _is_illegal_transition_400(exc):
+                raise
+            new_status = _attempted_status
+            comment = f"local status changed to {new_status}"
+            try:
+                client.add_comment(issue_key, comment)
+            except Exception:
+                pass  # secondary failure must not mask the comment-fallback path
+            log_entry = json.dumps(
+                {
+                    "action": "comment_fallback",
+                    "issue_key": issue_key,
+                    "attempted_status": _attempted_status,
+                    "reason": "400_illegal_transition",
+                }
+            )
+            print(log_entry, file=sys.stderr)
+            result = None
 
     # Bug 87e4: propagate label add/remove and comment additions from the
     # mutation payload. The outbound differ emits these alongside changed
@@ -2895,9 +3144,7 @@ def _apply_batch(
                     mutations_with_outcomes.append(outcome)
                     # Per-mutation RECON line matches the regular path.
                     _outcome_key = (
-                        mutation.get("key")
-                        or mutation.get("local_id")
-                        or "<unknown>"
+                        mutation.get("key") or mutation.get("local_id") or "<unknown>"
                     )
                     print(  # noqa: T201
                         f"RECON: batch_outcome action={action} "

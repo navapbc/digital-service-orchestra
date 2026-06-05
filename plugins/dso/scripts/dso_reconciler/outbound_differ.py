@@ -8,7 +8,11 @@ Local is the source of truth. Unbound local tickets emit "create" mutations;
 bound tickets whose fields diverge from Jira emit "update" mutations with
 only the changed fields.
 
-This module is pure: no I/O, no time/random, no logging, no globals.
+This module is predominantly pure, with one controlled I/O seam: when the
+caller passes a ``client`` argument to :func:`compute_outbound_mutations`, the
+differ may call ``client.get_comments(jira_key)`` for bound tickets whose
+snapshot entry lacks a ``comment`` field (the live Jira search shape — Jira
+search does NOT return comment data). All other code paths remain pure.
 
 Dependency: BindingStore interface (PR #401). This module codes against the
 interface — get_jira_key(local_id) -> str|None, is_bound(local_id) -> bool —
@@ -22,6 +26,11 @@ import sys
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
+
+# Sentinel: presence of the "comment" key in a snapshot entry confirms the
+# snapshot carries real comment data (fixture/synthetic path). Absence means
+# the entry came from a live Jira search result, which never includes comments.
+_COMMENT_FIELD_KEY = "comment"
 
 
 _ADF_KEY = "plugins.dso.scripts.dso_reconciler.adf"
@@ -108,10 +117,21 @@ _LOCAL_TO_JIRA_PRIORITY: dict[int, str] = {
 _LOCAL_TO_JIRA_STATUS: dict[str, str] = {
     "open": "To Do",
     "in_progress": "In Progress",
-    "blocked": "Blocked",
+    # blocked/cancelled have no direct equivalent in the live DIG workflow
+    # ({To Do, In Progress, In Review, Done} only). Map to the nearest live
+    # state; lossless information is preserved via dso-status: annotation
+    # labels emitted/removed by status logic (see _status_annotation_labels).
+    "blocked": "In Progress",
     "closed": "Done",
-    "cancelled": "Cancelled",
+    "cancelled": "Done",
     "deleted": "Done",
+}
+
+# Local statuses that need an annotation label to preserve lossless intent.
+# Maps local_status -> dso-status:<label> emitted when that status is active.
+_STATUS_ANNOTATION_LABEL: dict[str, str] = {
+    "blocked": "dso-status:blocked",
+    "cancelled": "dso-status:cancelled",
 }
 
 
@@ -120,7 +140,11 @@ _LOCAL_TO_JIRA_STATUS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _map_local_to_jira_fields(ticket: dict[str, Any]) -> dict[str, Any]:
+def _map_local_to_jira_fields(
+    ticket: dict[str, Any],
+    binding_store: Any = None,
+    local_ticket_types: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Map local ticket fields to Jira field names/values.
 
     Use ``.get(key) or default`` (not ``.get(key, default)``) for string
@@ -132,8 +156,15 @@ def _map_local_to_jira_fields(ticket: dict[str, Any]) -> dict[str, Any]:
     ``_diff_fields`` and becomes the literal string ``"None"`` after
     str() conversion at the ACLI boundary, causing ACLI to reject the
     edit with exit 1.
+
+    Parent resolution (ticket 8b25): when ``binding_store`` is supplied and
+    the ticket carries a ``parent_id``, attempt to resolve it to a Jira key
+    via ``binding_store.get_jira_key(parent_id)``.  An unbound parent is
+    silently omitted from the returned dict (not ``None`` / empty-string) so
+    the diff layer can distinguish "no parent set" from "parent set but
+    unbound this pass" and skip / retry accordingly.
     """
-    return {
+    result: dict[str, Any] = {
         "summary": ticket.get("title") or "",
         "description": ticket.get("description") or "",
         "issuetype": _LOCAL_TO_JIRA_TYPE.get(ticket.get("ticket_type", "task"), "Task"),
@@ -141,6 +172,45 @@ def _map_local_to_jira_fields(ticket: dict[str, Any]) -> dict[str, Any]:
         "status": _LOCAL_TO_JIRA_STATUS.get(ticket.get("status", "open"), "To Do"),
         "assignee": ticket.get("assignee") or "",
     }
+    # Parent sync (ticket 8b25): resolve local parent_id → Jira key.
+    # Omit the key entirely when unbound so _diff_fields skips it (retry next pass).
+    local_parent_id = ticket.get("parent_id") or None
+    if local_parent_id and binding_store is not None:
+        import logging as _logging
+
+        # Hierarchy pre-check (ticket 8b25): on this next-gen Jira project only
+        # an Epic may be a parent. A non-epic parent (e.g. Task→Task) is
+        # rejected by Jira with HTTP 400. Suppress the parent diff entirely
+        # when the resolved local parent's ticket_type != "epic" so the differ
+        # never perpetually re-emits a parent mutation Jira will always reject.
+        # This is a sync exclusion mirroring the bug-36af issuetype pattern.
+        # When parent-type info is unavailable (map not supplied / parent
+        # absent from the map), fall through to the existing behaviour rather
+        # than guess — the applier-side 400-skip remains the backstop.
+        if local_ticket_types is not None and local_parent_id in local_ticket_types:
+            parent_type = (local_ticket_types.get(local_parent_id) or "").lower()
+            if parent_type != "epic":
+                _logging.getLogger(__name__).debug(
+                    "_map_local_to_jira_fields: parent_id=%r for ticket %r is a "
+                    "non-epic (%r); suppressing parent diff (Jira hierarchy only "
+                    "permits Epic parents — sync exclusion, ticket 8b25)",
+                    local_parent_id,
+                    ticket.get("ticket_id"),
+                    parent_type,
+                )
+                return result
+
+        jira_parent_key = binding_store.get_jira_key(local_parent_id)
+        if jira_parent_key:
+            result["parent"] = jira_parent_key
+        else:
+            _logging.getLogger(__name__).debug(
+                "_map_local_to_jira_fields: parent_id=%r for ticket %r is unbound "
+                "this pass; skipping parent field (will retry next pass)",
+                local_parent_id,
+                ticket.get("ticket_id"),
+            )
+    return result
 
 
 def _extract_jira_field(jira_fields: dict[str, Any], field: str) -> Any:
@@ -206,7 +276,12 @@ def _assignee_matches(local_val: str, jira_raw: Any) -> bool:
     return (local_val or "").strip() in candidates
 
 
-def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[str, Any]:
+def _diff_fields(
+    ticket: dict[str, Any],
+    jira_fields: dict[str, Any],
+    binding_store: Any = None,
+    local_ticket_types: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Compare local ticket to Jira fields. Return only changed fields.
 
     Uses local-wins: if local differs, push outbound regardless of Jira state.
@@ -218,13 +293,21 @@ def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[st
     one-line RECON record per detected field-diff with truncated local /
     jira values so operators can debug parity issues directly from the
     probe's side-car log. Off by default to keep production stderr quiet.
+
+    Parent diff (ticket 8b25): when ``binding_store`` is provided and the
+    ticket carries a ``parent_id``, the resolved Jira parent key is diffed
+    against ``jira_fields["parent"]["key"]``.  Unbound parents are omitted
+    from the mapped dict and therefore never emitted as changes.
     """
     import os
     import sys
+
     verbose = os.environ.get("DSO_RECONCILER_VERBOSE", "0") == "1"
     ticket_id = ticket.get("ticket_id") or ticket.get("id") or "<no-id>"
 
-    local_mapped = _map_local_to_jira_fields(ticket)
+    local_mapped = _map_local_to_jira_fields(
+        ticket, binding_store=binding_store, local_ticket_types=local_ticket_types
+    )
     changed: dict[str, Any] = {}
     for field_name, local_val in local_mapped.items():
         # Bug 36af: ticket_type/issuetype is governed by an approved sync
@@ -245,6 +328,25 @@ def _diff_fields(ticket: dict[str, Any], jira_fields: dict[str, Any]) -> dict[st
                         f"RECON: field_diff ticket={ticket_id} "
                         f"field=assignee local={local_val!r:.80} "
                         f"jira={jira_fields.get('assignee')!r:.80}",
+                        file=sys.stderr,
+                    )
+            continue
+        if field_name == "parent":
+            # Jira returns parent as {"key": "DIG-N"}; local_val is the resolved
+            # Jira key string. Extract the Jira-side parent key for comparison.
+            jira_parent_raw = jira_fields.get("parent")
+            jira_parent_key = (
+                jira_parent_raw.get("key")
+                if isinstance(jira_parent_raw, dict)
+                else None
+            )
+            if local_val != jira_parent_key:
+                changed[field_name] = local_val
+                if verbose:
+                    print(  # noqa: T201
+                        f"RECON: field_diff ticket={ticket_id} "
+                        f"field=parent local={local_val!r:.80} "
+                        f"jira={jira_parent_key!r:.80}",
                         file=sys.stderr,
                     )
             continue
@@ -348,18 +450,95 @@ def _diff_comments(
     ticket: dict[str, Any],
     jira_key: str,
     jira_snapshot: dict[str, Any],
+    client: Any = None,
 ) -> list[dict[str, Any]]:
     """Compare local comments to Jira comments. Return mutations for new comments.
 
-    Simple strategy: detect local comments not yet mirrored to Jira by
-    comparing comment bodies. This is a best-effort approach; PR #402
-    (ADF walker + comment binding) will provide exact comment ID binding.
-    Bodies are normalized via :func:`_normalize_comment_body` so a Jira
-    ADF body matches its local plain-text counterpart (bug 85a1).
+    Matching rule: emit a comment "add" only for local comment bodies NOT
+    already present in Jira, after normalising both sides via
+    :func:`_normalize_comment_body` (ADF→text conversion + RECONCILER_MARKER
+    strip + whitespace strip). Body equality after normalisation → skip
+    (already mirrored); otherwise emit with outbound decoration.
+
+    Snapshot lookup: the Jira REST API places comments at
+    fields["comment"]["comments"] (outer key is "comment", not "comments").
+    The fetcher writes snapshot[jira_key] = {k: fields[k] for k in fields},
+    so we read jira_issue["comment"]["comments"] (bug 4572 fix).
+
+    Live search path (bug 4292 fix): Jira search results do NOT include the
+    ``comment`` field. When the snapshot entry for *jira_key* lacks the
+    ``comment`` key, the comment state is unknown. If a ``client`` is provided,
+    fetch comments live via ``client.get_comments(jira_key)``; this is bounded
+    (one call per ticket with local comments). If the live fetch FAILS, skip
+    comment mutations for this ticket entirely and emit a loud warning —
+    never emit blind adds against unknown Jira comment state (the root cause
+    of DIG-5301 reaching 14 duplicate comments).
+
+    When the snapshot entry DOES carry a ``comment`` key (fixture/synthetic path),
+    use it directly — the client is NOT consulted (fixture path preserved).
+
+    Note: PR #402 (ADF walker + comment ID binding) will provide exact ID-
+    based binding once available; this body-equality match is the baseline.
     """
     local_comments = ticket.get("comments", [])
     jira_issue = jira_snapshot.get(jira_key, {})
-    jira_comments = jira_issue.get("comments", [])
+
+    # Safety invariant (bug 4292): distinguish "snapshot has comment data" from
+    # "snapshot lacks comment field entirely" (live search shape).
+    #
+    # Jira search returns fields WITHOUT the comment field. The fetcher copies
+    # fields verbatim: snapshot[key] = {k: fields[k] for k in fields}. So a
+    # live snapshot entry will never have a "comment" key. A fixture/synthetic
+    # entry built for tests WILL have it. We use the key's presence as the
+    # discriminator, not the value (empty dict is a valid Jira response for an
+    # issue with no comments, and indistinguishable from an absent key if we
+    # only check truthiness).
+    if _COMMENT_FIELD_KEY in jira_issue:
+        # Snapshot-carried path (fixtures, synthetic, or snapshot enriched with
+        # comment data). Use directly — do NOT call client.
+        comment_field = jira_issue[_COMMENT_FIELD_KEY]
+        if isinstance(comment_field, dict):
+            jira_comments: list = comment_field.get("comments", [])
+        else:
+            jira_comments = []
+    else:
+        # Live search path: snapshot lacks comment field.
+        # When there are no local comments, nothing to compare — skip the
+        # live fetch (avoid an unnecessary API call).
+        if not local_comments:
+            return []
+
+        if client is None:
+            # No client provided. We cannot know the Jira comment state.
+            # Emit a warning and skip comment mutations to avoid blind duplicates.
+            print(  # noqa: T201
+                f"WARNING: outbound_differ: snapshot for {jira_key!r} lacks "
+                f"'comment' field (live search shape) and no client was provided. "
+                f"Skipping comment mutations to avoid blind duplicate adds. "
+                f"Pass a client to compute_outbound_mutations to enable live "
+                f"comment fetch.",
+                file=sys.stderr,
+            )
+            return []
+
+        # Fetch comments live. One call per ticket — bounded by the set of
+        # bound tickets with local comments.
+        try:
+            jira_comments = client.get_comments(jira_key)
+            if not isinstance(jira_comments, list):
+                jira_comments = []
+        except Exception as exc:  # noqa: BLE001
+            # Live fetch failed. Skip comment mutations entirely for this ticket.
+            # Never emit blind adds when comment state is unknown (bug 4292 safety
+            # invariant). Emit a loud warning + log to stderr.
+            print(  # noqa: T201
+                f"WARNING: outbound_differ: live comment fetch for {jira_key!r} "
+                f"failed ({exc!r}). Skipping comment mutations for this ticket "
+                f"to avoid emitting duplicate adds against unknown Jira state. "
+                f"Alert: jira_key={jira_key!r}",
+                file=sys.stderr,
+            )
+            return []
 
     jira_bodies: set[str] = set()
     for c in jira_comments:
@@ -389,7 +568,11 @@ def _diff_comments(
 # separator ("dso-id-<local_id>"); both forms must be excluded from outbound
 # diffs to avoid emitting spurious remove mutations for identity labels.
 # See bug 68a4-f9d5-5540-4b95.
-_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:")
+# dso-status: labels are reconciler-managed annotation labels (emitted/removed
+# by status logic only); they must be excluded from the normal user-tag diff
+# so that dso-status: labels on Jira do not produce spurious REMOVE mutations
+# via the tag diff path (ticket 929a).
+_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:", "dso-status:")
 
 
 def _diff_labels(
@@ -440,6 +623,48 @@ def _diff_labels(
 
 
 # ---------------------------------------------------------------------------
+# Status annotation label helpers (ticket 929a)
+# ---------------------------------------------------------------------------
+
+
+def _diff_status_annotation_labels(
+    local_status: str,
+    jira_labels: list[str],
+) -> list[dict[str, Any]]:
+    """Compute add/remove mutations for dso-status: annotation labels.
+
+    These labels encode lossless status information for statuses that have no
+    direct equivalent in the live DIG Jira workflow (currently blocked and
+    cancelled, which map to In Progress and Done respectively).
+
+    Rules:
+    - When local_status is in _STATUS_ANNOTATION_LABEL, emit ADD for the
+      corresponding dso-status: label if Jira does not already carry it.
+    - When a dso-status: annotation label is present on Jira but local_status
+      no longer matches it, emit REMOVE to clean up the stale label.
+    """
+    mutations: list[dict[str, Any]] = []
+    desired_annotation = _STATUS_ANNOTATION_LABEL.get(local_status)
+    jira_annotation_labels = {
+        label for label in jira_labels if label.startswith("dso-status:")
+    }
+
+    # Add desired annotation if not already present
+    if (
+        desired_annotation is not None
+        and desired_annotation not in jira_annotation_labels
+    ):
+        mutations.append({"action": "add", "label": desired_annotation})
+
+    # Remove stale annotations (dso-status: labels that no longer match)
+    for stale in sorted(jira_annotation_labels):
+        if stale != desired_annotation:
+            mutations.append({"action": "remove", "label": stale})
+
+    return mutations
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -450,6 +675,7 @@ def compute_outbound_mutations(
     binding_store: BindingStoreProtocol,
     excluded_statuses: set[str] | None = None,
     local_label_intent: dict[str, set[str]] | None = None,
+    client: Any = None,
 ) -> list[OutboundMutation]:
     """Diff local tickets against Jira snapshot and return outbound mutations.
 
@@ -470,6 +696,12 @@ def compute_outbound_mutations(
             from the map receive an empty intent set, which is the lazy
             first-pass safety mode (suppress all REMOVEs for that ticket).
             Legacy callers omit this argument and retain the pre-fix behavior.
+        client: Optional AcliClient (or compatible duck-typed object). When
+            provided, used by ``_diff_comments`` to fetch live Jira comment
+            state for tickets whose snapshot entry lacks a ``comment`` field
+            (the live Jira search shape). When None, _diff_comments skips
+            comment mutations for such tickets rather than emitting blind adds
+            (bug 4292 safety invariant).
 
     Returns:
         List of OutboundMutation objects describing changes to push to Jira.
@@ -478,6 +710,16 @@ def compute_outbound_mutations(
         excluded_statuses = {"archived", "deleted"}
 
     mutations: list[OutboundMutation] = []
+
+    # Hierarchy pre-check map (ticket 8b25): {local_id → ticket_type}. Used to
+    # suppress parent diffs whose resolved parent is a non-epic — Jira only
+    # permits Epic parents on this project, so emitting such a parent mutation
+    # would re-fail (HTTP 400) every pass. Cheap O(n) build over local state.
+    local_ticket_types: dict[str, str] = {
+        t["ticket_id"]: t.get("ticket_type", "")
+        for t in local_tickets
+        if t.get("ticket_id")
+    }
 
     for ticket in local_tickets:
         status = ticket.get("status", "")
@@ -489,26 +731,46 @@ def compute_outbound_mutations(
 
         if jira_key is None:
             # Unbound -> outbound create
+            # ticket 929a: for new issues the Jira side has no labels yet,
+            # so the annotation label only needs an ADD (never a REMOVE).
+            annotation_mutations = _diff_status_annotation_labels(
+                local_status=status,
+                jira_labels=[],
+            )
             mutations.append(
                 OutboundMutation(
                     local_id=local_id,
                     jira_key=None,
                     action="create",
-                    fields=_map_local_to_jira_fields(ticket),
+                    fields=_map_local_to_jira_fields(
+                        ticket,
+                        binding_store=binding_store,
+                        local_ticket_types=local_ticket_types,
+                    ),
                     comments=_map_comments_for_create(ticket),
-                    labels=[
-                        {"action": "add", "label": t}
-                        for t in sorted(ticket.get("tags", []))
-                        if not any(t.startswith(p) for p in _EXCLUDED_PREFIXES)
-                    ],
+                    labels=(
+                        [
+                            {"action": "add", "label": t}
+                            for t in sorted(ticket.get("tags", []))
+                            if not any(t.startswith(p) for p in _EXCLUDED_PREFIXES)
+                        ]
+                        + annotation_mutations
+                    ),
                     links=[],  # links resolved after all creates
                 )
             )
         else:
             # Bound -> compare fields, emit update if different
             jira_fields = jira_snapshot.get(jira_key, {})
-            changed = _diff_fields(ticket, jira_fields)
-            comment_mutations = _diff_comments(ticket, jira_key, jira_snapshot)
+            changed = _diff_fields(
+                ticket,
+                jira_fields,
+                binding_store=binding_store,
+                local_ticket_types=local_ticket_types,
+            )
+            comment_mutations = _diff_comments(
+                ticket, jira_key, jira_snapshot, client=client
+            )
             # bug a06c: intent-gated REMOVE. When local_label_intent is
             # provided but lacks an entry for this local_id, fall back to
             # an empty intent set (lazy first-pass safety: suppresses all
@@ -517,6 +779,14 @@ def compute_outbound_mutations(
             if local_label_intent is not None:
                 intent_set = local_label_intent.get(local_id, set())
             label_mutations = _diff_labels(ticket, jira_fields, intent_set)
+            # ticket 929a: status annotation labels (dso-status:blocked/cancelled)
+            # are managed separately from user tags (excluded from _diff_labels via
+            # _EXCLUDED_PREFIXES). Compute and merge annotation mutations here.
+            annotation_mutations = _diff_status_annotation_labels(
+                local_status=status,
+                jira_labels=list(jira_fields.get("labels") or []),
+            )
+            label_mutations = label_mutations + annotation_mutations
 
             if changed or comment_mutations or label_mutations:
                 mutations.append(

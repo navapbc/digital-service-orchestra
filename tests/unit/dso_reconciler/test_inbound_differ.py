@@ -182,6 +182,106 @@ def test_bound_both_changed_skipped(inbound_differ: ModuleType) -> None:
     assert m.fields["title"] == "Jira changed title"
 
 
+def test_assignee_dict_shape_matches_local_email_no_phantom(
+    inbound_differ: ModuleType,
+) -> None:
+    """Jira assignee dict matching local email form -> no inbound mutation.
+
+    Convergence-churn regression (bug 85a1 family): a real Jira fetch returns
+    ``assignee`` as ``{accountId, displayName, emailAddress}``. Local tickets
+    store assignee as a bare string that may be the email form (the
+    ticket-create default). The outbound differ already tolerates all three
+    identity forms via ``_assignee_matches``; the inbound differ did NOT, so it
+    extracted only ``displayName`` and compared it against the local email,
+    reporting a phantom ``assignee`` change on EVERY pass — the field never
+    converges. This asserts shape-tolerant inbound equality: a Jira dict whose
+    emailAddress equals the local string emits nothing.
+    """
+    jira_snapshot = {
+        "PROJ-100": {
+            "summary": "Same title",
+            "description": "Same desc",
+            "issuetype": "Task",
+            "priority": "Medium",
+            "status": "In Progress",
+            "assignee": {
+                "accountId": "abc123",
+                "displayName": "Joe Oakhart",
+                "emailAddress": "joeoakhart@navapbc.com",
+            },
+            "labels": [],
+        }
+    }
+    store = StubBindingStore({"PROJ-100": "local-1"})
+    local_tickets = {
+        "local-1": {
+            "title": "Same title",
+            "description": "Same desc",
+            "ticket_type": "task",
+            "priority": 2,
+            "status": "in_progress",
+            "assignee": "joeoakhart@navapbc.com",  # email form, not displayName
+            "tags": [],
+        }
+    }
+
+    result, suppressed = inbound_differ.compute_inbound_mutations(
+        jira_snapshot=jira_snapshot,
+        binding_store=store,
+        local_tickets_by_id=local_tickets,
+    )
+
+    assert result == [], (
+        "phantom inbound assignee mutation: Jira dict shape did not match "
+        "local email form (inbound differ lacks _assignee_matches tolerance)"
+    )
+    assert suppressed == 0
+
+
+def test_assignee_dict_genuine_change_still_emitted(
+    inbound_differ: ModuleType,
+) -> None:
+    """A genuine Jira-side assignee change (no identity form matches local)
+    still emits an inbound update — shape tolerance must not swallow real
+    reassignments. Carries the displayName (local-side canonical form)."""
+    jira_snapshot = {
+        "PROJ-100": {
+            "summary": "Same title",
+            "description": "Same desc",
+            "issuetype": "Task",
+            "priority": "Medium",
+            "status": "In Progress",
+            "assignee": {
+                "accountId": "newperson",
+                "displayName": "New Person",
+                "emailAddress": "newperson@navapbc.com",
+            },
+            "labels": [],
+        }
+    }
+    store = StubBindingStore({"PROJ-100": "local-1"})
+    local_tickets = {
+        "local-1": {
+            "title": "Same title",
+            "description": "Same desc",
+            "ticket_type": "task",
+            "priority": 2,
+            "status": "in_progress",
+            "assignee": "joeoakhart@navapbc.com",
+            "tags": [],
+        }
+    }
+
+    result, suppressed = inbound_differ.compute_inbound_mutations(
+        jira_snapshot=jira_snapshot,
+        binding_store=store,
+        local_tickets_by_id=local_tickets,
+    )
+
+    assert len(result) == 1
+    assert result[0].fields.get("assignee") == "New Person"
+
+
 def test_bound_no_changes_emits_nothing(inbound_differ: ModuleType) -> None:
     """Bound ticket where Jira fields match local -> no mutation."""
     jira_snapshot = {
@@ -374,5 +474,3 @@ def test_inbound_label_diff_does_not_remove_local_colon_form_dso_id(
                 lm.get("action") == "remove"
                 and str(lm.get("label", "")).startswith("dso-id:")
             ), f"Inbound differ emitted spurious REMOVE for dso-id label: {lm}"
-
-
