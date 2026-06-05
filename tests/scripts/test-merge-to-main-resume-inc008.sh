@@ -13,6 +13,16 @@
 #   returns 75 = INDETERMINATE (re-fetch/escalate; never treat as "no PRs")
 
 set -uo pipefail
+
+# Hermeticity: isolate every git operation in this test from the runner's ambient
+# git environment. Without this, a CI runner (or developer) with global git hooks,
+# commit signing, or custom aliases in ~/.gitconfig (or /etc/gitconfig) would leak
+# into the init/clone/commit/push below and make them behave unpredictably. The
+# local `git config user.*`/`commit.gpgsign false` set per-repo does NOT override
+# user-global or system config, so neutralize both config layers at the source.
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT/plugins/dso"
