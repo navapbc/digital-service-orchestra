@@ -966,6 +966,43 @@ resume_pr_query_trustworthy() {
     return 0
 }
 
+# resume_staged_ref_is_spent <commits_ahead_of_main>
+# 3ebb DD2 / INC-015: a staged-* ref is SPENT when it carries 0 commits ahead of
+# origin/main — its content already merged (a completed promotion) or it is an
+# empty placeholder. A spent staged-* must NOT be driven as a live PR2 source —
+# that produced the confusing 'No commits between main and staged-*' stall when a
+# worktree was left checked out on a leftover staged-* alongside a stale /tmp
+# state file. Fail-safe: a non-numeric/empty count is NOT spent (never skip/GC on
+# uncertainty — only a definitively-0 ahead-count is spent).
+#   returns 0 = spent (refuse as PR2 source / safe to GC its cache)
+#   returns 1 = not spent (live, or unknown)
+resume_staged_ref_is_spent() {
+    local _ahead="${1:-}"
+    [[ "$_ahead" =~ ^[0-9]+$ ]] || return 1
+    (( _ahead == 0 ))
+}
+
+# resume_gc_stale_staged_state [state_dir]
+# 3ebb DD2 / INC-015 (b): the /tmp/merge-to-main-state-*.json files are a CACHE,
+# not the source of truth (GitHub + git are). Garbage-collect the cache entries
+# for staged-* branches that are GONE from origin or SPENT (already merged), so a
+# later --resume can never reconstruct off a stale promotion's state. Best-effort;
+# never fails the run. state_dir defaults to /tmp (overridable for tests).
+resume_gc_stale_staged_state() {
+    local _dir="${1:-/tmp}" _db="${_DEFAULT_BRANCH:-main}" _sf _b _ahead
+    git fetch origin "$_db" --quiet 2>/dev/null || true
+    for _sf in "$_dir"/merge-to-main-state-staged-*.json; do
+        [[ -f "$_sf" ]] || continue
+        _b="${_sf##*/merge-to-main-state-}"; _b="${_b%.json}"
+        if ! git ls-remote --heads origin "$_b" 2>/dev/null | grep -q .; then
+            rm -f "$_sf" 2>/dev/null || true; continue          # branch gone -> spent
+        fi
+        git fetch origin "$_b" --quiet 2>/dev/null || true
+        _ahead=$(git rev-list --count "origin/${_db}..origin/${_b}" 2>/dev/null || echo "")
+        if resume_staged_ref_is_spent "$_ahead"; then rm -f "$_sf" 2>/dev/null || true; fi
+    done
+}
+
 _phase_staged_intermediate() {
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "staged_intermediate" 2>/dev/null || true
@@ -3241,6 +3278,27 @@ fi
 # Skip the duplicate-PR guard when resuming with a recorded PR.
 if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
     if ! _check_duplicate_pr; then
+        exit 1
+    fi
+fi
+
+# 3ebb DD2 / INC-015 (a): assert the current branch is a usable promotion source
+# before the PR1/PR2 phase. A worktree left checked out on a SPENT staged-* ref
+# (a leftover from an already-merged promotion — 0 commits ahead of origin/main)
+# must NOT be driven as a live PR2 source: that produced the confusing 'No commits
+# between main and staged-*' stall. This is a DETERMINATE operational error (wrong
+# checkout), NOT an INDETERMINATE verdict — so it gives a concrete recovery
+# (checkout the feature branch) and exits 1, and is deliberately NOT routed to
+# /dso:fp-recovery (fp-recovery cannot fix a wrong-branch checkout). The /tmp
+# state cache for spent staged refs is GC'd so a later --resume starts clean.
+if [[ "$BRANCH" == staged-* ]]; then
+    git fetch origin "${_DEFAULT_BRANCH:-main}" "$BRANCH" --quiet 2>/dev/null || true
+    _cur_ahead=$(git rev-list --count "origin/${_DEFAULT_BRANCH:-main}..origin/${BRANCH}" 2>/dev/null \
+        || git rev-list --count "origin/${_DEFAULT_BRANCH:-main}..HEAD" 2>/dev/null || echo "")
+    if type resume_staged_ref_is_spent >/dev/null 2>&1 && resume_staged_ref_is_spent "$_cur_ahead"; then
+        type resume_gc_stale_staged_state >/dev/null 2>&1 && resume_gc_stale_staged_state 2>/dev/null || true
+        echo "ERROR [merge-to-main]: current branch '${BRANCH}' is a SPENT staged-* ref — its promotion already merged (0 commits ahead of origin/${_DEFAULT_BRANCH:-main}). This is the INC-015 stale-checkout stall, not a review problem." >&2
+        echo "RECOVERY: checkout your feature branch ('git checkout <your-branch>') and re-run merge-to-main. The stale /tmp state cache for spent staged refs has been cleared." >&2
         exit 1
     fi
 fi
