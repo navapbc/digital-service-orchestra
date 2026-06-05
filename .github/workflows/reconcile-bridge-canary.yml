@@ -192,8 +192,13 @@ jobs:
           steps.find_ticket.outputs.ticket_id != ''
         run: |
           DETECTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          # BRIDGE_CANARY_ALERT: marker (bug 57d1) — the reconciler's outbound
+          # comment sync excludes this machine-marker prefix so these fresh-
+          # timestamped heartbeat comments are NOT mirrored to Jira (the volatile
+          # timestamp never dedups, accumulating duplicate Jira comments). See
+          # outbound_differ._EXCLUDED_COMMENT_PREFIXES.
           .claude/scripts/dso ticket comment "${{ steps.find_ticket.outputs.ticket_id }}" \
-            "Still stale as of ${DETECTED_AT}: ${{ steps.check.outputs.status_msg }} Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            "BRIDGE_CANARY_ALERT: Still stale as of ${DETECTED_AT}: ${{ steps.check.outputs.status_msg }} Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Close alert ticket on recovery
         if: >
