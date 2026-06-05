@@ -988,6 +988,8 @@ resume_staged_ref_is_spent() {
 # for staged-* branches that are GONE from origin or SPENT (already merged), so a
 # later --resume can never reconstruct off a stale promotion's state. Best-effort;
 # never fails the run. state_dir defaults to /tmp (overridable for tests).
+# shellcheck disable=SC2120  # intentional optional arg: production callers use the
+# /tmp default; the test suite passes an explicit dir for hermetic isolation.
 resume_gc_stale_staged_state() {
     local _dir="${1:-/tmp}" _db="${_DEFAULT_BRANCH:-main}" _sf _b _ahead
     git fetch origin "$_db" --quiet 2>/dev/null || true
