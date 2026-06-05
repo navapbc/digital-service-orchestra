@@ -1962,6 +1962,7 @@ def create_one(
     events_list: list | None = None,
     repo_root: Path | None = None,
     binding_store=None,
+    comment_errors: list[str] | None = None,
 ) -> dict | None:
     """Create a Jira issue from the mutation's fields, with budget guard and JQL dedup.
 
@@ -1981,6 +1982,14 @@ def create_one(
         events_list:      List to append structured events to (dedup hit events).
         repo_root:        Repository root for resolving bridge_state/mapping.json.
                           Defaults to four levels above this file when None.
+        comment_errors:   Optional list collecting add_comment failures during the
+                          post-create comment-dispatch loop (bug ea6d). When
+                          provided, each failure is appended (string form) so the
+                          caller can surface it in the batch outcome instead of
+                          reporting error=None. Failures stay NON-fatal — the issue
+                          create already succeeded. Passing ``None`` (the default)
+                          preserves the legacy log-only behaviour, mirroring
+                          update_one's comment_errors contract.
 
     Returns:
         The client.create_issue() result on miss, a dedup sentinel dict on hit,
@@ -2144,6 +2153,11 @@ def create_one(
                 try:
                     _call_with_retry(client.add_comment, jira_key, body)
                 except Exception as exc:  # noqa: BLE001
+                    # Bug ea6d-e4b2-a316-45ec: non-fatal, but surface it so the
+                    # batch outcome no longer reports error=None for an outbound
+                    # CREATE whose comment sub-mutation failed. Mirrors update_one.
+                    if comment_errors is not None:
+                        comment_errors.append(f"add_comment failed: {exc!s}")
                     print(  # noqa: T201
                         f"create_one: add_comment failed for {jira_key}: {exc!r}",
                         file=sys.stderr,
@@ -3118,6 +3132,11 @@ def _apply_batch(
             )
 
             if action == "create":
+                # Bug ea6d-e4b2-a316-45ec: collect any add_comment failures so a
+                # swallowed comment sub-mutation during an outbound CREATE surfaces
+                # in the batch outcome rather than reporting a clean error=None,
+                # mirroring the update-path handling below (bug 6afc).
+                _comment_errors: list[str] = []
                 result = create_one(
                     mutation,
                     client,
@@ -3126,6 +3145,7 @@ def _apply_batch(
                     events_list=events_list,
                     repo_root=repo_root,
                     binding_store=binding_store,
+                    comment_errors=_comment_errors,
                 )
                 # Only count REST call on actual create (not dedup-skipped, not deferred)
                 if (
@@ -3134,6 +3154,12 @@ def _apply_batch(
                 ):
                     rest_calls += 1
                 outcome["result"] = result
+                # Surface swallowed comment failures. NON-fatal — the issue create
+                # above genuinely succeeded — so we record them in a dedicated
+                # field rather than overwriting outcome["error"], mirroring the
+                # update-path soft-fail style.
+                if _comment_errors:
+                    outcome["comment_errors"] = list(_comment_errors)
             elif action == "update":
                 # Bug 17b5-dda4-6662-4616: AssigneeNotFoundError (raised by
                 # client.update_issue's Phase A pre-validation when the
