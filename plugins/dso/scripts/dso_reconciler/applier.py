@@ -3123,6 +3123,44 @@ def _apply_batch(
                 # in update_one and the BRIDGE_ALERT pattern in create_one.
                 try:
                     result = update_one(mutation, client)
+                except urllib.error.HTTPError as exc:
+                    # Bug tan-coin-atone (6614-43cd-3a48-4f63): an outbound
+                    # update against a DELETED Jira issue (stale binding, 1e08
+                    # class) routes status/priority through REST sub-calls
+                    # (transition_issue / update_priority) that raise a RAW
+                    # urllib.error.HTTPError 404 — NOT a JiraAPIError — so the
+                    # update_one comment-fallback try/except (which only handles
+                    # JiraAPIError) misses it and the 404 escapes reconcile_once,
+                    # aborting the whole pass (GHA run 27023829257). A 404 on a
+                    # single mutation's target means the issue is gone: this is a
+                    # PER-MUTATION failure, never pass-fatal. Soft-fail ONLY 404 —
+                    # other HTTP errors (e.g. 5xx) keep current behavior and
+                    # propagate (matching delete_one's already-gone tolerance and
+                    # the AssigneeNotFoundError soft-fail below). Positive-404
+                    # evidence feeds the binding-GC design in
+                    # docs/designs/sync-hardening-proposal.md Item 4b.
+                    if exc.code != 404:
+                        raise
+                    _outcome_key = (
+                        mutation.get("key") or mutation.get("local_id") or "<unknown>"
+                    )
+                    logger.warning(
+                        "outbound update skipped: Jira issue %s gone (HTTP 404) "
+                        "— stale binding (1e08); recording per-mutation failure "
+                        "and continuing the pass",
+                        _outcome_key,
+                    )
+                    outcome["result"] = None
+                    outcome["error"] = f"stale-binding-404: {exc!s}"
+                    mutations_with_outcomes.append(outcome)
+                    # Per-mutation RECON line matches the regular path.
+                    print(  # noqa: T201
+                        f"RECON: batch_outcome action={action} "
+                        f"key={_outcome_key} "
+                        f"error={outcome['error']!r}",
+                        file=sys.stderr,
+                    )
+                    continue
                 except acli.AssigneeNotFoundError as exc:
                     alert_store = _load_alert_store()
                     alert_store.append(

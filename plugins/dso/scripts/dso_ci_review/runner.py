@@ -507,9 +507,7 @@ def _partition_reviewable_files(
     return reviewable, skipped
 
 
-def _should_region_split_on_files(
-    diff_text: str, reviewable_files: list[str]
-) -> bool:
+def _should_region_split_on_files(diff_text: str, reviewable_files: list[str]) -> bool:
     """Region-split GATE decision computed against the FILTERED reviewable set
     (component #3' R-1).
 
@@ -570,9 +568,7 @@ def _result_has_fallback_exhausted(result: dict) -> bool:
     return False
 
 
-def _rechunk_on_fallback_exhausted(
-    result: dict, diff_text: str
-) -> list[dict] | None:
+def _rechunk_on_fallback_exhausted(result: dict, diff_text: str) -> list[dict] | None:
     """If a single-pass result is a context-exhaustion sentinel, re-route the
     diff to the chunked path (component #3' R-2).
 
@@ -835,9 +831,61 @@ def _resolve_artifacts_dir() -> str:
     return _ledger_artifacts_dir()
 
 
-def _resolve_repo() -> str | None:
-    """Resolve <owner>/<repo> from GITHUB_REPOSITORY env var."""
-    return os.environ.get("GITHUB_REPOSITORY") or None
+def _is_wellformed_repo_slug(candidate: str) -> bool:
+    """True iff ``candidate`` is a well-formed ``<owner>/<repo>`` slug.
+
+    A bare ``"/" in candidate`` check is insufficient: ``owner/``, ``/repo``,
+    and ``owner//repo`` all contain a "/" yet are NOT well-formed and produce
+    invalid GitHub API endpoints (e.g. ``/repos/owner//pulls/...``) when
+    interpolated. Require exactly two "/"-delimited, non-empty components and
+    reject any embedded whitespace (e.g. a trailing newline ``"owner/repo\n"``
+    from an unstripped env var, or an internal space) so both the env and gh
+    paths are validated uniformly.
+    """
+    if (
+        not candidate
+        or candidate != candidate.strip()
+        or any(c.isspace() for c in candidate)
+    ):
+        return False
+    parts = candidate.split("/")
+    return len(parts) == 2 and all(parts)
+
+
+def _resolve_repo(*, allow_gh_fallback: bool = False) -> str | None:
+    """Resolve <owner>/<repo>, preferring GITHUB_REPOSITORY then `gh repo view`.
+
+    In CI, GITHUB_REPOSITORY is always set. Local runs (env unset) would
+    otherwise silently lose any surface that requires the repo slug; when
+    ``allow_gh_fallback`` is set we derive it from the gh CLI so behaviour stays
+    multi-surface. The gh fallback is opt-in so unconditional call sites (e.g.
+    cycle-ledger init, which runs even on push events) do not introduce a gh
+    subprocess where none happened before. A return value is only accepted if it
+    is a well-formed `<owner>/<repo>` slug (enforced via
+    ``_is_wellformed_repo_slug`` so a malformed env var or gh output is rejected
+    rather than returned and interpolated into a broken API endpoint).
+    """
+    # Strip so the env path matches the gh-fallback path (which strips
+    # ``result.stdout``); a trailing newline in GITHUB_REPOSITORY is benign noise.
+    env_repo = (os.environ.get("GITHUB_REPOSITORY") or "").strip()
+    if _is_wellformed_repo_slug(env_repo):
+        return env_repo
+    if not allow_gh_fallback:
+        return None
+    try:
+        result = subprocess.run(
+            ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            derived = result.stdout.strip()
+            if _is_wellformed_repo_slug(derived):
+                return derived
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return None
 
 
 def _resolve_validator_script(plugin_root: str | None = None) -> str:
@@ -1527,6 +1575,19 @@ def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
                 f"gh stderr: {_stderr!r}",
                 file=sys.stderr,
             )
+            # Log which findings failed anchoring (path:line). The most common
+            # 422 cause is a finding anchored to a source line not present in
+            # the PR diff (a fabricated anchor); the Reviews API rejects the
+            # whole batched payload, so we cannot tell from the API response
+            # alone which anchor was bad. Emitting each candidate anchor here
+            # makes fabricated-anchor findings visible in the job log without
+            # needing to fix WHY the reviewer fabricates them (bug 40cd).
+            for _idx, _finding, _path, _line in anchored:
+                print(
+                    f"WARNING: finding {_idx}/{total} anchored to {_path}:{_line} "
+                    f"failed Reviews API anchoring; re-routed to issue comment",
+                    file=sys.stderr,
+                )
             # Fall back: add anchored findings to the issue comment queue
             unanchored.extend((idx, finding) for idx, finding, _, _ in anchored)
 
@@ -1657,19 +1718,62 @@ def init_cycle_ledger(
     return cycle_num
 
 
+def _parse_defense_records(bodies: list[str]) -> list[dict]:
+    """Extract DEFENSE_RECORD JSON objects from a list of comment bodies.
+
+    Scans each body line-by-line for the "DEFENSE_RECORD: " prefix and parses
+    the JSON suffix. Malformed records are skipped silently. Bodies may carry
+    multiple records (one per line).
+    """
+    records: list[dict] = []
+    for body in bodies:
+        for line in (body or "").splitlines():
+            line = line.strip()
+            if not line.startswith("DEFENSE_RECORD: "):
+                continue
+            json_str = line[len("DEFENSE_RECORD: ") :]
+            try:
+                record = json.loads(json_str)
+                if isinstance(record, dict):
+                    records.append(record)
+            except json.JSONDecodeError:
+                pass  # malformed record; skip silently
+    return records
+
+
 def _fetch_pr_defenses(pr_number: int | str) -> list[dict]:
     """Fetch DEFENSE_RECORD entries from GitHub PR comments via gh CLI.
 
-    Reads all PR comments, extracts lines starting with "DEFENSE_RECORD: ",
-    and returns parsed JSON records. Returns an empty list when:
+    Surface-agnostic (bug 40cd): defense findings and their records can land on
+    EITHER GitHub comment surface depending on the Reviews-API outcome of the
+    cycle that produced them:
+      - issue-conversation surface (`gh pr view --json comments`) — the
+        `gh pr comment` / fallback path; and
+      - PR review-thread surface (`/repos/<repo>/pulls/<n>/comments`) — the
+        Reviews-API happy path that creates resolvable line-anchored threads.
+
+    `gh pr view --json comments` returns ONLY issue-conversation comments, so a
+    reader limited to it misses every defense/finding that landed on the
+    review-thread surface. Before this fix, a Reviews-API 422 in cycle 1 routed
+    findings to issue comments while a later remediation's defenses (or vice
+    versa) could not be associated across surfaces — cycle 2 then re-emitted
+    findings verbatim (PR #658). We now scan BOTH surfaces with the same parser
+    and deduplicate identical records.
+
+    Returns an empty list when:
     - GITHUB_TOKEN is absent
-    - gh CLI is unavailable or fails
-    - No DEFENSE_RECORD lines are found
+    - gh CLI is unavailable or both surface fetches fail
+    - No DEFENSE_RECORD lines are found on either surface
 
     Best-effort: errors are logged to stderr but never propagate.
     """
     if not os.environ.get("GITHUB_TOKEN"):
         return []
+
+    bodies: list[str] = []
+    any_surface_succeeded = False
+
+    # Surface 1: issue-conversation comments (gh pr comment / fallback path).
     try:
         result = subprocess.run(
             [
@@ -1686,35 +1790,95 @@ def _fetch_pr_defenses(pr_number: int | str) -> list[dict]:
             text=True,
             timeout=30,
         )
-        if result.returncode != 0:
+        if result.returncode == 0:
+            any_surface_succeeded = True
+            bodies.extend(result.stdout.splitlines())
+        else:
             print(
                 f"WARNING: gh pr view failed (exit {result.returncode}); "
-                "cannot fetch prior defenses for cycle-2 suppression",
+                "issue-comment surface unavailable for cycle-2 defense lookup",
                 file=sys.stderr,
             )
-            return []
     except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
         print(
             f"WARNING: gh CLI unavailable ({type(exc).__name__}); "
-            "cannot fetch prior defenses for cycle-2 suppression",
+            "issue-comment surface unavailable for cycle-2 defense lookup",
             file=sys.stderr,
         )
+
+    # Surface 2: PR review-thread comments (Reviews-API happy path). Findings/
+    # defenses anchored as resolvable review threads live here and are NOT
+    # returned by `gh pr view --json comments`.
+    repository = _resolve_repo(allow_gh_fallback=True)
+    if repository:
+        try:
+            result = subprocess.run(
+                [
+                    "gh",
+                    "api",
+                    "--paginate",
+                    f"/repos/{repository}/pulls/{pr_number}/comments",
+                    "--jq",
+                    ".[].body",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                any_surface_succeeded = True
+                bodies.extend(result.stdout.splitlines())
+            else:
+                print(
+                    f"WARNING: gh api pulls/comments failed (exit {result.returncode}); "
+                    "review-thread surface unavailable for cycle-2 defense lookup",
+                    file=sys.stderr,
+                )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+            print(
+                f"WARNING: gh CLI unavailable ({type(exc).__name__}); "
+                "review-thread surface unavailable for cycle-2 defense lookup",
+                file=sys.stderr,
+            )
+    else:
+        # Could not resolve <owner>/<repo> (GITHUB_REPOSITORY unset/malformed
+        # AND `gh repo view` derivation failed). Surface 2 is the review-thread
+        # surface; skipping it silently would regress local runs to a single
+        # surface and re-orphan cross-surface defenses (bug 40cd). Make the
+        # skip visible so the both-surfaces-fail -> [] semantics stay honest.
+        print(
+            "WARNING: could not resolve <owner>/<repo> (GITHUB_REPOSITORY "
+            "unset/malformed and gh repo view derivation failed); review-thread "
+            "surface (Surface 2) skipped for cycle-2 defense lookup",
+            file=sys.stderr,
+        )
+
+    if not any_surface_succeeded:
         return []
 
-    defenses: list[dict] = []
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if not line.startswith("DEFENSE_RECORD: "):
+    # Parse both surfaces and deduplicate identical records (a defense mirrored
+    # to both surfaces, or a record returned twice, must count once).
+    #
+    # Dedup contract: identity is the EXACT canonical JSON serialization of the
+    # record (`json.dumps(..., sort_keys=True)`), NOT fingerprint equality. Two
+    # records collapse only when byte-identical after key-sorting. This is the
+    # safe choice for cross-surface merge: if the two surfaces ever transform a
+    # DEFENSE_RECORD differently (e.g. one re-encodes whitespace or drops a
+    # field), the serializations diverge and BOTH variants are retained rather
+    # than one silently masking the other — over-retention degrades to a
+    # duplicate finding-suppression entry (harmless), whereas fingerprint-based
+    # identity could drop a genuinely distinct record. Records are plain dicts
+    # of JSON scalars, so sort_keys yields a stable, order-independent key.
+    parsed = _parse_defense_records(bodies)
+    deduped: list[dict] = []
+    seen: set[str] = set()
+    for record in parsed:
+        key = json.dumps(record, sort_keys=True)
+        if key in seen:
             continue
-        json_str = line[len("DEFENSE_RECORD: ") :]
-        try:
-            record = json.loads(json_str)
-            if isinstance(record, dict):
-                defenses.append(record)
-        except json.JSONDecodeError:
-            pass  # malformed record; skip silently
-
-    return defenses
+        seen.add(key)
+        deduped.append(record)
+    return deduped
 
 
 def _normalize_cited_ref(entry: str) -> str:
@@ -2780,7 +2944,9 @@ def main() -> int:
             _env_cycle = 1
         # Use `is not None` instead of `or` — `or` would silently ignore
         # _env_cycle when _ledger_cycle_number=1 (truthy) (bug c6bf-19df-ac83-43fb).
-        cycle_number = _ledger_cycle_number if _ledger_cycle_number is not None else _env_cycle
+        cycle_number = (
+            _ledger_cycle_number if _ledger_cycle_number is not None else _env_cycle
+        )
 
         # Load the raw ledger for SHORT_CIRCUIT pre-check (cycle_next_action needs it).
         _ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
@@ -3189,8 +3355,7 @@ def main() -> int:
                     _pre_rechunk_real = [
                         f
                         for f in (merged.get("findings") or [])
-                        if isinstance(f, dict)
-                        and f.get("type") not in _SYNTHETIC_TYPES
+                        if isinstance(f, dict) and f.get("type") not in _SYNTHETIC_TYPES
                     ]
                     _rechunk_merged = _dispatch_and_aggregate_clusters(
                         _rechunk_filtered
@@ -3415,7 +3580,9 @@ def main() -> int:
                     + str(_f.get("cited_lines", ""))
                     + _f.get("description", "")
                 )
-                _f["finding_id"] = f"f-{hashlib.sha256(_id_source.encode()).hexdigest()[:8]}"
+                _f["finding_id"] = (
+                    f"f-{hashlib.sha256(_id_source.encode()).hexdigest()[:8]}"
+                )
 
         # Step 7d: telemetry emission (fire-and-forget, fail-open).
         # Emit one event per finding (review_finding or tool_finding), then
@@ -3590,6 +3757,7 @@ def main() -> int:
         # call site is identifiable from the CI log alone — without
         # this, we lose minutes per cycle re-deriving the file:line.
         import traceback as _tb
+
         print(
             f"ERROR: review pipeline crashed: {type(exc).__name__}: {exc}",
             file=sys.stderr,
