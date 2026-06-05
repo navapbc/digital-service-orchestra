@@ -85,6 +85,15 @@ The deterministic coverage gate that Option A (and MQ) relies on is **necessary 
 - Enforcing a flaky check wedges all promotions for the team → CF-6 (cache-key + backoff + budget convergence) is a hard precondition of A-5.
 - The two-tier orchestrator (`merge-to-main-pr.sh`, ~3.2k lines) and its maintenance surface remain — this was MQ's genuine, but secondary (maintainability, not correctness), win.
 
+## Known limitations: concurrency / main-advance race conditions
+
+Choosing the two-tier flow **over** a merge queue (this ADR's decision) deliberately trades away the merge queue's core guarantee: **serialized, fresh-base validation of every main-bound change.** The two-tier flow is not a queue, so it cannot fully serialize concurrent promotions to `main`. The single-promotion main-advance cases are handled (GitHub auto-merge re-rebases a textually-BEHIND PR2; the auto-merge poll loop refreshes a BEHIND base via `gh pr update-branch`, jira-dig-2529; and the PR2 phase no longer attempts a ruleset-forbidden `staged-*` force-push — 3ebb). The following residual races are **accepted consequences of the over-MQ choice, mitigated by quiescing rather than eliminated** — documented here so they are not rediscovered as surprises:
+
+- **L1 — Concurrent PR2s → semantic conflict on `main`.** Two PR2s (`staged-*`→`main`) can each pass CI on their own (stale) base and then both rebase-merge — individually green, together broken. This is exactly the class a merge queue serializes away. GitHub auto-merge serializes the *textual* fast-forward race and the `update-branch` refresh narrows the stale-base window, but neither catches a *semantic* conflict between concurrently-green PRs. **Mitigation:** run main-bound promotions one at a time; do not run two `merge-to-main` promotions to `main` concurrently. There is no automated queue/serialization.
+- **L2 — Enforce-flip vs in-flight PR2s.** When the live `main` ruleset / `required-checks.txt` is swapped (the 3ee4 enforce-flip), any PR2 already in flight can merge under a mixed/old required-check set during the live↔file skew window (R8 goes RED repo-wide during that window). **Mitigation:** the 3ee4 go-live runbook requires landing the swap with **no other PR2 in flight** (quiesce promotions, provision live, land the file-PR fast). This is a runbook-enforced manual step, not an automated guard.
+
+These are correctness/operational limitations, not integrity regressions: no race opens a path for **unreviewed** content to reach `main` (every SHA still requires a passing review at PR1/PR2; INDETERMINATE/conflict states fail closed). If the concurrency cost becomes material, the level-triggered drift reconciler + orphan-`staged-*` pruning (3ebb DD3 stretch goal, currently YAGNI'd) is the place to revisit; a true merge queue remains the alternative this ADR consciously declined.
+
 ## References
 - Supersedes: `docs/adr/0019-github-merge-queue-for-staged-to-main.md`.
 - Plan: `docs/handoff/option-a-pivot-plan.md`.
