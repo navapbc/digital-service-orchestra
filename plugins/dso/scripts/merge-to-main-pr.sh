@@ -115,6 +115,16 @@ if [[ -f "$_REVIEW_TRISTATE_LIB" ]]; then
     source "$_REVIEW_TRISTATE_LIB"
 fi
 
+# _branch_is_staged_promotion [branch]  — 3ebb (PR2-phase predicate, single source
+# of truth). True when the (current) branch is a staged-* promotion ref — i.e. we
+# are in the PR2 (staged-*→main) phase. staged-* refs are push-protected by the
+# sub-PR ruleset (required_status_checks{review-sub-pr}, which only runs on
+# pull_request events), so the PR2 phase must never push/force-push them. Replaces
+# scattered `[[ "$BRANCH" == staged-* ]]` literals so the phase semantics cannot drift.
+_branch_is_staged_promotion() {
+    [[ "${1:-${BRANCH:-}}" == staged-* ]]
+}
+
 # --- Resolve default branch via resolver (F-05) ---
 # Cached per merge-to-main run in $GIT_DIR/dso-default-branch — written here so
 # subsequent invocations within the same run reuse the resolved value without
@@ -712,7 +722,7 @@ _phase_source_branch_version_bump() {
     # would be REJECTED by the sub-PR ruleset (required_status_checks{review-sub-pr};
     # do_not_enforce_on_create exempts create, NOT update) because the bump commit
     # has no passing review-sub-pr and the non-admin agent cannot bypass. Skip.
-    if [[ "$BRANCH" == staged-* ]]; then
+    if _branch_is_staged_promotion; then
         echo "INFO: BRANCH is staged-* (PR2 phase) — version bump already applied on the feature branch during PR1; skipping source-branch bump (two-tier flow)."
         if type _state_mark_complete >/dev/null 2>&1; then
             _state_mark_complete "source_branch_version_bump" 2>/dev/null || true
@@ -1015,7 +1025,7 @@ _phase_staged_intermediate() {
         echo "INFO: staged-intermediate phase skipped (STORY_PR_BASE set; story-PR mode)"
         return 0
     fi
-    if [[ "$BRANCH" == staged-* ]]; then
+    if _branch_is_staged_promotion; then
         echo "INFO: staged-intermediate phase skipped (BRANCH is already staged-*: $BRANCH)"
         return 0
     fi
@@ -1324,6 +1334,21 @@ _phase_merge() {
         _state_write_phase "merge" 2>/dev/null || true
     fi
 
+    # --- 1-2. Publish block (sync + source-branch version-bump + push) ---
+    # 3ebb / R-A: the PR2 phase (BRANCH=staged-*) MUST NOT run this block. staged was
+    # already created, pushed, and review-sub-pr-reviewed by PR1 (_phase_staged_
+    # intermediate); a staged-* ref is push-protected by the sub-PR ruleset
+    # (required_status_checks{review-sub-pr}, which only runs on pull_request events,
+    # so a push can NEVER satisfy it). Any push here is a no-op at best and a GH013
+    # rejection at worst. GitHub's PR2 rebase-merge replays staged onto CURRENT main
+    # at merge time, so the proactive sync/force-push is both unnecessary and
+    # impossible for staged-*. (Mirrors the existing staged-* skip for the version-
+    # bump push in _phase_source_branch_version_bump.) The a456-c689 "CI on the same
+    # base as merge" rationale is deliberately SCOPED OUT for staged-* here (not
+    # refuted): staged content was reviewed at PR1, and the existing auto-merge
+    # poll loop already refreshes a BEHIND base via `gh pr update-branch`
+    # (jira-dig-2529) so PR2 CI re-runs on the fresh base when needed.
+    if ! _branch_is_staged_promotion; then
     # --- 1. Sync against the default branch before push (a456-c689; cca8 DD1) ---
     # F-05: use resolved $_DEFAULT_BRANCH (master/develop/trunk-aware). Rebases
     # (not merges) so the head stays linear for required_linear_history.
@@ -1408,6 +1433,7 @@ _phase_merge() {
             return 1
         fi
     fi
+    fi  # end publish block — skipped for staged-* PR2 (3ebb / R-A)
 
     # --- 3. Derive PR title from last meaningful commit subject ---
     # Use _derive_pr_title so an upstream merge-back commit subject
@@ -1483,22 +1509,38 @@ _phase_merge() {
     # --- 5. Persist PR url + number to state file (best-effort) ---
     _state_write_pr_meta "$_final_url" "$_pr_number" 2>/dev/null || true
 
-    # --- 6. Detect CONFLICTING up-front via `gh pr view --json mergeable` ---
-    # If GitHub reports the PR as CONFLICTING, return 1 so the caller emits
-    # CONFLICT_DATA. We do not enqueue auto-merge for a known-conflicting PR.
-    local _mergeable_json _mergeable
-    _mergeable_json=$(gh pr view "$_pr_number" --json mergeable 2>/dev/null || true)
-    _mergeable=$(echo "$_mergeable_json" | python3 -c "
+    # --- 6. Resolve mergeability: poll until computed (N2), then fail-closed
+    # (determinately) on a true conflict (R-C). ---
+    # GitHub computes `mergeable` asynchronously; an immediate read can be
+    # UNKNOWN/empty right after PR-create — poll briefly until computed so a
+    # CONFLICTING is not silently missed. A BEHIND base is NOT handled here: the
+    # existing auto-merge poll loop already refreshes it via `gh pr update-branch`
+    # (jira-dig-2529, ~step-2.5 below; tested by t_phase_poll_behind_calls_update_branch)
+    # — do not duplicate that (single source of truth).
+    local _mergeable_json _mergeable="" _mq_try
+    for _mq_try in 1 2 3 4 5 6; do
+        _mergeable_json=$(gh pr view "$_pr_number" --json mergeable 2>/dev/null || true)
+        _mergeable=$(printf '%s' "$_mergeable_json" | python3 -c "
 import json, sys
 try:
-    d = json.load(sys.stdin)
-    print(d.get('mergeable', ''))
+    print(json.load(sys.stdin).get('mergeable', ''))
 except Exception:
     print('')
 " 2>/dev/null || true)
+        [[ -n "$_mergeable" && "$_mergeable" != "UNKNOWN" ]] && break
+        sleep 5
+    done
 
+    # R-C: a true CONFLICTING is a DETERMINATE operational error — staged content
+    # conflicts with current main and rebase-merge cannot proceed. /dso:fp-recovery
+    # cannot rebase staged for you, so this is NOT routed to the INDETERMINATE
+    # escalation surface (contractually for un-computable verdicts). Fail closed
+    # with a concrete re-stage RECOVERY; the caller still emits CONFLICT_DATA.
     if [[ "$_mergeable" == "CONFLICTING" ]]; then
-        echo "ERROR: PR #${_pr_number} is CONFLICTING — cannot enqueue auto-merge" >&2
+        echo "ERROR: PR #${_pr_number} (${BRANCH} -> ${_pr_base:-${_DEFAULT_BRANCH:-main}}) is CONFLICTING — content conflicts with current ${_DEFAULT_BRANCH:-main}; rebase-merge cannot proceed." >&2
+        if _branch_is_staged_promotion; then
+            echo "RECOVERY: re-stage — checkout the feature branch, rebase onto origin/${_DEFAULT_BRANCH:-main} (resolve conflicts), then re-run merge-to-main for a fresh staged ref + PR1/PR2. This is a DETERMINATE conflict, NOT a false-positive review finding — do NOT use /dso:fp-recovery." >&2
+        fi
         return 1
     fi
 
@@ -3293,7 +3335,7 @@ fi
 # (checkout the feature branch) and exits 1, and is deliberately NOT routed to
 # /dso:fp-recovery (fp-recovery cannot fix a wrong-branch checkout). The /tmp
 # state cache for spent staged refs is GC'd so a later --resume starts clean.
-if [[ "$BRANCH" == staged-* ]]; then
+if _branch_is_staged_promotion; then
     git fetch origin "${_DEFAULT_BRANCH:-main}" "$BRANCH" --quiet 2>/dev/null || true
     _cur_ahead=$(git rev-list --count "origin/${_DEFAULT_BRANCH:-main}..origin/${BRANCH}" 2>/dev/null \
         || git rev-list --count "origin/${_DEFAULT_BRANCH:-main}..HEAD" 2>/dev/null || echo "")
