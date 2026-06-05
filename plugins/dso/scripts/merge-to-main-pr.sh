@@ -399,6 +399,97 @@ _fetch_and_rebase_branch() {
     return 0
 }
 
+# --- _phase_prebump_feature_sync (0f17 DD1/DD2): pinned pre-bump feature-sync ----
+# BEFORE the source-branch version bump, rebase the feature branch onto the SAME
+# origin/main SHA the staged ref was just cut from (PINNED — re-fetching origin/main
+# would reopen the version conflict via TOCTOU). This makes PR1's version line
+# single-sided so feat→staged merges cleanly, WITHOUT moving the bump off the reviewed
+# path: the rebased (un-reviewed) feature commits are reviewed FRESH by PR1's
+# review-sub-pr — no coverage exemption, no bypass actor.
+#
+# SECURITY GUARDRAIL (non-negotiable): NEVER force-push a branch already under
+# in-flight review (that would re-credit a review onto a rewritten SHA). This runs
+# ONLY before the branch is pushed / PR1 exists; it SKIPS idempotently when
+# origin/<BRANCH> already exists (resume-safe per DD2).
+#
+# Arg: $1 = pinned origin/main SHA (the staged ref's tip).
+# Returns: 0 = synced or safely skipped; 1 = CODE conflict (caller escalates, with the
+#          pre-image patch) or a hard error. On any failure HEAD is restored to its
+#          exact pre-rebase commit (abort-restore; always:patch-before-destructive).
+_phase_prebump_feature_sync() {
+    local _pinned_sha="${1:-}"
+    if [[ -z "$_pinned_sha" ]]; then
+        echo "ERROR: prebump-sync: empty pinned main SHA — fail closed" >&2
+        return 1
+    fi
+
+    # DD2 idempotency / in-flight-review guard: if the source branch is already on the
+    # remote, PR1 may be in flight — rewriting+force-pushing would re-credit a review
+    # onto a new SHA. NEVER do that. Skip (resume-safe).
+    if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+        echo "INFO: prebump-sync skipped — origin/$BRANCH already exists (never force-push under in-flight review)"
+        return 0
+    fi
+
+    # Ensure the pinned SHA is available locally (fail closed if it cannot be obtained;
+    # a bare/old fixture remote may reject single-SHA fetch, so fall back to the
+    # default-branch fetch then re-check the object store).
+    if ! git cat-file -e "${_pinned_sha}^{commit}" 2>/dev/null; then
+        git fetch origin "${_DEFAULT_BRANCH:-main}" 2>/dev/null || true
+        git fetch origin "$_pinned_sha" 2>/dev/null || true
+        if ! git cat-file -e "${_pinned_sha}^{commit}" 2>/dev/null; then
+            echo "ERROR: prebump-sync: pinned main SHA ${_pinned_sha} not available locally — fail closed (no rebase)" >&2
+            return 1
+        fi
+    fi
+
+    # Already based on the pinned main (pinned is an ancestor of HEAD) → clean PR1
+    # merge already; nothing to rebase.
+    if git merge-base --is-ancestor "$_pinned_sha" HEAD 2>/dev/null; then
+        echo "INFO: prebump-sync: $BRANCH already based on pinned main ${_pinned_sha:0:12} — no rebase needed"
+        return 0
+    fi
+
+    # always:patch-before-destructive — capture a pre-image patch of the feature
+    # commits BEFORE the rebase, and remember the exact pre-rebase HEAD for restore.
+    local _pre_head _preimg
+    _pre_head=$(git rev-parse HEAD 2>/dev/null) || {
+        echo "ERROR: prebump-sync: cannot resolve HEAD — fail closed" >&2
+        return 1
+    }
+    _preimg="$(mktemp "/tmp/prebump-sync-preimage.XXXXXX.patch")"
+    if ! git format-patch --stdout "${_pinned_sha}..HEAD" > "$_preimg" 2>/dev/null; then
+        git diff "${_pinned_sha}..HEAD" > "$_preimg" 2>/dev/null || true
+    fi
+    echo "INFO: prebump-sync: pre-image patch saved to $_preimg (pre-rebase HEAD ${_pre_head:0:12})"
+
+    # Rebase the feature commits onto the pinned main SHA. Abort + hard-restore on any
+    # failure so a CODE conflict leaves the branch exactly as it was (the caller
+    # escalates via CONFLICT_DATA rather than proceeding to bump/push a half-rebased
+    # branch).
+    local _rb_out _rb_rc=0
+    _rb_out=$(git rebase "$_pinned_sha" 2>&1) || _rb_rc=$?
+    if [[ "$_rb_rc" -ne 0 ]]; then
+        git rebase --abort 2>/dev/null || true
+        git reset --hard "$_pre_head" 2>/dev/null || true
+        if [[ "$_rb_out" == *"CONFLICT"* || "$_rb_out" == *"could not apply"* ]]; then
+            echo "ERROR: prebump-sync: CODE conflict rebasing $BRANCH onto pinned main ${_pinned_sha:0:12} — aborted + restored HEAD ${_pre_head:0:12}; pre-image at $_preimg" >&2
+            echo "PREBUMP_SYNC_CONFLICT pinned=${_pinned_sha} preimage=${_preimg} restored_head=${_pre_head}" >&2
+            return 1
+        fi
+        echo "ERROR: prebump-sync: rebase onto pinned main failed (non-conflict) — aborted + restored HEAD ${_pre_head:0:12}: ${_rb_out:0:200}" >&2
+        rm -f "$_preimg" 2>/dev/null || true
+        return 1
+    fi
+
+    echo "INFO: prebump-sync: rebased $BRANCH onto pinned main ${_pinned_sha:0:12} (single-sided version line → clean PR1 merge)"
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "prebump_feature_sync" 2>/dev/null || true
+    fi
+    rm -f "$_preimg" 2>/dev/null || true
+    return 0
+}
+
 # --- _phase_merge (PR mode): sync to main, push branch, create PR ---
 # DD1: gh pr create
 # DD6: emit CONFLICT_DATA when gh reports mergeable=CONFLICTING
@@ -910,6 +1001,27 @@ _phase_staged_intermediate() {
     # if the state file is absent.)
     if type _state_set_field >/dev/null 2>&1; then
         _state_set_field "staged_branch" "$_staged_branch" 2>/dev/null || true
+    fi
+
+    # 1a. 0f17 DD1: PIN the origin/main SHA the staged ref was just cut from, then
+    # rebase the feature branch onto it BEFORE the version bump so PR1's version line is
+    # single-sided (clean feat→staged merge). The staged ref's tip IS that pinned SHA
+    # and is immutable, so reading it back is TOCTOU-free — a re-fetched origin/main
+    # could have advanced and reopened the conflict. A failed sync (code conflict)
+    # escalates: do NOT proceed to bump/push a half-synced branch.
+    local _pinned_main_sha _gh_repo_pin
+    _gh_repo_pin=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || echo "")
+    _pinned_main_sha=""
+    if [[ -n "$_gh_repo_pin" ]]; then
+        _pinned_main_sha=$(gh api "repos/${_gh_repo_pin}/branches/${_staged_branch}" --jq '.commit.sha' 2>/dev/null || echo "")
+    fi
+    if [[ -n "$_pinned_main_sha" ]]; then
+        if ! _phase_prebump_feature_sync "$_pinned_main_sha"; then
+            echo "ERROR: prebump feature-sync failed (conflict or hard error) — escalating; not proceeding to bump/push" >&2
+            return 1
+        fi
+    else
+        echo "WARNING: prebump-sync: could not resolve the pinned main SHA from staged ref ${_staged_branch}; skipping sync (bump proceeds — PR1 may require a manual rebase if main advanced)"
     fi
 
     # 1b. Two-tier version bump: apply the version bump on the FEATURE branch NOW
