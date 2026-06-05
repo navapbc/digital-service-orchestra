@@ -199,5 +199,14 @@ if [[ "$MODE" == "warn" ]]; then
     echo "::warning::review-coverage-invariant verdict=${_verdict} (unreviewed=${_unreviewed} errors=${_errors}) — MODE=warn (not blocking this run)"
     exit 0
 fi
+# 3ebb DD3: an INDETERMINATE verdict (could-not-confirm; per-SHA retries already
+# spent in rc_sha_is_reviewed) routes to /dso:fp-recovery in-channel — not manual
+# git surgery. A genuine FAIL does NOT escalate here: it is a real review
+# violation, not a false-positive/uncomputable case.
+if [[ "$_verdict" == "INDETERMINATE" ]] && declare -F tristate_indeterminate_escalation >/dev/null 2>&1; then
+    tristate_indeterminate_escalation "review-coverage-invariant" \
+        "could not confirm review for ${_errors} SHA(s) in ${_BASE_REF}..${_HEAD} (API/parse error); coverage verdict uncomputable" \
+        "${PR_NUMBER:+PR#}${PR_NUMBER:-}"
+fi
 # FAIL -> 1; INDETERMINATE -> 75 (both block under enforce; the code is the signal).
 exit "$_verdict_code"
