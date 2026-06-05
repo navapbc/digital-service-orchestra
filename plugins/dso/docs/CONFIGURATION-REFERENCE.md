@@ -932,7 +932,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Accepted values** | Relative directory path (e.g., `copy/`, `docs/copy-artifacts`). No absolute paths. No `..` segments. |
 | **Default** | `copy/` |
 | **Override** | Add `copy.artifact_dir=<value>` to `.claude/dso-config.conf` (flat dot-notation; INI section headers are NOT supported by `read-config.sh` and will be silently ignored). |
-| **Validation implementation** | `${CLAUDE_PLUGIN_ROOT}/scripts/copy_artifact_path.py` (`validate_artifact_path`, `resolve_artifact_path`) — exits 0 and prints the resolved path on success; exits 1 with a descriptive error to stderr on validation failure. |
+| **Validation implementation** | `${CLAUDE_PLUGIN_ROOT}/scripts/copy_artifact_path.py` (`validate_artifact_path`, `resolve_artifact_path`) — exits 0 and prints the resolved path on success; exits 1 with a descriptive error to stderr on validation failure. <!-- # shim-exempt: doc reference to plugin script in config documentation --> |
 | **Used by** | `dso:gov-copy-writer` agent (artifact output path resolution) |
 
 **Validation rules (enforced by `copy_artifact_path.py`):**
@@ -2201,7 +2201,7 @@ Keys in the `review_telemetry.*` group are written automatically by the AWS setu
 
 ## UI/UX Reference Corpus — `dso ref-query` CLI flags
 
-`dso ref-query` (shim for `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`) searches the
+`dso ref-query` (shim for `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`) searches the <!-- # shim-exempt: doc reference to plugin script in config documentation -->
 domain-partitioned YAML corpus at `${CLAUDE_PLUGIN_ROOT}/data/ui-reference/` using BM25.
 The flags below are query-time options, not `dso-config.conf` keys.
 
@@ -2212,7 +2212,7 @@ The flags below are query-time options, not `dso-config.conf` keys.
 | **Description** | Filters results to corpus entries whose `tags.domain` matches `DOMAIN`. Entries whose domain is a list are included when `DOMAIN` appears in that list. Without this flag, results span all corpus domains. |
 | **Accepted values** | Any domain value present in the corpus (e.g., `canon`, `components`, `gov-copy`). Use `canon` to restrict results to federal-style canon entries (see below). |
 | **Default** | Absent — all domains included |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.py` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.py` <!-- # shim-exempt: doc reference to plugin script in config documentation --> |
 
 **The `canon` namespace:** entries tagged `domain: canon` represent authoritative
 federal-style content standards sourced from USWDS, GOV.UK, VA.gov, 18F,
@@ -2236,7 +2236,7 @@ rather than general design guidance.
 | **Description** | Emits results as a JSON array instead of the default human-readable text format. Each array element conforms to the `ref-query-json-output` schema (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md`). |
 | **Accepted values** | `text` (default) \| `json` |
 | **Default** | `text` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.py`; downstream consumers such as the `dso:gov-copy-writer` agent |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.py`; downstream consumers such as the `dso:gov-copy-writer` agent <!-- # shim-exempt: doc reference to plugin script in config documentation --> |
 
 **JSON schema reference:** `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md`.
 Fields: `rule_id`, `tags` (includes `domain`), `score` (BM25 float), `body`,
@@ -2339,7 +2339,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Git author name the reconciler uses when committing events back to the orphan `tickets` branch and when posting bridge-authored Jira comments. Resolved by `${CLAUDE_PLUGIN_ROOT}/scripts/gh-identity-resolver.sh` during onboarding (e.g. user's git config name, or `"GitHub Actions"` when running in CI). |
+| **Description** | Git author name the reconciler uses when committing events back to the orphan `tickets` branch and when posting bridge-authored Jira comments. Resolved by `${CLAUDE_PLUGIN_ROOT}/scripts/gh-identity-resolver.sh` during onboarding (e.g. user's git config name, or `"GitHub Actions"` when running in CI). <!-- # shim-exempt: doc reference to plugin script in config documentation --> |
 | **Type** | GitHub repo variable (and local environment variable for workstation runs) |
 | **Required** | Optional — falls back to a default per the resolver |
 | **Default** | `dso-bridge[bot]` when neither this var nor the resolver yields a value |
@@ -2388,6 +2388,28 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Required** | Optional |
 | **Default** | `5` |
 | **Usage context** | `scripts/dso_reconciler/_advisory_lock.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
+### `RECONCILER_ABSENT_GET_BUDGET`
+
+| | |
+|---|---|
+| **Description** | Per-pass cap (`K`) on bounded direct `GET /issue/{key}` calls the outbound differ issues for bound local tickets whose Jira key is ABSENT from this pass's search snapshot (deleted, or status=Done beyond the fetcher's recent-Done window). Bug `1e08-1a35-0267-4ca6`: those keys formerly diffed every field against `{}` and re-emitted every pass. The differ selects the `K` least-recently-GET'd absent non-retired keys (rotation by `last_get_pass`), bounding servicing of every absent key to ≤⌈N/K⌉ passes. Malformed (non-integer) values fall back to the default; values `< 1` are clamped to `1`. |
+| **Type** | Environment variable (integer string) |
+| **Required** | Optional |
+| **Default** | `20` |
+| **Usage context** | `scripts/dso_reconciler/outbound_differ.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
+---
+
+### `RECONCILER_ABSENT_RETIRE_GRACE`
+
+| | |
+|---|---|
+| **Description** | Number of *consecutive* 404 direct-GET results against a bound-but-absent Jira key before the binding is retired (soft-deleted to `bindings-retired.json`, reversible, with a deduped `binding-retired` alert). A single 200 GET resets the counter, so a flapping issue never retires prematurely. Once retired, the key is no longer GET'd (budget preserved). Malformed values fall back to the default; values `< 1` are clamped to `1`. |
+| **Type** | Environment variable (integer string) |
+| **Required** | Optional |
+| **Default** | `3` |
+| **Usage context** | `scripts/dso_reconciler/binding_store.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### Reconciler artifacts and rollout modes
@@ -2626,7 +2648,7 @@ Rollout-safety modes available via `workflow_dispatch` on `reconcile-bridge.yml`
 | **Type** | string env var |
 | **Allowed values** | `enabled` (default), `disabled`, `dry-run` |
 | **Required** | Optional — when absent or empty, behavior is `enabled` |
-| **Read by** | `${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh` (`inject_and_enable_automerge` function) |
+| **Read by** | `${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh` (`inject_and_enable_automerge` function) <!-- # shim-exempt: doc reference to plugin script in config documentation --> |
 | **Affects** | ci-pr sprint Phase F Step 18 story→session PR merge mechanism |
 
 Controls whether `merge-to-main-pr.sh` injects a `DSO-Story-Merge: <story-id>` trailer onto the story branch's last commit before queueing `gh pr merge --auto`. The trailer enables `.github/workflows/ci.yml`'s "Compute cross-branch file set from DSO-Story-Merge trailers" step to derive INTEGRATION_SCOPE — the cross-story integration surface — for the session→main llm-review job.

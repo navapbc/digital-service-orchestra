@@ -387,6 +387,7 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
     # decoration happens here to avoid double-decoration.
     comments = payload.get("comments") or []
     comments_applied: int = 0
+    comment_errors: list[str] = []
     if isinstance(comments, list):
         for entry in comments:
             if not isinstance(entry, dict):
@@ -398,6 +399,10 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
                 _call_with_retry(client.add_comment, mutation.target, body)
                 comments_applied += 1
             except Exception as exc:  # noqa: BLE001
+                # Bug 6afc-20ee-84e5-4dd5: non-fatal, but surface in the result
+                # payload so a swallowed comment failure is observable in the
+                # outcome instead of vanishing into the log.
+                comment_errors.append(f"add_comment failed: {exc!s}")
                 logger.warning(
                     "_apply_outbound_update: add_comment failed for %s: %r",
                     mutation.target,
@@ -427,6 +432,8 @@ def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyRes
         "labels_applied": labels_applied,
         "comments_applied": comments_applied,
     }
+    if comment_errors:
+        result_payload["comment_errors"] = comment_errors
     if parent_key is not None:
         result_payload["parent_set"] = parent_key
 
@@ -2160,8 +2167,19 @@ def _is_illegal_transition_400(exc: Exception) -> bool:
     return "illegal" in msg or "transition" in msg
 
 
-def update_one(mutation: dict, client) -> dict | None:
+def update_one(
+    mutation: dict, client, comment_errors: list[str] | None = None
+) -> dict | None:
     """Update an existing Jira issue from the mutation's key and fields.
+
+    Bug 6afc-20ee-84e5-4dd5: comment sub-mutations (the ``comments`` payload)
+    are applied as separate add_comment calls because Jira's edit endpoint
+    cannot carry them. A failed add_comment is NON-fatal (the scalar update
+    already succeeded) but must not be silently swallowed: when ``comment_errors``
+    is provided, each add_comment failure is appended to it (string form) so the
+    caller can surface it in the batch outcome instead of reporting error=None.
+    Passing ``None`` (the default) preserves the legacy log-only behaviour for
+    callers that do not collect comment errors.
 
     F3: AcliClient.update_issue's real signature is ``update_issue(jira_key, **kwargs)``;
     the field dict must be unpacked into keyword arguments rather than passed
@@ -2325,6 +2343,11 @@ def update_one(mutation: dict, client) -> dict | None:
             try:
                 _call_with_retry(client.add_comment, issue_key, body)
             except Exception as exc:  # noqa: BLE001
+                # Bug 6afc-20ee-84e5-4dd5: non-fatal, but surface it so the batch
+                # outcome no longer reports error=None for a mutation whose
+                # comment sub-mutation failed.
+                if comment_errors is not None:
+                    comment_errors.append(f"add_comment failed: {exc!s}")
                 print(  # noqa: T201
                     f"update_one: add_comment failed for {issue_key}: {exc!r}",
                     file=sys.stderr,
@@ -3121,8 +3144,14 @@ def _apply_batch(
                 # alert, mark outcome error, and continue with the rest.
                 # Mirrors the existing 400-illegal-transition fallback
                 # in update_one and the BRIDGE_ALERT pattern in create_one.
+                # Bug 6afc-20ee-84e5-4dd5: collect any add_comment failures so a
+                # swallowed comment sub-mutation surfaces in the batch outcome
+                # rather than reporting a clean error=None.
+                _comment_errors: list[str] = []
                 try:
-                    result = update_one(mutation, client)
+                    result = update_one(
+                        mutation, client, comment_errors=_comment_errors
+                    )
                 except urllib.error.HTTPError as exc:
                     # Bug tan-coin-atone (6614-43cd-3a48-4f63): an outbound
                     # update against a DELETED Jira issue (stale binding, 1e08
@@ -3192,6 +3221,13 @@ def _apply_batch(
                     )
                     continue
                 outcome["result"] = result
+                # Bug 6afc-20ee-84e5-4dd5: surface swallowed comment failures.
+                # NON-fatal — the scalar update above genuinely succeeded — so we
+                # record them in a dedicated field rather than overwriting
+                # outcome["error"], mirroring the soft-fail style of the
+                # stale-binding-404 / assignee-unresolved handlers.
+                if _comment_errors:
+                    outcome["comment_errors"] = list(_comment_errors)
                 # Persist provenance for set-valued fields after update
                 jira_key = mutation.get("key", "")
                 if jira_key:
