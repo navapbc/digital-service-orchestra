@@ -1115,7 +1115,9 @@ EOF
     _pr1_state=$(gh pr view "$_pr1_number" --json state --jq '.state' 2>/dev/null || echo "")
     if [[ "$_pr1_state" != "MERGED" ]]; then
         local _merge_out _merge_rc=0
-        _merge_out=$(gh pr merge "$_pr1_number" --merge 2>&1) || _merge_rc=$?
+        # cca8 DD1: rebase-merge PR1 (feature → staged) so the staged branch stays
+        # linear and PR2 (staged → main) can itself be rebase-merged.
+        _merge_out=$(gh pr merge "$_pr1_number" --rebase 2>&1) || _merge_rc=$?
         if [[ "$_merge_rc" -ne 0 ]]; then
             echo "ERROR: PR1 #${_pr1_number} merge failed: $_merge_out" >&2
             return 1
@@ -1156,43 +1158,70 @@ EOF
     return 0
 }
 
+# --- _sync_branch_against_default (cca8 DD1): linear pre-push sync ------------
+# Bring the branch up to date with the default branch BEFORE the push, so CI
+# runs on the same base used at merge time (a456-c689). cca8 (linear-history
+# cutover): this REBASES the branch onto origin/<default> instead of merging it
+# in. The prior `git merge --no-edit origin/<default>` created a merge commit on
+# the branch head; under required_linear_history that merge commit (a) is itself
+# a non-linear commit and (b) makes GitHub's `gh pr merge --rebase` refuse the PR
+# ("rebase merge is not possible because the branch contains merge commits").
+# Rebasing replays the branch's own commits on top of the default-branch tip, so
+# the resulting head is linear and rebase-merges cleanly.
+#
+# Sets the script-global `_SYNCED_VIA_REBASE=1` when it rewrites history (the
+# caller must then push with --force-with-lease instead of the plain
+# fetch+rebase-onto-origin/<branch> path, which would otherwise replay the
+# rewritten commits back on top of the stale remote and duplicate them).
+# Returns 0 on success / no-op; 1 on rebase failure (history restored via abort).
+_sync_branch_against_default() {
+    local _db="${_DEFAULT_BRANCH:-main}"
+    _SYNCED_VIA_REBASE=0
+    if ! git fetch origin "${_db}:refs/remotes/origin/${_db}" --quiet 2>/dev/null && \
+       ! git fetch origin "$_db" --quiet 2>/dev/null; then
+        echo "WARNING: git fetch origin ${_db} failed — skipping origin/${_db} sync; proceeding with current HEAD." >&2
+        return 0
+    fi
+    # Already up to date (origin/<default> is an ancestor of HEAD) → no sync.
+    if git merge-base --is-ancestor "origin/${_db}" HEAD 2>/dev/null; then
+        return 0
+    fi
+    # Only rebase when a common ancestor exists. Unrelated histories (no common
+    # ancestor) means the worktree was initialised independently of the default
+    # branch and forcing a rebase would be wrong.
+    local _common_ancestor
+    _common_ancestor=$(git merge-base HEAD "origin/${_db}" 2>/dev/null || true)
+    if [[ -z "$_common_ancestor" ]]; then
+        # No common ancestor → skip sync; branch and default branch are unrelated.
+        return 0
+    fi
+    echo "INFO: Branch is behind origin/${_db} — rebasing before push (linear history) to avoid stale CI." >&2
+    local _rebase_main_out _rebase_main_rc=0
+    _rebase_main_out=$(git rebase "origin/${_db}" 2>&1) || _rebase_main_rc=$?
+    if [[ "$_rebase_main_rc" -ne 0 ]]; then
+        git rebase --abort 2>/dev/null || true
+        local _rebase_hint="(rebase failed)"
+        if echo "$_rebase_main_out" | grep -qiE "CONFLICT|merge conflict"; then
+            _rebase_hint="(merge conflicts — run /dso:resolve-conflicts)"
+        fi
+        echo "ERROR: git rebase origin/${_db} failed $_rebase_hint" >&2
+        return 1
+    fi
+    _SYNCED_VIA_REBASE=1
+    return 0
+}
+
 _phase_merge() {
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "merge" 2>/dev/null || true
     fi
 
-    # --- 1. Sync against the default branch before push (a456-c689) ---
-    # F-05: use resolved $_DEFAULT_BRANCH (master/develop/trunk-aware) instead
-    # of literal "main". Ensures the branch incorporates the current default-
-    # branch tip so CI runs on the same base used at merge time.
+    # --- 1. Sync against the default branch before push (a456-c689; cca8 DD1) ---
+    # F-05: use resolved $_DEFAULT_BRANCH (master/develop/trunk-aware). Rebases
+    # (not merges) so the head stays linear for required_linear_history.
     local _db="${_DEFAULT_BRANCH:-main}"
-    if git fetch origin "${_db}:refs/remotes/origin/${_db}" --quiet 2>/dev/null || \
-       git fetch origin "$_db" --quiet 2>/dev/null; then
-        if ! git merge-base --is-ancestor "origin/${_db}" HEAD 2>/dev/null; then
-            # Only attempt the merge when a common ancestor exists. Unrelated
-            # histories (no common ancestor) means the worktree was initialised
-            # independently of the default branch and forcing a merge would be wrong.
-            local _common_ancestor
-            _common_ancestor=$(git merge-base HEAD "origin/${_db}" 2>/dev/null || true)
-            if [[ -n "$_common_ancestor" ]]; then
-                echo "INFO: Branch is behind origin/${_db} — merging before push to avoid stale CI." >&2
-                local _merge_main_out _merge_main_rc=0
-                _merge_main_out=$(git merge --no-edit "origin/${_db}" 2>&1) || _merge_main_rc=$?
-                if [[ "$_merge_main_rc" -ne 0 ]]; then
-                    git merge --abort 2>/dev/null || true
-                    local _merge_hint="(merge failed)"
-                    if echo "$_merge_main_out" | grep -qiE "CONFLICT|merge conflict"; then
-                        _merge_hint="(merge conflicts — run /dso:resolve-conflicts)"
-                    fi
-                    echo "ERROR: git merge origin/${_db} failed $_merge_hint" >&2
-                    return 1
-                fi
-            fi
-            # No common ancestor → skip sync; branch and default branch are unrelated histories.
-        fi
-    else
-        echo "WARNING: git fetch origin ${_db} failed — skipping origin/${_db} sync; proceeding with current HEAD." >&2
-    fi
+    _SYNCED_VIA_REBASE=0
+    _sync_branch_against_default || return 1
 
     # --- 1a. Source-branch version bump (b6e3-e771 + bbba-123d) ---
     # In PR mode, the version bump MUST commit to the session branch BEFORE
@@ -1225,6 +1254,27 @@ _phase_merge() {
     fi
 
     # --- 1b. Publish branch ---
+    # cca8 DD1: when the linear pre-push sync rewrote history (rebased the branch
+    # onto origin/<default>), the local head intentionally diverges from
+    # origin/<branch>. The normal fetch+rebase-onto-origin/<branch> recovery would
+    # replay the rewritten commits back onto the stale remote head and duplicate
+    # them, so publish with --force-with-lease instead. The lease overwrites
+    # origin/<branch> only if it still matches the ref we just fetched, so a
+    # concurrent writer is never silently clobbered (the staged session branch has
+    # no concurrent writer in the two-tier flow).
+    if [[ "${_SYNCED_VIA_REBASE:-0}" == "1" ]]; then
+        if ! (
+            # shellcheck disable=SC2030  # intentional: export is scoped to THIS subshell (PR #179 retro) and must not leak to the caller
+            export DSO_ALLOW_PUSH_TO_MERGED_PR=1
+            git fetch origin "$BRANCH" 2>/dev/null || true
+            if ! git push --force-with-lease -u origin "$BRANCH" 2>&1; then
+                echo "ERROR: git push --force-with-lease origin $BRANCH failed (linear-rebase publish)" >&2
+                exit 1
+            fi
+        ); then
+            return 1
+        fi
+    else
     # Pre-push sync: when the remote ref already exists and has advanced
     # past our local HEAD (e.g. a previous "Merge branch 'main' into <branch>"
     # landed via UI or another session), `git push -u` will be rejected
@@ -1246,6 +1296,7 @@ _phase_merge() {
     # the export is scoped to that subshell and cannot escape regardless of
     # which exit path is taken.
     if ! (
+        # shellcheck disable=SC2031  # intentional: each push subshell independently scopes this export (PR #179 retro); not read across subshells
         export DSO_ALLOW_PUSH_TO_MERGED_PR=1
         if ! git push -u origin "$BRANCH" 2>&1; then
             # Retry once on rejection: another push may have landed between fetch and push.
@@ -1259,6 +1310,7 @@ _phase_merge() {
         fi
     ); then
         return 1
+    fi
     fi
 
     # --- 3. Derive PR title from last meaningful commit subject ---
@@ -1406,7 +1458,12 @@ _phase_queue_auto_merge() {
     fi
 
     local _merge_out _merge_rc=0
-    _merge_out=$(gh pr merge "$_pr_number" --auto --merge 2>&1) || _merge_rc=$?
+    # cca8 (linear-history cutover, DD1): rebase-merge so no merge commit reaches
+    # main under required_linear_history. --rebase replays the PR's commits onto
+    # the base tip at merge time; a merge commit in the PR head would be rejected
+    # by GitHub's rebase path, which is why the pre-push branch-sync also rebases
+    # (see _sync_branch_against_default).
+    _merge_out=$(gh pr merge "$_pr_number" --auto --rebase 2>&1) || _merge_rc=$?
     if [[ "$_merge_rc" -ne 0 ]]; then
         if echo "$_merge_out" | grep -qiE "auto.?merge.*(not allowed|disabled|cannot be enabled)"; then
             echo "WARNING: GitHub auto-merge is disabled for this repository — falling through to manual merge after CI." >&2
@@ -1415,7 +1472,7 @@ _phase_queue_auto_merge() {
                 _state_write_auto_merge_disabled "true" 2>/dev/null || true
             fi
         else
-            echo "ERROR: gh pr merge ${_pr_number} --auto --merge failed: $_merge_out" >&2
+            echo "ERROR: gh pr merge ${_pr_number} --auto --rebase failed: $_merge_out" >&2
             return 1
         fi
     else
@@ -2155,8 +2212,9 @@ except Exception:
             # --- Auto-merge disabled fallback: manually merge once all checks pass ---
             # When the repo has auto-merge disabled, GitHub will never flip the PR to
             # MERGED on its own. Detect "all checks complete and successful" and issue
-            # `gh pr merge --merge` ourselves so the loop's MERGED check below succeeds
-            # on the next iteration.
+            # `gh pr merge --rebase` ourselves so the loop's MERGED check below succeeds
+            # on the next iteration. cca8 DD1: rebase-merge (no merge commit) for
+            # required_linear_history parity with the auto-merge path.
             local _auto_merge_disabled="false"
             if type _state_read_auto_merge_disabled >/dev/null 2>&1; then
                 _auto_merge_disabled=$(_state_read_auto_merge_disabled 2>/dev/null || echo "false")
@@ -2192,13 +2250,14 @@ except Exception:
 " 2>/dev/null || echo "false")
                 if [[ "$_all_done" == "true" ]]; then
                     local _manual_out _manual_rc=0
-                    _manual_out=$(gh pr merge "$_pr_number" --merge 2>&1) || _manual_rc=$?
+                    # cca8 DD1: rebase-merge (no merge commit) for linear-history parity.
+                    _manual_out=$(gh pr merge "$_pr_number" --rebase 2>&1) || _manual_rc=$?
                     if [[ "$_manual_rc" -eq 0 ]]; then
                         echo "INFO: Manual merge issued for PR #${_pr_number} (auto-merge disabled)."
                     else
                         # Don't fail hard: a transient gh error or "already merged" message is fine —
                         # the next iteration's state check will resolve.
-                        echo "WARNING: gh pr merge ${_pr_number} --merge returned non-zero: $_manual_out" >&2
+                        echo "WARNING: gh pr merge ${_pr_number} --rebase returned non-zero: $_manual_out" >&2
                     fi
                 fi
             fi
