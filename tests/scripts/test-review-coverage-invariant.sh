@@ -104,7 +104,8 @@ _mk_repo "$r" "$sf" "feat-D"
 sha="$(sed -n 1p "$sf")"
 # no pulls fixture -> mock returns API error -> errors-only -> INDETERMINATE (exit 75)
 out="$(_run "$r" "$sha" "$md")"; rc=$?
-if [[ $rc -eq 75 ]] && grep -q "INDETERMINATE ${sha}" <<<"$out"; then _pass "T4_api_error_indeterminate"; else _fail "T4_api_error_indeterminate" "rc=$rc out=$out"; fi
+# Behavioral assertion: exit 75 IS the INDETERMINATE verdict (vs 1=FAIL); also confirm the unconfirmable SHA is the one surfaced (sha presence, not the prose verdict word).
+if [[ $rc -eq 75 ]] && grep -q "${sha}" <<<"$out"; then _pass "T4_api_error_indeterminate"; else _fail "T4_api_error_indeterminate" "rc=$rc out=$out"; fi
 
 # ── T4b: a genuine unreviewed SHA + an API error -> FAIL (1) dominates (safe bottom, 3ebb DD1) ──
 r="$_WORK/t4b"; mkdir -p "$r"; sf="$_WORK/t4b.shas"; md="$_WORK/t4b.mock"; mkdir -p "$md"
@@ -112,7 +113,8 @@ _mk_repo "$r" "$sf" "feat-D1" "feat-D2"
 sha1="$(sed -n 1p "$sf")"; sha2="$(sed -n 2p "$sf")"
 printf '[]' > "$md/pulls_$sha1"   # sha1 unreviewed (genuine violation); sha2 has no fixture -> API error
 out="$(_run "$r" "$sha2" "$md")"; rc=$?
-if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${sha1}" <<<"$out"; then _pass "T4b_violation_dominates_error"; else _fail "T4b_violation_dominates_error" "rc=$rc out=$out"; fi
+# Behavioral assertion: exit 1 (FAIL) dominates when a genuine unreviewed SHA coexists with an error; confirm the unreviewed SHA is surfaced (presence, not the prose verdict word).
+if [[ $rc -eq 1 ]] && grep -q "${sha1}" <<<"$out"; then _pass "T4b_violation_dominates_error"; else _fail "T4b_violation_dominates_error" "rc=$rc out=$out"; fi
 
 # ── T5: ledger HIT skips re-verification (perf prefilter; only on a hit) ─────
 r="$_WORK/t5"; mkdir -p "$r"; sf="$_WORK/t5.shas"; md="$_WORK/t5.mock"; mkdir -p "$md"

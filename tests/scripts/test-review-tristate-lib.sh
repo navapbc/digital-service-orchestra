@@ -21,7 +21,11 @@
 # observable verdict string + exit code, never inspects source text.
 
 set -uo pipefail
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+# Resolve relative to THIS test file (BASH_SOURCE), not `git rev-parse` — under a
+# git worktree / unusual CWD the latter can resolve elsewhere; the lib ships in
+# the same tree as this test, so script-relative is correct in every context.
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$_SCRIPT_DIR/../.." && pwd)"
 LIB="$REPO_ROOT/plugins/dso/scripts/lib/review-tristate-lib.sh"   # shim-exempt: sources the lib under test
 # shellcheck disable=SC1090
 source "$LIB" >/dev/null 2>&1 || true

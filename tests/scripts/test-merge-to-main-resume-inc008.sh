@@ -73,7 +73,7 @@ if ! type resume_gc_stale_staged_state >/dev/null 2>&1; then
     _fail "gc_fn_defined" "resume_gc_stale_staged_state not loaded"
 else
     _pass "gc_fn_defined"
-    GCW=$(mktemp -d "${TMPDIR:-/tmp}/inc008-gc.XXXXXX")
+    GCW=$(mktemp -d "${TMPDIR:-/tmp}/inc008-gc.XXXXXX"); trap 'rm -rf "$GCW"' EXIT  # cleanup even on early exit/interrupt
     ORIGIN="$GCW/origin.git"; git init -q --bare "$ORIGIN"
     SEED="$GCW/seed"; git clone -q "$ORIGIN" "$SEED" 2>/dev/null
     # Push HEAD directly to named remote refs — do NOT reference a local branch
