@@ -203,7 +203,6 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_PROJECT: ${{ vars.JIRA_PROJECT || 'DIG' }}
           BRIDGE_ENV_ID: ${{ vars.BRIDGE_ENV_ID }}
-          DSO_RECONCILER_VERBOSE: "1"  # TEMP 57d1 diagnostic — revert before landing
 
       - name: Commit reconciler events back to tickets branch
         if: github.event.inputs.mode != 'validate'

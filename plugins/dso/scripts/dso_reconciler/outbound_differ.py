@@ -521,34 +521,18 @@ def _diff_fields(
         if local_val != jira_val:
             changed[field_name] = local_val
             if verbose:
-                # TEMP 57d1 diagnostic — pinpoint the FIRST divergence index +
-                # a small window around it (instead of dumping full values), so
-                # an ADF round-trip / normalization mismatch is visible without
-                # logging entire (possibly large) descriptions. Revert with the
-                # workflow DSO_RECONCILER_VERBOSE change before landing.
-                if isinstance(local_val, str) and isinstance(jira_val, str):
-                    _i = next(
-                        (
-                            k
-                            for k in range(min(len(local_val), len(jira_val)))
-                            if local_val[k] != jira_val[k]
-                        ),
-                        min(len(local_val), len(jira_val)),
-                    )
-                    _w = 30
-                    print(  # noqa: T201
-                        f"RECON: field_diff ticket={ticket_id} field={field_name} "
-                        f"llen={len(local_val)} jlen={len(jira_val)} firstdiff={_i} "
-                        f"lwin={local_val[max(0, _i - _w) : _i + _w]!r} "
-                        f"jwin={jira_val[max(0, _i - _w) : _i + _w]!r}",
-                        file=sys.stderr,
-                    )
-                else:
-                    print(  # noqa: T201
-                        f"RECON: field_diff ticket={ticket_id} field={field_name} "
-                        f"local={local_val!r:.80} jira={jira_val!r:.80}",
-                        file=sys.stderr,
-                    )
+                # Truncate value repr to keep one-line records reasonable.
+                _l = repr(local_val)
+                _j = repr(jira_val)
+                if len(_l) > 80:
+                    _l = _l[:77] + "..."
+                if len(_j) > 80:
+                    _j = _j[:77] + "..."
+                print(  # noqa: T201
+                    f"RECON: field_diff ticket={ticket_id} "
+                    f"field={field_name} local={_l} jira={_j}",
+                    file=sys.stderr,
+                )
     return changed
 
 
