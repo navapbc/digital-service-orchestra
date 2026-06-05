@@ -56,6 +56,43 @@ if [[ $rc -eq 75 ]]; then _pass "T6_truncated_json_is_indeterminate"; else _fail
 resume_pr_query_trustworthy 0 'not json at all'; rc=$?
 if [[ $rc -eq 75 ]]; then _pass "T7_garbage_payload_is_indeterminate"; else _fail "T7_garbage_payload_is_indeterminate" "rc=$rc"; fi
 
+# ── INC-015: resume_staged_ref_is_spent (pure predicate) ─────────────────────
+if ! type resume_staged_ref_is_spent >/dev/null 2>&1; then
+    _fail "spent_fn_defined" "resume_staged_ref_is_spent not loaded"
+else
+    _pass "spent_fn_defined"
+    if resume_staged_ref_is_spent "0"; then _pass "T8_zero_ahead_is_spent"; else _fail "T8_zero_ahead_is_spent" "0 should be spent"; fi
+    if ! resume_staged_ref_is_spent "3"; then _pass "T9_positive_ahead_not_spent"; else _fail "T9_positive_ahead_not_spent" "3 should NOT be spent"; fi
+    # fail-safe: unknown ahead-count is NOT spent (never skip/GC on uncertainty)
+    if ! resume_staged_ref_is_spent ""; then _pass "T10_empty_not_spent_failsafe"; else _fail "T10_empty_not_spent_failsafe" "empty should be NOT spent"; fi
+    if ! resume_staged_ref_is_spent "x"; then _pass "T11_nonnumeric_not_spent_failsafe"; else _fail "T11_nonnumeric_not_spent_failsafe" "non-numeric should be NOT spent"; fi
+fi
+
+# ── INC-015 (b): resume_gc_stale_staged_state GCs spent/gone cache, keeps live ──
+if ! type resume_gc_stale_staged_state >/dev/null 2>&1; then
+    _fail "gc_fn_defined" "resume_gc_stale_staged_state not loaded"
+else
+    _pass "gc_fn_defined"
+    GCW=$(mktemp -d "${TMPDIR:-/tmp}/inc008-gc.XXXXXX")
+    ORIGIN="$GCW/origin.git"; git init -q --bare "$ORIGIN"
+    SEED="$GCW/seed"; git clone -q "$ORIGIN" "$SEED" 2>/dev/null
+    ( cd "$SEED" || exit 1
+      git config user.email t@e.st; git config user.name t; git config commit.gpgsign false
+      echo base > b.txt; git add b.txt; git commit -qm M0; git push -q origin HEAD:main
+      git branch staged-spent main; git push -q origin staged-spent          # 0 ahead -> spent
+      git checkout -q -b staged-live main; echo x > x.txt; git add x.txt; git commit -qm L1; git push -q origin staged-live ) # 1 ahead -> live
+    RUN="$GCW/run"; git clone -q "$ORIGIN" "$RUN" 2>/dev/null
+    SD="$GCW/state"; mkdir -p "$SD"
+    echo '{}' > "$SD/merge-to-main-state-staged-spent.json"
+    echo '{}' > "$SD/merge-to-main-state-staged-live.json"
+    echo '{}' > "$SD/merge-to-main-state-staged-gone.json"   # no such branch on origin
+    ( cd "$RUN" && resume_gc_stale_staged_state "$SD" ) >/dev/null 2>&1
+    if [[ ! -f "$SD/merge-to-main-state-staged-spent.json" ]]; then _pass "T12_gc_removes_spent"; else _fail "T12_gc_removes_spent" "spent cache not removed"; fi
+    if [[ ! -f "$SD/merge-to-main-state-staged-gone.json" ]]; then _pass "T13_gc_removes_gone"; else _fail "T13_gc_removes_gone" "gone-branch cache not removed"; fi
+    if [[ -f "$SD/merge-to-main-state-staged-live.json" ]]; then _pass "T14_gc_keeps_live"; else _fail "T14_gc_keeps_live" "live cache wrongly removed"; fi
+    rm -rf "$GCW"
+fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]]
