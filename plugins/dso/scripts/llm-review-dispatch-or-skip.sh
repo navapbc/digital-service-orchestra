@@ -10,7 +10,7 @@
 #   over-bound-shas.txt non-empty  → exit 3 path (skip + OVER_BOUND summary)
 #   unprovenanced-shas.txt non-empty → exit 1 path (invoke ci-llm-review-runner.sh)
 #   both empty (marker present)    → exit 0 path (skip + sub-PR liveness)
-#   marker absent                  → ERROR exit 1 (verifier never ran cleanly)
+#   marker absent                  → INDETERMINATE exit 75 (verifier never ran; 3ebb DD1)
 #
 # Usage: invoked by ci.yml's 'Run LLM review' step. Reads env vars:
 #   DSO_ARTIFACT_DIR, PR_NUMBER, GITHUB_TOKEN, ANTHROPIC_API_KEY
@@ -39,6 +39,10 @@ _RUNNER="${DSO_RUNNER_PATH:-${PLUGIN_ROOT}/scripts/ci-llm-review-runner.sh}"
 _DISPATCH_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/build-integration-diff.sh
 source "${DSO_INTEGRATION_DIFF_LIB:-${_DISPATCH_SCRIPT_DIR}/lib/build-integration-diff.sh}"
+# 3ebb DD1: the review-gate tristate lattice (provides $TRISTATE_INDETERMINATE).
+# Script-relative for the same reason as the integration-diff lib above.
+# shellcheck source=lib/review-tristate-lib.sh
+source "${DSO_REVIEW_TRISTATE_LIB:-${_DISPATCH_SCRIPT_DIR}/lib/review-tristate-lib.sh}"
 
 # ── Consume provenance artifacts (bug 8a77 v2 Change B) ──────────────────────
 # The "Verify session provenance" ci.yml step has already run verify-session-
@@ -75,11 +79,17 @@ echo "  REPO_HEAD_SHA:    $(git rev-parse "origin/${GITHUB_BASE_REF:-main}" 2>/d
 # ran". Without this check, absence of unprovenanced-shas.txt is ambiguous and
 # recreates the original silent-skip bug class (8a77).
 if [[ ! -f "$MARKER" ]]; then
-    echo "  DECISION:         ERROR — marker absent, verifier did not complete"
+    # 3ebb DD1: the dispatch decision could not be COMPUTED (the provenance verifier
+    # crashed / never ran / lacked permission). Per the tristate lattice this is
+    # INDETERMINATE (exit 75), not a silent skip — it still blocks, but the distinct
+    # code signals the orchestrator to retry on a transient cause / escalate (DD3)
+    # rather than treat it as a hard review violation. NEVER falls through to exit 0
+    # (the 8a77 silent-skip bug class).
+    echo "  DECISION:         INDETERMINATE — marker absent, verifier did not complete"
     echo "================================================================="
-    echo "ERROR: provenance-complete.marker not found at $MARKER" >&2
+    echo "INDETERMINATE: provenance-complete.marker not found at $MARKER" >&2
     echo "Hint: the Verify session provenance step did not complete successfully — check its log." >&2
-    exit 1
+    exit "${TRISTATE_INDETERMINATE:-75}"
 fi
 
 # Route from artifacts. Precedence matches verify-session-provenance.sh's exit-code
