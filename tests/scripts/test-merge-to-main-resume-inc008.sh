@@ -97,6 +97,26 @@ else
     rm -rf "$GCW"
 fi
 
+# ── R-A predicate: _branch_is_staged_promotion (PR2-phase gate, both polarities) ──
+# The publish-block skip for staged-* keys on this predicate. Asserting BOTH
+# polarities ensures the skip is not a dormant one-way gate: staged-* -> skip
+# (true); a non-staged source branch -> DO run the publish block (false), so the
+# rebase+force-publish path for source branches is NOT disabled (that path's
+# behavior is itself covered by test-merge-to-main-pr-linear-sync.sh D1-D6).
+if ! type _branch_is_staged_promotion >/dev/null 2>&1; then
+    _fail "predicate_defined" "_branch_is_staged_promotion not loaded"
+else
+    _pass "predicate_defined"
+    if _branch_is_staged_promotion "staged-abc123def456-1780000000"; then _pass "T15_staged_is_promotion"; else _fail "T15_staged_is_promotion" "staged-* must be a promotion (true)"; fi
+    if ! _branch_is_staged_promotion "story/588e-abec-221f-42c0/feat-x"; then _pass "T16_feature_branch_not_promotion"; else _fail "T16_feature_branch_not_promotion" "a feature branch must NOT be a promotion (false)"; fi
+    if ! _branch_is_staged_promotion ""; then _pass "T17_empty_not_promotion"; else _fail "T17_empty_not_promotion" "empty must be false"; fi
+    # default arg reads $BRANCH (save/restore)
+    _saved_branch="${BRANCH:-}"
+    BRANCH="staged-zzz-1"; if _branch_is_staged_promotion; then _pass "T18_default_reads_BRANCH_staged"; else _fail "T18_default_reads_BRANCH_staged" "default should read \$BRANCH"; fi
+    BRANCH="main"; if ! _branch_is_staged_promotion; then _pass "T19_default_reads_BRANCH_nonstaged"; else _fail "T19_default_reads_BRANCH_nonstaged" "main must be false"; fi
+    BRANCH="$_saved_branch"
+fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]]
