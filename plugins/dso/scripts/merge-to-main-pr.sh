@@ -1008,9 +1008,13 @@ resume_gc_stale_staged_state() {
     for _sf in "$_dir"/merge-to-main-state-staged-*.json; do
         [[ -f "$_sf" ]] || continue
         _b="${_sf##*/merge-to-main-state-}"; _b="${_b%.json}"
-        if ! git ls-remote --heads origin "$_b" 2>/dev/null | grep -q .; then
-            rm -f "$_sf" 2>/dev/null || true; continue          # branch gone -> spent
-        fi
+        # Distinguish a TRANSIENT ls-remote failure (network/auth — fail-safe: do
+        # NOT GC a possibly-live ref's cache) from a TRULY-gone branch (call
+        # succeeded, empty output -> spent -> GC). Empty output alone is ambiguous.
+        local _lsr _lsr_rc
+        _lsr=$(git ls-remote --heads origin "$_b" 2>/dev/null); _lsr_rc=$?
+        if [[ "$_lsr_rc" -ne 0 ]]; then continue; fi            # transient failure -> keep cache (fail-safe)
+        if [[ -z "$_lsr" ]]; then rm -f "$_sf" 2>/dev/null || true; continue; fi  # truly gone -> spent -> GC
         git fetch origin "$_b" --quiet 2>/dev/null || true
         _ahead=$(git rev-list --count "origin/${_db}..origin/${_b}" 2>/dev/null || echo "")
         if resume_staged_ref_is_spent "$_ahead"; then rm -f "$_sf" 2>/dev/null || true; fi
@@ -1530,7 +1534,7 @@ except Exception:
     print('')
 " 2>/dev/null || true)
         [[ -n "$_mergeable" && "$_mergeable" != "UNKNOWN" ]] && break
-        sleep 5
+        [[ "$_mq_try" == "6" ]] || sleep 5   # don't sleep after the final attempt
     done
 
     # R-C: a true CONFLICTING is a DETERMINATE operational error — staged content

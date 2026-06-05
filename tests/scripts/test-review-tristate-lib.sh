@@ -58,7 +58,10 @@ for msg in "HTTP 503 Service Unavailable" "API rate limit exceeded" "429 Too Man
     if tristate_is_transient_error "$msg"; then _ok "T5 transient: '$msg'"; else _no "T5 transient" "'$msg' not detected"; fi
 done
 # T6: non-transient errors are NOT retry-able (must resolve to FAIL, never silently retried forever)
-for msg in "HTTP 404 Not Found" "parse error: unexpected token" "permission denied" "no covering merged PR" "HTTP 401 Unauthorized"; do
+# Includes over-broad-glob guards: a status code EMBEDDED in a larger number
+# (byte count, offset, PR/SHA) must NOT be read as a 5xx/429 transient.
+for msg in "HTTP 404 Not Found" "parse error: unexpected token" "permission denied" "no covering merged PR" "HTTP 401 Unauthorized" \
+           "504800 bytes processed" "wrote 1500000 objects" "offset 142900 in pack" "sha 5039ab1 not found"; do
     if tristate_is_transient_error "$msg"; then _no "T6 non-transient" "'$msg' wrongly flagged transient"; else _ok "T6 non-transient: '$msg'"; fi
 done
 
