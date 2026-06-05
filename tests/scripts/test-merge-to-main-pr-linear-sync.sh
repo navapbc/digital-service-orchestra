@@ -91,9 +91,13 @@ if ( cd "$r" || exit 1
      before="$(git rev-parse HEAD)"
      BRANCH=feature _DEFAULT_BRANCH=main _sync_branch_against_default >/dev/null 2>&1
      rc=$?
+     # Observable outcome (not git-internal state dirs): exit 1, HEAD restored to
+     # the pre-rebase commit, AND we are back on the feature branch — a rebase left
+     # in progress would leave HEAD detached, so symbolic-ref resolving to "feature"
+     # confirms the rebase was fully aborted and the branch restored.
      [[ "$rc" == 1 && "$before" == "$(git rev-parse HEAD)" ]] \
-       && [[ ! -d .git/rebase-merge && ! -d .git/rebase-apply ]] ); then
-    _ok "D3 conflict: abort + restore HEAD, exit 1, no rebase in progress"
+       && [[ "$(git symbolic-ref --short -q HEAD)" == "feature" ]] ); then
+    _ok "D3 conflict: abort + restore HEAD on feature branch, exit 1, rebase terminated"
 else _no "D3 conflict abort-restore" "did not restore HEAD / wrong rc / rebase left in progress"; fi
 
 # ── D4: unrelated histories -> skip (no common ancestor), HEAD unchanged ──────
