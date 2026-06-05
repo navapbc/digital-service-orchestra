@@ -936,6 +936,27 @@ _resume_should_advance_to_staged() {
     [[ "${1:-1}" == "0" && "${2:-0}" != "0" && "${3:-0}" != "0" && "${3:-0}" =~ ^[0-9]+$ ]]
 }
 
+# resume_pr_query_trustworthy <gh_rc> <json_payload>
+# 3ebb DD2 — INC-008 GUARD (LOAD-BEARING). When --resume reconstructs pipeline
+# state from GitHub PR state, a PR-query result is trustworthy as AUTHORITATIVE
+# only when the call SUCCEEDED (rc 0) AND returned a well-formed JSON payload. A
+# non-zero rc, an empty payload, or malformed/truncated JSON (e.g. a page cut
+# short) is INDETERMINATE — the caller MUST re-fetch or escalate, and MUST NOT
+# treat a short/empty result as authoritative "no PRs". Acting on partial state
+# as authoritative-empty is the INC-008 stall (a duplicate staged-*+PR1, or a
+# lost live session). A legitimately-empty list ("[]", rc 0) is well-formed and
+# IS trusted — that is the case this guard deliberately distinguishes from a
+# truncated read.
+#   returns 0  = trustworthy (safe to parse, including a real empty list)
+#   returns 75 = INDETERMINATE (TRISTATE_INDETERMINATE — re-fetch/escalate)
+resume_pr_query_trustworthy() {
+    local _rc="${1:-1}" _json="${2:-}"
+    [[ "$_rc" == "0" ]] || return 75              # the call itself failed
+    [[ -n "$_json" ]] || return 75                # empty payload ≠ "[]"
+    printf '%s' "$_json" | python3 -c "import json,sys; json.load(sys.stdin)" >/dev/null 2>&1 || return 75
+    return 0
+}
+
 _phase_staged_intermediate() {
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "staged_intermediate" 2>/dev/null || true
@@ -3112,7 +3133,23 @@ fi
 if type _state_get_field >/dev/null 2>&1; then
     _saved_staged=$(_state_get_field "staged_branch" "" 2>/dev/null || true)
     if [[ -n "$_saved_staged" && "$BRANCH" != "$_saved_staged" ]]; then
-        _pr1_open=$(gh pr list --head "$BRANCH" --base "$_saved_staged" --state open --json number --jq 'length' 2>/dev/null || echo "1")
+        # 3ebb DD2 / INC-008: read PR1 state from GitHub through the trustworthiness
+        # guard. A partial/failed read must NOT be collapsed into a count — treating
+        # it as "0 PRs" would advance onto unverified state (skip review); treating
+        # it as ">0" would mint a duplicate staged-*+PR1. Neither is safe to GUESS,
+        # so re-fetch once (cheap transient mitigation) and, if still indeterminate,
+        # HALT as INDETERMINATE rather than act on partial state.
+        _pr1_json=""; _pr1_rc=0
+        for _attempt in 1 2; do
+            _pr1_json=$(gh pr list --head "$BRANCH" --base "$_saved_staged" --state open --json number 2>/dev/null); _pr1_rc=$?
+            resume_pr_query_trustworthy "$_pr1_rc" "$_pr1_json" && break
+            if [[ "$_attempt" == "2" ]]; then
+                echo "INDETERMINATE: --resume could not obtain a trustworthy PR1 state for ${BRANCH}→${_saved_staged} (rc=${_pr1_rc}) after a retry — refusing to advance to PR2 or re-create on partial GitHub state (INC-008). Re-run --resume when GitHub is reachable, or escalate via /dso:fp-recovery." >&2
+                exit "${TRISTATE_INDETERMINATE:-75}"
+            fi
+            sleep 1
+        done
+        _pr1_open=$(printf '%s' "$_pr1_json" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "1")
         _staged_exists=$(git ls-remote --heads origin "$_saved_staged" 2>/dev/null | wc -l | tr -d ' ')
         # Count session commits on the staged branch not reachable from main.
         # 0 ⇒ empty staged ref at main HEAD ⇒ do NOT advance (b7bf-c3b9). Any
