@@ -121,6 +121,8 @@ fi
 # sub-PR ruleset (required_status_checks{review-sub-pr}, which only runs on
 # pull_request events), so the PR2 phase must never push/force-push them. Replaces
 # scattered `[[ "$BRANCH" == staged-* ]]` literals so the phase semantics cannot drift.
+# shellcheck disable=SC2120  # intentional optional arg: production callers use the
+# $BRANCH default; the test suite passes an explicit branch for isolation.
 _branch_is_staged_promotion() {
     [[ "${1:-${BRANCH:-}}" == staged-* ]]
 }
