@@ -42,6 +42,15 @@ These existing fail-closed sites emit the tristate (DD1 retrofits them — no ne
 
 `precondition-gate.sh` remains the mode-gate for `78`; INDETERMINATE(`75`) is likewise blocking under enforce (any non-zero is a red required check) — the resilience benefit is in the **orchestrator's interpretation** (retry-on-transient + DD3 escalation), not in letting `75` pass.
 
+## Universal in-channel escalation (DD3)
+
+When a gate resolves to INDETERMINATE **after its bounded transient-retry budget is spent**, it routes the operator to the existing `/dso:fp-recovery` escape valve via `tristate_indeterminate_escalation <gate> <reason> [pr_ref]` — so there is always an in-channel recovery instead of manual git surgery. The helper emits to stderr:
+
+1. a single greppable JSON marker — `INDETERMINATE_ESCALATION: {"gate":...,"reason":...,"next_action":"/dso:fp-recovery ...","recovery":"in-channel"}` — for machine routing **and FP-rate telemetry**, and
+2. a human-readable, actionable banner.
+
+**This is a LAST-RESORT surface, by design (anti-friction).** Escalation fires only after transient retries are exhausted; an observably-transient cause self-heals via retry with no human involvement, and a genuine **FAIL never escalates here** (a real violation is fixed, not fp-recovered). A high INDETERMINATE/escalation rate is a **defect signal** pointing at gate brittleness to fix at the source — not normal operation. Current emitting sites: `review-coverage-invariant.sh` (INDETERMINATE-enforce exit), `llm-review-dispatch-or-skip.sh` (marker-absent), and `merge-to-main-pr.sh` (INC-008 resume halt, after one re-fetch).
+
 ## Security guardrail (non-negotiable)
 
 The tristate adds resilience for **mechanical/indeterminate** states ONLY. It MUST NEVER auto-resolve "is this code reviewed": a genuine coverage/provenance violation stays FAIL(1). No INDETERMINATE path — retry, escalation, or durable-resume reconstruction — may flip a real review violation to PASS. INDETERMINATE is always non-zero and never silently green.
