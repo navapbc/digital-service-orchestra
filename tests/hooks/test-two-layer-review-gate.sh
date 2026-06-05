@@ -28,7 +28,7 @@
 #
 # Tests:
 #   test_allowlist_pass_tickets_only
-#   test_allowlist_pass_docs_only
+#   test_docs_commit_blocked_without_review
 #   test_code_commit_blocked_without_review
 #   test_code_commit_allowed_with_valid_review
 #   test_bypass_no_verify_blocked
@@ -180,10 +180,15 @@ test_allowlist_pass_tickets_only() {
     assert_eq "test_allowlist_pass_tickets_only" "0" "$exit_code"
 }
 
-# test_allowlist_pass_docs_only
+# test_docs_commit_blocked_without_review
 #
-# A commit containing only docs/ files must pass Layer 1 without a review.
-test_allowlist_pass_docs_only() {
+# story 3783: documentation is REVIEWABLE — docs/** was removed from the review-gate
+# allowlist (an un-reviewed instruction surface is an attack vector). A commit
+# containing only docs/ files is therefore NO LONGER allowlisted: Layer 1 (the
+# pre-commit review gate) BLOCKS it with exit 1 ("No review recorded") when no review
+# is present. (The test config sets enforcement.strategy=local, so the dso.workflow=
+# ci-pr short-circuit does not apply.)
+test_docs_commit_blocked_without_review() {
     local _repo _artifacts
     _repo=$(make_test_repo)
     _artifacts=$(make_artifacts_dir)
@@ -194,7 +199,7 @@ test_allowlist_pass_docs_only() {
 
     local exit_code
     exit_code=$(run_pre_commit_hook "$_repo" "$_artifacts")
-    assert_eq "test_allowlist_pass_docs_only" "0" "$exit_code"
+    assert_eq "test_docs_commit_blocked_without_review" "1" "$exit_code"
 }
 
 # ============================================================
@@ -585,7 +590,7 @@ test_gate_layer2_allows_record_test_exemption_sh() {
 
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_allowlist_pass_tickets_only
-test_allowlist_pass_docs_only
+test_docs_commit_blocked_without_review
 test_code_commit_blocked_without_review
 test_code_commit_allowed_with_valid_review
 test_bypass_no_verify_blocked
