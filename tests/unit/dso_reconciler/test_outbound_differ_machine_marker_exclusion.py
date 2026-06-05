@@ -166,3 +166,31 @@ def test_bridge_canary_alert_comments_not_emitted(
         "excluded from outbound sync so they stop re-emitting/accumulating in "
         f"Jira. Got comment mutations: {[m.comments for m in comment_mutations]}"
     )
+
+
+def test_legacy_unmarked_canary_comment_not_emitted(
+    outbound_differ: ModuleType,
+) -> None:
+    """57d1 follow-up: the BRIDGE_CANARY_ALERT: marker only tags FUTURE canary
+    comments. The existing unmarked backlog ("Still stale as of <ts>: ...")
+    already on the alert ticket must ALSO be excluded by its legacy content
+    prefix, or it keeps re-emitting (DIG-5383 observed still re-emitting after
+    the marker-only fix landed)."""
+    jira_key = "DIG-5383"
+    legacy = "Still stale as of 2026-06-04T23:29:33Z: Last successful run was 6h 12m ago (threshold: 2h). Run: https://example/actions/runs/1"
+    ticket = _make_ticket_with_comments("local-legacy-canary", [legacy])
+    store = StubBindingStore({"local-legacy-canary": jira_key})
+    snapshot = _make_jira_snapshot_with_comments(jira_key, [])
+
+    result = outbound_differ.compute_outbound_mutations(
+        local_tickets=[ticket],
+        jira_snapshot=snapshot,
+        binding_store=store,
+    )
+
+    comment_mutations = [m for m in result if m.comments]
+    assert comment_mutations == [], (
+        "Legacy unmarked 'Still stale as of' canary comments must also be "
+        "excluded so the existing backlog stops re-emitting. Got: "
+        f"{[m.comments for m in comment_mutations]}"
+    )
