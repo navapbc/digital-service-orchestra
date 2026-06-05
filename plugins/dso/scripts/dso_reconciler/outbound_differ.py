@@ -22,7 +22,9 @@ and does not import the concrete class.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
+import urllib.error
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -31,6 +33,125 @@ from typing import Any, Protocol, runtime_checkable
 # snapshot carries real comment data (fixture/synthetic path). Absence means
 # the entry came from a live Jira search result, which never includes comments.
 _COMMENT_FIELD_KEY = "comment"
+
+# ---------------------------------------------------------------------------
+# Bug 1e08-1a35-0267-4ca6 — bound-but-absent direct-GET sentinels / config
+# ---------------------------------------------------------------------------
+# A bound local ticket whose Jira key is ABSENT from this pass's search
+# snapshot (deleted, or status=Done beyond the fetcher's _DONE_RECENT_CAP
+# window) used to diff every field against "" and re-emit every pass. The fix
+# replaces ``jira_snapshot.get(jira_key, {})`` with a membership discriminator
+# plus a bounded direct GET for the absent case. These module-level singleton
+# objects are identity-compared (``is``) so they can never collide with a real
+# ``fields`` dict.
+_DELETED = object()  # _safe_get_issue: HTTPError 404 (issue gone)
+_TRANSPORT_ERROR = object()  # _safe_get_issue: non-404 HTTPError / URLError / timeout
+
+# Per-pass bounded GET budget (K) and consecutive-404 retirement grace. Env
+# vars because the reconciler has no dotted-config reader (matches fetcher.py /
+# applier.py). Parsed defensively at use-site so a typo'd ops value degrades to
+# the default rather than aborting the pass.
+_DEFAULT_ABSENT_GET_BUDGET = 20
+
+
+def _env_int(name: str, default: int, *, minimum: int | None = None) -> int:
+    """Parse an int env var defensively: malformed → default; clamp >= minimum."""
+    raw = os.environ.get(name)
+    if raw is None:
+        value = default
+    else:
+        try:
+            value = int(raw)
+        except (ValueError, TypeError):
+            value = default
+    if minimum is not None and value < minimum:
+        value = minimum
+    return value
+
+
+def _rest_issue_to_snapshot_fields(issue: dict[str, Any]) -> dict[str, Any]:
+    """Return the raw ``fields`` block of a REST GET payload (NO normalization).
+
+    The fetcher stores each snapshot entry as a verbatim copy of the issue's
+    ``fields`` (``fetcher.py``), and ALL normalization happens downstream in
+    ``_diff_fields`` / ``_extract_jira_field``. Re-normalizing here would
+    double-normalize and reintroduce phantom re-emits — so this helper is a
+    deliberate one-liner kept only so the C2 parity test has a real symbol.
+    """
+    return issue.get("fields", {})
+
+
+def _safe_get_issue(client: Any, jira_key: str) -> Any:
+    """Direct GET a single Jira issue's raw fields, classifying failures.
+
+    Returns:
+        - the raw ``fields`` dict on HTTP 200,
+        - the ``_DELETED`` sentinel on HTTPError 404 (issue gone),
+        - the ``_TRANSPORT_ERROR`` sentinel on any non-404 HTTPError, URLError,
+          timeout, or OSError (transient — caller emits nothing and defers).
+
+    ``get_issue_by_rest`` re-raises ``HTTPError`` without retry, so a 404 from
+    a deleted issue surfaces here as a raised ``HTTPError`` (not a return).
+    ``HTTPError`` is a subclass of ``URLError``, so it MUST be caught first.
+    """
+    try:
+        return client.get_issue_by_rest(jira_key).get("fields", {})
+    except urllib.error.HTTPError as exc:
+        return _DELETED if exc.code == 404 else _TRANSPORT_ERROR
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return _TRANSPORT_ERROR
+
+
+def _is_retired(binding_store: Any, jira_key: str) -> bool:
+    """``binding_store.is_retired`` with graceful fallback for legacy stubs."""
+    fn = getattr(binding_store, "is_retired", None)
+    if fn is None:
+        return False
+    try:
+        return bool(fn(jira_key))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _last_get_pass(binding_store: Any, jira_key: str) -> str:
+    """``binding_store.last_get_pass`` with fallback to the "" sentinel."""
+    fn = getattr(binding_store, "last_get_pass", None)
+    if fn is None:
+        return ""
+    try:
+        return fn(jira_key) or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _set_last_get(binding_store: Any, jira_key: str, pass_id: str) -> None:
+    """``binding_store.set_last_get`` no-op when the store predates the method."""
+    fn = getattr(binding_store, "set_last_get", None)
+    if fn is not None:
+        try:
+            fn(jira_key, pass_id)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _note_absent(binding_store: Any, jira_key: str) -> None:
+    """``binding_store.note_absent`` no-op when the store predates the method."""
+    fn = getattr(binding_store, "note_absent", None)
+    if fn is not None:
+        try:
+            fn(jira_key)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _clear_absent(binding_store: Any, jira_key: str) -> None:
+    """``binding_store.clear_absent`` no-op when the store predates the method."""
+    fn = getattr(binding_store, "clear_absent", None)
+    if fn is not None:
+        try:
+            fn(jira_key)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 _ADF_KEY = "plugins.dso.scripts.dso_reconciler.adf"
@@ -762,6 +883,7 @@ def compute_outbound_mutations(
     excluded_statuses: set[str] | None = None,
     local_label_intent: dict[str, set[str]] | None = None,
     client: Any = None,
+    pass_id: str = "",
 ) -> list[OutboundMutation]:
     """Diff local tickets against Jira snapshot and return outbound mutations.
 
@@ -788,6 +910,10 @@ def compute_outbound_mutations(
             (the live Jira search shape). When None, _diff_comments skips
             comment mutations for such tickets rather than emitting blind adds
             (bug 4292 safety invariant).
+        pass_id: This pass's monotonic id (``%Y-%m-%dT%H-%M-%S`` timestamp).
+            Used as the rotation bookkeeping key for bound-but-absent direct
+            GETs (bug 1e08) — recorded via ``binding_store.set_last_get`` so the
+            least-recently-GET'd absent keys are serviced first next pass.
 
     Returns:
         List of OutboundMutation objects describing changes to push to Jira.
@@ -796,6 +922,34 @@ def compute_outbound_mutations(
         excluded_statuses = {"archived", "deleted"}
 
     mutations: list[OutboundMutation] = []
+
+    # Bug 1e08 — rotation pre-selection for bound-but-absent direct GETs.
+    # Compute the set of jira_keys eligible for a GET this pass: bound,
+    # non-pending, non-retired, and ABSENT from this pass's search snapshot.
+    # Select the K least-recently-GET'd (sorted by last_get_pass ascending; the
+    # "" never-GET'd sentinel sorts first), bounding servicing of every absent
+    # key to <= ceil(N/K) passes (anti-starvation, I3/I4).
+    _budget = _env_int(
+        "RECONCILER_ABSENT_GET_BUDGET", _DEFAULT_ABSENT_GET_BUDGET, minimum=1
+    )
+    _absent_candidates: list[str] = []
+    _seen_absent: set[str] = set()
+    # Without a client we cannot direct-GET, so there is nothing to select.
+    for _t in local_tickets if client is not None else ():
+        if _t.get("status", "") in excluded_statuses:
+            continue
+        _lid = _t.get("ticket_id")
+        if not _lid:
+            continue
+        _jk = binding_store.get_jira_key(_lid)
+        if _jk is None or _jk in jira_snapshot or _jk in _seen_absent:
+            continue
+        if _is_retired(binding_store, _jk):
+            continue
+        _seen_absent.add(_jk)
+        _absent_candidates.append(_jk)
+    _absent_candidates.sort(key=lambda k: _last_get_pass(binding_store, k))
+    _selected_for_get_this_pass: set[str] = set(_absent_candidates[:_budget])
 
     # Hierarchy pre-check map (ticket 8b25): {local_id → ticket_type}. Used to
     # suppress parent diffs whose resolved parent is a non-epic — Jira only
@@ -846,16 +1000,69 @@ def compute_outbound_mutations(
                 )
             )
         else:
-            # Bound -> compare fields, emit update if different
-            jira_fields = jira_snapshot.get(jira_key, {})
+            # Bound -> compare fields, emit update if different.
+            #
+            # Bug 1e08-1a35-0267-4ca6: discriminate on MEMBERSHIP, not value.
+            # A bound key ABSENT from this pass's search snapshot must NOT diff
+            # against ``{}`` (that re-emits every field every pass). Two absence
+            # sub-classes: (a) deleted → direct GET 404; (b) status=Done beyond
+            # _DONE_RECENT_CAP → alive (HTTP 200) but absent from the search
+            # snapshot. We resolve the real fields via a bounded direct GET.
+            if jira_key in jira_snapshot:
+                # EXISTING path — key present in the search snapshot.
+                jira_fields = jira_snapshot[jira_key]
+                comment_snapshot = jira_snapshot
+            else:
+                # Bound-but-absent from THIS pass's working set.
+                if client is None:
+                    # No client → we cannot direct-GET to resolve the absence.
+                    # Skip (defer) rather than diff against {} — that re-emit
+                    # against an empty dict was the original defect (bug 1e08).
+                    # Mirrors the _diff_comments no-client safety pattern.
+                    continue
+                if _is_retired(binding_store, jira_key):
+                    continue  # known-dead; no GET, no emit (budget preserved)
+                if jira_key not in _selected_for_get_this_pass:
+                    continue  # not selected this pass → DEFERRED (no emit)
+
+                fields = _safe_get_issue(client, jira_key)
+                # Record the GET regardless of outcome (rotation bookkeeping).
+                _set_last_get(binding_store, jira_key, pass_id)
+
+                if fields is _DELETED:
+                    # HTTPError 404 — issue gone. Bump the consecutive-404
+                    # counter (may retire at GRACE). Emit nothing.
+                    _note_absent(binding_store, jira_key)
+                    continue
+                if fields is _TRANSPORT_ERROR:
+                    # Non-404 HTTPError / URLError / timeout — transient.
+                    # Emit nothing, warn, defer; counter untouched.
+                    print(  # noqa: T201
+                        f"WARNING: outbound_differ: direct GET for bound-but-absent "
+                        f"{jira_key!r} failed (transport error). Deferring this "
+                        f"key's sync to a later pass (no mutation emitted).",
+                        file=sys.stderr,
+                    )
+                    continue
+
+                # HTTP 200 — issue is alive (out-of-window). Reset the absence
+                # counter and build a one-key overlay so the SAME diff path runs.
+                _clear_absent(binding_store, jira_key)
+                jira_fields = fields
+                comment_snapshot = dict(jira_snapshot)
+                comment_snapshot[jira_key] = fields
+
             changed = _diff_fields(
                 ticket,
                 jira_fields,
                 binding_store=binding_store,
                 local_ticket_types=local_ticket_types,
             )
+            # Comments use the resolved snapshot (the one-key overlay for the
+            # bounded-GET path) so the GET's native fields.comment.comments is
+            # consulted with NO second network call (C3).
             comment_mutations = _diff_comments(
-                ticket, jira_key, jira_snapshot, client=client
+                ticket, jira_key, comment_snapshot, client=client
             )
             # bug a06c: intent-gated REMOVE. When local_label_intent is
             # provided but lacks an entry for this local_id, fall back to
