@@ -139,14 +139,17 @@ if [[ "$_HELPERS_AVAILABLE" == "true" ]]; then
 fi
 
 # Fallback defaults when allowlist or helpers are unavailable
+# story 3783 (DD2): the degraded fallback MUST match the tightened normal allowlist —
+# docs/** and .claude/docs/** are NO LONGER excluded here (documentation is reviewable;
+# an un-reviewed instruction surface is an attack vector). Keeping them only in the
+# fallback would let the degradation else-branch silently skip review of doc edits that
+# the normal path now reviews. Session logs remain (generated, inert).
 _FALLBACK_PATHSPECS=(
     ':!.checkpoint-needs-review'
     ':!.tickets-tracker/**'  # tickets-boundary-ok
     ':!.sync-state.json'
     ':!*.png' ':!*.jpg' ':!*.jpeg' ':!*.gif' ':!*.svg' ':!*.ico' ':!*.webp'
     ':!*.pdf' ':!*.docx'
-    ':!docs/**'
-    ':!.claude/docs/**'
     ':!.claude/session-logs/**'
 )
 
