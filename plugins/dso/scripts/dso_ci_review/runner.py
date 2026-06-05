@@ -507,9 +507,7 @@ def _partition_reviewable_files(
     return reviewable, skipped
 
 
-def _should_region_split_on_files(
-    diff_text: str, reviewable_files: list[str]
-) -> bool:
+def _should_region_split_on_files(diff_text: str, reviewable_files: list[str]) -> bool:
     """Region-split GATE decision computed against the FILTERED reviewable set
     (component #3' R-1).
 
@@ -570,9 +568,7 @@ def _result_has_fallback_exhausted(result: dict) -> bool:
     return False
 
 
-def _rechunk_on_fallback_exhausted(
-    result: dict, diff_text: str
-) -> list[dict] | None:
+def _rechunk_on_fallback_exhausted(result: dict, diff_text: str) -> list[dict] | None:
     """If a single-pass result is a context-exhaustion sentinel, re-route the
     diff to the chunked path (component #3' R-2).
 
@@ -1527,6 +1523,19 @@ def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
                 f"gh stderr: {_stderr!r}",
                 file=sys.stderr,
             )
+            # Log which findings failed anchoring (path:line). The most common
+            # 422 cause is a finding anchored to a source line not present in
+            # the PR diff (a fabricated anchor); the Reviews API rejects the
+            # whole batched payload, so we cannot tell from the API response
+            # alone which anchor was bad. Emitting each candidate anchor here
+            # makes fabricated-anchor findings visible in the job log without
+            # needing to fix WHY the reviewer fabricates them (bug 40cd).
+            for _idx, _finding, _path, _line in anchored:
+                print(
+                    f"WARNING: finding {_idx}/{total} anchored to {_path}:{_line} "
+                    f"failed Reviews API anchoring; re-routed to issue comment",
+                    file=sys.stderr,
+                )
             # Fall back: add anchored findings to the issue comment queue
             unanchored.extend((idx, finding) for idx, finding, _, _ in anchored)
 
@@ -1657,19 +1666,62 @@ def init_cycle_ledger(
     return cycle_num
 
 
+def _parse_defense_records(bodies: list[str]) -> list[dict]:
+    """Extract DEFENSE_RECORD JSON objects from a list of comment bodies.
+
+    Scans each body line-by-line for the "DEFENSE_RECORD: " prefix and parses
+    the JSON suffix. Malformed records are skipped silently. Bodies may carry
+    multiple records (one per line).
+    """
+    records: list[dict] = []
+    for body in bodies:
+        for line in (body or "").splitlines():
+            line = line.strip()
+            if not line.startswith("DEFENSE_RECORD: "):
+                continue
+            json_str = line[len("DEFENSE_RECORD: ") :]
+            try:
+                record = json.loads(json_str)
+                if isinstance(record, dict):
+                    records.append(record)
+            except json.JSONDecodeError:
+                pass  # malformed record; skip silently
+    return records
+
+
 def _fetch_pr_defenses(pr_number: int | str) -> list[dict]:
     """Fetch DEFENSE_RECORD entries from GitHub PR comments via gh CLI.
 
-    Reads all PR comments, extracts lines starting with "DEFENSE_RECORD: ",
-    and returns parsed JSON records. Returns an empty list when:
+    Surface-agnostic (bug 40cd): defense findings and their records can land on
+    EITHER GitHub comment surface depending on the Reviews-API outcome of the
+    cycle that produced them:
+      - issue-conversation surface (`gh pr view --json comments`) — the
+        `gh pr comment` / fallback path; and
+      - PR review-thread surface (`/repos/<repo>/pulls/<n>/comments`) — the
+        Reviews-API happy path that creates resolvable line-anchored threads.
+
+    `gh pr view --json comments` returns ONLY issue-conversation comments, so a
+    reader limited to it misses every defense/finding that landed on the
+    review-thread surface. Before this fix, a Reviews-API 422 in cycle 1 routed
+    findings to issue comments while a later remediation's defenses (or vice
+    versa) could not be associated across surfaces — cycle 2 then re-emitted
+    findings verbatim (PR #658). We now scan BOTH surfaces with the same parser
+    and deduplicate identical records.
+
+    Returns an empty list when:
     - GITHUB_TOKEN is absent
-    - gh CLI is unavailable or fails
-    - No DEFENSE_RECORD lines are found
+    - gh CLI is unavailable or both surface fetches fail
+    - No DEFENSE_RECORD lines are found on either surface
 
     Best-effort: errors are logged to stderr but never propagate.
     """
     if not os.environ.get("GITHUB_TOKEN"):
         return []
+
+    bodies: list[str] = []
+    any_surface_succeeded = False
+
+    # Surface 1: issue-conversation comments (gh pr comment / fallback path).
     try:
         result = subprocess.run(
             [
@@ -1686,35 +1738,72 @@ def _fetch_pr_defenses(pr_number: int | str) -> list[dict]:
             text=True,
             timeout=30,
         )
-        if result.returncode != 0:
+        if result.returncode == 0:
+            any_surface_succeeded = True
+            bodies.extend(result.stdout.splitlines())
+        else:
             print(
                 f"WARNING: gh pr view failed (exit {result.returncode}); "
-                "cannot fetch prior defenses for cycle-2 suppression",
+                "issue-comment surface unavailable for cycle-2 defense lookup",
                 file=sys.stderr,
             )
-            return []
     except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
         print(
             f"WARNING: gh CLI unavailable ({type(exc).__name__}); "
-            "cannot fetch prior defenses for cycle-2 suppression",
+            "issue-comment surface unavailable for cycle-2 defense lookup",
             file=sys.stderr,
         )
+
+    # Surface 2: PR review-thread comments (Reviews-API happy path). Findings/
+    # defenses anchored as resolvable review threads live here and are NOT
+    # returned by `gh pr view --json comments`.
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    if repository and "/" in repository:
+        try:
+            result = subprocess.run(
+                [
+                    "gh",
+                    "api",
+                    "--paginate",
+                    f"/repos/{repository}/pulls/{pr_number}/comments",
+                    "--jq",
+                    ".[].body",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                any_surface_succeeded = True
+                bodies.extend(result.stdout.splitlines())
+            else:
+                print(
+                    f"WARNING: gh api pulls/comments failed (exit {result.returncode}); "
+                    "review-thread surface unavailable for cycle-2 defense lookup",
+                    file=sys.stderr,
+                )
+        except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+            print(
+                f"WARNING: gh CLI unavailable ({type(exc).__name__}); "
+                "review-thread surface unavailable for cycle-2 defense lookup",
+                file=sys.stderr,
+            )
+
+    if not any_surface_succeeded:
         return []
 
-    defenses: list[dict] = []
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if not line.startswith("DEFENSE_RECORD: "):
+    # Parse both surfaces and deduplicate identical records (a defense mirrored
+    # to both surfaces, or a record returned twice, must count once).
+    parsed = _parse_defense_records(bodies)
+    deduped: list[dict] = []
+    seen: set[str] = set()
+    for record in parsed:
+        key = json.dumps(record, sort_keys=True)
+        if key in seen:
             continue
-        json_str = line[len("DEFENSE_RECORD: ") :]
-        try:
-            record = json.loads(json_str)
-            if isinstance(record, dict):
-                defenses.append(record)
-        except json.JSONDecodeError:
-            pass  # malformed record; skip silently
-
-    return defenses
+        seen.add(key)
+        deduped.append(record)
+    return deduped
 
 
 def _normalize_cited_ref(entry: str) -> str:
@@ -2780,7 +2869,9 @@ def main() -> int:
             _env_cycle = 1
         # Use `is not None` instead of `or` — `or` would silently ignore
         # _env_cycle when _ledger_cycle_number=1 (truthy) (bug c6bf-19df-ac83-43fb).
-        cycle_number = _ledger_cycle_number if _ledger_cycle_number is not None else _env_cycle
+        cycle_number = (
+            _ledger_cycle_number if _ledger_cycle_number is not None else _env_cycle
+        )
 
         # Load the raw ledger for SHORT_CIRCUIT pre-check (cycle_next_action needs it).
         _ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
@@ -3189,8 +3280,7 @@ def main() -> int:
                     _pre_rechunk_real = [
                         f
                         for f in (merged.get("findings") or [])
-                        if isinstance(f, dict)
-                        and f.get("type") not in _SYNTHETIC_TYPES
+                        if isinstance(f, dict) and f.get("type") not in _SYNTHETIC_TYPES
                     ]
                     _rechunk_merged = _dispatch_and_aggregate_clusters(
                         _rechunk_filtered
@@ -3415,7 +3505,9 @@ def main() -> int:
                     + str(_f.get("cited_lines", ""))
                     + _f.get("description", "")
                 )
-                _f["finding_id"] = f"f-{hashlib.sha256(_id_source.encode()).hexdigest()[:8]}"
+                _f["finding_id"] = (
+                    f"f-{hashlib.sha256(_id_source.encode()).hexdigest()[:8]}"
+                )
 
         # Step 7d: telemetry emission (fire-and-forget, fail-open).
         # Emit one event per finding (review_finding or tool_finding), then
@@ -3590,6 +3682,7 @@ def main() -> int:
         # call site is identifiable from the CI log alone — without
         # this, we lose minutes per cycle re-deriving the file:line.
         import traceback as _tb
+
         print(
             f"ERROR: review pipeline crashed: {type(exc).__name__}: {exc}",
             file=sys.stderr,
