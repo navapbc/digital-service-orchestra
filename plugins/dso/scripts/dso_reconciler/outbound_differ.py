@@ -884,6 +884,7 @@ def compute_outbound_mutations(
     local_label_intent: dict[str, set[str]] | None = None,
     client: Any = None,
     pass_id: str = "",
+    absent_alive_fields: dict[str, dict[str, Any]] | None = None,
 ) -> list[OutboundMutation]:
     """Diff local tickets against Jira snapshot and return outbound mutations.
 
@@ -914,6 +915,17 @@ def compute_outbound_mutations(
             Used as the rotation bookkeeping key for bound-but-absent direct
             GETs (bug 1e08) — recorded via ``binding_store.set_last_get`` so the
             least-recently-GET'd absent keys are serviced first next pass.
+        absent_alive_fields: Optional out-param dict. When provided, each
+            bound-but-absent jira_key that the bounded direct GET resolves as
+            ALIVE (HTTP 200) this pass is recorded as
+            ``absent_alive_fields[jira_key] = <raw fields dict>``. This is the
+            inbound-direction GET-sharing seam (bug 0702-3b6d-c1db-4ed3): the
+            reconcile orchestrator merges these entries into the snapshot it
+            hands to the inbound differ, so each out-of-window-alive key is
+            GET'd exactly ONCE per pass and BOTH directions consume the result.
+            404/deleted and transport-error keys are deliberately NOT recorded
+            (a gone issue must not be inbound-mirrored; retirement stays owned
+            by the outbound 404-counter). None → no recording (legacy callers).
 
     Returns:
         List of OutboundMutation objects describing changes to push to Jira.
@@ -1051,6 +1063,13 @@ def compute_outbound_mutations(
                 jira_fields = fields
                 comment_snapshot = dict(jira_snapshot)
                 comment_snapshot[jira_key] = fields
+                # Bug 0702: share this alive GET result with the inbound differ
+                # so the out-of-window key is mirrored Jira→local without a
+                # second GET. Only the alive (200) case is recorded — 404 and
+                # transport errors are intentionally left out so a gone issue is
+                # never inbound-mirrored (retirement stays outbound-owned).
+                if absent_alive_fields is not None:
+                    absent_alive_fields[jira_key] = fields
 
             changed = _diff_fields(
                 ticket,

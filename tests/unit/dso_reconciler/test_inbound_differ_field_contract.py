@@ -19,7 +19,6 @@ import importlib.util
 import sys
 from pathlib import Path
 from types import ModuleType
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -132,4 +131,52 @@ def test_build_outbound_context_canonicalizes_parent(
     assert "parent" not in entry["fields"], (
         "The raw outbound name 'parent' must NOT remain in the field set after "
         "canonicalization — only the inbound name 'parent_id' should be present."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 3: summary → title entry (bug 0702-3b6d-c1db-4ed3)
+# ---------------------------------------------------------------------------
+
+
+def test_outbound_to_inbound_field_contains_summary(
+    inbound_differ: ModuleType,
+) -> None:
+    """_OUTBOUND_TO_INBOUND_FIELD must map 'summary' → 'title'.
+
+    outbound_differ emits the title change under the Jira REST field name
+    'summary'; inbound_differ emits it under the local field name 'title'.
+    Bug 0702: this entry was missing, so an outbound title push did not
+    suppress the inbound re-emission of the stale Jira title — the two differs
+    oscillated on the title for bound-but-absent (out-of-window) keys.
+    """
+    field_map = inbound_differ._OUTBOUND_TO_INBOUND_FIELD
+    assert field_map.get("summary") == "title", (
+        "_OUTBOUND_TO_INBOUND_FIELD['summary'] must be 'title' so the scalar "
+        "suppression matches the outbound 'summary' push against the inbound "
+        f"'title' emission. Got {field_map.get('summary')!r}."
+    )
+
+
+def test_build_outbound_context_canonicalizes_summary(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """_build_outbound_context must index outbound 'summary' mutations under the
+    inbound name 'title' so scalar-field suppression can match (bug 0702)."""
+    om = outbound_differ.OutboundMutation(
+        local_id="probe-ticket-2",
+        jira_key="DIG-6001",
+        action="update",
+        fields={"summary": "New title"},
+        labels=[],
+        comments=[],
+    )
+    ctx = inbound_differ._build_outbound_context([om])
+    entry = ctx["DIG-6001"]
+    assert "title" in entry["fields"], (
+        "After canonicalization, outbound 'summary' must appear as 'title' in "
+        "the context's field set (bug 0702)."
+    )
+    assert "summary" not in entry["fields"], (
+        "The raw outbound name 'summary' must NOT remain after canonicalization."
     )

@@ -449,13 +449,27 @@ def _diff_labels_inbound(
 # Canonical entries (as of 183fd51ac2; pending consolidation into
 # _field_contract.py per docs/designs/sync-hardening-proposal.md Item 3):
 #   ``parent``  → ``parent_id``  (Jira REST name → local ticket field name)
+#   ``summary`` → ``title``      (Jira REST name → local ticket field name)
+#
+# Bug 0702-3b6d-c1db-4ed3: ``summary``→``title`` was MISSING. The outbound
+# differ emits the title change under the Jira REST field name ``summary``
+# (see ``outbound_differ._map_local_to_jira_fields``), while the inbound differ
+# emits the same logical field under the LOCAL name ``title``. Without this
+# entry the scalar-field suppression set never matched for the title field, so
+# an outbound title push did NOT suppress the inbound re-emission of the stale
+# Jira title — the two differs oscillated on the title every pass. This was
+# latent until the inbound bound-but-absent fix made out-of-window keys
+# inbound-visible (where local-edited-but-Jira-stale title is the common case).
 #
 # MAINTENANCE RULE: any field that the outbound differ can emit under a
 # DIFFERENT name than the inbound differ MUST add an entry here.  Fields
 # whose name is identical in both directions do NOT need an entry.  When
 # adding a new bidirectional field, update this map and add a corresponding
 # assertion in tests/unit/dso_reconciler/test_inbound_differ_field_contract.py.
-_OUTBOUND_TO_INBOUND_FIELD: dict[str, str] = {"parent": "parent_id"}
+_OUTBOUND_TO_INBOUND_FIELD: dict[str, str] = {
+    "parent": "parent_id",
+    "summary": "title",
+}
 
 
 def _build_outbound_context(
