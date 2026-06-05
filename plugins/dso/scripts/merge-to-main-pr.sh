@@ -1231,7 +1231,11 @@ _publish_rebased_branch() {
     local _branch="$1"
     local _lease_sha
     _lease_sha=$(git rev-parse "refs/remotes/origin/${_branch}" 2>/dev/null || echo "")
-    (
+    # Explicitly check the subshell so a failed force-push propagates to the
+    # caller unambiguously (a function whose last command is a subshell already
+    # returns the subshell's status, but the explicit `if`/`return` leaves no
+    # doubt for callers that use `_publish_rebased_branch ... || return 1`).
+    if ! (
         # shellcheck disable=SC2030  # intentional: export scoped to THIS subshell (PR #179 retro); must not leak to caller
         export DSO_ALLOW_PUSH_TO_MERGED_PR=1
         local _lease_arg="--force-with-lease"
@@ -1240,7 +1244,10 @@ _publish_rebased_branch() {
             echo "ERROR: git push ${_lease_arg} origin ${_branch} failed (linear-rebase publish)" >&2
             exit 1
         fi
-    )
+    ); then
+        return 1
+    fi
+    return 0
 }
 
 _phase_merge() {
@@ -1295,42 +1302,42 @@ _phase_merge() {
     if [[ "${_SYNCED_VIA_REBASE:-0}" == "1" ]]; then
         _publish_rebased_branch "$BRANCH" || return 1
     else
-    # Pre-push sync: when the remote ref already exists and has advanced
-    # past our local HEAD (e.g. a previous "Merge branch 'main' into <branch>"
-    # landed via UI or another session), `git push -u` will be rejected
-    # non-fast-forward. Fetch and rebase before push so the workflow recovers
-    # automatically instead of halting and forcing manual `git pull --rebase`.
-    # (b56b-14e9)
-    _fetch_and_rebase_branch || return 1
+        # Pre-push sync: when the remote ref already exists and has advanced
+        # past our local HEAD (e.g. a previous "Merge branch 'main' into <branch>"
+        # landed via UI or another session), `git push -u` will be rejected
+        # non-fast-forward. Fetch and rebase before push so the workflow recovers
+        # automatically instead of halting and forcing manual `git pull --rebase`.
+        # (b56b-14e9)
+        _fetch_and_rebase_branch || return 1
 
-    # Bypass pre-push-merged-pr-check.sh: this push is intentionally publishing
-    # new commits to a session branch whose previous PR is already MERGED, in
-    # order to open a NEW PR for the next set of commits. The merged-PR hook
-    # protects against the "commits pushed after auto-merge, no follow-up PR
-    # opened" failure mode (680f-53fb) — which does not apply here because
-    # the very next step (gh pr create below) opens that follow-up PR.
-    #
-    # Retro-review of PR #179 found that the prior set-then-unset pattern leaked
-    # DSO_ALLOW_PUSH_TO_MERGED_PR=1 to the caller's environment whenever the
-    # push retry exited via `return 1`. Wrap both push attempts in a subshell so
-    # the export is scoped to that subshell and cannot escape regardless of
-    # which exit path is taken.
-    if ! (
-        # shellcheck disable=SC2031  # intentional: each push subshell independently scopes this export (PR #179 retro); not read across subshells
-        export DSO_ALLOW_PUSH_TO_MERGED_PR=1
-        if ! git push -u origin "$BRANCH" 2>&1; then
-            # Retry once on rejection: another push may have landed between fetch and push.
-            if _fetch_and_rebase_branch && git push -u origin "$BRANCH" 2>&1; then
-                : # retry succeeded
-            else
-                git rebase --abort 2>/dev/null || true
-                echo "ERROR: git push -u origin $BRANCH failed (after fetch+rebase retry)" >&2
-                exit 1
+        # Bypass pre-push-merged-pr-check.sh: this push is intentionally publishing
+        # new commits to a session branch whose previous PR is already MERGED, in
+        # order to open a NEW PR for the next set of commits. The merged-PR hook
+        # protects against the "commits pushed after auto-merge, no follow-up PR
+        # opened" failure mode (680f-53fb) — which does not apply here because
+        # the very next step (gh pr create below) opens that follow-up PR.
+        #
+        # Retro-review of PR #179 found that the prior set-then-unset pattern leaked
+        # DSO_ALLOW_PUSH_TO_MERGED_PR=1 to the caller's environment whenever the
+        # push retry exited via `return 1`. Wrap both push attempts in a subshell so
+        # the export is scoped to that subshell and cannot escape regardless of
+        # which exit path is taken.
+        if ! (
+            # shellcheck disable=SC2031  # intentional: each push subshell independently scopes this export (PR #179 retro); not read across subshells
+            export DSO_ALLOW_PUSH_TO_MERGED_PR=1
+            if ! git push -u origin "$BRANCH" 2>&1; then
+                # Retry once on rejection: another push may have landed between fetch and push.
+                if _fetch_and_rebase_branch && git push -u origin "$BRANCH" 2>&1; then
+                    : # retry succeeded
+                else
+                    git rebase --abort 2>/dev/null || true
+                    echo "ERROR: git push -u origin $BRANCH failed (after fetch+rebase retry)" >&2
+                    exit 1
+                fi
             fi
+        ); then
+            return 1
         fi
-    ); then
-        return 1
-    fi
     fi
 
     # --- 3. Derive PR title from last meaningful commit subject ---

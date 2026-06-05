@@ -114,10 +114,16 @@ if ( cd "$r" || exit 1
      git rm -rfq . 2>/dev/null || true
      echo x > x.txt; git add x.txt; git commit -q -m U0
      before="$(git rev-parse HEAD)"
-     _SYNCED_VIA_REBASE=0
-     BRANCH=unrelated _DEFAULT_BRANCH=main _sync_branch_against_default >/dev/null 2>&1 || exit 1
-     [[ "$before" == "$(git rev-parse HEAD)" && "$_SYNCED_VIA_REBASE" == "0" ]] ); then
-    _ok "D4 unrelated histories: skip, HEAD unchanged, exit 0"
+     # Seed a sentinel so we can prove the function actually executed its skip
+     # path (which resets the flag to 0) rather than the assertion passing by
+     # accident on a pre-set value.
+     _SYNCED_VIA_REBASE=9
+     # orphan branch has NO common ancestor with origin/main -> _sync must skip:
+     # return 0, leave HEAD untouched, and never set _SYNCED_VIA_REBASE=1.
+     BRANCH=unrelated _DEFAULT_BRANCH=main _sync_branch_against_default >/dev/null 2>&1
+     rc=$?
+     [[ "$rc" == 0 && "$before" == "$(git rev-parse HEAD)" && "$_SYNCED_VIA_REBASE" == "0" ]] ); then
+    _ok "D4 unrelated histories: no common ancestor -> skip (rc=0, HEAD unchanged, flag reset to 0)"
 else _no "D4 unrelated histories" "rebased unrelated history or non-zero exit"; fi
 
 # ── D5: rebased publish -> explicit lease force-publishes rewritten head ──────
