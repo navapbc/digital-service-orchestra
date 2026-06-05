@@ -627,6 +627,13 @@ def _decorate_outbound_comment(body: str) -> str:
 #       observed on DIG-5383). It is internal monitoring noise, not human Jira
 #       content — exclude it (the canary now prefixes the marker; see
 #       reconcile-bridge-canary.yml).
+#   - "Still stale as of"  LEGACY pre-marker form of the same canary alert
+#       comment (57d1 follow-up): the BRIDGE_CANARY_ALERT: marker only tags
+#       FUTURE canary comments, but the existing unmarked backlog already on
+#       the alert ticket ("Still stale as of <ts>: Last successful run ...")
+#       keeps re-emitting. Exclude the legacy content prefix too so the existing
+#       backlog stops mirroring — not just future marked comments. The canary is
+#       the only producer of this exact phrasing (a human would not write it).
 # Only genuine machine markers are listed — human comments are never excluded.
 _EXCLUDED_COMMENT_PREFIXES: tuple[str, ...] = (
     "PREPLANNING_CONTEXT:",
@@ -636,6 +643,7 @@ _EXCLUDED_COMMENT_PREFIXES: tuple[str, ...] = (
     "CHECKPOINT",
     "WORKTREE_TRACKING:",
     "BRIDGE_CANARY_ALERT:",
+    "Still stale as of",
 )
 
 
