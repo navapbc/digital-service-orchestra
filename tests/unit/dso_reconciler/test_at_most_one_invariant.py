@@ -498,7 +498,11 @@ def test_end_to_end_second_write_produces_one_alert_one_bug(tmp_path):
         f"got {calls_after_pass2}"
     )
 
-    # Exactly one BRIDGE_ALERT entry must exist in bridge_state/alerts/
+    # Exactly one at-most-one invariant BRIDGE_ALERT entry must exist.
+    # Note: binding-commit-failure alerts may also be present (the test
+    # environment has no .tickets-tracker git repo, so the commit step
+    # fails gracefully — this is expected and does not affect the invariant
+    # being tested here).
     alerts_dir = tmp_path / "bridge_state" / "bridge_alerts"
     alert_files = list(alerts_dir.glob("*.jsonl")) if alerts_dir.is_dir() else []
     all_alert_lines = []
@@ -512,10 +516,15 @@ def test_end_to_end_second_write_produces_one_alert_one_bug(tmp_path):
                 except json.JSONDecodeError:
                     pass  # malformed alert line — skip
 
-    assert len(all_alert_lines) == 1, (
-        f"Expected exactly 1 BRIDGE_ALERT entry, found {len(all_alert_lines)}: "
-        f"{all_alert_lines!r}"
+    invariant_alerts = [
+        r for r in all_alert_lines
+        if r.get("jira_key") or "at-most-one" in r.get("key", "")
+    ]
+    assert len(invariant_alerts) == 1, (
+        f"Expected exactly 1 at-most-one invariant BRIDGE_ALERT entry, "
+        f"found {len(invariant_alerts)}: {invariant_alerts!r} "
+        f"(all alerts: {all_alert_lines!r})"
     )
-    assert all_alert_lines[0].get("jira_key") == "JIRA-42", (
-        f"Alert should be for JIRA-42, got: {all_alert_lines[0]!r}"
+    assert invariant_alerts[0].get("jira_key") == "JIRA-42", (
+        f"Alert should be for JIRA-42, got: {invariant_alerts[0]!r}"
     )

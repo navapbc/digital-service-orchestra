@@ -433,12 +433,29 @@ def _diff_labels_inbound(
 # ---------------------------------------------------------------------------
 
 
-# Bug 8b25: maps an outbound (Jira-side) field name to its inbound (local-side)
-# equivalent so bidirectional suppression compares like-named fields. The
-# outbound differ emits ``parent`` (Jira REST field); the inbound differ emits
-# ``parent_id`` (local ticket field). All other fields share a name across the
-# two directions, so the map only needs the parent entry.
-_OUTBOUND_TO_INBOUND_FIELD = {"parent": "parent_id"}
+# CONTRACT — cross-direction field-name canonicalization
+# -------------------------------------------------------
+# Maps an outbound (Jira REST) field name to its inbound (local ticket) name
+# so that bidirectional suppression in ``_build_outbound_context`` compares
+# like-named fields regardless of which side emitted the mutation.
+#
+# Bug 8b25 root cause: ``outbound_differ`` emits ``parent`` (the Jira REST
+# field); ``inbound_differ`` emits ``parent_id`` (the local ticket field).
+# Without this map the scalar-field suppression set never matched, causing the
+# two differs to oscillate every pass against a stale pre-pass Jira snapshot —
+# observable as perpetual ``fields=['parent']`` churn and Phase-2c parent FAIL
+# in the e2e probe.
+#
+# Canonical entries (as of 183fd51ac2; pending consolidation into
+# _field_contract.py per docs/designs/sync-hardening-proposal.md Item 3):
+#   ``parent``  → ``parent_id``  (Jira REST name → local ticket field name)
+#
+# MAINTENANCE RULE: any field that the outbound differ can emit under a
+# DIFFERENT name than the inbound differ MUST add an entry here.  Fields
+# whose name is identical in both directions do NOT need an entry.  When
+# adding a new bidirectional field, update this map and add a corresponding
+# assertion in tests/unit/dso_reconciler/test_inbound_differ_field_contract.py.
+_OUTBOUND_TO_INBOUND_FIELD: dict[str, str] = {"parent": "parent_id"}
 
 
 def _build_outbound_context(

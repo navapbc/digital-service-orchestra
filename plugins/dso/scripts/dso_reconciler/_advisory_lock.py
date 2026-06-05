@@ -521,9 +521,34 @@ def _write_file_to_tickets_branch(
             )
         old_sha = old_sha_result.stdout.strip()
 
-        # git worktree add requires the target dir to not exist
+        # git worktree add requires the target dir to not exist.
+        # Stale-worktree pre-flight: prune dangling registrations left by a
+        # crashed prior run, then defensively remove the target path if it
+        # still exists after pruning (belt-and-suspenders for the edge case
+        # where mktemp reuses a prefix under a temporary-directory cleaner).
         worktree_parent = Path(_tempfile.mkdtemp(prefix="advisory-lock-wt-parent-"))
         worktree_dir = worktree_parent / "wt"
+        subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "prune"],
+            capture_output=True,
+            check=False,
+        )
+        if worktree_dir.exists():
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo_root),
+                    "worktree",
+                    "remove",
+                    "--force",
+                    str(worktree_dir),
+                ],
+                capture_output=True,
+                check=False,
+            )
+            import shutil as _shutil_preflight
+            _shutil_preflight.rmtree(worktree_dir, ignore_errors=True)
         try:
             # --detach avoids "fatal: 'tickets' is already used by worktree at ..."
             # when a sibling worktree (e.g. .tickets-tracker) has tickets checked out.
@@ -610,8 +635,30 @@ def _delete_file_from_tickets_branch(
             )
         old_sha = old_sha_result.stdout.strip()
 
+        # Stale-worktree pre-flight (mirrors the write path above).
         worktree_parent = Path(_tempfile.mkdtemp(prefix="advisory-lock-wt-parent-"))
         worktree_dir = worktree_parent / "wt"
+        subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "prune"],
+            capture_output=True,
+            check=False,
+        )
+        if worktree_dir.exists():
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo_root),
+                    "worktree",
+                    "remove",
+                    "--force",
+                    str(worktree_dir),
+                ],
+                capture_output=True,
+                check=False,
+            )
+            import shutil as _shutil_preflight
+            _shutil_preflight.rmtree(worktree_dir, ignore_errors=True)
         try:
             # --detach avoids "fatal: 'tickets' is already used by worktree at ..."
             # when a sibling worktree (e.g. .tickets-tracker) has tickets checked out.

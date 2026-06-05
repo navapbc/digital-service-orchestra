@@ -206,7 +206,7 @@ def _commit_binding_store_snapshot(
     binding_store: Any,
     repo_root: Path,
     pass_id: str,
-) -> None:
+) -> bool:
     """Commit the binding-store snapshot to the tickets orphan branch.
 
     Bug: binding_store.save() only writes bindings.json to the working-tree
@@ -223,17 +223,22 @@ def _commit_binding_store_snapshot(
     ``git add -A``, but runs inline so local probe runs that don't go through
     GHA also get durable bindings.
 
+    Returns:
+        True  — commit succeeded (or nothing to commit — bindings already current).
+        False — a subprocess error occurred; bindings persisted to filesystem only.
+
     Degrades gracefully: any subprocess error (git not available, tickets branch
     not checked out, no bindings path, etc.) is caught and logged to stderr;
     the reconciler pass continues and the next GHA commit-back will persist the
-    bindings as normal.
+    bindings as normal.  The caller must NOT abort on False — commit failure
+    must never break the sync pass.
     """
     import subprocess as _sp
 
     tracker_dir = repo_root / ".tickets-tracker"  # tickets-boundary-ok
     bindings_path = tracker_dir / ".bridge_state" / "bindings.json"
     if not bindings_path.exists():
-        return  # Nothing to commit
+        return True  # Nothing to commit — not a failure
 
     try:
         # Stage only bindings.json (never git add -A: avoid staging unrelated
@@ -252,7 +257,7 @@ def _commit_binding_store_snapshot(
             text=True,
         )
         if "bindings.json" not in status.stdout:
-            return  # Already up-to-date; nothing to commit.
+            return True  # Already up-to-date; nothing to commit.
         _sp.run(
             [
                 "git",
@@ -268,6 +273,7 @@ def _commit_binding_store_snapshot(
             capture_output=True,
             text=True,
         )
+        return True
     except Exception as exc:  # noqa: BLE001
         print(  # noqa: T201
             f"reconcile: binding-store commit to tickets branch failed "
@@ -275,6 +281,35 @@ def _commit_binding_store_snapshot(
             f"GHA commit-back will persist them on next run.",
             file=sys.stderr,
         )
+        # Append an alert so operators see the failure in bridge_alerts.
+        _commit_alert_key = f"binding-commit-failure:{pass_id}"
+        try:
+            _alert_store = _load(
+                "plugins.dso.scripts.dso_reconciler.alert_store",
+                "alert_store.py",
+            )
+            if not _alert_store.is_deduped(_commit_alert_key, repo_root):
+                _alert_store.append(
+                    {
+                        "key": _commit_alert_key,
+                        "severity": "error",
+                        "reason": (
+                            "binding-store commit to tickets branch failed; "
+                            "bindings at risk of clobber on next git merge origin/tickets"
+                        ),
+                        "pass_id": pass_id,
+                        "resolved": False,
+                        "timestamp_ns": __import__("time").time_ns(),
+                    },
+                    repo_root,
+                )
+        except Exception as _alert_exc:  # noqa: BLE001
+            print(  # noqa: T201
+                f"ERROR: alert_store write also failed ({_alert_exc}); "
+                f"binding-commit failure not persisted to bridge_alerts.",
+                file=sys.stderr,
+            )
+        return False
 
 
 def _load(name: str, relpath: str):
@@ -1034,7 +1069,22 @@ def reconcile_once(
         # the next ticket-CLI push, causing the next reconciler pass to see
         # bound tickets as unbound and generate CREATE rather than UPDATE
         # mutations (regression: outbound scalar-field edits never land).
-        _commit_binding_store_snapshot(binding_store, repo_root, pass_id)
+        if not _commit_binding_store_snapshot(binding_store, repo_root, pass_id):
+            # Commit failed — bindings are on disk but NOT on the tickets branch.
+            # A concurrent ``git merge origin/tickets`` between now and the next
+            # pass can clobber the working-tree bindings.json with the remote
+            # version, making bound tickets appear unbound (cf93b2b7ad class).
+            # _commit_binding_store_snapshot already logged the error and filed
+            # the alert. Do NOT abort the pass — commit failure must never break
+            # sync.
+            print(  # noqa: T201
+                "ERROR: reconcile: binding-store commit to tickets branch failed; "
+                "bindings are at risk of clobber on the next 'git merge origin/tickets'. "
+                "The current pass will complete normally. Check git state in "
+                ".tickets-tracker and ensure the GHA commit-back step runs to persist "
+                "bindings before the next reconciler pass.",
+                file=sys.stderr,
+            )
     except Exception as exc:  # noqa: BLE001
         print(  # noqa: T201
             f"reconcile: binding store save failed ({exc})",
