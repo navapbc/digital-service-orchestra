@@ -10,10 +10,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -109,3 +110,35 @@ def acli_capture(
         acli_cmd=["echo"],
     )
     return client, captured_cmds, fake_run_acli
+
+
+# ---------------------------------------------------------------------------
+# urllib seam mock (bug 3775)
+# ---------------------------------------------------------------------------
+# AcliClient.create_issue() routes through the module-level create_issue ->
+# _verify_created_issue, which calls urllib.request.urlopen directly when
+# JIRA_URL / JIRA_USER / JIRA_API_TOKEN are present in the environment (a
+# silent env-var behaviour switch). Under the socket guard (tests/conftest.py
+# _dso_network_guard) that real GET raises RuntimeError. This fixture mocks the
+# urlopen seam so create_issue tests stay fully offline without an
+# allow_network bridge. Mirrors the _mock_urlopen_verify helper landed for
+# test_acli_integration.py (commit 27024174e7, bug 1c68).
+
+
+@pytest.fixture
+def mock_jira_verify() -> Iterator[MagicMock]:
+    """Patch urllib.request.urlopen so _verify_created_issue stays offline.
+
+    Returns a well-formed Jira issue GET response (key "TEST-1") so the
+    verify-after-create REST path resolves without a real socket. Tests using
+    this fixture exercise the create payload/argv, not the verify response.
+    """
+    body = json.dumps(
+        {"key": "TEST-1", "summary": "Test", "status": {"name": "To Do"}}
+    ).encode("utf-8")
+    resp = MagicMock()
+    resp.read.return_value = body
+    resp.__enter__ = lambda s: s
+    resp.__exit__ = MagicMock(return_value=False)
+    with patch("urllib.request.urlopen", return_value=resp) as mock_urlopen:
+        yield mock_urlopen

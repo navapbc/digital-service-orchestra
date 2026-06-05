@@ -52,8 +52,26 @@ class BindingStore:
 
     def _load(self) -> dict[str, Any]:
         if self._path.exists():
-            with open(self._path, "r", encoding="utf-8") as f:
-                return json.load(f)
+            try:
+                with open(self._path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, ValueError, OSError) as exc:
+                # Fail CLOSED: corrupt or conflict-marked bindings.json must
+                # never silently degrade to empty bindings.  An empty store
+                # treats every local ticket as unbound → emits CREATE mutations
+                # for all of them on the next pass → mass duplicate Jira issues.
+                #
+                # Recovery hint: resolve the git merge conflict in the file or
+                # restore it from the most recent commit on the tickets branch.
+                raise ValueError(
+                    f"bindings.json is corrupt or contains git conflict markers "
+                    f"and cannot be parsed — aborting reconcile pass to prevent "
+                    f"duplicate Jira mutations. File: {self._path}. "  # tickets-boundary-ok
+                    f"Original error: {exc}. "
+                    f"Recovery: resolve the merge conflict or restore the file "  # tickets-boundary-ok
+                    f"from the tickets branch with: "
+                    f"git show tickets:.tickets-tracker/.bridge_state/bindings.json"  # tickets-boundary-ok
+                ) from exc
         return json.loads(json.dumps(_EMPTY_STORE))  # deep copy
 
     def save(self) -> None:
@@ -150,16 +168,26 @@ class BindingStore:
         """Scan for pending bindings and attempt to recover.
 
         For each pending binding:
-        1. Search Jira for dso-id-{local_id} label
-        2. If found → confirm binding with discovered jira_key
-        3. If not found → unbind (the create never reached Jira)
+        1. Search Jira for ``dso-id:{local_id}`` label (canonical colon form —
+           written by applier.py outbound_create and inbound_create since the
+           identity-label write was introduced).
+        2. If not found, fall back to ``dso-id-{local_id}`` (legacy hyphen
+           form — old issues created before the colon form was adopted may
+           carry this label; differ.py:402-414 recognises both forms).
+        3. If found via either search → confirm binding with discovered key.
+        4. If not found by either → unbind (the create never reached Jira).
 
         Returns count of recovered bindings.
         """
         recovered = 0
         for local_id in list(self.pending_bindings()):
-            label = f"dso-id-{local_id}"
-            results = client.search_issues(f'labels = "{label}"')
+            # Primary: canonical colon-form label (applier.py:753, 1931).
+            colon_label = f"dso-id:{local_id}"
+            results = client.search_issues(f'labels = "{colon_label}"')
+            if not results:
+                # Legacy fallback: hyphen-form label (pre-colon-migration issues).
+                hyphen_label = f"dso-id-{local_id}"
+                results = client.search_issues(f'labels = "{hyphen_label}"')
             if results:
                 jira_key = results[0]["key"]
                 self.bind_confirm(local_id, jira_key)

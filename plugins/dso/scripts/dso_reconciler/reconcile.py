@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -199,6 +200,116 @@ def preflight_status_mapping(mutations) -> None:
                 f"local status {status!r} not in local_to_jira_status mapping "
                 f"(target={target})"
             )
+
+
+def _commit_binding_store_snapshot(
+    binding_store: Any,
+    repo_root: Path,
+    pass_id: str,
+) -> bool:
+    """Commit the binding-store snapshot to the tickets orphan branch.
+
+    Bug: binding_store.save() only writes bindings.json to the working-tree
+    filesystem.  When the ticket-CLI's _push_tickets_branch() runs between
+    reconciler passes and merges origin/tickets, the un-committed local copy
+    of bindings.json is silently overwritten by the version committed by a
+    concurrent GHA run — causing the NEXT reconciler pass to see previously-
+    bound tickets as unbound, generating outbound CREATE mutations instead of
+    UPDATE mutations and producing a no-op dedup-skip rather than field updates.
+
+    Fix: after every successful binding_store.save(), git-stage the file and
+    commit it to the tickets orphan branch inside the .tickets-tracker worktree.
+    This mirrors what the GHA workflow's "commit-back" step does via
+    ``git add -A``, but runs inline so local probe runs that don't go through
+    GHA also get durable bindings.
+
+    Returns:
+        True  — commit succeeded (or nothing to commit — bindings already current).
+        False — a subprocess error occurred; bindings persisted to filesystem only.
+
+    Degrades gracefully: any subprocess error (git not available, tickets branch
+    not checked out, no bindings path, etc.) is caught and logged to stderr;
+    the reconciler pass continues and the next GHA commit-back will persist the
+    bindings as normal.  The caller must NOT abort on False — commit failure
+    must never break the sync pass.
+    """
+    import subprocess as _sp
+
+    tracker_dir = repo_root / ".tickets-tracker"  # tickets-boundary-ok
+    bindings_path = tracker_dir / ".bridge_state" / "bindings.json"
+    if not bindings_path.exists():
+        return True  # Nothing to commit — not a failure
+
+    try:
+        # Stage only bindings.json (never git add -A: avoid staging unrelated
+        # working-tree changes in the tickets worktree).
+        _sp.run(
+            ["git", "-C", str(tracker_dir), "add", ".bridge_state/bindings.json"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        # Check if there is actually a diff to commit (idempotent).
+        status = _sp.run(
+            ["git", "-C", str(tracker_dir), "diff", "--cached", "--name-only"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        if "bindings.json" not in status.stdout:
+            return True  # Already up-to-date; nothing to commit.
+        _sp.run(
+            [
+                "git",
+                "-C",
+                str(tracker_dir),
+                "commit",
+                "--no-verify",
+                "-q",
+                "-m",
+                f"reconciler: persist binding-store snapshot [pass {pass_id}]",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        print(  # noqa: T201
+            f"reconcile: binding-store commit to tickets branch failed "
+            f"({exc!r}); bindings saved to filesystem only — "
+            f"GHA commit-back will persist them on next run.",
+            file=sys.stderr,
+        )
+        # Append an alert so operators see the failure in bridge_alerts.
+        _commit_alert_key = f"binding-commit-failure:{pass_id}"
+        try:
+            _alert_store = _load(
+                "plugins.dso.scripts.dso_reconciler.alert_store",
+                "alert_store.py",
+            )
+            if not _alert_store.is_deduped(_commit_alert_key, repo_root):
+                _alert_store.append(
+                    {
+                        "key": _commit_alert_key,
+                        "severity": "error",
+                        "reason": (
+                            "binding-store commit to tickets branch failed; "
+                            "bindings at risk of clobber on next git merge origin/tickets"
+                        ),
+                        "pass_id": pass_id,
+                        "resolved": False,
+                        "timestamp_ns": __import__("time").time_ns(),
+                    },
+                    repo_root,
+                )
+        except Exception as _alert_exc:  # noqa: BLE001
+            print(  # noqa: T201
+                f"ERROR: alert_store write also failed ({_alert_exc}); "
+                f"binding-commit failure not persisted to bridge_alerts.",
+                file=sys.stderr,
+            )
+        return False
 
 
 def _load(name: str, relpath: str):
@@ -469,9 +580,64 @@ def reconcile_once(
     prev_dir = tracker_dir / ".bridge_state"
     prev_dir.mkdir(parents=True, exist_ok=True)
     prev_path = prev_dir / "prev_snapshot.json"
-    prev_snapshot: dict = (
-        json.loads(prev_path.read_text()) if prev_path.exists() else {}
-    )
+    if prev_path.exists():
+        try:
+            prev_snapshot: dict = json.loads(prev_path.read_text())
+        except (json.JSONDecodeError, ValueError, OSError) as _exc:
+            # SAFETY INVARIANT: a corrupt or conflict-marked prev_snapshot.json
+            # must NEVER cause the pass to proceed with an unknown Jira comment
+            # state.  If we continued with prev_snapshot={}, the inbound differ
+            # would re-derive all create mutations (expensive but safe).  However,
+            # the outbound differ uses curr_snapshot (the live fetch), not
+            # prev_snapshot, for comment dedup — so comment mutations would be
+            # correct IF we could reach that point.  The problem is we cannot
+            # trust that even prev_snapshot corruption is the only issue; the
+            # tickets branch may be in a partially-merged state that makes curr
+            # state unknown too.  Abort the pass with a loud ERROR and alert.
+            _alert_key = f"corrupt_prev_snapshot:{pass_id}"
+            print(  # noqa: T201
+                f"ERROR: prev_snapshot.json is corrupt or contains git conflict "
+                f"markers and cannot be parsed. Aborting reconcile pass "
+                f"'{pass_id}' to prevent emitting mutations against unknown "
+                f"Jira state. File: {prev_path}. Error: {_exc}. "
+                f"Recovery: resolve the merge conflict or delete the file to "
+                f"force a full re-fetch on the next pass.",
+                file=sys.stderr,
+            )
+            try:
+                _alert_store = _load(
+                    "plugins.dso.scripts.dso_reconciler.alert_store",
+                    "alert_store.py",
+                )
+                _alert_store.append(
+                    {
+                        "key": _alert_key,
+                        "severity": "critical",
+                        "reason": (
+                            f"prev_snapshot.json corrupt/unparseable at {prev_path}: "
+                            f"{_exc}"
+                        ),
+                        "pass_id": pass_id,
+                        "file": str(prev_path),
+                        "resolved": False,
+                        "timestamp_ns": __import__("time").time_ns(),
+                    },
+                    repo_root,
+                )
+            except Exception as _alert_exc:  # noqa: BLE001
+                print(  # noqa: T201
+                    f"ERROR: alert_store write also failed ({_alert_exc}); "
+                    f"corruption event not persisted to bridge_alerts.",
+                    file=sys.stderr,
+                )
+            raise RuntimeError(
+                f"Aborting reconcile pass '{pass_id}': prev_snapshot.json "
+                f"is corrupt or contains git conflict markers at {prev_path}. "
+                f"Original parse error: {_exc}. "
+                f"Recovery: resolve the merge conflict or delete the file."
+            ) from _exc
+    else:
+        prev_snapshot = {}
 
     # Fetch current remote state
     curr_path = fetcher.fetch_snapshot(pass_id, repo_root)
@@ -633,12 +799,32 @@ def reconcile_once(
     local_label_intent = local_label_intent_mod.compute_label_intent_map(
         bound_local_ids, tracker_dir
     )
+
+    # Bug 4292: create an AcliClient for the outbound differ's live comment
+    # fetch path. Jira search results (used by fetcher.fetch_snapshot) do NOT
+    # include the comment field — so every live snapshot entry lacks "comment"
+    # data. Without a client, _diff_comments would fall back to jira_comments=[]
+    # and re-emit every local comment as an "add" on every pass. The client is
+    # used at most once per bound ticket with local comments (bounded call count).
+    # The client is created here (rather than inside outbound_differ.py) so the
+    # differ stays importable in test environments without JIRA_URL/JIRA_USER
+    # env vars set, and to keep the I/O-free fixture path intact.
+    # Use "acli_integration" as the sys.modules key — same canonical key used
+    # by applier._load_acli() so the module is shared and not double-loaded.
+    acli_mod_for_comments = _load("acli_integration", "../acli-integration.py")
+    outbound_diff_client = acli_mod_for_comments.AcliClient(
+        jira_url=os.environ.get("JIRA_URL", ""),
+        user=os.environ.get("JIRA_USER", ""),
+        api_token=os.environ.get("JIRA_API_TOKEN", ""),
+    )
+
     outbound_raw = outbound_differ_mod.compute_outbound_mutations(
         local_tickets,
         curr_snapshot,
         binding_store,
         excluded_statuses={"archived", "deleted"},
         local_label_intent=local_label_intent,
+        client=outbound_diff_client,
     )
     sync_logger.log(
         "outbound_differ_complete",
@@ -876,6 +1062,29 @@ def reconcile_once(
     # -------------------------------------------------------------------
     try:
         binding_store.save()
+        # Commit the updated bindings.json to the tickets orphan branch so
+        # it survives a concurrent ``git merge origin/tickets`` in the
+        # ticket-CLI's _push_tickets_branch() between reconciler passes.
+        # Without this commit, local probe runs lose newly-created bindings on
+        # the next ticket-CLI push, causing the next reconciler pass to see
+        # bound tickets as unbound and generate CREATE rather than UPDATE
+        # mutations (regression: outbound scalar-field edits never land).
+        if not _commit_binding_store_snapshot(binding_store, repo_root, pass_id):
+            # Commit failed — bindings are on disk but NOT on the tickets branch.
+            # A concurrent ``git merge origin/tickets`` between now and the next
+            # pass can clobber the working-tree bindings.json with the remote
+            # version, making bound tickets appear unbound (cf93b2b7ad class).
+            # _commit_binding_store_snapshot already logged the error and filed
+            # the alert. Do NOT abort the pass — commit failure must never break
+            # sync.
+            print(  # noqa: T201
+                "ERROR: reconcile: binding-store commit to tickets branch failed; "
+                "bindings are at risk of clobber on the next 'git merge origin/tickets'. "
+                "The current pass will complete normally. Check git state in "
+                ".tickets-tracker and ensure the GHA commit-back step runs to persist "
+                "bindings before the next reconciler pass.",
+                file=sys.stderr,
+            )
     except Exception as exc:  # noqa: BLE001
         print(  # noqa: T201
             f"reconcile: binding store save failed ({exc})",

@@ -16,6 +16,7 @@ import importlib.util
 import json
 import os
 import sys
+import urllib.error
 from pathlib import Path
 
 # Split-JQL contract (bug f6cc-b174-9e9a-435c — single JQL hit 1000-issue
@@ -304,6 +305,103 @@ def fetch_snapshot(
                 if not isinstance(fields, dict):
                     fields = {}
                 snapshot[key] = {k: fields[k] for k in sorted(fields.keys())}
+
+    # Parent enrichment (ticket 8b25-ae7a-efc3-47f6):
+    # ACLI's -f field selector silently rejects the ``parent`` field, so
+    # the snapshot entries built from search_issues() above never carry a
+    # parent key.  We perform ONE extra paged REST search via
+    # client.get_parent_map() to retrieve {key → parent_key|None} for the
+    # full project scope, then merge the parent field into each snapshot entry.
+    #
+    # Degradation contract: get_parent_map logs a warning and returns {} on
+    # any REST failure; the snapshot is still written without parent data so
+    # the reconciler pass completes rather than blocking on a transient error.
+    import logging as _log_mod
+
+    _fetcher_log = _log_mod.getLogger(__name__)
+    try:
+        # Derive the project key from the first snapshot key (e.g. "DIG-123" → "DIG").
+        # Fall back to the JIRA_PROJECT env var when the snapshot is empty.
+        project_key = os.environ.get("JIRA_PROJECT", "")
+        if not project_key and snapshot:
+            first_key = next(iter(snapshot))
+            project_key = first_key.rsplit("-", 1)[0] if "-" in first_key else ""
+        if project_key and hasattr(client, "get_parent_map"):
+            parent_map = client.get_parent_map(project_key)
+            for snap_key, parent_jira_key in parent_map.items():
+                if snap_key in snapshot:
+                    if parent_jira_key:
+                        snapshot[snap_key]["parent"] = {"key": parent_jira_key}
+                    # When parent_jira_key is None, leave the field absent
+                    # (top-level issue) — consistent with Jira REST shape.
+    except urllib.error.HTTPError as exc:
+        # API retirements (HTTP 410 GONE) must be loud — a transient WARNING
+        # would let a permanent endpoint removal hide in the noise. Transient
+        # HTTP faults stay at WARNING (ticket 8b25). get_parent_map already
+        # swallows 410 internally; this catch is the defense-in-depth net for
+        # any 410 that surfaces from a future enrichment path.
+        if exc.code == 410:
+            _fetcher_log.error(
+                "fetch_snapshot: parent enrichment hit HTTP 410 GONE — the Jira "
+                "search endpoint has been RETIRED; snapshot written without parent "
+                "data (degraded). API retirement, not a transient fault: %r",
+                exc,
+            )
+        else:
+            _fetcher_log.warning(
+                "fetch_snapshot: parent enrichment failed (HTTP %s: %r); "
+                "snapshot written without parent data (degraded)",
+                exc.code,
+                exc,
+            )
+    except Exception as exc:  # noqa: BLE001
+        _fetcher_log.warning(
+            "fetch_snapshot: parent enrichment failed (%r); "
+            "snapshot written without parent data (degraded)",
+            exc,
+        )
+
+    # Comment-state enrichment (Action viability): the per-commented-ticket
+    # ``acli comment list`` calls the differ would otherwise issue every pass
+    # (~1-2s each, fleet-wide) are amortised into ONE paged REST search via
+    # client.get_comment_map(). We merge the returned ``comment`` field into
+    # each snapshot entry so outbound_differ._diff_comments takes the
+    # snapshot-carried path (no client.get_comments round-trip).
+    #
+    # Invariant: only entries the search actually returned a comment field for
+    # are enriched; entries the search omits keep NO ``comment`` key, so the
+    # differ falls back to the per-ticket get_comments path for them (the
+    # never-emit-blind safety invariant stays intact). On any search failure
+    # the enrichment is skipped entirely and every ticket falls back — the
+    # reconciler pass still completes.
+    try:
+        if project_key and hasattr(client, "get_comment_map"):
+            comment_map = client.get_comment_map(project_key)
+            for snap_key, comment_field in comment_map.items():
+                if snap_key in snapshot and isinstance(comment_field, dict):
+                    snapshot[snap_key]["comment"] = comment_field
+    except urllib.error.HTTPError as exc:
+        if exc.code == 410:
+            _fetcher_log.error(
+                "fetch_snapshot: comment enrichment hit HTTP 410 GONE — the Jira "
+                "search endpoint has been RETIRED; snapshot written without "
+                "comment data (per-ticket fallback applies). API retirement, not "
+                "a transient fault: %r",
+                exc,
+            )
+        else:
+            _fetcher_log.warning(
+                "fetch_snapshot: comment enrichment failed (HTTP %s: %r); "
+                "snapshot written without comment data (per-ticket fallback)",
+                exc.code,
+                exc,
+            )
+    except Exception as exc:  # noqa: BLE001
+        _fetcher_log.warning(
+            "fetch_snapshot: comment enrichment failed (%r); "
+            "snapshot written without comment data (per-ticket fallback)",
+            exc,
+        )
 
     output_dir = repo_root / "bridge_state" / "snapshots"
     output_dir.mkdir(parents=True, exist_ok=True)

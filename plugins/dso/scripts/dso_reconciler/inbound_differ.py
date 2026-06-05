@@ -65,6 +65,29 @@ class BindingStoreProtocol(Protocol):
     def get_local_id(self, jira_key: str) -> str | None: ...
 
 
+def _extract_parent_local_id(
+    jira_fields: dict[str, Any],
+    binding_store: Any,
+) -> str | None:
+    """Extract the local parent_id from a Jira snapshot entry's parent field.
+
+    Jira REST returns ``parent`` as ``{"key": "DIG-N", ...}`` (ticket 8b25).
+    Resolves the parent Jira key to a local id via
+    ``binding_store.get_local_id(key)``.  Returns ``None`` when:
+      - the snapshot entry has no ``parent`` field (top-level issue)
+      - the parent key is not yet bound (retry on next pass)
+    """
+    parent_raw = jira_fields.get("parent")
+    if not parent_raw:
+        return None
+    if not isinstance(parent_raw, dict):
+        return None
+    parent_jira_key = parent_raw.get("key")
+    if not parent_jira_key:
+        return None
+    return binding_store.get_local_id(parent_jira_key)
+
+
 # ---------------------------------------------------------------------------
 # InboundMutation dataclass
 # ---------------------------------------------------------------------------
@@ -104,9 +127,19 @@ _JIRA_TO_LOCAL_PRIORITY: dict[str, int] = {
 _JIRA_TO_LOCAL_STATUS: dict[str, str] = {
     "To Do": "open",
     "In Progress": "in_progress",
+    # "In Review" is a live DIG workflow state that was missing from the map,
+    # causing it to fall through to the "open" default (ticket 929a).
+    "In Review": "in_progress",
     "Blocked": "blocked",
     "Done": "closed",
     "Cancelled": "cancelled",
+}
+
+# dso-status: annotation labels that override the Jira workflow status on inbound.
+# Maps dso-status:<label> -> local status. Takes precedence over _JIRA_TO_LOCAL_STATUS.
+_DSO_STATUS_LABEL_TO_LOCAL: dict[str, str] = {
+    "dso-status:blocked": "blocked",
+    "dso-status:cancelled": "cancelled",
 }
 
 
@@ -125,8 +158,46 @@ def _extract_jira_field_value(jira_fields: dict[str, Any], field: str) -> Any:
     return raw
 
 
+def _assignee_matches(local_val: str, jira_raw: Any) -> bool:
+    """Permissive assignee equality (mirror of outbound_differ._assignee_matches).
+
+    Convergence-churn fix (bug 85a1 family): a live Jira fetch returns
+    ``assignee`` as ``{accountId, displayName, emailAddress}``; local tickets
+    store assignee as a bare string that may be an email (ticket-create
+    default), a displayName (probe), or "Test" (git-config default). The
+    outbound differ already tolerates all three identity forms; without the
+    same tolerance here, the inbound differ extracts only ``displayName`` and
+    reports a phantom ``assignee`` change on every pass whenever local stores a
+    DIFFERENT identity form than Jira returns — the assignee field never
+    converges.
+
+    Treat ``local_val`` as matching when it equals ANY of {emailAddress,
+    accountId, displayName}. Both sides empty (unassigned) also match.
+    """
+    if jira_raw is None:
+        return (local_val or "") == ""
+    if not isinstance(jira_raw, dict):
+        return (local_val or "") == str(jira_raw)
+    candidates = {
+        (jira_raw.get("emailAddress") or "").strip(),
+        (jira_raw.get("accountId") or "").strip(),
+        (jira_raw.get("displayName") or "").strip(),
+    }
+    candidates.discard("")
+    return (local_val or "").strip() in candidates
+
+
 def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
-    """Map Jira fields to local ticket field names/values."""
+    """Map Jira fields to local ticket field names/values.
+
+    ticket 929a: when jira_fields carries a dso-status: annotation label
+    (e.g. ``dso-status:blocked``), the label takes precedence over the raw
+    Jira workflow status for the local status mapping. This preserves lossless
+    round-trip for statuses that have no direct Jira equivalent (blocked maps
+    to In Progress on Jira, cancelled maps to Done). Without this, a
+    blocked→In Progress outbound followed by an inbound pass would silently
+    overwrite local "blocked" with "in_progress".
+    """
     summary = _extract_jira_field_value(jira_fields, "summary") or ""
     # Bug 1bb2: ``_extract_jira_field_value`` returns nested dicts verbatim
     # for any field that isn't a {.name/.displayName} object — Jira's
@@ -140,12 +211,22 @@ def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
     status_raw = _extract_jira_field_value(jira_fields, "status") or "To Do"
     assignee = _extract_jira_field_value(jira_fields, "assignee") or ""
 
+    # Prefer dso-status: annotation label over raw Jira workflow status.
+    # Check labels list for any dso-status: entry and map to local status.
+    local_status: str | None = None
+    for label in jira_fields.get("labels") or []:
+        if label in _DSO_STATUS_LABEL_TO_LOCAL:
+            local_status = _DSO_STATUS_LABEL_TO_LOCAL[label]
+            break
+    if local_status is None:
+        local_status = _JIRA_TO_LOCAL_STATUS.get(status_raw, "open")
+
     return {
         "title": summary,
         "description": description,
         "ticket_type": _JIRA_TO_LOCAL_TYPE.get(issuetype_raw, "task"),
         "priority": _JIRA_TO_LOCAL_PRIORITY.get(priority_raw, 2),
-        "status": _JIRA_TO_LOCAL_STATUS.get(status_raw, "open"),
+        "status": local_status,
         "assignee": assignee,
     }
 
@@ -153,11 +234,17 @@ def _map_jira_to_local_fields(jira_fields: dict[str, Any]) -> dict[str, Any]:
 def _diff_jira_vs_local(
     jira_fields: dict[str, Any],
     local_ticket: dict[str, Any],
+    binding_store: Any = None,
 ) -> dict[str, Any]:
     """Compare Jira fields to local ticket. Return fields where Jira differs.
 
     Only returns fields where the Jira value (mapped to local conventions)
     differs from the current local value.
+
+    Parent sync (ticket 8b25): when ``binding_store`` is provided, the Jira
+    ``parent`` field is resolved to a local id and compared against
+    ``local_ticket["parent_id"]``.  Unbound parent keys are omitted (not
+    emitted as changes) so the next pass can retry once the parent is bound.
     """
     jira_mapped = _map_jira_to_local_fields(jira_fields)
     changed: dict[str, Any] = {}
@@ -179,6 +266,17 @@ def _diff_jira_vs_local(
     }
 
     for local_field, ticket_field in field_map.items():
+        # Assignee: shape-tolerant equality. A live Jira fetch returns the
+        # assignee as a {accountId, displayName, emailAddress} dict while local
+        # stores a bare string in any one of those forms. Compare against the
+        # RAW Jira value (not the displayName-only mapped value) so a local
+        # email matching the Jira dict's emailAddress does not emit a phantom
+        # inbound update every pass (bug 85a1 family — assignee convergence).
+        if local_field == "assignee":
+            local_assignee = local_ticket.get(ticket_field) or ""
+            if not _assignee_matches(local_assignee, jira_fields.get("assignee")):
+                changed[local_field] = jira_mapped.get(local_field)
+            continue
         jira_val = jira_mapped.get(local_field)
         local_val = local_ticket.get(ticket_field)
         # Normalise None to empty string for string fields
@@ -201,6 +299,21 @@ def _diff_jira_vs_local(
             continue
         if jira_val != local_val:
             changed[local_field] = jira_val
+
+    # Parent sync (ticket 8b25): diff Jira parent against local parent_id.
+    # Skip when no binding_store provided (legacy call path).
+    if binding_store is not None:
+        jira_parent_local_id = _extract_parent_local_id(jira_fields, binding_store)
+        local_parent_id = local_ticket.get("parent_id") or None
+        if jira_parent_local_id is not None:
+            # Parent key IS bound — compare and emit diff when changed
+            if jira_parent_local_id != local_parent_id:
+                changed["parent_id"] = jira_parent_local_id
+        # When jira_parent_local_id is None: either Jira has no parent (skip),
+        # or parent key is unbound this pass (skip + retry next pass).
+        # We do NOT emit parent_id=None to avoid accidentally clearing
+        # a locally-set parent when we just can't resolve it yet.
+
     return changed
 
 
@@ -219,7 +332,10 @@ def _diff_jira_vs_local(
 # ``_apply_outbound_create`` / ``_apply_inbound_create``; ``dso-id-`` is
 # preserved for backward compatibility with pre-cutover labels still on
 # legacy Jira issues.
-_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:")
+# dso-status: annotation labels are reconciler-managed (emitted/removed by
+# status logic); they must not leak into local ticket tags via inbound label
+# sync (ticket 929a). Exclude from both sides of the label diff.
+_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id:", "dso-id-", "imported:", "dso-status:")
 
 
 def _normalize_jira_body(body: Any) -> str:
@@ -317,6 +433,31 @@ def _diff_labels_inbound(
 # ---------------------------------------------------------------------------
 
 
+# CONTRACT — cross-direction field-name canonicalization
+# -------------------------------------------------------
+# Maps an outbound (Jira REST) field name to its inbound (local ticket) name
+# so that bidirectional suppression in ``_build_outbound_context`` compares
+# like-named fields regardless of which side emitted the mutation.
+#
+# Bug 8b25 root cause: ``outbound_differ`` emits ``parent`` (the Jira REST
+# field); ``inbound_differ`` emits ``parent_id`` (the local ticket field).
+# Without this map the scalar-field suppression set never matched, causing the
+# two differs to oscillate every pass against a stale pre-pass Jira snapshot —
+# observable as perpetual ``fields=['parent']`` churn and Phase-2c parent FAIL
+# in the e2e probe.
+#
+# Canonical entries (as of 183fd51ac2; pending consolidation into
+# _field_contract.py per docs/designs/sync-hardening-proposal.md Item 3):
+#   ``parent``  → ``parent_id``  (Jira REST name → local ticket field name)
+#
+# MAINTENANCE RULE: any field that the outbound differ can emit under a
+# DIFFERENT name than the inbound differ MUST add an entry here.  Fields
+# whose name is identical in both directions do NOT need an entry.  When
+# adding a new bidirectional field, update this map and add a corresponding
+# assertion in tests/unit/dso_reconciler/test_inbound_differ_field_contract.py.
+_OUTBOUND_TO_INBOUND_FIELD: dict[str, str] = {"parent": "parent_id"}
+
+
 def _build_outbound_context(
     outbound_mutations: list[Any] | None,
 ) -> dict[str, dict[str, Any]]:
@@ -354,7 +495,17 @@ def _build_outbound_context(
             elif action == "remove":
                 entry["label_removes"].add(label)
         for field_name in (getattr(om, "fields", {}) or {}).keys():
-            entry["fields"].add(field_name)
+            # Bug 8b25: the outbound differ emits the parent under the Jira
+            # field name ``parent`` (a bare key string), while the inbound
+            # differ emits the same logical change under the LOCAL field name
+            # ``parent_id``. Record the inbound-side name so the scalar
+            # suppression at the call site (which keys on inbound field names)
+            # actually matches. Without this canonicalisation, an outbound
+            # ``parent`` reparent never suppresses the inbound ``parent_id``
+            # re-emission, and the two differs oscillate every pass against a
+            # stale pre-pass Jira snapshot — the perpetual ``fields=['parent']``
+            # steady-state churn and the e2e probe's parent FAIL.
+            entry["fields"].add(_OUTBOUND_TO_INBOUND_FIELD.get(field_name, field_name))
     return ctx
 
 
@@ -419,7 +570,9 @@ def compute_inbound_mutations(
             # Bound but local ticket missing — skip (may be deleted locally)
             continue
 
-        changed = _diff_jira_vs_local(jira_fields, local_ticket)
+        changed = _diff_jira_vs_local(
+            jira_fields, local_ticket, binding_store=binding_store
+        )
         label_mutations = _diff_labels_inbound(jira_fields, local_ticket)
         comment_mutations = _diff_comments_inbound(jira_fields, local_ticket)
 

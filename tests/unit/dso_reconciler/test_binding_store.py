@@ -152,6 +152,12 @@ class TestRecovery:
     def test_recover_pending_found_in_jira(
         self, store: BindingStore
     ) -> None:
+        """Recovery with a mock that returns a hit for any query (legacy behavior).
+
+        Updated to accept colon-form as the primary search label — the
+        assert_called_once_with check is replaced by a call_args inspection
+        that confirms the FIRST call uses the colon form.
+        """
         store.bind_pending("lost-1")
 
         client = MagicMock()
@@ -162,7 +168,11 @@ class TestRecovery:
         assert count == 1
         assert store.get_jira_key("lost-1") == "DIG-200"
         assert not store.is_pending("lost-1")
-        client.search_issues.assert_called_once_with('labels = "dso-id-lost-1"')
+        # The FIRST search must use the canonical colon form.
+        first_call_arg = client.search_issues.call_args_list[0][0][0]
+        assert first_call_arg == 'labels = "dso-id:lost-1"', (
+            f"Primary search must use colon form; got: {first_call_arg!r}"
+        )
 
     def test_recover_pending_not_found_in_jira(
         self, store: BindingStore
@@ -183,6 +193,92 @@ class TestRecovery:
         client = MagicMock()
         assert store.recover_pending_bindings(client) == 0
         client.search_issues.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # NEW tests — bug 8a1f-fd52-a416-4776 regression tests
+    # ------------------------------------------------------------------
+
+    def test_recover_colon_form_primary_hit(
+        self, store: BindingStore
+    ) -> None:
+        """Client returns a result ONLY for colon-form JQL — binding confirmed.
+
+        This is the RED test: before the fix, the code searches hyphen-form
+        (dso-id-{id}) which returns no results, so the binding is discarded.
+        After the fix, colon-form (dso-id:{id}) is the primary search and
+        matches the mock, confirming the binding to DIG-999.
+        """
+        store.bind_pending("abc-5678")
+
+        def selective_search(jql: str):
+            # Only return a hit for the canonical colon-form label.
+            if jql == 'labels = "dso-id:abc-5678"':
+                return [{"key": "DIG-999"}]
+            return []
+
+        client = MagicMock()
+        client.search_issues.side_effect = selective_search
+
+        count = store.recover_pending_bindings(client)
+
+        assert count == 1, "recover_pending_bindings must count the entry"
+        assert store.get_jira_key("abc-5678") == "DIG-999", (
+            "Binding must be confirmed from colon-form search"
+        )
+        assert not store.is_pending("abc-5678"), (
+            "Entry must no longer be pending after colon-form recovery"
+        )
+
+    def test_recover_hyphen_form_legacy_fallback(
+        self, store: BindingStore
+    ) -> None:
+        """Client returns a result ONLY for hyphen-form JQL — legacy fallback.
+
+        Old issues written before the colon→hyphen migration may carry a
+        dso-id-{id} label.  The recovery logic must attempt the hyphen-form
+        when the colon-form search returns nothing.
+        """
+        store.bind_pending("xyz-0001")
+
+        def selective_search(jql: str):
+            # Only return a hit for the legacy hyphen-form label.
+            if jql == 'labels = "dso-id-xyz-0001"':
+                return [{"key": "DIG-100"}]
+            return []
+
+        client = MagicMock()
+        client.search_issues.side_effect = selective_search
+
+        count = store.recover_pending_bindings(client)
+
+        assert count == 1
+        assert store.get_jira_key("xyz-0001") == "DIG-100", (
+            "Binding must be confirmed from hyphen-form legacy fallback"
+        )
+        assert not store.is_pending("xyz-0001")
+
+    def test_recover_colon_form_wins_when_both_present(
+        self, store: BindingStore
+    ) -> None:
+        """When both colon-form and hyphen-form would match, colon-form is used.
+
+        The colon search must be attempted first; because it returns a hit,
+        the hyphen-form fallback must NOT be called.
+        """
+        store.bind_pending("dup-0042")
+
+        client = MagicMock()
+        client.search_issues.return_value = [{"key": "DIG-42"}]
+
+        store.recover_pending_bindings(client)
+
+        assert store.get_jira_key("dup-0042") == "DIG-42"
+        # Only ONE search_issues call: colon form found the issue immediately.
+        assert client.search_issues.call_count == 1, (
+            "Should stop at colon-form hit; hyphen fallback must not be called"
+        )
+        first_call_arg = client.search_issues.call_args_list[0][0][0]
+        assert first_call_arg == 'labels = "dso-id:dup-0042"'
 
 
 class TestLoadBindingStore:

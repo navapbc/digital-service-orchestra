@@ -463,3 +463,108 @@ def test_combined_field_and_label_suppression_same_jira_key(
     assert suppressed == 3, (
         f"Expected 3 suppressions (field + label-add + label-remove), got {suppressed}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bug 8b25: outbound emits the parent under the Jira field name ``parent``;
+# inbound emits the same logical change under the LOCAL field name
+# ``parent_id``. Bidirectional suppression keys on inbound field names, so
+# without canonicalisation the inbound ``parent_id`` re-emission is NEVER
+# suppressed by an outbound ``parent`` reparent. The two differs then
+# oscillate every pass against the stale pre-pass Jira snapshot — the
+# perpetual ``fields=['parent']`` churn and the e2e probe's parent FAIL.
+# Live-traced and proven in the minimal-repro loop (DIG-5446 flip-flopping
+# DIG-5445 <-> DIG-5447 across passes until this fix converged it to 0).
+# ---------------------------------------------------------------------------
+
+
+def test_build_outbound_context_canonicalizes_parent_to_parent_id(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """Outbound ``parent`` field is recorded under the inbound name ``parent_id``.
+
+    The outbound differ writes ``fields["parent"] = <jira_key>``; the
+    suppression set must store ``parent_id`` so the inbound scalar filter
+    (which keys on local field names) matches.
+    """
+    om = _ob_mut(
+        outbound_differ,
+        jira_key="PROJ-P",
+        fields={"parent": "DIG-9999"},
+    )
+    ctx = inbound_differ._build_outbound_context([om])
+    entry = ctx["PROJ-P"]
+    assert entry["fields"] == {"parent_id"}, (
+        "outbound 'parent' must be canonicalised to inbound 'parent_id' so "
+        f"bidirectional suppression matches; got {entry['fields']!r}"
+    )
+
+
+def test_inbound_parent_id_suppressed_when_outbound_reparents(
+    inbound_differ: ModuleType, outbound_differ: ModuleType
+) -> None:
+    """Local just reparented to E2; outbound emits parent->DIG-E2; inbound must
+    NOT echo back the stale Jira parent_id (the old epic) from the pre-pass
+    snapshot. Before bug-8b25's fix this suppression silently failed because
+    outbound recorded 'parent' but inbound emitted 'parent_id'.
+    """
+    # Jira snapshot still shows the OLD parent (DIG-OLD -> local epic-old);
+    # local has been reparented to epic-new. Local-side change is fresher.
+    jira_snapshot = {
+        "PROJ-CHILD": {
+            "summary": "T",
+            "description": "D",
+            "issuetype": "Task",
+            "priority": "Medium",
+            "status": "To Do",
+            "assignee": "alice",
+            "labels": [],
+            "parent": {"key": "DIG-OLD"},
+        }
+    }
+    local_tickets = {
+        "local-child": {
+            "title": "T",
+            "description": "D",
+            "ticket_type": "task",
+            "priority": 2,
+            "status": "open",
+            "assignee": "alice",
+            "tags": [],
+            "parent_id": "epic-new",
+        }
+    }
+    # binding_store resolves the stale Jira parent key to its local id so the
+    # inbound differ would (absent suppression) emit parent_id=epic-old.
+    store = StubBindingStore(
+        {"PROJ-CHILD": "local-child", "DIG-OLD": "epic-old", "DIG-NEW": "epic-new"}
+    )
+
+    outbound_mutations = [
+        outbound_differ.OutboundMutation(
+            local_id="local-child",
+            jira_key="PROJ-CHILD",
+            action="update",
+            # The outbound differ resolves epic-new -> DIG-NEW and writes it
+            # under the Jira field name 'parent'.
+            fields={"parent": "DIG-NEW"},
+            labels=[],
+        )
+    ]
+
+    result, suppressed = inbound_differ.compute_inbound_mutations(
+        jira_snapshot=jira_snapshot,
+        binding_store=store,
+        local_tickets_by_id=local_tickets,
+        outbound_mutations=outbound_mutations,
+    )
+
+    for m in result:
+        assert "parent_id" not in m.fields, (
+            "Inbound emitted contradictory parent_id update that would clobber "
+            f"the just-reparented local value and re-trigger oscillation: {m}"
+        )
+    # Exactly one scalar suppression (the parent_id echo).
+    assert suppressed == 1, (
+        f"Expected the inbound parent_id echo to be suppressed; got {suppressed}"
+    )

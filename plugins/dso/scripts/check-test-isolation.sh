@@ -67,7 +67,7 @@ if [[ $# -eq 0 ]] && [[ "${STAGED_ONLY:-false}" == "true" ]]; then
     STAGED_TEST_FILES=()
     while IFS= read -r f; do
         [[ -n "$f" ]] && STAGED_TEST_FILES+=("$REPO_ROOT/$f")
-    done < <(cd "$REPO_ROOT" && git diff --cached --name-only 2>/dev/null | grep -E '^app/tests/.*\.py$' || true)
+    done < <(cd "$REPO_ROOT" && git diff --cached --name-only 2>/dev/null | grep -E '^(app/)?tests/.*\.py$' || true)
     if [[ ${#STAGED_TEST_FILES[@]} -eq 0 ]]; then
         exit 0
     fi
