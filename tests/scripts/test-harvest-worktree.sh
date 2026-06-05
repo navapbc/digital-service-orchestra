@@ -1087,14 +1087,17 @@ assert_eq "test_harvest_copies_reviewer_findings_files: canonical copied" "found
 assert_pass_if_clean "test_harvest_copies_reviewer_findings_files"
 
 # =============================================================================
-# Test 24: test_docs_only_commit_skips_review_status_check (d591-b6ad)
-# Given: worktree branch with ONLY docs/** files changed (allowlisted by review-gate-allowlist.conf)
-# And: NO review-status artifact is written (SKIP_REVIEW=true path in COMMIT-WORKFLOW.md)
+# Test 24: test_docs_only_commit_requires_review_status (d591-b6ad, re-baselined by 3783)
+# Given: worktree branch with ONLY docs/** files changed
+# And: NO review-status artifact is written
 # When: harvest-worktree.sh is invoked
-# Then: exits 0 — review check is skipped for all-allowlisted file sets
-# RED: current code unconditionally requires review-status and exits 2
+# Then: exits 2 — story 3783 made docs/** REVIEWABLE (removed from the review-gate
+#       allowlist), so a docs-only commit is no longer allowlist-skipped: harvest
+#       requires a review-status and blocks (exit 2) when it is missing. The docs
+#       branch is NOT merged into the session. (An un-reviewed instruction surface
+#       must not ride to main via the harvest path either.)
 # =============================================================================
-echo "--- test_docs_only_commit_skips_review_status_check ---"
+echo "--- test_docs_only_commit_requires_review_status ---"
 _snapshot_fail
 
 tmpdir=$(make_tmpdir)
@@ -1140,28 +1143,29 @@ output24=$(cd "$SESSION_REPO24" && bash "$HARVEST_SCRIPT" \
     "$ARTIFACTS24" \
     2>&1) || exit_code24=$?
 
-assert_eq "docs-only commit without review-status exits 0 (d591-b6ad)" "0" "$exit_code24"
+# story 3783: docs is reviewable — harvest requires review-status and BLOCKS (exit 2).
+assert_eq "docs-only commit without review-status exits 2 (3783: docs reviewable)" "2" "$exit_code24"
 
-# Also verify the docs file was brought into the session branch
+# And the docs branch is NOT merged into the session (harvest blocked before merge).
 docs_file_present="no"
 if [[ -f "$SESSION_REPO24/docs/CHANGELOG.md" ]]; then
     docs_file_present="yes"
 fi
-assert_eq "docs-only branch was merged into session (d591-b6ad)" "yes" "$docs_file_present"
+assert_eq "docs-only branch NOT merged without review (3783)" "no" "$docs_file_present"
 
-assert_pass_if_clean "test_docs_only_commit_skips_review_status_check"
+assert_pass_if_clean "test_docs_only_commit_requires_review_status"
 
 # =============================================================================
-# Test 25: test_docs_only_commit_with_session_artifacts_skips_attest (d591-b6ad)
+# Test 25: test_docs_only_commit_with_session_artifacts_requires_review (d591-b6ad, re-baselined by 3783)
 # Given: worktree branch with ONLY docs/** files changed
-# And: NO review-status artifact (SKIP_REVIEW=true path)
-# And: --session-artifacts provided (triggers attest block at line ~283)
+# And: NO review-status artifact
+# And: --session-artifacts provided (triggers the attest block)
 # When: harvest-worktree.sh is invoked
-# Then: exits 0 — record-review.sh --attest is also skipped for allowlisted-only commits
-# RED: without the _skip_review guard at line 298, record-review.sh --attest would be
-#      called on a dir without review-status and harvest would exit 2
+# Then: exits 2 — story 3783 made docs/** reviewable, so the docs-only allowlist-skip
+#       no longer applies: harvest requires a review-status and blocks (exit 2) when
+#       it is missing, even with --session-artifacts.
 # =============================================================================
-echo "--- test_docs_only_commit_with_session_artifacts_skips_attest ---"
+echo "--- test_docs_only_commit_with_session_artifacts_requires_review ---"
 _snapshot_fail
 
 tmpdir=$(make_tmpdir)
@@ -1202,9 +1206,9 @@ cd "$SESSION_REPO25" && bash "$HARVEST_SCRIPT" \
     --session-artifacts "$SESSION_ARTIFACTS25" \
     >/dev/null 2>&1 || exit_code25=$?
 
-assert_eq "docs-only commit with --session-artifacts exits 0 (attest skip guard)" "0" "$exit_code25"
+assert_eq "docs-only commit with --session-artifacts exits 2 (3783: docs reviewable)" "2" "$exit_code25"
 
-assert_pass_if_clean "test_docs_only_commit_with_session_artifacts_skips_attest"
+assert_pass_if_clean "test_docs_only_commit_with_session_artifacts_requires_review"
 
 # =============================================================================
 # Test 26: test_ci_enforcement_skips_review_status_check (99a6-f818)
