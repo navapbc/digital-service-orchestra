@@ -106,6 +106,15 @@ if [[ -f "$_MERGE_HELPERS_LIB" ]]; then
     source "$_MERGE_HELPERS_LIB"
 fi
 
+# 3ebb DD1/DD3: review-gate tristate lattice + universal in-channel escalation
+# (provides $TRISTATE_INDETERMINATE and tristate_indeterminate_escalation).
+# Script-relative so it resolves under test regardless of ambient CLAUDE_PLUGIN_ROOT.
+_REVIEW_TRISTATE_LIB="${DSO_REVIEW_TRISTATE_LIB:-$(dirname "${BASH_SOURCE[0]}")/lib/review-tristate-lib.sh}"
+if [[ -f "$_REVIEW_TRISTATE_LIB" ]]; then
+    # shellcheck disable=SC1090
+    source "$_REVIEW_TRISTATE_LIB"
+fi
+
 # --- Resolve default branch via resolver (F-05) ---
 # Cached per merge-to-main run in $GIT_DIR/dso-default-branch — written here so
 # subsequent invocations within the same run reuse the resolved value without
@@ -3144,7 +3153,15 @@ if type _state_get_field >/dev/null 2>&1; then
             _pr1_json=$(gh pr list --head "$BRANCH" --base "$_saved_staged" --state open --json number 2>/dev/null); _pr1_rc=$?
             resume_pr_query_trustworthy "$_pr1_rc" "$_pr1_json" && break
             if [[ "$_attempt" == "2" ]]; then
-                echo "INDETERMINATE: --resume could not obtain a trustworthy PR1 state for ${BRANCH}→${_saved_staged} (rc=${_pr1_rc}) after a retry — refusing to advance to PR2 or re-create on partial GitHub state (INC-008). Re-run --resume when GitHub is reachable, or escalate via /dso:fp-recovery." >&2
+                # 3ebb DD3: retry budget spent — route to /dso:fp-recovery in-channel
+                # (no manual git surgery) rather than guess from partial state.
+                if declare -F tristate_indeterminate_escalation >/dev/null 2>&1; then
+                    tristate_indeterminate_escalation "merge-to-main:resume-pr1-state" \
+                        "could not obtain a trustworthy PR1 state for ${BRANCH} -> ${_saved_staged} (rc=${_pr1_rc}) after a retry; refusing to advance to PR2 or re-create on partial GitHub state (INC-008)" \
+                        "$BRANCH"
+                else
+                    echo "INDETERMINATE: --resume could not obtain trustworthy PR1 state for ${BRANCH} (INC-008) — use /dso:fp-recovery." >&2
+                fi
                 exit "${TRISTATE_INDETERMINATE:-75}"
             fi
             sleep 1

@@ -64,6 +64,26 @@ if [[ "$(tristate_code_to_name 1)" == "FAIL" ]]; then _ok "T7 1=FAIL"; else _no 
 if [[ "$(tristate_code_to_name 75)" == "INDETERMINATE" ]]; then _ok "T7 75=INDETERMINATE"; else _no "T7 75" "$(tristate_code_to_name 75)"; fi
 if [[ "$(tristate_code_to_name 78)" == "PRECONDITION_NOT_MET" ]]; then _ok "T7 78=PRECONDITION_NOT_MET"; else _no "T7 78" "$(tristate_code_to_name 78)"; fi
 
+# ── T8: universal in-channel escalation marker (3ebb DD3) ────────────────────
+# An INDETERMINATE verdict routes to /dso:fp-recovery via a standardized,
+# greppable marker (no manual git surgery; telemetry-ready).
+declare -F tristate_indeterminate_escalation >/dev/null 2>&1 || { echo "FATAL: tristate_indeterminate_escalation not defined"; exit 1; }
+out=$(tristate_indeterminate_escalation "review-coverage-invariant" "API 503 mid-walk" "PR#42" 2>&1)
+if grep -q "INDETERMINATE_ESCALATION:" <<<"$out" && grep -q "review-coverage-invariant" <<<"$out" && grep -q "/dso:fp-recovery" <<<"$out"; then
+    _ok "T8 escalation marker names gate + fp-recovery next action"
+else _no "T8 escalation marker" "$out"; fi
+# T8b: the marker payload is valid JSON (machine-parseable for routing/telemetry)
+mk=$(grep -o 'INDETERMINATE_ESCALATION: .*' <<<"$out" | sed 's/^INDETERMINATE_ESCALATION: //')
+if printf '%s' "$mk" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['gate'] and d['next_action']" 2>/dev/null; then
+    _ok "T8b escalation marker is valid JSON with gate + next_action"
+else _no "T8b escalation marker JSON" "$mk"; fi
+# T8c: a reason containing a double-quote does not break the JSON (sanitized)
+out2=$(tristate_indeterminate_escalation "g" 'said "boom"' 2>&1)
+mk2=$(grep -o 'INDETERMINATE_ESCALATION: .*' <<<"$out2" | sed 's/^INDETERMINATE_ESCALATION: //')
+if printf '%s' "$mk2" | python3 -c "import json,sys; json.load(sys.stdin)" 2>/dev/null; then
+    _ok "T8c escalation marker JSON survives quotes in reason"
+else _no "T8c escalation marker JSON quotes" "$mk2"; fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]]

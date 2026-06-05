@@ -87,8 +87,14 @@ if [[ ! -f "$MARKER" ]]; then
     # (the 8a77 silent-skip bug class).
     echo "  DECISION:         INDETERMINATE — marker absent, verifier did not complete"
     echo "================================================================="
-    echo "INDETERMINATE: provenance-complete.marker not found at $MARKER" >&2
-    echo "Hint: the Verify session provenance step did not complete successfully — check its log." >&2
+    # 3ebb DD3: route to /dso:fp-recovery in-channel (no manual git surgery).
+    if declare -F tristate_indeterminate_escalation >/dev/null 2>&1; then
+        tristate_indeterminate_escalation "llm-review-dispatch" \
+            "provenance-complete.marker absent at ${MARKER} — the verify-session-provenance step did not complete" \
+            "${PR_NUMBER:+PR#}${PR_NUMBER:-}"
+    else
+        echo "INDETERMINATE: provenance-complete.marker not found at $MARKER — use /dso:fp-recovery." >&2
+    fi
     exit "${TRISTATE_INDETERMINATE:-75}"
 fi
 
