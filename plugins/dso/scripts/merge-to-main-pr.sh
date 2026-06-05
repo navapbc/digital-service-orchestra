@@ -1211,6 +1211,38 @@ _sync_branch_against_default() {
     return 0
 }
 
+# --- _publish_rebased_branch (cca8 DD1): force-with-lease publish after rebase -
+# When _sync_branch_against_default rewrote history (rebased the branch onto
+# origin/<default>), the local head intentionally diverges from origin/<branch>,
+# so a plain push is rejected non-fast-forward and the branch must be force-
+# published. Uses an EXPLICIT lease — origin/<branch>'s last-known tip captured
+# from the remote-tracking ref WITHOUT a preceding fetch — so a concurrent writer
+# is genuinely detected and refused.
+#
+# Why no fetch: a bare `--force-with-lease` uses refs/remotes/origin/<branch> as
+# its lease basis. Fetching first fast-forwards that very tracking ref to the
+# remote's current value, so the lease would always match and silently degrade to
+# an unconditional `git push --force`, clobbering a concurrent writer (gitar
+# finding, PR #663). Capturing the pre-push tip explicitly preserves the guard.
+#
+# Falls back to a bare `--force-with-lease` when no tracking ref exists yet (e.g.
+# a brand-new branch); the tracking ref is the lease basis in that case too.
+_publish_rebased_branch() {
+    local _branch="$1"
+    local _lease_sha
+    _lease_sha=$(git rev-parse "refs/remotes/origin/${_branch}" 2>/dev/null || echo "")
+    (
+        # shellcheck disable=SC2030  # intentional: export scoped to THIS subshell (PR #179 retro); must not leak to caller
+        export DSO_ALLOW_PUSH_TO_MERGED_PR=1
+        local _lease_arg="--force-with-lease"
+        [[ -n "$_lease_sha" ]] && _lease_arg="--force-with-lease=${_branch}:${_lease_sha}"
+        if ! git push "$_lease_arg" -u origin "$_branch" 2>&1; then
+            echo "ERROR: git push ${_lease_arg} origin ${_branch} failed (linear-rebase publish)" >&2
+            exit 1
+        fi
+    )
+}
+
 _phase_merge() {
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "merge" 2>/dev/null || true
@@ -1258,22 +1290,10 @@ _phase_merge() {
     # onto origin/<default>), the local head intentionally diverges from
     # origin/<branch>. The normal fetch+rebase-onto-origin/<branch> recovery would
     # replay the rewritten commits back onto the stale remote head and duplicate
-    # them, so publish with --force-with-lease instead. The lease overwrites
-    # origin/<branch> only if it still matches the ref we just fetched, so a
-    # concurrent writer is never silently clobbered (the staged session branch has
-    # no concurrent writer in the two-tier flow).
+    # them, so force-publish via _publish_rebased_branch, which uses an explicit
+    # lease (no preceding fetch) so a concurrent writer is genuinely detected.
     if [[ "${_SYNCED_VIA_REBASE:-0}" == "1" ]]; then
-        if ! (
-            # shellcheck disable=SC2030  # intentional: export is scoped to THIS subshell (PR #179 retro) and must not leak to the caller
-            export DSO_ALLOW_PUSH_TO_MERGED_PR=1
-            git fetch origin "$BRANCH" 2>/dev/null || true
-            if ! git push --force-with-lease -u origin "$BRANCH" 2>&1; then
-                echo "ERROR: git push --force-with-lease origin $BRANCH failed (linear-rebase publish)" >&2
-                exit 1
-            fi
-        ); then
-            return 1
-        fi
+        _publish_rebased_branch "$BRANCH" || return 1
     else
     # Pre-push sync: when the remote ref already exists and has advanced
     # past our local HEAD (e.g. a previous "Merge branch 'main' into <branch>"
