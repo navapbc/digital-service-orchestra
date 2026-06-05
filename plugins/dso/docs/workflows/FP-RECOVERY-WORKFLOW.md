@@ -191,6 +191,35 @@ The annotation is **mandatory** — it makes the bypass auditable. A retro-analy
 - Tie each one to a specific REVIEWER_HASH for the manual review's findings JSON
 - See the engineer's stated FP rationale, and that all other required checks were green
 
+### Step 5c: the override propagates automatically — nothing to record (ADR-0022)
+
+A clearance bypasses the review *check*, but the cleared commits still reach a
+protected branch with no passing review. Under enforce, the coverage/provenance
+gates on the **next** PR (e.g. PR2 `staged`→main after an FP-recovered PR1
+`source`→`staged`) walk those SHAs and would, naively, find no passing review and
+force a SECOND override per PR.
+
+**Identity-based exemption removes that second override with zero extra steps.** The
+admin's single action — **merging the failing PR via the GitHub web UI** as the
+designated ruleset bypass-actor — IS the propagation. Both gates resolve each SHA's
+covering merged PR and treat it as reviewed-equivalent when its server-set
+`merged_by.id` is in `ruleset.bypass_user_ids` (ADR-0022). So:
+
+- **No signing key, no PAT, no recorder command, no ledger file to commit.** The
+  prior HMAC-ledger mechanism (and its `fp-recovery-record-exemption.sh` recorder)
+  is **retired**.
+- **Forge-proof by construction:** the agent is `current_user_can_bypass: never`, so
+  it cannot merge a failing PR and cannot appear as `merged_by` on a bypass —
+  `merged_by` is set server-side by GitHub.
+- **Works for both tiers automatically:** PR1's commits, when PR2's gate walks them,
+  resolve to PR1's covering PR (merged by the bypass-actor) — covered, no ordering
+  precondition.
+
+The "cleared opus review before bypass" guarantee is now **procedural** (the admin
+sees the Step-4 verdict before merging) plus the mandatory annotation (Step 5b) and
+the post-hoc audit sweep (Step 7) — see ADR-0022 for the explicit preventive→detective
+trade-off. **Just merge via the UI; do not run any recorder.**
+
 ### Step 7 (post-hoc audit): sweep already-merged bypassed PRs
 
 When a bypass merge has already happened (web-UI override, or any merge whose

@@ -29,12 +29,9 @@
 #                                 NEVER present-on-main. Reachability is allowed
 #                                 ONLY as a perf prefilter that still requires a
 #                                 ledger HIT to skip re-verification.
-#   DSO_ADMIN_EXEMPTION_LEDGER    path to the HMAC-signed admin-exemption ledger
-#                                 (admin-exemption-ledger.sh). An HMAC-VALID entry
-#                                 records an admin-bypassed SHA as reviewed-
-#                                 equivalent; a forged/tampered entry does NOT
-#                                 verify and the SHA still fails closed. Empty =>
-#                                 no exemptions consulted.
+#   (admin exemption is identity-based per ADR-0022: a covering PR merged by a
+#    designated bypass-actor — ruleset.bypass_user_ids — counts as reviewed-
+#    equivalent inside rc_sha_is_reviewed. No ledger env, no signing key.)
 #   DSO_COVERAGE_INVARIANT_MODE   enforce (default) | warn  (warn = log + exit 0,
 #                                 for staged rollout before wiring as required)
 #   DSO_GH_BIN                    gh override (tests)
@@ -59,24 +56,13 @@ if [[ ! -f "$_REVIEW_COVERAGE_LIB" ]]; then
 fi
 # shellcheck source=../lib/review-coverage-lib.sh
 source "$_REVIEW_COVERAGE_LIB"
-
-# Admin-exemption ledger (S-11 / A-2): an HMAC-signed record of admin-bypassed
-# SHAs treated as reviewed-equivalent. Sourcing it (fail-closed if missing, same
-# posture as the coverage lib) gives this check ael_sha_is_exempt(). This is an
-# ADDITIVE allowed path to "covered" — ONLY HMAC-valid entries count; a forged or
-# tampered entry does not verify and the SHA still fails closed.
-_ADMIN_EXEMPTION_LIB="${DSO_ADMIN_EXEMPTION_LIB:-${_DIR}/admin-exemption-ledger.sh}"
-if [[ ! -f "$_ADMIN_EXEMPTION_LIB" ]]; then
-    echo "PRECONDITION_NOT_MET: admin-exemption ledger lib not found: $_ADMIN_EXEMPTION_LIB" >&2
-    exit 78
-fi
-# shellcheck source=./admin-exemption-ledger.sh
-source "$_ADMIN_EXEMPTION_LIB"
+# Identity-based admin exemption (ADR-0022, supersedes the HMAC ledger): a covering
+# PR merged by a designated bypass-actor counts as reviewed-equivalent. This is
+# folded into rc_sha_is_reviewed (the coverage lib already sources the bypass-actor
+# set helper) — there is no separate ledger consult or signing key here.
 
 MODE="${DSO_COVERAGE_INVARIANT_MODE:-enforce}"
 LEDGER="${DSO_REVIEWED_LEDGER:-}"
-# Path to the HMAC-signed admin-exemption ledger (empty -> no exemptions consulted).
-ADMIN_EXEMPTION_LEDGER="${DSO_ADMIN_EXEMPTION_LEDGER:-}"
 
 _precondition_not_met() { echo "PRECONDITION_NOT_MET: $1" >&2; exit 78; }
 command -v "${DSO_GH_BIN:-gh}" >/dev/null 2>&1 || _precondition_not_met "gh not in PATH"
@@ -116,7 +102,7 @@ if [[ -z "$_SHAS" ]]; then
     exit 0
 fi
 
-_total=0; _ledger_hits=0; _verified=0; _unreviewed=0; _errors=0; _exempt_merges=0; _admin_exempt=0
+_total=0; _ledger_hits=0; _verified=0; _unreviewed=0; _errors=0; _exempt_merges=0; _exempt_tickets=0
 _violations=""
 
 # A merge commit (>=2 parents) that introduces NO content of its own (empty
@@ -165,21 +151,26 @@ while IFS= read -r _sha; do
         _exempt_merges=$(( _exempt_merges + 1 ))
         continue
     fi
+    # Ticket-store diff-scoped exemption (0cd7 DD3): a commit whose ENTIRE diff is
+    # within the event-sourced ticket store carries no reviewable application code.
+    # Computed by the shared rc_diff_is_tickets_only (review-coverage-lib.sh) so all
+    # three consumers agree (DD6). rc 0 = exempt; rc 1/2 (not-exempt OR error) falls
+    # through to the normal coverage path, which itself fails closed — so an error
+    # here can never launder an unreviewed SHA.
+    if rc_diff_is_tickets_only "$_sha"; then
+        _exempt_tickets=$(( _exempt_tickets + 1 ))
+        continue
+    fi
     # Perf prefilter: a ledger HIT (proven reviewed in a prior run) skips
     # re-verification. This is a ledger hit, NOT reachability-to-main.
     if _ledger_has "$_sha"; then
         _ledger_hits=$(( _ledger_hits + 1 ))
         continue
     fi
-    # Admin-exemption path (S-11): an HMAC-VALID exemption entry records an
-    # admin-bypassed SHA as reviewed-equivalent. ael_sha_is_exempt returns 0 ONLY
-    # when the entry's signature verifies under the environment key — a forged or
-    # tampered entry returns non-zero and falls through to the real coverage walk
-    # below (which blocks). Consulted only when a ledger path is configured.
-    if [[ -n "$ADMIN_EXEMPTION_LEDGER" ]] && ael_sha_is_exempt "$ADMIN_EXEMPTION_LEDGER" "$_sha"; then
-        _admin_exempt=$(( _admin_exempt + 1 ))
-        continue
-    fi
+    # Admin exemption is identity-based (ADR-0022): a covering PR merged by a
+    # designated bypass-actor is recognized as reviewed-equivalent INSIDE
+    # rc_sha_is_reviewed below (it returns 0 with "admin-merged-by:<id>" evidence),
+    # so admin-bypassed SHAs are counted as _verified — no separate consult, no key.
     _evidence="$(rc_sha_is_reviewed "$REPO" "$_sha" "${PR_NUMBER:-0}")"
     case $? in
         0)
@@ -197,7 +188,7 @@ while IFS= read -r _sha; do
     esac
 done <<< "$_SHAS"
 
-echo "review-coverage-invariant: ${_total} SHA(s) in ${_BASE_REF}..${_HEAD} — verified=${_verified} exempt_merges=${_exempt_merges} admin_exempt=${_admin_exempt} ledger_hits=${_ledger_hits} unreviewed=${_unreviewed} errors=${_errors}"
+echo "review-coverage-invariant: ${_total} SHA(s) in ${_BASE_REF}..${_HEAD} — verified=${_verified} exempt_merges=${_exempt_merges} exempt_tickets=${_exempt_tickets} ledger_hits=${_ledger_hits} unreviewed=${_unreviewed} errors=${_errors}"
 
 if (( _unreviewed == 0 && _errors == 0 )); then
     echo "review-coverage-invariant: ok (every SHA proven reviewed)"

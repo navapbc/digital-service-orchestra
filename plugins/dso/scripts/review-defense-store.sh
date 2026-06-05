@@ -543,6 +543,8 @@ defense_store_list() {
   local pr_number=""
   local git_ref=""
   local all_no_pr_filter=0
+  local head_sha=""
+  local base_sha=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -560,6 +562,17 @@ defense_store_list() {
           return 2
         fi
         git_ref="$2"
+        shift 2
+        ;;
+      --head-sha)
+        # ADR/diff-hunk scoping: the PR head SHA. With --base-sha, the mirror
+        # scopes defenses to lines THIS PR actually changed (±5 proximity), not
+        # merely files it touches — bounding cross-PR/over-time accumulation.
+        head_sha="${2:-}"
+        shift 2
+        ;;
+      --base-sha)
+        base_sha="${2:-}"
         shift 2
         ;;
       --all-no-pr-filter)
@@ -641,7 +654,46 @@ import sys
 
 ref = sys.argv[1]
 pr_files_path = sys.argv[2] if len(sys.argv) > 2 else ""
+head_sha = sys.argv[3] if len(sys.argv) > 3 else ""
+base_sha = sys.argv[4] if len(sys.argv) > 4 else ""
 prefix = "DEFENSE_RECORD: "
+PROX = 5  # line proximity, matching runner.py suppression (compute_proximity_overlap)
+
+
+def build_diff_map(base, head):
+    # {normalized_path -> set(changed line numbers)} from the PR net diff
+    # (base...head, 3-dot = merge-base..head = the PR changed lines). Returns
+    # None if the diff cannot be computed (caller falls back to file-overlap).
+    if not base or not head:
+        return None
+    try:
+        res = subprocess.run(
+            ["git", "diff", "{}...{}".format(base, head), "--unified=0"],
+            capture_output=True, text=True, check=False, timeout=120,
+        )
+    except Exception:
+        return None
+    if res.returncode != 0:
+        return None
+    m = {}
+    cur = None
+    for ln in res.stdout.splitlines():
+        if ln.startswith("+++ b/"):
+            cur = ln[6:].strip()
+            m.setdefault(cur, set())
+        elif ln.startswith("+++ "):
+            cur = None  # +++ /dev/null (deletion) -> no new lines
+        elif ln.startswith("@@") and cur is not None:
+            mm = re.search(r"\+(\d+)(?:,(\d+))?", ln)
+            if mm:
+                start = int(mm.group(1))
+                cnt = int(mm.group(2)) if mm.group(2) is not None else 1
+                for k in range(start, start + (cnt if cnt > 0 else 1)):
+                    m[cur].add(k)
+    return m
+
+
+diff_map = build_diff_map(base_sha, head_sha)
 
 # Build the PR file set. Empty path string ⇒ no filter (escape hatch).
 pr_files = set()
@@ -672,26 +724,63 @@ def normalize_path(p):
     return p
 
 
-def record_matches_pr(record_json, pr_files):
+def _file_overlap(rec, pr_files):
+    # Legacy file-LEVEL overlap (used as the fallback when no diff map is
+    # available, or for records that cite no line numbers). Returns bool.
     if not pr_files:
         return True  # No filter requested — emit all.
-    try:
-        rec = json.loads(record_json[len(prefix):])
-    except (json.JSONDecodeError, ValueError):
-        return False
-    # Check cited_lines first (more specific: path:line:content).
     for cited in rec.get("cited_lines", []) or []:
-        # Format: "path:lineno:content" — take part before the first colon.
-        if isinstance(cited, str):
-            cited_path = cited.split(":", 1)[0]
-            if normalize_path(cited_path) in pr_files:
-                return True
-    # Fall back to file_paths.
+        if isinstance(cited, str) and normalize_path(cited.split(":", 1)[0]) in pr_files:
+            return True
     for fp in rec.get("file_paths", []) or []:
         if isinstance(fp, str) and normalize_path(fp) in pr_files:
             return True
     return False
 
+
+def record_matches_pr(record_json, pr_files, diff_map):
+    # Returns (kind, matched): kind in {"line","file"} for the summary.
+    if not pr_files and diff_map is None:
+        return ("file", True)  # No filter requested — emit all.
+    try:
+        rec = json.loads(record_json[len(prefix):])
+    except (json.JSONDecodeError, ValueError):
+        return ("file", False)
+    cited = rec.get("cited_lines") or []
+    # Preferred: LINE-level proximity scoping against the PR net diff. A defense
+    # is mirrored only when one of its cited lines is within ±PROX of a line THIS
+    # PR actually changed (the same axis runner.py suppression matches on). This
+    # bounds cross-PR / over-time accumulation that file-overlap let through.
+    if diff_map is not None and cited:
+        for c in cited:
+            if not isinstance(c, str):
+                continue
+            parts = c.split(":", 2)  # path:lineno:content (content may hold colons)
+            if len(parts) < 2:
+                continue
+            cp = normalize_path(parts[0])
+            try:
+                lno = int(parts[1])
+            except (ValueError, TypeError):
+                continue  # malformed / range -> not a line match
+            changed = diff_map.get(cp)
+            if changed and any(abs(lno - m) <= PROX for m in changed):
+                return ("line", True)
+        return ("line", False)
+    # Fallback: file-overlap (diff unavailable, or record cites no line numbers).
+    return ("file", _file_overlap(rec, pr_files))
+
+
+if diff_map is None and (head_sha or base_sha):
+    sys.stderr.write(
+        "::warning::defense-mirror: could not compute PR diff for line-scoping "
+        "(head/base unreachable?) — falling back to file-overlap\n"
+    )
+
+_candidates = 0
+_emitted = 0
+_line_seen = 0
+_file_seen = 0
 
 for line in sys.stdin:
     path = line.strip()
@@ -728,13 +817,28 @@ for line in sys.stdin:
     first_line = body.split("\n", 1)[0]
     if not first_line.startswith(prefix):
         continue
-    if not record_matches_pr(first_line, pr_files):
+    _candidates += 1
+    kind, matched = record_matches_pr(first_line, pr_files, diff_map)
+    if kind == "line":
+        _line_seen += 1
+    else:
+        _file_seen += 1
+    if not matched:
         continue
+    _emitted += 1
     # Emit just the prefix-line so the mirror-defenses-to-pr.sh
     # `while IFS= read -r line` loop sees a clean record per line.
     print(first_line)
+
+sys.stderr.write(
+    "defense-mirror: emitted {} of {} candidate records "
+    "(line-scoped={}, file-fallback={}, diff-{})\n".format(
+        _emitted, _candidates, _line_seen, _file_seen,
+        "ok" if diff_map is not None else "unavailable",
+    )
+)
 '
-  printf '%s\n' "$comment_files" | python3 -c "$py_program" "$git_ref" "${pr_files_file:-}"
+  printf '%s\n' "$comment_files" | python3 -c "$py_program" "$git_ref" "${pr_files_file:-}" "$head_sha" "$base_sha"
   local _rc=$?
 
   # Cleanup the PR-files temp file (no-op if --all-no-pr-filter).

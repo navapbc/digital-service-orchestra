@@ -41,10 +41,20 @@ printf 'docs/**\n.github/workflows/**\n' > "$_W/wf.conf"
 out="$(ALLOWLIST_OVERRIDE="$_W/wf.conf" bash "$CHECK" 2>&1)"; rc=$?
 if [[ $rc -eq 1 ]] && grep -q ".github/workflows/ci.yml" <<<"$out"; then _pass "T5_workflows_glob_rejected"; else _fail "T5_workflows_glob_rejected" "rc=$rc out=$out"; fi
 
-# ── T6: a safe docs-only allowlist passes ───────────────────────────────────
-printf 'docs/**\n*.png\npackage-lock.json\n' > "$_W/safe.conf"
+# ── T6: a genuinely-inert allowlist passes (no instruction surfaces) ─────────
+# story 3783: docs/** is NO LONGER a safe allowlist entry (it is a behavior-bearing
+# instruction surface). A safe allowlist contains only genuinely-inert artifacts.
+printf '*.png\npackage-lock.json\n.tickets-tracker/**\n' > "$_W/safe.conf"
 out="$(ALLOWLIST_OVERRIDE="$_W/safe.conf" bash "$CHECK" 2>&1)"; rc=$?
-if [[ $rc -eq 0 ]]; then _pass "T6_safe_docs_allowlist_passes"; else _fail "T6_safe_docs_allowlist_passes" "rc=$rc out=$out"; fi
+if [[ $rc -eq 0 ]]; then _pass "T6_inert_allowlist_passes"; else _fail "T6_inert_allowlist_passes" "rc=$rc out=$out"; fi
+
+# ── T7: an allowlist containing docs/** is REJECTED (3783 instruction-surface) ─
+# Documentation is a behavior-bearing instruction surface — allowlisting docs/**
+# would let an un-reviewed doc edit skip review (an attack vector). The correctness
+# check must reject it via the _INSTRUCTION_PROBES set.
+printf 'docs/**\n*.png\n' > "$_W/docs.conf"
+out="$(ALLOWLIST_OVERRIDE="$_W/docs.conf" bash "$CHECK" 2>&1)"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "behavior-bearing instruction surface 'docs" <<<"$out"; then _pass "T7_docs_allowlist_rejected"; else _fail "T7_docs_allowlist_rejected" "rc=$rc out=$out"; fi
 
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"

@@ -293,6 +293,26 @@ fi
 # shellcheck source=lib/reachability.sh
 source "$_REACHABILITY_LIB"
 
+# Identity-based admin exemption (ADR-0022, supersedes the HMAC ledger): provenance
+# honors a covering PR merged by a designated bypass-actor (server-set merged_by ∈
+# the configured set) as reviewed-equivalent, so a downstream PR does NOT re-dispatch
+# llm-review on content an admin already bypass-merged. No signing key; forge-proof
+# by construction (the agent is current_user_can_bypass:never). The check is folded
+# into the G3 covering-PR loop below: review-check first, and ONLY on the bypass path
+# (review failed/not_found) fetch merged_by from the single-PR GET — the
+# /commits/{sha}/pulls LIST endpoint omits merged_by (ADR-0022 rev.3). Source the
+# set-membership helper (KEEP IN SYNC with review-coverage-lib.sh).
+_BAS_LIB="$(dirname "${BASH_SOURCE[0]}")/lib/bypass-actor-set.sh"
+# shellcheck source=lib/bypass-actor-set.sh
+[[ -f "$_BAS_LIB" ]] && source "$_BAS_LIB"
+
+# Shared diff-scoped ticket-store exemption (0cd7 DD3). Sourced so this gate computes
+# the IDENTICAL exemption as review-coverage-invariant.sh and fp-recovery-audit-sweep.sh
+# (DD6 equivalence test). rc_diff_is_tickets_only operates on the local git tree only.
+_RCL_LIB="$(dirname "${BASH_SOURCE[0]}")/lib/review-coverage-lib.sh"
+# shellcheck source=lib/review-coverage-lib.sh
+[[ -f "$_RCL_LIB" ]] && source "$_RCL_LIB"
+
 assert_sha_reachable "$BASE_SHA" "BASE_SHA" "$GIT_REPO_PATH" || exit 4
 assert_sha_reachable "$SESSION_HEAD" "SESSION_HEAD" "$GIT_REPO_PATH" || exit 4
 
@@ -411,6 +431,28 @@ while IFS=' ' read -r sha subject; do
         _cache_set "$sha" "provenanced" || true
         continue
     fi
+
+    # Ticket-store diff-scoped exemption (0cd7 DD3). A commit whose ENTIRE diff is
+    # within the event-sourced ticket store carries no reviewable application code, so
+    # provenance must NOT dispatch llm-review for it. Computed by the shared
+    # rc_diff_is_tickets_only (review-coverage-lib.sh) so this gate agrees with the
+    # coverage invariant and the fp-recovery sweep (DD6). The helper uses bare `git`
+    # (cwd), so invoke it cd'd into GIT_REPO_PATH. rc 0 = exempt; rc 1/2 (not-exempt OR
+    # error) falls through to the normal covering-PR provenance path (which itself
+    # flags unprovenanced on doubt) — so an error here can never launder a SHA.
+    if declare -F rc_diff_is_tickets_only >/dev/null 2>&1 \
+       && ( cd "$GIT_REPO_PATH" 2>/dev/null && rc_diff_is_tickets_only "$sha" ); then
+        echo "commit $sha status=TICKETS_ONLY; exempt (diff entirely within the ticket store)"
+        _covered_shas+=("$sha")
+        _cache_set "$sha" "provenanced" || true
+        continue
+    fi
+
+    # Identity-based admin exemption (ADR-0022): handled in the G3 covering-PR loop
+    # below — a covering PR merged by a designated bypass-actor (server-set
+    # merged_by ∈ set) counts as reviewed-equivalent there, so an admin web-UI
+    # bypass propagates without a second override. No separate per-SHA consult and
+    # no signing key (the HMAC ledger this replaced is retired).
 
     # Step 1 (was: DSO-Story trailer shortcut) — REMOVED in v4 (PR-R1).
     # The trailer-presence shortcut was a self-attested claim, not evidence:
@@ -571,6 +613,9 @@ for pr in pr_list:
     # itself produced).
     if pr.get('merge_commit_sha') == sha_under_review:
         continue
+    # NOTE: merged_by is NOT read here — the /commits/{sha}/pulls list representation
+    # omits it (null). The identity check (ADR-0022) fetches merged_by from the
+    # single-PR GET, on the bypass path only.
     print(number if number is not None else '')
 " 2>/dev/null)" || covering_prs=""
 
@@ -683,11 +728,34 @@ else:
                     _verified_covering=$(( _verified_covering + 1 ))
                     echo "commit $sha covering-PR #${_cov_pr} review-check=PASSED"
                     ;;
-                failed)
-                    echo "commit $sha covering-PR #${_cov_pr} review-check=FAILED (not counting as covered)"
-                    ;;
-                not_found)
-                    echo "commit $sha covering-PR #${_cov_pr} review-check=NOT_FOUND (not counting as covered — no review evidence)"
+                failed|not_found)
+                    # ADR-0022 identity-based admin exemption: the review did not pass,
+                    # but if this covering PR was merged by a DESIGNATED BYPASS-ACTOR it
+                    # is an admin bypass and reviewed-equivalent. merged_by is NOT in the
+                    # /commits/{sha}/pulls list (null) — fetch it from the single-PR GET,
+                    # on this rare bypass path only. Forge-proof: the agent is
+                    # current_user_can_bypass:never, so it cannot be merged_by on a bypass.
+                    _cov_mby=""
+                    if [[ -n "${GH_REPO:-}" ]]; then
+                        if (( _api_call_count >= GH_BUDGET )); then
+                            # Budget-guard the bypass-path fetch too, so it cannot push
+                            # _api_call_count past the cap unaccounted. Skipping -> empty
+                            # -> not exempt -> SHA unprovenanced (fail closed).
+                            if (( _budget_exhausted == 0 )); then
+                                echo "BUDGET_EXHAUSTED during identity-exemption merged_by fetch" >&2
+                                _budget_exhausted=1
+                            fi
+                        else
+                            _api_call_count=$(( _api_call_count + 1 ))
+                            _cov_mby="$(_call_gh_with_backoff api "repos/${GH_REPO}/pulls/${_cov_pr}" --jq '.merged_by.id // empty' 2>/dev/null || echo "")"
+                        fi
+                    fi
+                    if bas_is_bypass_actor "$_cov_mby"; then
+                        _verified_covering=$(( _verified_covering + 1 ))
+                        echo "commit $sha covering-PR #${_cov_pr} merged-by-bypass-actor=${_cov_mby} (reviewed-equivalent)"
+                    else
+                        echo "commit $sha covering-PR #${_cov_pr} review-check=${_review_passed} (not counting as covered)"
+                    fi
                     ;;
                 *)
                     echo "WARNING: commit $sha covering-PR #${_cov_pr} review-check=UNKNOWN; treating as unverified" >&2
