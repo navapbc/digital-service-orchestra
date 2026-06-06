@@ -119,7 +119,10 @@ trap restore_snapshot EXIT
 LAST_RECONCILER_LOG=""
 run_reconciler() {
     local output
-    LAST_RECONCILER_LOG=$(mktemp -t recon-probe.XXXXXX.log)
+    # Template form (not `-t`): the -t flag has divergent macOS/GNU semantics
+    # and is prohibited by CLAUDE.md rule:mktemp-tmp. Production/orchestrator
+    # context, so a literal /tmp template is fine (no per-test TMPDIR contract).
+    LAST_RECONCILER_LOG=$(mktemp "/tmp/recon-probe.XXXXXX.log")
     output=$(cd "$RECONCILER_DIR" && python -m dso_reconciler "$@" 2>&1) || true
     printf '%s\n' "$output" > "$LAST_RECONCILER_LOG"
     echo "$output"
