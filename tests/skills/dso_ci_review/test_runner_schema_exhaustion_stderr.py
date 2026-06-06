@@ -8,15 +8,21 @@ stderr message previously omitted the actual schema-validation errors
 (_schema_result.errors), making the violating field/value unrecoverable
 from the CI job log.
 
-This test suite:
-  - Drives the schema_fail → correction-exhausted path via runner.main()
-  - Asserts that a distinctive schema error string appears in stderr
-  - Asserts that exit code is non-zero (fail-closed enforcement is preserved)
+These tests drive the schema_fail -> correction-exhausted path via
+runner.main() and assert on the REAL error-formatting logic in runner.py
+(the `_err_preview` interpolation + `[:10]` truncation + `(+N more)` overflow
+suffix). `_validate_findings_schema` and `dispatch_schema_correction` are
+mocked to return synthetic results because the real validator is an external
+subprocess and the real correction loop requires a live LLM dispatch — neither
+is exercisable in a unit test. The mocks supply the inputs (the schema-error
+list and the exhausted findings); the assertions verify the runner's own
+formatting/truncation output, which is the behavior under test.
 """
 
 from __future__ import annotations
 
 import io
+import os
 import sys
 from contextlib import redirect_stderr
 from pathlib import Path
@@ -59,17 +65,13 @@ def _make_findings_dispatch(findings_list):
     return _mock
 
 
-def test_schema_exhaustion_stderr_includes_error_detail(tmp_path):
-    """
-    Given: _validate_findings_schema signals schema_fail with a distinctive error string
-           AND dispatch_schema_correction returns an exhausted result (synthetic schema_error)
-    When: runner.main() executes
-    Then: exit code is non-zero (fail-closed is preserved)
-          AND the distinctive error string appears in stderr
-          (so the violating field is recoverable from the CI job log)
+def _run_exhaustion_path(tmp_path, schema_errors):
+    """Drive runner.main() through the schema-correction-exhausted fail-closed path.
 
-    RED test for bug 9d2c-76c2-411b-4c15: prior code omitted _schema_result.errors
-    from the fail-closed message, making the error detail unrecoverable.
+    `schema_errors` is the list returned by the (mocked) schema validator. The
+    runner's REAL error-formatting logic (truncation + overflow suffix +
+    interpolation into the stderr message) is what executes and is what the
+    callers assert on. Returns (exit_code, stderr_text).
     """
     import dso_ci_review.runner as runner_mod
 
@@ -77,16 +79,14 @@ def test_schema_exhaustion_stderr_includes_error_detail(tmp_path):
     diff_file.write_text("diff --git a/foo.py b/foo.py\n+added line\n")
     output_file = tmp_path / "findings.json"
 
-    # Distinctive error string that must appear in stderr after the fix.
-    _DISTINCTIVE_ERROR = "finding[0].category: 'xyzzy' is not one of [...]"
-
     schema_fail_result = runner_mod._SchemaValidationResult(
         status="schema_fail",
-        errors=[_DISTINCTIVE_ERROR],
+        errors=list(schema_errors),
     )
 
-    # Simulate dispatch_schema_correction exhausting retries:
-    # returns findings that contain a synthetic parse_error/schema_error entry.
+    # Simulate dispatch_schema_correction exhausting retries: returns findings
+    # that contain a synthetic parse_error/schema_error entry (the marker the
+    # runner uses to detect exhaustion).
     exhausted_result = {
         "findings": [
             {
@@ -101,7 +101,7 @@ def test_schema_exhaustion_stderr_includes_error_detail(tmp_path):
                 "type": "parse_error",
                 "severity": "critical",
                 "category": "schema_error",
-                "description": "Schema correction failed after 2 attempt(s): xyzzy category",
+                "description": "Schema correction failed after 2 attempt(s).",
                 "finding_id": "schema_error_test1234",
                 "file": "",
                 "cited_lines": [],
@@ -113,9 +113,7 @@ def test_schema_exhaustion_stderr_includes_error_detail(tmp_path):
     }
 
     artifacts_dir = str(tmp_path / "artifacts")
-    import os as _os
-
-    _os.makedirs(artifacts_dir, exist_ok=True)
+    os.makedirs(artifacts_dir, exist_ok=True)
 
     stderr_capture = io.StringIO()
     with (
@@ -169,17 +167,60 @@ def test_schema_exhaustion_stderr_includes_error_detail(tmp_path):
     ):
         exit_code = runner_mod.main()
 
-    stderr_text = stderr_capture.getvalue()
+    return exit_code, stderr_capture.getvalue()
 
-    # Enforcement must remain fail-closed.
+
+def test_schema_exhaustion_stderr_includes_error_detail(tmp_path):
+    """A single schema error must be interpolated verbatim into the fail-closed stderr.
+
+    RED test for bug 9d2c-76c2-411b-4c15: prior code omitted _schema_result.errors
+    from the fail-closed message, so this distinctive string was absent. The
+    assertion fails if `_err_preview` is not interpolated into the message —
+    i.e., it pins the interpolation behavior, not just mock passthrough.
+    Also confirms enforcement stays fail-closed (non-zero exit).
+    """
+    distinctive_error = "finding[0].category: 'xyzzy' is not one of [...]"
+    exit_code, stderr_text = _run_exhaustion_path(tmp_path, [distinctive_error])
+
     assert exit_code != 0, (
         f"Expected non-zero exit when schema correction exhausted; got {exit_code}. "
         f"stderr={stderr_text!r}"
     )
-
-    # The distinctive error detail MUST appear in the fail-closed stderr message.
-    assert _DISTINCTIVE_ERROR in stderr_text, (
-        f"Expected schema error detail {_DISTINCTIVE_ERROR!r} to appear in stderr, "
+    assert distinctive_error in stderr_text, (
+        f"Expected schema error detail {distinctive_error!r} to appear in stderr, "
         f"but it was absent. stderr={stderr_text!r}\n"
-        "This is the diagnosability bug: the violating field is unrecoverable from the CI log."
+        "Diagnosability bug: the violating field is unrecoverable from the CI log."
+    )
+
+
+def test_schema_exhaustion_stderr_truncates_and_counts_overflow(tmp_path):
+    """With >10 errors, the message keeps the first 10, drops the rest, and counts overflow.
+
+    Exercises the REAL truncation logic (runner.py: `_err_lines[:10]` +
+    `(+N more)` suffix). Without this case the single-error test above would not
+    detect a silently-broken slice or overflow count. Twelve distinct errors:
+    the first 10 must appear, the 11th/12th must NOT, and "(+2 more)" must be
+    present.
+    """
+    errors = [
+        f"finding[{i}].category: 'bad{i:02d}' is not one of [...]" for i in range(12)
+    ]
+    exit_code, stderr_text = _run_exhaustion_path(tmp_path, errors)
+
+    assert exit_code != 0, f"Expected non-zero (fail-closed) exit; got {exit_code}."
+
+    # First 10 present.
+    for err in errors[:10]:
+        assert err in stderr_text, (
+            f"Expected {err!r} (within first 10) in stderr; stderr={stderr_text!r}"
+        )
+    # 11th and 12th truncated away.
+    for err in errors[10:]:
+        assert err not in stderr_text, (
+            f"Expected {err!r} (beyond the 10-error cap) to be truncated, but it appeared. "
+            f"stderr={stderr_text!r}"
+        )
+    # Overflow count present and correct (12 - 10 = 2).
+    assert "(+2 more)" in stderr_text, (
+        f"Expected overflow suffix '(+2 more)' for 12 errors capped at 10; stderr={stderr_text!r}"
     )
