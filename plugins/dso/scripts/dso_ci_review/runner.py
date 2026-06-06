@@ -3564,7 +3564,7 @@ def main() -> int:
         # No-op for non-empty / synthetic / already-attested-and-clean payloads.
         merged = _normalize_empty_clean_review(merged)
 
-        # Step 7b: schema validation (schema hash 214949ee476be6d0)
+        # Step 7b: schema validation (schema hash 35dd40c9e6e83207)
         # Shell out to validate-review-output.sh before writing to disk.
         # Exit-code routing:
         #   schema_pass    → continue to _write_output() unchanged
