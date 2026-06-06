@@ -295,29 +295,31 @@ else
         "no deprecated fields in fence" "no deprecated fields in fence"
 fi
 
-# test_two_key_json_schema
+# test_three_key_json_schema (bug 1b76)
 echo ""
-echo "=== test_two_key_json_schema ==="
-# The JSON schema must specify exactly two required top-level keys: findings and summary
-# (no scores key in required)
+echo "=== test_three_key_json_schema ==="
+# The JSON schema must specify three required top-level keys: findings, summary,
+# and review_completed (no scores key in required). The review_completed key is
+# the positive review-completed attestation that distinguishes a clean no-issues
+# review from a truncated/garbled empty payload (bug 1b76).
 schema_section="$(python3 - "$REVIEWER_BASE" <<'PYEOF'
 import sys, re
 content = open(sys.argv[1]).read()
-# Look for "EXACTLY two top-level keys" on a SINGLE LINE (not cross-section DOTALL match).
-# The current reviewer-base.md says "EXACTLY three top-level keys" — this test should fail until
-# that is updated to "EXACTLY two top-level keys". Using re.MULTILINE (not DOTALL) so the
-# match cannot span multiple lines and pick up unrelated "findings" and "summary" sections.
-m = re.search(r'EXACTLY two top-level keys|two required top-level keys|required.*two.*keys', content, re.IGNORECASE)
-if m:
-    print("two_key_found")
+# Look for three-required-key language on a SINGLE LINE (not cross-section DOTALL match).
+# Using re.MULTILINE (not DOTALL) so the match cannot span multiple lines and pick up
+# unrelated "findings" and "summary" sections.
+keys_match = re.search(r'three required top-level keys|EXACTLY three top-level keys|required.*three.*keys', content, re.IGNORECASE)
+attest_match = re.search(r'review_completed', content)
+if keys_match and attest_match:
+    print("three_key_found")
 PYEOF
 )"
-if [[ "$schema_section" == *"two_key_found"* ]]; then
-    assert_eq "JSON schema specifies 2-key schema (EXACTLY two top-level keys: findings + summary)" "present" "present"
+if [[ "$schema_section" == *"three_key_found"* ]]; then
+    assert_eq "JSON schema specifies 3-key schema (findings + summary + review_completed)" "present" "present"
 else
-    assert_eq "JSON schema specifies 2-key schema (findings + summary, no scores)" \
-        "2-key schema specification (findings + summary)" \
-        "2-key schema language not found — still using 3-key schema?"
+    assert_eq "JSON schema specifies 3-key schema (findings + summary + review_completed)" \
+        "3-key schema specification (findings + summary + review_completed)" \
+        "3-key schema language not found — review_completed attestation missing (bug 1b76)?"
 fi
 
 print_summary

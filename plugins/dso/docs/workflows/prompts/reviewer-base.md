@@ -191,12 +191,13 @@ Produce a JSON object with this EXACT schema (for writing to disk in Step 3).
 
 VIOLATIONS CAUSE RE-DISPATCH.
 
-REQUIRED: EXACTLY two top-level keys:
+REQUIRED: three required top-level keys (findings, summary, review_completed), plus optional escalate_review:
 - `"findings"` — array of finding objects; each `"file"` field MUST reference a file present in the diff being reviewed
 - `"summary"` — 2–3 sentence assessment
+- `"review_completed"` — boolean; ALWAYS set to `true`. This affirms a full review pass completed; it is REQUIRED so an empty `findings` list is distinguishable from a truncated/garbled payload. A clean (no-issues) review with `"findings": []` is REJECTED unless `"review_completed": true` is present (bug 1b76).
 
 Do NOT include a scores key.
-Do NOT add "schema_version", "review_result", "id", "review_date", "REVIEWER_HASH", or any other key except escalate_review (see Escalation section below) —
+Do NOT add "schema_version", "review_result", "id", "review_date", "REVIEWER_HASH", or any other key except escalate_review (see Escalation section below) and review_completed —
 the validator will reject unrecognized keys and force a re-dispatch.
 
 **`category` MUST be EXACTLY one of: `correctness`, `design`, `hygiene`, `maintainability`, `verification` — do NOT invent new categories like "code_smell" or "missing_test_coverage". The validator (validate-review-output.sh) hard-rejects any other value and the correction loop only has a single retry budget; off-enum categories burn that budget.**
@@ -217,9 +218,12 @@ the validator will reject unrecognized keys and force a re-dispatch.
     }
   ],
   "summary": "2-3 sentence assessment",
+  "review_completed": true,
   "escalate_review": [{"finding_index": 0, "reason": "uncertain whether this is important or critical"}]
 }
 ```
+
+**review_completed** — required boolean; always `true`. Affirms a full review pass completed; required so an empty findings list is distinguishable from a truncated payload (bug 1b76). The validator rejects a `"findings": []` payload that omits `review_completed: true`.
 
 **cited_lines** — required; minimum 1 entry per finding.
 - Accepted: `<path>:<line>` (exact citation) or `~<path>:<line>` (approximate, when exact line is unknown in CI context)
