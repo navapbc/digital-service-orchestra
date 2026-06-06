@@ -753,7 +753,9 @@ def _normalize_adf_body(body: Any) -> str:
     return str(body) if body is not None else ""
 
 
-def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResult:
+def _apply_inbound_create(
+    mutation, *, client=None, repo_root=None, binding_store=None
+) -> ApplyResult:
     """Materialise a remote Jira issue as a local jira-* ticket.
 
     Writes a CREATE event (title, ticket_type, priority, description, tags
@@ -770,6 +772,32 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
     fields = payload.get("fields") or payload
     jira_key = mutation.target
     local_id = _jira_key_to_local_id(jira_key)
+
+    # Defense-in-depth inbound dedup (ticket 1577). The snapshot differ normally
+    # stands down for an already-bound issue by recognising its dso-id:<local_id>
+    # label in the fetched fields (bug 4354) — that is the primary production
+    # dedup. This guard covers the narrow transient where the snapshot predates
+    # the label write-back yet the binding already exists in bindings.json: the
+    # differ then mis-emits an inbound CREATE which would materialise a duplicate
+    # local ticket. If the target Jira key is already bound, record the mapping
+    # and skip materialisation. Cheap (local reverse-index lookup, no Jira GET).
+    if binding_store is not None:
+        bound_local_id = binding_store.get_local_id(jira_key)
+        if bound_local_id:
+            if repo_root is None:
+                repo_root = Path(__file__).parents[4]
+            mapping_path = repo_root / "bridge_state" / "mapping.json"
+            _write_mapping_atomic(mapping_path, bound_local_id, jira_key)
+            return ApplyResult(
+                mutation.direction,
+                mutation.action,
+                {
+                    "local_id": bound_local_id,
+                    "jira_key": jira_key,
+                    "dedup_skipped": True,
+                },
+            )
+
     issuetype = _extract_name(fields.get("issuetype"), "Task")
     ticket_type = _JIRA_TYPE_MAP.get(issuetype, "task")
 
@@ -1649,7 +1677,7 @@ _LEAF_NAMES: dict[tuple[str, str], str] = {
 }
 
 
-def _apply_typed(mutation, *, client=None, repo_root=None) -> ApplyResult:
+def _apply_typed(mutation, *, client=None, repo_root=None, binding_store=None) -> ApplyResult:
     """Typed-mutation dispatch via _LEAVES.
 
     Looks up (mutation.direction, mutation.action) in _LEAVES and invokes the
@@ -1681,17 +1709,24 @@ def _apply_typed(mutation, *, client=None, repo_root=None) -> ApplyResult:
 
     try:
         sig = _inspect.signature(handler)
-        accepts_repo_root = "repo_root" in sig.parameters or any(
+        _has_var_kw = any(
             p.kind is _inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
         )
+        accepts_repo_root = "repo_root" in sig.parameters or _has_var_kw
+        accepts_binding_store = "binding_store" in sig.parameters or _has_var_kw
     except (TypeError, ValueError):
         # Builtins / C-extensions don't expose signatures: fall back to passing
-        # repo_root (legacy behaviour).
+        # repo_root (legacy behaviour) but NOT binding_store (only leaves that
+        # explicitly declare it consume it — ticket 1577).
         accepts_repo_root = True
+        accepts_binding_store = False
 
+    _leaf_kwargs: dict[str, Any] = {"client": client}
     if accepts_repo_root:
-        return handler(mutation, client=client, repo_root=repo_root)
-    return handler(mutation, client=client)
+        _leaf_kwargs["repo_root"] = repo_root
+    if accepts_binding_store:
+        _leaf_kwargs["binding_store"] = binding_store
+    return handler(mutation, **_leaf_kwargs)
 
 
 # Exit code signalling that the caller should reschedule this pass.
@@ -2568,7 +2603,9 @@ def apply(
         and hasattr(mutations, "direction")
         and hasattr(mutations, "action")
     ):
-        return _apply_typed(mutations, client=client, repo_root=repo_root)
+        return _apply_typed(
+            mutations, client=client, repo_root=repo_root, binding_store=binding_store
+        )
 
     # Legacy batch path requires pass_id.
     if pass_id is None:
@@ -2737,7 +2774,9 @@ def apply(
     for mut in inbound_typed:
         if _is_suppressed(getattr(mut, "target", "")):
             continue
-        result = _apply_typed(mut, client=client, repo_root=repo_root)
+        result = _apply_typed(
+            mut, client=client, repo_root=repo_root, binding_store=binding_store
+        )
         result_payload = (
             getattr(result, "payload", None) if result is not None else None
         )

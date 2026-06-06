@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -89,6 +90,38 @@ def _make_mutation(
         payload=payload or {},
         provenance=provenance or {"source": "test"},
     )
+
+
+def _patch_apply_deps(applier, monkeypatch):
+    """Stub applier.apply()'s lazy module loaders for an offline, all-inbound run.
+
+    apply() calls ``_load_acli()`` unconditionally to construct the Jira client
+    (applier.py ~2716). The real acli-integration.py does
+    ``from dso_reconciler.adf import text_to_adf`` at import time, which is
+    unresolvable under this file's spec_from_file_location loading scheme
+    (modules live under the ``plugins.dso.scripts.dso_reconciler`` package, not a
+    bare ``dso_reconciler`` package) — so the real load raises ModuleNotFoundError
+    before any inbound dispatch happens. Mirror test_e2e_dedup_pass: stub
+    ``_load_acli`` (offline client) and ``_load_concurrency`` (no git in tmp_path).
+    """
+    fake_acli = types.ModuleType("acli_integration_stub")
+    fake_acli.AcliClient = lambda **_: MagicMock()  # type: ignore[attr-defined]
+    monkeypatch.setattr(applier, "_load_acli", lambda: fake_acli)
+
+    fake_conc = types.ModuleType("concurrency_stub")
+    fake_conc.snapshot_head = lambda _repo_root: "deadbeef" * 5  # type: ignore[attr-defined]
+
+    class _Result:
+        ok = True
+        event = None
+        value = None
+
+    def _rebase_retry(_repo_root, write_fn, **_kwargs):
+        write_fn()
+        return _Result()
+
+    fake_conc.rebase_retry = _rebase_retry  # type: ignore[attr-defined]
+    monkeypatch.setattr(applier, "_load_concurrency", lambda: fake_conc)
 
 
 def _event_files(tracker_dir: Path, local_id: str) -> list[Path]:
@@ -377,6 +410,7 @@ def test_apply_honours_suppress_pair_drops_subsequent_inbound(
     """
 
     monkeypatch.setattr(applier, "_file_conflict_bug_ticket", lambda *a, **k: "bug-1")
+    _patch_apply_deps(applier, monkeypatch)
 
     # Seed the ticket dir so updates would otherwise apply.
     create = _make_mutation(
@@ -435,6 +469,7 @@ def test_apply_honours_suppress_pair_drops_subsequent_inbound_via_computed_form(
     third match-arm, the later inbound update sneaks past.
     """
     monkeypatch.setattr(applier, "_file_conflict_bug_ticket", lambda *a, **k: "bug-1")
+    _patch_apply_deps(applier, monkeypatch)
 
     # Seed the ticket dir so an EDIT could otherwise be written.
     create = _make_mutation(
@@ -475,6 +510,63 @@ def test_apply_honours_suppress_pair_drops_subsequent_inbound_via_computed_form(
     ]
     titles = [e["data"]["fields"].get("title", "") for e in edits]
     assert "SHOULD-BE-DROPPED" not in titles
+
+
+def test_inbound_create_dedups_against_binding_store(applier, mut_mod, fixture_repo):
+    """ticket 1577: an inbound CREATE for a Jira key already bound in the binding
+    store is deduped — mapping recorded, no phantom local ticket materialised.
+
+    Covers the narrow transient the snapshot differ's 4354 label stand-down
+    cannot: the fetched snapshot predates the dso-id:<local_id> label write-back,
+    so the differ mis-emits an inbound CREATE, but bindings.json already records
+    the binding. The applier-level guard catches it.
+    """
+
+    class _FakeBindingStore:
+        def get_local_id(self, jira_key):
+            return "uuid-bound-7" if jira_key == "DIG-77" else None
+
+    mutation = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-77",
+        payload={"fields": {"summary": "should NOT materialise", "issuetype": "Task"}},
+    )
+    result = applier._apply_typed(
+        mutation, repo_root=fixture_repo, binding_store=_FakeBindingStore()
+    )
+
+    # 1. Result signals a dedup skip bound to the pre-existing local id.
+    assert result.payload.get("dedup_skipped") is True
+    assert result.payload.get("local_id") == "uuid-bound-7"
+
+    # 2. mapping.json records uuid-bound-7 -> DIG-77.
+    mapping_file = fixture_repo / "bridge_state" / "mapping.json"
+    assert mapping_file.exists(), "dedup guard must write mapping.json"
+    mapping = json.loads(mapping_file.read_text())
+    assert mapping.get("uuid-bound-7") == "DIG-77"
+
+    # 3. No phantom local ticket materialised under the jira-key-derived id.
+    assert not (fixture_repo / ".tickets-tracker" / "jira-dig-77").exists(), (
+        "must not materialise a phantom local ticket when already bound"
+    )
+
+    # Regression guard: an UNBOUND inbound create still materialises normally —
+    # the stand-down is scoped to bound keys.
+    unbound = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-88",
+        payload={"fields": {"summary": "brand new", "issuetype": "Task"}},
+    )
+    applier._apply_typed(
+        unbound, repo_root=fixture_repo, binding_store=_FakeBindingStore()
+    )
+    assert (fixture_repo / ".tickets-tracker" / "jira-dig-88").exists(), (
+        "an unbound inbound create must still materialise a local ticket"
+    )
 
 
 # ---------------------------------------------------------------------------
