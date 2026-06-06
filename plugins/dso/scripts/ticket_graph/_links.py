@@ -28,7 +28,12 @@ class CyclicDependencyError(Exception):
 def _is_active_link(
     source_id: str, target_id: str, relation: str, tracker_dir: str
 ) -> bool:
-    """Return True if a net-active LINK exists from source_id to target_id with the given relation."""
+    """Return True if a net-active LINK exists from source_id to target_id with the given relation.
+
+    Falls back to scanning SNAPSHOT compiled_state.deps[] when no *-LINK.json files
+    are found — ticket-compact.sh bakes LINK events into a SNAPSHOT and deletes the
+    original *-LINK.json files (f5a8).
+    """
     ticket_dir = os.path.join(tracker_dir, source_id)
     if not os.path.isdir(ticket_dir):
         return False
@@ -50,6 +55,8 @@ def _is_active_link(
     )
 
     active_links: dict[str, tuple[str, str]] = {}  # uuid → (target_id, relation)
+    # Collect cancelled uuids for the SNAPSHOT fallback below.
+    cancelled_uuids: set[str] = set()
     for event_type, filepath in all_events:
         try:
             with open(filepath, encoding="utf-8") as fh:
@@ -66,11 +73,38 @@ def _is_active_link(
         elif event_type == "UNLINK":
             link_uuid = data.get("link_uuid", "")
             if link_uuid:
+                cancelled_uuids.add(link_uuid)
                 active_links.pop(link_uuid, None)
 
-    return any(
-        tid == target_id and rel == relation for tid, rel in active_links.values()
-    )
+    if any(tid == target_id and rel == relation for tid, rel in active_links.values()):
+        return True
+
+    # ── SNAPSHOT fallback (f5a8) ──────────────────────────────────────────────
+    # ticket-compact.sh bakes LINK events into a SNAPSHOT compiled_state.deps[]
+    # and deletes the original *-LINK.json files.  When no active LINK file was
+    # found above, scan any *-SNAPSHOT.json for a matching dep entry.  A link
+    # cancelled post-compaction will have an UNLINK event on disk (not compacted)
+    # — subtract those via cancelled_uuids before trusting a SNAPSHOT dep.
+    for snap_path in sorted(_glob.glob(os.path.join(ticket_dir, "*-SNAPSHOT.json"))):
+        try:
+            with open(snap_path, encoding="utf-8") as fh:
+                snap = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+        compiled = snap.get("data", {}).get("compiled_state", {})
+        for dep in compiled.get("deps", []):
+            dep_target = dep.get("target_id", "")
+            dep_uuid = dep.get("link_uuid", "")
+            dep_relation = dep.get("relation", "")
+            if (
+                dep_target == target_id
+                and dep_relation == relation
+                and dep_uuid
+                and dep_uuid not in cancelled_uuids
+            ):
+                return True
+
+    return False
 
 
 def _write_link_event(

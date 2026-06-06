@@ -1393,4 +1393,102 @@ test_ticket_link_rejects_non_canonical_relation() {
 }
 test_ticket_link_rejects_non_canonical_relation
 
+# ── Test (RED f5a8): unlink succeeds after compaction bakes LINK into SNAPSHOT ──
+# After ticket-compact.sh bakes a LINK event into a SNAPSHOT (compiled_state.deps[])
+# and deletes the original *-LINK.json file, `ticket unlink A B` must still succeed.
+# Before the fix: exits 1 with "no LINK event found" because _get_link_info only
+# globs *-LINK.json and never reads the SNAPSHOT deps[].
+# After the fix: reads the SNAPSHOT deps[], finds the link_uuid, and writes UNLINK.
+echo ""
+echo "--- test_ticket_unlink_after_compaction_succeeds ---"
+test_ticket_unlink_after_compaction_succeeds() {
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    local compact_script
+    compact_script="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)/plugins/dso/scripts/ticket-compact.sh"
+    if [ ! -f "$compact_script" ]; then
+        assert_eq "ticket-compact.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create two tickets
+    local id1 id2
+    id1=$(_create_ticket "$repo" "task" "Compaction unlink source")
+    id2=$(_create_ticket "$repo" "task" "Compaction unlink target")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    # Link id1 → id2 with depends_on
+    local link_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" depends_on 2>/dev/null) || link_exit=$?
+    if [ "$link_exit" -ne 0 ]; then
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: initial link exits 0" "0" "$link_exit"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    # Confirm LINK event file exists before compaction
+    local link_count_before
+    link_count_before=$(_count_link_events "$tracker_dir" "$id1")
+    assert_eq "test_ticket_unlink_after_compaction_succeeds: LINK event exists pre-compact" "1" "$link_count_before"
+
+    # Force compaction with threshold=1 so the LINK event is baked into SNAPSHOT
+    # and the *-LINK.json file is deleted. Use --skip-sync and --no-commit to avoid
+    # remote I/O and keep the test self-contained.
+    (cd "$repo" && PROJECT_ROOT="$repo" _TICKET_TEST_NO_SYNC=1 \
+        bash "$compact_script" "$id1" --threshold=1 --skip-sync --no-commit 2>/dev/null) || true
+
+    # Confirm LINK event file is now gone (compaction deleted it)
+    local link_count_after
+    link_count_after=$(_count_link_events "$tracker_dir" "$id1")
+    if [ "$link_count_after" -ne 0 ]; then
+        # Compaction didn't remove LINK files (unexpected) — skip gracefully.
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: LINK file deleted by compact" "0" "$link_count_after"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    # Confirm SNAPSHOT exists (compaction wrote it)
+    local snapshot_count
+    snapshot_count=$(find "$tracker_dir/$id1" -maxdepth 1 -name '*-SNAPSHOT.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "test_ticket_unlink_after_compaction_succeeds: SNAPSHOT exists post-compact" "1" "$snapshot_count"
+
+    # When: ticket unlink id1 id2 (LINK file is gone, link_uuid only in SNAPSHOT deps[])
+    local unlink_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>/dev/null) || unlink_exit=$?
+
+    # Then: exits 0 (snapshot fallback finds the link_uuid)
+    assert_eq "test_ticket_unlink_after_compaction_succeeds: unlink exits 0" "0" "$unlink_exit"
+
+    # And: an UNLINK event was written
+    local unlink_count
+    unlink_count=$(_count_unlink_events "$tracker_dir" "$id1")
+    assert_eq "test_ticket_unlink_after_compaction_succeeds: UNLINK event written" "1" "$unlink_count"
+
+    # And: ticket show id1 no longer lists id2 as a dep
+    local show_out
+    show_out=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$id1" 2>/dev/null) || show_out=""
+    if echo "$show_out" | grep -q "$id2"; then
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: dep removed from ticket show" "not-present" "present"
+    else
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: dep removed from ticket show" "not-present" "not-present"
+    fi
+
+    assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+}
+test_ticket_unlink_after_compaction_succeeds
+
 print_summary
