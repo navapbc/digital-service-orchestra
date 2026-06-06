@@ -14,6 +14,11 @@ from ticket_graph._loader import reduce_ticket
 from ticket_graph._status import _get_ticket_status
 
 
+CANONICAL_RELATIONS: frozenset[str] = frozenset(
+    {"blocks", "depends_on", "relates_to", "duplicates", "supersedes"}
+)
+
+
 class CyclicDependencyError(Exception):
     """Raised when adding a dependency would create a cycle."""
 
@@ -219,11 +224,19 @@ def add_dependency(
     """Add a dependency from source_id to target_id with cycle check.
 
     Raises CyclicDependencyError if adding this dependency would create a cycle.
+    Raises ValueError if relation is not in CANONICAL_RELATIONS.
     Writes a LINK event to the source ticket's directory.
     Idempotent: if a net-active LINK with the same (target_id, relation) already exists,
     this is a no-op (exits cleanly without writing a duplicate event).
     For relates_to: also writes a reciprocal LINK event in target_id's directory.
     """
+    # Step 0: Validate relation grammar before touching disk
+    if relation not in CANONICAL_RELATIONS:
+        canonical_list = ", ".join(sorted(CANONICAL_RELATIONS))
+        raise ValueError(
+            f"invalid relation '{relation}': must be one of {canonical_list}"
+        )
+
     # Step 1: Resolve hierarchy
     hierarchy_result = resolve_hierarchy_link(source_id, target_id, tracker_dir)
 

@@ -1350,4 +1350,47 @@ test_canonical_dispatcher_dry_run_no_link_event() {
 }
 test_canonical_dispatcher_dry_run_no_link_event
 
+# ── Test (RED): non-canonical relation 'blocked_by' must be REJECTED (Bug 61b8) ──
+# The bash dispatcher (ticket-link.sh) has a case guard, but the ticket-graph.py
+# --link path (add_dependency in _links.py) accepted any string verbatim.
+# Expected (after fix):
+#   - ticket link <id1> <id2> blocked_by exits NONZERO
+#   - No LINK event is written to disk for id1
+echo ""
+echo "--- test_ticket_link_rejects_non_canonical_relation ---"
+test_ticket_link_rejects_non_canonical_relation() {
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Relation-grammar source" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Relation-grammar target" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "relation-grammar: tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_rejects_non_canonical_relation"
+        return
+    fi
+
+    local before_count
+    before_count=$(_count_link_events "$tracker_dir" "$id1")
+
+    # Run ticket link with non-canonical relation 'blocked_by'
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocked_by 2>/dev/null) || exit_code=$?
+
+    # Assert: exits NONZERO (relation is rejected)
+    assert_ne "ticket link blocked_by: exits nonzero" "0" "$exit_code"
+
+    # Assert: no LINK event written to id1 dir
+    local after_count
+    after_count=$(_count_link_events "$tracker_dir" "$id1")
+    local new_events=$(( after_count - before_count ))
+    assert_eq "ticket link blocked_by: no LINK event written" "0" "$new_events"
+
+    assert_pass_if_clean "test_ticket_link_rejects_non_canonical_relation"
+}
+test_ticket_link_rejects_non_canonical_relation
+
 print_summary
