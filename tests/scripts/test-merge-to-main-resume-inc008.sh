@@ -127,6 +127,27 @@ else
     BRANCH="$_saved_branch"
 fi
 
+# ── F6B3: _restage_recovery_plan — advisory re-stage plan (panel O1 "advisory first" + N2) ──
+# Pure function: emits the explicit re-stage plan WITHOUT executing anything. It must
+# (a) BLOCK spent-branch reuse, (b) name a fresh branch + rebase onto origin/<default>,
+# (c) name the orphaned staged ref and gate its deletion behind confirmation (the 0-ahead
+# "spent" signal cannot distinguish spent from not-yet-populated), (d) warn that SHAs
+# change so a full re-review is required. Capture stdout.
+if ! type _restage_recovery_plan >/dev/null 2>&1; then
+    _fail "restage_plan_defined" "_restage_recovery_plan not loaded"
+else
+    _pass "restage_plan_defined"
+    _plan="$(_restage_recovery_plan "staged-abc123def456-1780000000" "main" 2>&1)"
+    if grep -qiE "do not reuse|spent" <<<"$_plan"; then _pass "T20_blocks_spent_reuse"; else _fail "T20_blocks_spent_reuse" "must block spent-branch reuse: $_plan"; fi
+    if grep -qiE "fresh branch" <<<"$_plan"; then _pass "T21_fresh_branch"; else _fail "T21_fresh_branch" "must instruct a fresh branch"; fi
+    if grep -qE "rebase.*origin/main" <<<"$_plan"; then _pass "T22_rebase_onto_main"; else _fail "T22_rebase_onto_main" "must rebase onto origin/main"; fi
+    if grep -qF "staged-abc123def456-1780000000" <<<"$_plan"; then _pass "T23_names_staged_ref"; else _fail "T23_names_staged_ref" "must name the orphaned staged ref"; fi
+    if grep -qiE "confirm" <<<"$_plan"; then _pass "T24_deletion_gated"; else _fail "T24_deletion_gated" "staged-ref deletion must require confirmation"; fi
+    if grep -qiE "re-review|review again|SHAs change" <<<"$_plan"; then _pass "T25_rereview_warning"; else _fail "T25_rereview_warning" "must warn re-review is required"; fi
+    # advisory-only: the printed plan must not contain a bare executable git mutation line
+    if grep -qE "^[[:space:]]*git (push|branch -D|rebase)" <<<"$_plan"; then _fail "T26_advisory_only" "plan emitted a bare executable git mutation line (should be advisory text only)"; else _pass "T26_advisory_only"; fi
+fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]]

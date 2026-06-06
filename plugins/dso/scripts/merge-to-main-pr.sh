@@ -994,6 +994,25 @@ resume_staged_ref_is_spent() {
     (( _ahead == 0 ))
 }
 
+# _restage_recovery_plan <staged_ref> <default_branch>
+# f6b3 — panel O1 (advisory-first) + N2 (blocking recovery message). Emits the
+# explicit re-stage plan for a DETERMINATE PR2 conflict (the staged ref is stale vs
+# an advanced default branch) WITHOUT executing anything. The destructive
+# auto-re-stage (fresh-branch creation + orphaned-staged GC) is a SEPARATE,
+# human-gated increment; this advisory plan is the safe first slice and replaces the
+# terse one-line recovery so a follower does not reuse a spent branch or delete a
+# live staged ref. Writes to stdout (the caller redirects to >&2). Pure: no side effects.
+_restage_recovery_plan() {
+    local _staged="${1:-<staged-ref>}" _db="${2:-${_DEFAULT_BRANCH:-main}}"
+    printf '%s\n' \
+        "RECOVERY: re-stage required — DETERMINATE conflict (the staged ref is stale vs an advanced ${_db}), NOT a false-positive review finding. Do NOT use /dso:fp-recovery." \
+        "  1. The source branch behind ${_staged} is SPENT (its PR1 already merged) — do NOT reuse it (the merged-PR push guard rejects it). Create a FRESH branch off the same feature content." \
+        "  2. On the fresh branch, rebase onto origin/${_db} to resolve the conflict (when only plugin.json's version differs, take ${_db}'s version — e.g. a rebase with -X ours)." \
+        "  3. Delete the orphaned staged ref ${_staged} — REQUIRES confirmation: a 0-commits-ahead 'spent' signal cannot distinguish a spent ref from one another session just created, so confirm its PR1 is MERGED/CLOSED first." \
+        "  4. Re-run merge-to-main from the fresh branch for a new staged ref + PR1/PR2." \
+        "  5. NOTE: re-staging rewrites SHAs, so any prior review clearance does NOT carry — a full re-review is required."
+}
+
 # resume_gc_stale_staged_state [state_dir]
 # 3ebb DD2 / INC-015 (b): the /tmp/merge-to-main-state-*.json files are a CACHE,
 # not the source of truth (GitHub + git are). Garbage-collect the cache entries
@@ -1557,7 +1576,7 @@ except Exception:
     if [[ "$_mergeable" == "CONFLICTING" ]]; then
         echo "ERROR: PR #${_pr_number} (${BRANCH} -> ${_pr_base:-${_DEFAULT_BRANCH:-main}}) is CONFLICTING — content conflicts with current ${_DEFAULT_BRANCH:-main}; rebase-merge cannot proceed." >&2
         if _branch_is_staged_promotion; then
-            echo "RECOVERY: re-stage — checkout the feature branch, rebase onto origin/${_DEFAULT_BRANCH:-main} (resolve conflicts), then re-run merge-to-main for a fresh staged ref + PR1/PR2. This is a DETERMINATE conflict, NOT a false-positive review finding — do NOT use /dso:fp-recovery." >&2
+            _restage_recovery_plan "$BRANCH" "${_DEFAULT_BRANCH:-main}" >&2
         fi
         return 1
     fi
