@@ -3317,6 +3317,24 @@ def main() -> int:
                     f.get("type", "") in _SYNTHETIC_TYPES for f in arch_findings
                 )
                 if not arch_all_synthetic:
+                    # FINDING-1 (1b76 fail-closed regression): replacing `merged`
+                    # (which merge_findings stamped with review_completed: True)
+                    # with the raw arch LLM output drops that attestation when the
+                    # arch agent didn't emit it. A clean deep review (empty
+                    # findings, no review_completed) would then fail the
+                    # empty-findings rule and route into dispatch_schema_correction
+                    # — which is structurally incapable of adding review_completed
+                    # ("do not add keys not present in the original"), so it
+                    # re-fails and converts a genuine no-issues review into a
+                    # blocking synthetic schema_error. Mirror the merge_findings
+                    # guard: inject review_completed: True onto a non-synthetic
+                    # arch_result that has an EMPTY findings list, before
+                    # validation. Non-empty results are the positive signal
+                    # themselves (untouched); synthetic results are exempt and
+                    # never reach here (arch_all_synthetic short-circuits above).
+                    if not arch_findings:
+                        arch_result = dict(arch_result)
+                        arch_result["review_completed"] = True
                     merged = arch_result
 
             # Step 6b: component #3' R-2 — fallback re-chunk. A token-dense diff
