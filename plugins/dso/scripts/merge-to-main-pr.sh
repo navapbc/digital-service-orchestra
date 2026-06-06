@@ -1013,6 +1013,35 @@ _restage_recovery_plan() {
         "  5. NOTE: re-staging rewrites SHAs, so any prior review clearance does NOT carry — a full re-review is required."
 }
 
+# _restage_staged_ref_safe_to_delete <pr1_state> <pr2_state>
+# f6b3 incr-2 (panel red-team condition): a remote staged ref may be deleted during
+# an auto-re-stage ONLY with forge-side proof it is a terminal orphan — its
+# source->staged PR1 MERGED (promotion completed) AND no live staged->main PR2.
+# NEVER on the local 0-commits-ahead signal (which cannot distinguish a spent ref
+# from one another session just created and has not pushed work onto yet). Fail-safe:
+# any OPEN, a CLOSED-without-merge PR1, or UNKNOWN/empty => return 1 (NOT safe).
+_restage_staged_ref_safe_to_delete() {
+    local _pr1="${1:-}" _pr2="${2:-}"
+    [[ "$_pr1" == "MERGED" ]] || return 1
+    case "$_pr2" in
+        ""|CLOSED) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# _restage_fresh_branch_name <source_branch>
+# f6b3 incr-2: derive a FRESH branch name for the re-stage (the spent source must NOT
+# be reused — the merged-PR push guard rejects it). A trailing -<N> is incremented;
+# otherwise a -restage2 suffix is appended. Pure; never returns the input unchanged.
+_restage_fresh_branch_name() {
+    local _src="${1:-}"
+    if [[ "$_src" =~ ^(.*)-([0-9]+)$ ]]; then
+        printf '%s-%d\n' "${BASH_REMATCH[1]}" "$(( BASH_REMATCH[2] + 1 ))"
+    else
+        printf '%s-restage2\n' "$_src"
+    fi
+}
+
 # resume_gc_stale_staged_state [state_dir]
 # 3ebb DD2 / INC-015 (b): the /tmp/merge-to-main-state-*.json files are a CACHE,
 # not the source of truth (GitHub + git are). Garbage-collect the cache entries

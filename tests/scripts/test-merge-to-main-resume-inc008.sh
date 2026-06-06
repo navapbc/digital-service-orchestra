@@ -148,6 +148,39 @@ else
     if grep -qE "^[[:space:]]*git (push|branch -D|rebase)" <<<"$_plan"; then _fail "T26_advisory_only" "plan emitted a bare executable git mutation line (should be advisory text only)"; else _pass "T26_advisory_only"; fi
 fi
 
+# ── F6B3 incr-2: forge-proof spentness gate (panel cond: never delete on local 0-ahead) ──
+# _restage_staged_ref_safe_to_delete <pr1_state> <pr2_state>: a remote staged ref is
+# safe to delete ONLY when its source->staged PR1 MERGED (promotion completed) AND
+# there is no live staged->main PR2 (CLOSED or none). Fail-safe (return 1) on any
+# OPEN, CLOSED-without-merge PR1, or UNKNOWN/empty — so a concurrent session's
+# just-created (not-yet-populated) staged ref is never deleted.
+if ! type _restage_staged_ref_safe_to_delete >/dev/null 2>&1; then
+    _fail "safe_to_delete_defined" "_restage_staged_ref_safe_to_delete not loaded"
+else
+    _pass "safe_to_delete_defined"
+    if _restage_staged_ref_safe_to_delete "MERGED" ""; then _pass "T27_merged_nopr2_safe"; else _fail "T27_merged_nopr2_safe" "MERGED PR1 + no PR2 must be safe"; fi
+    if _restage_staged_ref_safe_to_delete "MERGED" "CLOSED"; then _pass "T28_merged_closedpr2_safe"; else _fail "T28_merged_closedpr2_safe" "MERGED PR1 + CLOSED PR2 must be safe"; fi
+    if ! _restage_staged_ref_safe_to_delete "MERGED" "OPEN"; then _pass "T29_open_pr2_unsafe"; else _fail "T29_open_pr2_unsafe" "a live (OPEN) PR2 must be UNSAFE"; fi
+    if ! _restage_staged_ref_safe_to_delete "OPEN" ""; then _pass "T30_open_pr1_unsafe"; else _fail "T30_open_pr1_unsafe" "an OPEN PR1 (concurrent setup) must be UNSAFE"; fi
+    if ! _restage_staged_ref_safe_to_delete "" ""; then _pass "T31_unknown_unsafe_failsafe"; else _fail "T31_unknown_unsafe_failsafe" "UNKNOWN/empty must fail-safe to UNSAFE"; fi
+    if ! _restage_staged_ref_safe_to_delete "CLOSED" ""; then _pass "T32_closed_unmerged_pr1_unsafe"; else _fail "T32_closed_unmerged_pr1_unsafe" "CLOSED-without-merge PR1 (content not landed) must be UNSAFE"; fi
+fi
+
+# ── F6B3 incr-2: fresh branch naming (never reuse the spent source) ──
+# _restage_fresh_branch_name <source_branch>: a trailing -N is incremented; otherwise
+# a -restage2 suffix is appended. Pure.
+if ! type _restage_fresh_branch_name >/dev/null 2>&1; then
+    _fail "fresh_name_defined" "_restage_fresh_branch_name not loaded"
+else
+    _pass "fresh_name_defined"
+    _n1="$(_restage_fresh_branch_name "story/588e-abec-221f-42c0/3ebb-resilience-dd123-6")"
+    if [[ "$_n1" == "story/588e-abec-221f-42c0/3ebb-resilience-dd123-7" ]]; then _pass "T33_increment_suffix"; else _fail "T33_increment_suffix" "got '$_n1'"; fi
+    _n2="$(_restage_fresh_branch_name "feat-x")"
+    if [[ "$_n2" == "feat-x-restage2" ]]; then _pass "T34_append_suffix"; else _fail "T34_append_suffix" "got '$_n2'"; fi
+    # never equal to the (spent) source
+    if [[ "$(_restage_fresh_branch_name "dd123-9")" != "dd123-9" ]]; then _pass "T35_never_equals_source"; else _fail "T35_never_equals_source" "fresh name must differ from spent source"; fi
+fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]]
