@@ -18,6 +18,21 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
+HASH_SCRIPT="$REPO_ROOT/plugins/dso/scripts/compute-verdict-hash.sh"
+
+# ── Helper: close a story/epic through the verdict-hash gate ──────────────────
+# Story/epic closure requires a verified completion verdict hash (commit a6e8925206).
+# Compute the real HMAC the same way ticket-transition.sh does (same PROJECT_ROOT
+# and cwd → same HEAD SHA and .closure-key), then pass it as --verdict-hash so the
+# closure exits 0 under the gate.
+_close_with_verdict() {
+    local repo="$1"
+    local ticket_id="$2"
+    local from_status="${3:-open}"
+    local hash
+    hash=$(cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "$ticket_id" "PASS" 2>/dev/null)
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$ticket_id" "$from_status" closed --verdict-hash="$hash" >/dev/null 2>&1)
+}
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 source "$REPO_ROOT/tests/lib/git-fixtures.sh"
@@ -113,9 +128,10 @@ test_full_delete_lifecycle() {
         return
     fi
 
-    # Transition S1 to closed (so we have one closed + one open child)
+    # Transition S1 to closed (so we have one closed + one open child).
+    # Stories require a verified completion verdict hash to close (commit a6e8925206).
     local close_exit=0
-    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$s1_id" open closed >/dev/null 2>&1) || close_exit=$?
+    _close_with_verdict "$repo" "$s1_id" open || close_exit=$?
     assert_eq "transition S1 to closed exits 0" "0" "$close_exit"
 
     # Delete S2 with --user-approved
@@ -145,9 +161,10 @@ test_full_delete_lifecycle() {
     (cd "$repo" && bash "$TICKET_SCRIPT" transition "$s2_id" deleted closed >/dev/null 2>&1) || transition_exit=$?
     assert_ne "transition deleted→closed exits non-zero" "0" "$transition_exit"
 
-    # Parent epic should be closeable with one closed + one deleted child
+    # Parent epic should be closeable with one closed + one deleted child.
+    # Epics require a verified completion verdict hash to close (commit a6e8925206).
     local epic_close_exit=0
-    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$epic_id" open closed >/dev/null 2>&1) || epic_close_exit=$?
+    _close_with_verdict "$repo" "$epic_id" open || epic_close_exit=$?
     assert_eq "parent epic closes with mixed closed+deleted children" "0" "$epic_close_exit"
 
     assert_pass_if_clean "test_full_delete_lifecycle"
@@ -317,131 +334,105 @@ test_delete_list_visibility() {
 test_delete_list_visibility
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Test 6: Bridge outbound routes deleted status to delete_issue, not update_issue
+# Test 6: Reconciler outbound differ routes a deleted ticket to the "Done"
+# transition (no separate delete_issue call).
 #
-# Verifies that bridge-outbound._outbound_handlers.handle_status_event intercepts
-# compiled_status=="deleted" and calls delete_issue (not update_issue/transition).
-# Uses Python unittest.mock to assert the routing without real ACLI calls.
+# History: the edge-triggered bridge (bridge/_outbound_handlers.handle_status_event,
+# which called delete_issue for status==deleted) was removed in commit a3a3928f52
+# when epic 3a03 cut over to the level-triggered reconciler. The reconciler has no
+# delete_issue route — instead, dso_reconciler.outbound_differ maps a deleted local
+# status to the Jira "Done" status (deleted -> Done) and excludes deleted tickets
+# from outbound mutations by default. This test asserts that CURRENT behavior:
+#   1. _map_local_to_jira_fields maps status "deleted" -> "Done".
+#   2. compute_outbound_mutations excludes deleted tickets by default (no mutation).
+#   3. When deleted is NOT excluded, the produced mutation is an "update" carrying
+#      status "Done" — confirming there is NO delete-action / delete_issue route.
+# Uses unittest.mock for the binding store; no real ACLI calls.
 # ─────────────────────────────────────────────────────────────────────────────
 echo ""
-echo "Test E2E-6: bridge outbound routes deleted status to delete_issue (not update_issue)"
-test_bridge_routes_deleted_to_delete_issue() {
+echo "Test E2E-6: reconciler outbound differ maps deleted -> Done (no delete_issue route)"
+test_reconciler_routes_deleted_to_done() {
     _snapshot_fail
 
     # Write the test script to a temp file (avoids heredoc-in-subshell issues)
     local py_script exit_code py_output
-    py_script=$(mktemp "${TMPDIR:-/tmp}/bridge-routing-test-XXXXXX".py)
+    py_script=$(mktemp "${TMPDIR:-/tmp}/reconciler-routing-test-XXXXXX".py)
     cat > "$py_script" << 'PYEOF'
-import sys, os, json, tempfile, shutil
-from unittest.mock import MagicMock
-from pathlib import Path
+import sys, os
 
 repo_root = sys.argv[1]
 sys.path.insert(0, os.path.join(repo_root, 'plugins', 'dso', 'scripts'))
-sys.path.insert(0, os.path.join(repo_root, 'plugins', 'dso', 'scripts', 'bridge'))
 
-tmpdir = tempfile.mkdtemp()
-try:
-    tracker_dir = Path(tmpdir) / '.tickets-tracker'
-    ticket_id = 'test-del-0001'
-    ticket_dir = tracker_dir / ticket_id
-    ticket_dir.mkdir(parents=True)
+from dso_reconciler.outbound_differ import (
+    _map_local_to_jira_fields,
+    compute_outbound_mutations,
+)
 
-    env_id = 'test-env'
-    (tracker_dir / '.env-id').write_text(env_id)
 
-    import time, uuid as _uuid
-    base_ts = time.time_ns()
+class _FakeBindingStore:
+    """Minimal BindingStoreProtocol stub: maps local_id -> jira_key."""
 
-    # CREATE event first (reducer returns None without it)
-    create_ts = base_ts - 2
-    create_ev = str(_uuid.uuid4())
-    (ticket_dir / f'{create_ts}-{create_ev}-CREATE.json').write_text(json.dumps({
-        'event_type': 'CREATE', 'timestamp': create_ts, 'uuid': create_ev,
-        'env_id': env_id, 'author': 'test',
-        'data': {'ticket_type': 'task', 'title': 'test ticket', 'ticket_id': ticket_id}
-    }))
+    def __init__(self, mapping):
+        self._mapping = mapping
 
-    ts = base_ts
-    ev = str(_uuid.uuid4())
+    def get_jira_key(self, local_id):
+        return self._mapping.get(local_id)
 
-    # Write STATUS event with status=deleted
-    (ticket_dir / f'{ts}-{ev}-STATUS.json').write_text(json.dumps({
-        'event_type': 'STATUS', 'timestamp': ts, 'uuid': ev,
-        'env_id': env_id, 'author': 'test',
-        'data': {'status': 'deleted', 'ticket_id': ticket_id}
-    }))
+    def is_bound(self, local_id):
+        return local_id in self._mapping
 
-    # Write SYNC file so bridge knows the Jira key (jira_key at top level per write_sync_event)
-    sync_ts = ts - 1
-    sync_ev = str(_uuid.uuid4())
-    (ticket_dir / f'{sync_ts}-{sync_ev}-SYNC.json').write_text(json.dumps({
-        'event_type': 'SYNC', 'timestamp': sync_ts, 'uuid': sync_ev,
-        'env_id': env_id, 'local_id': ticket_id,
-        'jira_key': 'TEST-42', 'jira_project': 'TEST'
-    }))
 
-    from _outbound_handlers import handle_status_event
+ticket = {
+    'ticket_id': 'test-del-0001',
+    'title': 'test ticket',
+    'description': '',
+    'status': 'deleted',
+    'ticket_type': 'task',
+}
 
-    mock_client = MagicMock()
-    mock_client.delete_issue.return_value = {'status': 'deleted', 'key': 'TEST-42'}
+# (1) Field mapping: deleted local status -> Jira "Done".
+mapped = _map_local_to_jira_fields(ticket)
+assert mapped.get('status') == 'Done', \
+    f'expected deleted -> Done, got {mapped.get("status")!r}'
 
-    status_updated = set()
+binding_store = _FakeBindingStore({'test-del-0001': 'TEST-42'})
+jira_snapshot = {'TEST-42': {'fields': {}}}
 
-    # event dict matches what bridge-outbound.py passes to handle_status_event
-    event = {
-        'event_type': 'STATUS',
-        'ticket_id': ticket_id,
-        'timestamp': ts,
-        'uuid': ev,
-        'env_id': env_id,
-        'author': 'test',
-        'data': {'status': 'deleted', 'ticket_id': ticket_id},
-    }
+# (2) Default behavior: deleted tickets are excluded from outbound mutations.
+default_mutations = compute_outbound_mutations(
+    [ticket], jira_snapshot, binding_store,
+)
+assert default_mutations == [], \
+    f'deleted ticket should be excluded by default, got {default_mutations!r}'
 
-    # reducer_path: must point to ticket-reducer.py (matches bridge-outbound.py convention)
-    reducer_path = Path(repo_root) / 'plugins' / 'dso' / 'scripts' / 'ticket-reducer.py'
+# (3) When deleted is NOT excluded, the reconciler emits an UPDATE carrying the
+# Done status — never a delete action. This is the positive proof that the new
+# reconciler routes deletion via the Done transition rather than a delete_issue call.
+included_mutations = compute_outbound_mutations(
+    [ticket], jira_snapshot, binding_store, excluded_statuses=set(),
+)
+assert len(included_mutations) == 1, \
+    f'expected exactly one mutation, got {included_mutations!r}'
+mutation = included_mutations[0]
+assert mutation.action == 'update', \
+    f'expected update action (Done transition), got {mutation.action!r}'
+assert mutation.action != 'delete', \
+    'reconciler must not emit a delete action for a deleted ticket'
+assert mutation.fields.get('status') == 'Done', \
+    f'expected status Done in update, got {mutation.fields.get("status")!r}'
 
-    handle_status_event(
-        event=event,
-        acli_client=mock_client,
-        tickets_root=tracker_dir,
-        bridge_env_id=env_id,
-        run_id='test-run',
-        reducer_path=reducer_path,
-        status_updated=status_updated,
-    )
-
-    # delete_issue must have been called with 'TEST-42'
-    assert mock_client.delete_issue.called, \
-        f'delete_issue was NOT called; calls={mock_client.mock_calls}'
-    delete_args = mock_client.delete_issue.call_args
-    called_key = delete_args.args[0] if delete_args.args else delete_args.kwargs.get('jira_key', '')
-    assert called_key == 'TEST-42', \
-        f'delete_issue called with wrong key: {called_key!r}'
-
-    # update_issue must NOT have been called
-    assert not mock_client.update_issue.called, \
-        f'update_issue was unexpectedly called: {mock_client.update_issue.call_args_list}'
-
-    # ticket_id must be in status_updated
-    assert ticket_id in status_updated, \
-        f'ticket_id not in status_updated after delete: {status_updated}'
-
-    print('BRIDGE_ROUTING_OK')
-finally:
-    shutil.rmtree(tmpdir, ignore_errors=True)
+print('RECONCILER_ROUTING_OK')
 PYEOF
 
     exit_code=0
     py_output=$(python3 "$py_script" "$REPO_ROOT" 2>&1) || exit_code=$?
     rm -f "$py_script"
 
-    assert_eq "bridge routing test exits 0" "0" "$exit_code"
-    assert_contains "bridge routes deleted to delete_issue" "BRIDGE_ROUTING_OK" "$py_output"
+    assert_eq "reconciler routing test exits 0" "0" "$exit_code"
+    assert_contains "reconciler routes deleted to Done transition" "RECONCILER_ROUTING_OK" "$py_output"
 
-    assert_pass_if_clean "test_bridge_routes_deleted_to_delete_issue"
+    assert_pass_if_clean "test_reconciler_routes_deleted_to_done"
 }
-test_bridge_routes_deleted_to_delete_issue
+test_reconciler_routes_deleted_to_done
 
 print_summary
