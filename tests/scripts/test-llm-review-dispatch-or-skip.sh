@@ -542,10 +542,13 @@ test_exit3_emits_over_bound_summary() {
     assert_pass_if_clean "test_exit3_emits_over_bound_summary"
 }
 
-# ── Test 9 (bug 8a77 v2): no marker → exits 1 with diagnostic ─────────────────
+# ── Test 9 (bug 8a77 v2; 3ebb DD1): no marker → INDETERMINATE (75), still blocks ──
 # When the verifier never wrote provenance-complete.marker (crash, never ran,
-# permission failure, etc.), the dispatcher MUST exit 1 with a descriptive
-# error rather than silently falling through to "all provenanced" exit 0.
+# permission failure, etc.), the dispatch DECISION could not be computed. Per the
+# tristate lattice (3ebb DD1, docs/contracts/review-tristate-lattice.md) this is
+# INDETERMINATE (exit 75) — a distinct, still-blocking signal the orchestrator may
+# retry on a transient cause / route to escalation (DD3) — NOT a silent fall-through
+# to "all provenanced" exit 0, and NOT conflated with the normal dispatch exit 1.
 test_dispatcher_no_marker_exits_1() {
     _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
@@ -567,13 +570,19 @@ test_dispatcher_no_marker_exits_1() {
         bash "$WRAPPER" > /dev/null 2> "$stderr_file"
     exit_code=$?
 
-    assert_eq "test_dispatcher_no_marker_exits_1: missing marker exits 1" \
-        "1" "$exit_code"
+    assert_eq "test_dispatcher_no_marker_exits_1: missing marker is INDETERMINATE (exit 75)" \
+        "75" "$exit_code"
 
     local stderr_content
     stderr_content=$(cat "$stderr_file")
     assert_contains "test_dispatcher_no_marker_exits_1: stderr names the marker" \
         "provenance-complete.marker" "$stderr_content"
+    # DD3 (review-tristate-lattice.md): an INDETERMINATE verdict must emit the
+    # greppable INDETERMINATE_ESCALATION: marker to stderr for machine routing to
+    # /dso:fp-recovery + FP-rate telemetry. Asserting exit 75 alone would pass a
+    # partial impl that exits 75 without escalating, silently breaking DD3 recovery.
+    assert_contains "test_dispatcher_no_marker_exits_1: stderr emits INDETERMINATE_ESCALATION marker (DD3)" \
+        "INDETERMINATE_ESCALATION:" "$stderr_content"
 
     rm -rf "$artifact_dir" "$stderr_file"
     assert_pass_if_clean "test_dispatcher_no_marker_exits_1"
