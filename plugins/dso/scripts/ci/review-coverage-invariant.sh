@@ -36,9 +36,13 @@
 #                                 for staged rollout before wiring as required)
 #   DSO_GH_BIN                    gh override (tests)
 #
-# Exit codes:
-#   0  every base..head SHA is proven reviewed (or warn mode)
-#   1  at least one SHA is unreviewed, OR a fail-closed condition (enforce mode)
+# Exit codes (3ebb DD1 tristate — docs/contracts/review-tristate-lattice.md):
+#   0  PASS           every base..head SHA is proven reviewed (or warn mode)
+#   1  FAIL           at least one SHA is a genuine review violation (enforce) —
+#                     the safe bottom; never retried/downgraded
+#   75 INDETERMINATE  could not confirm review (API/parse error) with NO genuine
+#                     violation (enforce) — still blocks, but a distinct signal the
+#                     orchestrator may retry on a transient cause / escalate (DD3)
 #   78 precondition not met (no gh / no token) — rollout-friendly, like the
 #      ruleset-invariants check
 
@@ -56,6 +60,15 @@ if [[ ! -f "$_REVIEW_COVERAGE_LIB" ]]; then
 fi
 # shellcheck source=../lib/review-coverage-lib.sh
 source "$_REVIEW_COVERAGE_LIB"
+# 3ebb DD1: the tristate decidability lattice (docs/contracts/review-tristate-lattice.md).
+# Fail closed (precondition) if missing — without it the verdict classifier is undefined.
+_REVIEW_TRISTATE_LIB="${DSO_REVIEW_TRISTATE_LIB:-${_PLUGIN_ROOT}/scripts/lib/review-tristate-lib.sh}"
+if [[ ! -f "$_REVIEW_TRISTATE_LIB" ]]; then
+    echo "PRECONDITION_NOT_MET: review-tristate lib not found: $_REVIEW_TRISTATE_LIB" >&2
+    exit 78
+fi
+# shellcheck source=../lib/review-tristate-lib.sh
+source "$_REVIEW_TRISTATE_LIB"
 # Identity-based admin exemption (ADR-0022, supersedes the HMAC ledger): a covering
 # PR merged by a designated bypass-actor counts as reviewed-equivalent. This is
 # folded into rc_sha_is_reviewed (the coverage lib already sources the bypass-actor
@@ -159,24 +172,41 @@ while IFS= read -r _sha; do
             ;;
         *)
             _errors=$(( _errors + 1 ))
-            _violations+="  FAIL_CLOSED ${_sha} — could not confirm review (API/parse error)"$'\n'
+            _violations+="  INDETERMINATE ${_sha} — could not confirm review (API/parse error)"$'\n'
             ;;
     esac
 done <<< "$_SHAS"
 
 echo "review-coverage-invariant: ${_total} SHA(s) in ${_BASE_REF}..${_HEAD} — verified=${_verified} exempt_tickets=${_exempt_tickets} ledger_hits=${_ledger_hits} unreviewed=${_unreviewed} errors=${_errors}"
 
-if (( _unreviewed == 0 && _errors == 0 )); then
+# 3ebb DD1: resolve the per-SHA tallies through the tristate lattice. A genuine
+# unreviewed SHA is FAIL (1, the safe bottom — never retried/downgraded); a
+# could-not-confirm-only run is INDETERMINATE (75) — still blocking under enforce,
+# but a distinct signal the orchestrator may retry on an observably-transient
+# cause and otherwise route to in-channel escalation (DD3). Never PASS on
+# inferred-benign: an unconfirmable SHA is never assumed reviewed.
+_verdict="$(tristate_classify_verdict "$_unreviewed" "$_errors")"; _verdict_code=$?
+if [[ "$_verdict" == "PASS" ]]; then
     echo "review-coverage-invariant: ok (every SHA proven reviewed)"
     exit 0
 fi
 
-echo "ERROR [coverage]: coverage invariant VIOLATED — unreviewed/unconfirmable SHAs reach ${_BASE_REF}:" >&2
+echo "ERROR [coverage]: coverage invariant ${_verdict} — unreviewed/unconfirmable SHAs reach ${_BASE_REF}:" >&2
 printf '%s' "$_violations" >&2
 echo "ERROR [coverage]: review is proven by a passing review check-run on a covering merged PR — NEVER inferred from reachability to ${_BASE_REF}." >&2
 
 if [[ "$MODE" == "warn" ]]; then
-    echo "::warning::review-coverage-invariant found ${_unreviewed} unreviewed + ${_errors} unconfirmable SHA(s) — MODE=warn (not blocking this run)"
+    echo "::warning::review-coverage-invariant verdict=${_verdict} (unreviewed=${_unreviewed} errors=${_errors}) — MODE=warn (not blocking this run)"
     exit 0
 fi
-exit 1
+# 3ebb DD3: an INDETERMINATE verdict (could-not-confirm; per-SHA retries already
+# spent in rc_sha_is_reviewed) routes to /dso:fp-recovery in-channel — not manual
+# git surgery. A genuine FAIL does NOT escalate here: it is a real review
+# violation, not a false-positive/uncomputable case.
+if [[ "$_verdict" == "INDETERMINATE" ]] && declare -F tristate_indeterminate_escalation >/dev/null 2>&1; then
+    tristate_indeterminate_escalation "review-coverage-invariant" \
+        "could not confirm review for ${_errors} SHA(s) in ${_BASE_REF}..${_HEAD} (API/parse error); coverage verdict uncomputable" \
+        "${PR_NUMBER:+PR#}${PR_NUMBER:-}"
+fi
+# FAIL -> 1; INDETERMINATE -> 75 (both block under enforce; the code is the signal).
+exit "$_verdict_code"

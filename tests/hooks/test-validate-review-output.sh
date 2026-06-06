@@ -243,6 +243,20 @@ assert_eq "test_code_review_dispatch_with_scores_key_deprecated: exits 0 (scores
 assert_contains "test_code_review_dispatch_with_scores_key_deprecated: stdout contains SCHEMA_VALID: yes" "SCHEMA_VALID: yes" "$STDOUT_OUT"
 assert_contains "test_code_review_dispatch_with_scores_key_deprecated: stderr contains DEPRECATION WARNING" "DEPRECATION WARNING" "$STDERR_OUT"
 
+# test_code_review_dispatch_with_fallback_hops_passes (bug 284b)
+# Given: a code-review-dispatch payload carrying the infra-emitted fallback_hops
+#        top-level key (dispatch.py appends it when a provider fallback hop occurs)
+# When: validate-review-output.sh code-review-dispatch <file> runs
+# Then: exits 0 (fallback_hops is an allowlisted optional key) — a non-zero here is
+#       the schema-correction-exhausted fail-closed this regression test guards.
+echo "=== test_code_review_dispatch_with_fallback_hops_passes ==="
+FALLBACK_HOPS_FIXTURE=$(write_fixture "crd-fallback-hops.json" '{"findings":[],"summary":"All checks passed. No issues found.","fallback_hops":["anthropic->openai: rate_limited"]}')
+FALLBACK_HOPS_EXIT=$(run_script code-review-dispatch "$FALLBACK_HOPS_FIXTURE")
+assert_eq \
+    "test_code_review_dispatch_with_fallback_hops_passes: fallback_hops top-level key is allowlisted, exits 0" \
+    "0" \
+    "$FALLBACK_HOPS_EXIT"
+
 # code-review-dispatch: valid with findings (2-key schema)
 VALID_CRD_WITH_FINDINGS=$(write_fixture "valid-crd-findings.json" '{
   "findings": [

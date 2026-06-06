@@ -2319,7 +2319,7 @@ def _clamp_schema_correction_attempts(raw_value: int) -> int:
 def get_schema_correction_max_attempts(config_path: str | None = None) -> int:
     """Return the clamped schema_correction_max_attempts config value.
 
-    Reads review.schema_correction_max_attempts from dso-config.conf (default: 1).
+    Reads review.schema_correction_max_attempts from dso-config.conf (default: 2).
     Clamps to ceiling=3. max_attempts=0 disables correction dispatch.
 
     This is the single authoritative read point — called by dispatch_schema_correction()
@@ -3546,9 +3546,25 @@ def main() -> int:
                     merged = dict(merged)
                     merged["cycle_number"] = cycle_number
                     _write_output(merged)
+                    # Surface the underlying schema-validation errors on the
+                    # fail-closed path (bug 9d2c). Without this, the violating
+                    # field/value lives only in the synthetic finding's
+                    # description (written to the findings JSON, which CI does
+                    # not upload) — leaving the CI job log with a generic
+                    # "exhausted" message and the actual violation unrecoverable.
+                    # Truncate so a pathological error list cannot flood the log.
+                    _err_lines = _schema_result.errors or []
+                    # str()-coerce each entry (PR #684 review finding): errors is
+                    # typed list[str], but a defensive guard prevents a non-string
+                    # entry (None/dict/int) from raising TypeError in join and
+                    # crashing this fail-closed path.
+                    _err_preview = "; ".join(str(_e) for _e in _err_lines[:10])
+                    if len(_err_lines) > 10:
+                        _err_preview += f" (+{len(_err_lines) - 10} more)"
                     print(
                         f"ERROR: schema correction exhausted all {_max_attempts} attempt(s) — "
-                        f"synthetic schema_error present; blocking merge (fail-closed)",
+                        f"synthetic schema_error present; blocking merge (fail-closed). "
+                        f"Schema errors: {_err_preview}",
                         file=sys.stderr,
                     )
                     return 1
