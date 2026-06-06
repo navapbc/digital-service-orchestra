@@ -2332,3 +2332,192 @@ def test_cycle_detection_ignores_suggestions_dir(tmp_path: Path) -> None:
     assert "tkt-bbb" not in blocked, (
         f"Expected tkt-bbb not in blocked set (no link exists), got {blocked!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Relation-grammar validation (Bug 61b8-bb44-fb04-402c)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_rejects_non_canonical_relation(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """add_dependency raises ValueError for a non-canonical relation ('blocked_by').
+
+    Bug 61b8-bb44-fb04-402c: the ticket-graph.py --link path (add_dependency in
+    _links.py) performed NO validation of the relation argument against the
+    canonical set {blocks, depends_on, relates_to, duplicates, supersedes}.  It
+    wrote whatever string was passed (e.g. 'blocked_by') verbatim.
+
+    Setup: two open tickets ticket-a and ticket-b.
+    Action: add_dependency('ticket-a', 'ticket-b', tracker_dir, 'blocked_by')
+    Expected: raises ValueError (not CyclicDependencyError); no LINK event written.
+    """
+    import glob
+    import subprocess
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-a", status="open")
+    _write_ticket(tracker_dir, "ticket-b", status="open")
+
+    subprocess.run(
+        ["git", "-C", str(tracker_dir), "init", "-q", "--initial-branch=tickets"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(tracker_dir), "config", "user.email", "test@test.com"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(tracker_dir), "config", "user.name", "Test"],
+        check=True,
+        capture_output=True,
+    )
+
+    link_count_before = len(glob.glob(str(tracker_dir / "ticket-a" / "*-LINK.json")))
+
+    with pytest.raises(ValueError, match="blocked_by"):
+        graph.add_dependency("ticket-a", "ticket-b", str(tracker_dir), "blocked_by")
+
+    link_count_after = len(glob.glob(str(tracker_dir / "ticket-a" / "*-LINK.json")))
+    assert link_count_after == link_count_before, (
+        f"Expected no LINK event to be written for non-canonical relation 'blocked_by', "
+        f"but found {link_count_after - link_count_before} new LINK event(s). "
+        "Fix: add CANONICAL_RELATIONS validation at the top of add_dependency() in _links.py."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_rejects_all_non_canonical_relations(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """add_dependency raises ValueError for every string outside the canonical set.
+
+    Checks a representative sample of non-canonical relation strings:
+    'blocked_by', 'is_blocked_by', 'related', 'causes', 'parent', 'child', '', 'BLOCKS'.
+
+    For each: no LINK event must be written to disk.
+    """
+    import glob
+    import subprocess
+
+    non_canonical = [
+        "blocked_by",
+        "is_blocked_by",
+        "related",
+        "causes",
+        "parent",
+        "child",
+        "",
+        "BLOCKS",  # case mismatch — must also be rejected
+    ]
+
+    for bad_relation in non_canonical:
+        subdir = tmp_path / f"tracker_{bad_relation or 'empty'}"
+        subdir.mkdir()
+
+        _write_ticket(subdir, "src", status="open")
+        _write_ticket(subdir, "tgt", status="open")
+
+        subprocess.run(
+            ["git", "-C", str(subdir), "init", "-q", "--initial-branch=tickets"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(subdir), "config", "user.email", "test@test.com"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(subdir), "config", "user.name", "Test"],
+            check=True,
+            capture_output=True,
+        )
+
+        with pytest.raises(ValueError):
+            graph.add_dependency("src", "tgt", str(subdir), bad_relation)
+
+        link_files = glob.glob(str(subdir / "src" / "*-LINK.json"))
+        assert len(link_files) == 0, (
+            f"Expected no LINK event for non-canonical relation {bad_relation!r}, "
+            f"but found: {link_files}. "
+            "Fix: validate relation in add_dependency() before writing any event."
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_accepts_all_canonical_relations(
+    graph: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """add_dependency accepts all five canonical relations without raising ValueError.
+
+    Canonical set: blocks, depends_on, relates_to, duplicates, supersedes.
+    Each should succeed (no ValueError raised) when two open tickets exist.
+    """
+    import subprocess
+
+    canonical = ["blocks", "depends_on", "relates_to", "duplicates", "supersedes"]
+
+    for relation in canonical:
+        subdir = tmp_path / f"tracker_{relation}"
+        subdir.mkdir()
+
+        _write_ticket(subdir, "src", status="open")
+        _write_ticket(subdir, "tgt", status="open")
+
+        subprocess.run(
+            ["git", "-C", str(subdir), "init", "-q", "--initial-branch=tickets"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(subdir), "config", "user.email", "test@test.com"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(subdir), "config", "user.name", "Test"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(subdir), "add", "-A"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(subdir),
+                "commit",
+                "-q",
+                "--no-verify",
+                "--allow-empty",
+                "-m",
+                "init",
+            ],
+            check=True,
+            capture_output=True,
+        )
+
+        # Should NOT raise ValueError for canonical relations
+        monkeypatch.setenv("_TICKET_TEST_NO_SYNC", "1")
+        try:
+            graph.add_dependency("src", "tgt", str(subdir), relation)
+        except graph.CyclicDependencyError:
+            pass  # cycle detection is a different guard — OK
+        except ValueError as exc:
+            pytest.fail(
+                f"add_dependency raised ValueError for canonical relation {relation!r}: {exc}\n"
+                "Fix: only reject non-canonical relations, not canonical ones."
+            )
