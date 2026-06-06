@@ -50,6 +50,32 @@ def fetcher():
     return _load_fetcher()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_alert_store_module():
+    """Isolate the shared ``alert_store`` dotted key across tests (bug 4cc1).
+
+    ``test_bridge_alerts_surface.py`` registers its OWN module object under
+    ``plugins.dso.scripts.dso_reconciler.alert_store`` (via namespace stubs +
+    importlib). ``fetcher._load_alert_store()`` resolves that same dotted key at
+    call time. When the bridge-alerts test runs first, the leftover object in
+    ``sys.modules`` diverges from the one this test patches — silently defeating
+    the patch and producing an ORDER-DEPENDENT failure (passes alone, fails in
+    the full suite). Snapshot and clear the key around each test so loads are
+    fresh and no foreign object leaks in. The dedup test below additionally
+    patches the ``_load_alert_store`` seam directly, which is order-independent
+    on its own; this fixture protects every other test in the module too.
+    """
+    key = "plugins.dso.scripts.dso_reconciler.alert_store"
+    saved = sys.modules.pop(key, None)
+    try:
+        yield
+    finally:
+        if saved is not None:
+            sys.modules[key] = saved
+        else:
+            sys.modules.pop(key, None)
+
+
 class _DuplicatingPaginatingClient:
     """Stub ACLI client that returns DIG-100 on BOTH page 1 and page 2.
 
@@ -113,8 +139,6 @@ def test_dedup_suppression_emits_alert(tmp_path, fetcher):
     observability channel) with ``kind="fetcher-dedup-suppressed"`` and a
     structured reference to the duplicated key ``DIG-100``.
     """
-    from plugins.dso.scripts.dso_reconciler import alert_store
-
     mock_acli, _holder = _make_acli_mock()
 
     captured: list[dict] = []
@@ -122,9 +146,17 @@ def test_dedup_suppression_emits_alert(tmp_path, fetcher):
     def _capture_append(record, repo_root):
         captured.append(record)
 
+    # Patch the _load_alert_store SEAM rather than
+    # `plugins.dso.scripts.dso_reconciler.alert_store.append` directly: the
+    # fetcher resolves alert_store via this helper at call time, and patching
+    # the seam is independent of which module object happens to occupy the
+    # shared sys.modules dotted key (the source of the order-dependent failure,
+    # bug 4cc1). The stub exposes the single attribute fetcher uses (`append`).
+    stub_alert_store = types.SimpleNamespace(append=_capture_append)
+
     with (
         patch.object(fetcher, "_load_acli", return_value=mock_acli),
-        patch.object(alert_store, "append", side_effect=_capture_append),
+        patch.object(fetcher, "_load_alert_store", return_value=stub_alert_store),
     ):
         snapshot_path = fetcher.fetch_snapshot(
             "2026-05-24-dedup-pass", repo_root=tmp_path
