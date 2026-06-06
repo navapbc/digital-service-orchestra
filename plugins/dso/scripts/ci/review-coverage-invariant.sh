@@ -115,7 +115,7 @@ if [[ -z "$_SHAS" ]]; then
     exit 0
 fi
 
-_total=0; _ledger_hits=0; _verified=0; _unreviewed=0; _errors=0; _exempt_tickets=0
+_total=0; _ledger_hits=0; _verified=0; _unreviewed=0; _errors=0; _exempt_tickets=0; _exempt_empty_net=0
 _violations=""
 
 # cca8 (linear-history cutover, DD3): the clean-merge exemption (_is_clean_merge)
@@ -150,6 +150,18 @@ while IFS= read -r _sha; do
         _exempt_tickets=$(( _exempt_tickets + 1 ))
         continue
     fi
+    # Genuinely-empty-net merge exemption (c9e9): a >=2-parent merge whose COMBINED
+    # net diff is genuinely empty (e.g. a clean staged->main 2-parent merge / clean
+    # octopus) carries no reviewable content, yet no MERGED PR covers it (A3b excludes
+    # the sub-PR whose merge_commit_sha IS this SHA) — a false UNREVIEWED wedge.
+    # Computed by the shared rc_diff_is_empty_net (review-coverage-lib.sh) so all three
+    # consumers agree (DD6). Only rc 0 (proven empty-net) exempts; rc 1 (non-empty /
+    # non-merge) OR rc 2 (uncomputable) falls through to the normal coverage path,
+    # which itself fails closed — so an error here can never launder an unreviewed SHA.
+    if rc_diff_is_empty_net "$_sha"; then
+        _exempt_empty_net=$(( _exempt_empty_net + 1 ))
+        continue
+    fi
     # Perf prefilter: a ledger HIT (proven reviewed in a prior run) skips
     # re-verification. This is a ledger hit, NOT reachability-to-main.
     if _ledger_has "$_sha"; then
@@ -177,7 +189,7 @@ while IFS= read -r _sha; do
     esac
 done <<< "$_SHAS"
 
-echo "review-coverage-invariant: ${_total} SHA(s) in ${_BASE_REF}..${_HEAD} — verified=${_verified} exempt_tickets=${_exempt_tickets} ledger_hits=${_ledger_hits} unreviewed=${_unreviewed} errors=${_errors}"
+echo "review-coverage-invariant: ${_total} SHA(s) in ${_BASE_REF}..${_HEAD} — verified=${_verified} exempt_tickets=${_exempt_tickets} exempt_empty_net=${_exempt_empty_net} ledger_hits=${_ledger_hits} unreviewed=${_unreviewed} errors=${_errors}"
 
 # 3ebb DD1: resolve the per-SHA tallies through the tristate lattice. A genuine
 # unreviewed SHA is FAIL (1, the safe bottom — never retried/downgraded); a

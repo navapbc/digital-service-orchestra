@@ -43,30 +43,31 @@ fi
 # shellcheck source=../lib/review-coverage-lib.sh
 source "$_FPA_LIB"
 
-# ── 0cd7 DD3: exempt-merge scaffolding (the audit had none before this story) ──
+# ── 0cd7 DD3 + c9e9: exempt-merge scaffolding (the audit had none before this) ──
 # A merged main PR whose content carries NO reviewable application code is NOT a
-# bypass — flagging it would be audit noise. Two diff-scoped exemptions, IDENTICAL
-# to the other two consumers (DD6 equivalence test):
-#   (a) a CLEAN merge commit (>=2 parents, empty combined diff) — its parents are
-#       reviewed independently;
+# bypass — flagging it would be audit noise. Two diff-scoped exemptions, computed by
+# the SAME shared predicates as the other two consumers (DD6 equivalence test) — NO
+# parallel implementation:
+#   (a) a genuinely-empty-net MERGE commit (shared rc_diff_is_empty_net: >=2 parents,
+#       diff-tree rc==0, empty combined diff) — its parents are reviewed independently;
 #   (b) a TICKETS_ONLY commit (shared rc_diff_is_tickets_only) — diff entirely in
 #       the ticket store.
+# Replaces the former INLINE clean-merge check, which duplicated the empty-net logic
+# (and masked diff-tree's rc inside the command substitution); the shared predicate
+# captures rc separately and is DD6-equivalent across consumers.
 # AUDIT ERROR POSTURE (distinct from coverage's fail-closed-BLOCK): this is a
 # non-blocking REPORTING tool, so it must POSITIVELY CONFIRM the exemption to skip a
-# PR. Any doubt — local commit not checked out, git error, rc_diff returns 2 — yields
-# NOT-exempt, so the PR is RECORDED for manual follow-up rather than silently dropped.
-# Requires the merge SHA to be present locally (CI: actions/checkout fetch-depth 0);
-# when it is not, the PR is (correctly) recorded.
+# PR. Any doubt — local commit not checked out, git error, predicate returns 2 —
+# yields NOT-exempt (the predicate returns non-zero), so the PR is RECORDED for manual
+# follow-up rather than silently dropped. Requires the merge SHA present locally
+# (CI: actions/checkout fetch-depth 0); when it is not, the PR is (correctly) recorded.
 _fpa_is_exempt_merge() {
-    local _s="${1:-}" _parents _cc
+    local _s="${1:-}"
     [[ -z "$_s" ]] && return 1
     git rev-parse --verify --quiet "${_s}^{commit}" >/dev/null 2>&1 || return 1  # not local -> record
-    # (a) clean merge: >=2 parents AND empty combined diff (positive-confirm only).
-    _parents="$(git rev-list --parents -n1 "$_s" 2>/dev/null)" || return 1
-    if [[ "$(printf '%s' "$_parents" | wc -w)" -ge 3 ]]; then
-        _cc="$(git diff-tree --cc --no-commit-id "$_s" 2>/dev/null)" || return 1
-        [[ -z "$_cc" ]] && return 0      # clean merge -> exempt
-        return 1                         # evil merge -> record
+    # (a) genuinely-empty-net merge (shared predicate; rc 0 = exempt, 1/2 = record).
+    if declare -F rc_diff_is_empty_net >/dev/null 2>&1 && rc_diff_is_empty_net "$_s"; then
+        return 0
     fi
     # (b) tickets-only (shared predicate; rc 0 = exempt, 1/2 = record).
     declare -F rc_diff_is_tickets_only >/dev/null 2>&1 || return 1

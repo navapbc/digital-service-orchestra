@@ -425,16 +425,18 @@ _run_verifier_repo() {
     rm -rf "$mock_dir" "$artifact_dir"; rm -f "$out_file"; return 0
 }
 
-# ─── t15 (bug 77ab; cca8 DD3): the clean-merge exemption was REMOVED ──────────
+# ─── t15 (bug 77ab; cca8 DD3 → c9e9 amendment): clean staged merge re-exempted ──
 # Pre-cca8 a clean staged merge commit was EXEMPT (its only covering sub-PR is
-# dropped by the A3b self-merge guard, merge_commit_sha == sha). cca8 removes that
-# carve-out: the merge commit now FALLS THROUGH to covering-PR provenance and is
-# flagged unprovenanced (fail-closed). Under the rebase-not-merge flow +
-# required_linear_history no such staged merge commit is ever produced (exp L8), so
-# this stricter behavior never wedges a real PR; a merge commit that DID appear must
-# be proven-reviewed like any SHA.
+# dropped by the A3b self-merge guard, merge_commit_sha == sha). cca8 removed that
+# carve-out. c9e9 NARROWLY re-introduces it as the genuinely-empty-net-merge exemption
+# (shared rc_diff_is_empty_net): a clean 2-parent staged merge whose COMBINED diff is
+# empty carries no reviewable content and no MERGED PR covers it (A3b drops its own
+# sub-PR), so flagging it is a false wedge (bug c9e9). It is now marked EMPTY_NET_MERGE
+# / provenanced. CRITICAL anti-laundering invariant (t15b): the exemption applies ONLY
+# to the merge commit itself; an unreviewed feature PARENT in the same walk is still
+# independently flagged — the exemption cannot launder unreviewed content.
 echo
-echo "=== t15: clean staged merge commit is NO LONGER exempt (now flagged, exemption removed) ==="
+echo "=== t15: clean staged empty-net merge commit is EXEMPT (c9e9); unreviewed parent still flagged ==="
 T15_REPO=$(mktemp -d "${TMPDIR:-/tmp}/t15-merge.XXXXXX")
 read -r T15_BASE T15_MERGE T15_FEAT < <(
     cd "$T15_REPO" || exit
@@ -449,7 +451,7 @@ read -r T15_BASE T15_MERGE T15_FEAT < <(
 T15_PAYLOAD='[{"number":530,"state":"closed","merged_at":"2026-01-01T00:00:00Z","head":{"sha":"'"$T15_FEAT"'"},"merge_commit_sha":"'"$T15_MERGE"'"}]'
 T15_UNPROV=$(_run_verifier_repo "$T15_PAYLOAD" "531" "$T15_BASE" "$T15_MERGE" "$T15_REPO" | sed -n '/UNPROVENANCED_FILE:/,$p')
 if grep -q "$T15_MERGE" <<< "$T15_UNPROV"; then T15_RES=flagged; else T15_RES=exempt; fi
-_expect "t15: clean merge commit is NO LONGER exempt (now flagged unprovenanced)" "[[ '$T15_RES' == 'flagged' ]]"
+_expect "t15: clean empty-net merge commit is EXEMPT (c9e9, not flagged)" "[[ '$T15_RES' == 'exempt' ]]"
 # Anti-laundering: an unreviewed feature parent is independently flagged regardless.
 if grep -q "$T15_FEAT" <<< "$T15_UNPROV"; then T15B_RES=flagged; else T15B_RES=exempt; fi
 _expect "t15b: unreviewed feature parent is flagged" "[[ '$T15B_RES' == 'flagged' ]]"

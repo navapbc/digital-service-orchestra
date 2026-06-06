@@ -19,6 +19,13 @@
 #   F_TICKETS  commit touches ONLY .tickets-tracker/*  -> EXEMPT      (all three)
 #   F_CODE     commit touches ONLY a code path         -> NOT exempt  (all three)
 #   F_MIXED    commit touches ticket + code            -> NOT exempt  (all three, no launder)
+#
+# c9e9 extends DD6 to the genuinely-empty-net-merge exemption (rc_diff_is_empty_net),
+# wired into the same three consumers:
+#   F_EMPTYNET clean 2-parent merge, empty combined diff -> EXEMPT     (all three)
+#   F_EVILMERGE 2-parent merge carrying OWN content      -> NOT exempt (all three; the
+#              negative control proving the exemption fires on emptiness, not on
+#              "is a merge")
 
 set -uo pipefail
 unset GITHUB_BASE_REF GITHUB_SHA GITHUB_REPOSITORY DSO_RULESET_BYPASS_USER_IDS DSO_RULESET_BYPASS_USER_ID
@@ -71,6 +78,34 @@ _mk_repo() { # _mk_repo <kind> <repodir>
         tickets) echo a > .tickets-tracker/x.json; git add .tickets-tracker/x.json ;;
         code)    echo x > src/code.sh; git add src/code.sh ;;
         mixed)   echo a > .tickets-tracker/x.json; echo x > src/code.sh; git add .tickets-tracker/x.json src/code.sh ;;
+        emptynet|evilmerge)
+          # Build a 2-parent MERGE as the feature SHA, isolated so the consumers'
+          # base..head range contains ONLY the merge commit (both parents reachable
+          # from the base ref). We first create a normal integration merge `integ`,
+          # set origin/main = integ, then synthesize a SECOND 2-parent merge whose
+          # parents (integ + sidetip) are BOTH ancestors of origin/main — so
+          # rev-list origin/main..<merge> = {<merge>} alone, with no polluting
+          # non-merge commit in range. commit-tree lets us set the merge's tree:
+          #   emptynet  -> tree == integ's tree  => --cc combined diff EMPTY  (exempt)
+          #   evilmerge -> tree adds an own file => --cc combined diff NON-empty (record)
+          git checkout -q -b sidebr "$b"
+          echo s > side.txt; git add side.txt; git commit -q -m side
+          local sidetip; sidetip="$(git rev-parse HEAD)"
+          git checkout -q main
+          git merge -q --no-ff -m integ sidebr
+          local integ; integ="$(git rev-parse HEAD)"
+          git update-ref refs/remotes/origin/main "$integ"
+          local _tree
+          if [[ "$kind" == "emptynet" ]]; then
+            _tree="$(git rev-parse "${integ}^{tree}")"
+          else
+            echo evil > evil.txt; git add evil.txt
+            _tree="$(git write-tree)"
+          fi
+          local f; f="$(git commit-tree "$_tree" -p "$integ" -p "$sidetip" -m "${kind} 2-parent merge")"
+          git update-ref refs/heads/main "$f"
+          git reset -q --hard main
+          echo "$integ $f"; return 0 ;;
       esac
       git commit -q -m "$kind"
       local f; f="$(git rev-parse HEAD)"
@@ -82,7 +117,13 @@ _mk_repo() { # _mk_repo <kind> <repodir>
 # ── per-consumer verdicts: echo "exempt" | "not" ─────────────────────────────
 _rci_verdict() { # <repo> <base> <feat>
     local r="$1" f="$3"
-    ( cd "$r" && DSO_GH_BIN="$_BIN/gh" GH_REPO="o/r" GITHUB_BASE_REF=main \
+    # Pin CLAUDE_PLUGIN_ROOT to the checkout under test so the consumer resolves
+    # review-coverage-lib.sh (incl. the newly-added rc_diff_is_empty_net) from THIS
+    # tree, not an ambient value leaked from the runner's session that would point
+    # at a stale lib and silently fall through to "not exempt". Hermetic regardless
+    # of the runner's environment (mirrors test-review-coverage-invariant.sh _run).
+    ( cd "$r" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        DSO_GH_BIN="$_BIN/gh" GH_REPO="o/r" GITHUB_BASE_REF=main \
         DSO_HEAD_SHA="$f" DSO_COVERAGE_INVARIANT_MODE=enforce GH_RETRY_MAX=1 \
         bash "$RCI" >/dev/null 2>&1 ) && echo exempt || echo not
 }
@@ -97,7 +138,10 @@ _vsp_verdict() { # <repo> <base> <feat>
 
 _fpa_verdict() { # <repo> <base> <feat>
     local r="$1" f="$3" out
-    out="$( cd "$r" && DSO_GH_BIN="$_BIN/gh" GH_REPO="o/r" DSO_AUDIT_HMAC_KEY=k \
+    # Pin CLAUDE_PLUGIN_ROOT to the checkout under test (see _rci_verdict) so FPA
+    # resolves the worktree's review-coverage-lib.sh with rc_diff_is_empty_net.
+    out="$( cd "$r" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        DSO_GH_BIN="$_BIN/gh" GH_REPO="o/r" DSO_AUDIT_HMAC_KEY=k \
         MOCK_SHA="$f" bash "$FPA" 2>/dev/null )"
     # A bypass marker for PR #77 means NOT exempt; no marker means exempt.
     if printf '%s' "$out" | grep -q '"pr":77'; then echo not; else echo exempt; fi
@@ -109,8 +153,8 @@ _fpa_verdict() { # <repo> <base> <feat>
 # pass if ALL THREE consumers (and the helper) were uniformly broken to the wrong
 # direction — the direct helper assertion would catch that, and the consumers are
 # then checked against the helper's confirmed-correct verdict.
-_helper_verdict() { # <repo> <feat>
-    ( cd "$1" && rc_diff_is_tickets_only "$2" >/dev/null 2>&1 ) && echo exempt || echo not
+_helper_verdict() { # <repo> <feat> <helper-fn>
+    ( cd "$1" && "$3" "$2" >/dev/null 2>&1 ) && echo exempt || echo not
 }
 
 # ATTRIBUTION (why an "exempt" consumer verdict is caused by the ticket exemption,
@@ -124,12 +168,18 @@ _helper_verdict() { # <repo> <feat>
 # bypass marker), proving the consumers' exit-0/exempt on F_TICKETS is the exemption
 # firing, not blanket always-exempt behavior.
 _run() { # _run <name> <kind> <expected>
-    local name="$1" kind="$2" exp="$3" r bf b f hlp rci vsp fpa
+    local name="$1" kind="$2" exp="$3" r bf b f hlp rci vsp fpa _hfn
     r="$(mktemp -d "$_W/repo.XXXXXX")"
     bf="$(_mk_repo "$kind" "$r")" || { _fail "$name" "fixture setup failed"; return; }
     b="${bf% *}"; f="${bf#* }"
+    # Merge fixtures are anchored by the empty-net predicate; path fixtures by the
+    # tickets-only predicate. Pick the helper that owns this fixture's exemption.
+    case "$kind" in
+        emptynet|evilmerge) _hfn=rc_diff_is_empty_net ;;
+        *)                  _hfn=rc_diff_is_tickets_only ;;
+    esac
     # (1) Independently confirm the helper's verdict matches the fixture content.
-    hlp="$(_helper_verdict "$r" "$f")"
+    hlp="$(_helper_verdict "$r" "$f" "$_hfn")"
     if [[ "$hlp" != "$exp" ]]; then
         _fail "$name" "helper verdict=$hlp != expected=$exp — rc_diff_is_tickets_only wrong on fixture '$kind'"
         return
@@ -145,9 +195,11 @@ _run() { # _run <name> <kind> <expected>
     fi
 }
 
-_run "F_TICKETS_exempt"     tickets exempt
-_run "F_CODE_notexempt"     code    not
-_run "F_MIXED_notexempt"    mixed   not
+_run "F_TICKETS_exempt"     tickets   exempt
+_run "F_CODE_notexempt"     code      not
+_run "F_MIXED_notexempt"    mixed     not
+_run "F_EMPTYNET_exempt"    emptynet  exempt
+_run "F_EVILMERGE_notexempt" evilmerge not
 
 echo ""
 echo "=== test-ticket-exemption-equivalence.sh: PASS=$PASS FAIL=$FAIL ==="
