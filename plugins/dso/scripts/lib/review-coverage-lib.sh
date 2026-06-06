@@ -143,13 +143,22 @@ rc_diff_is_tickets_only() {
     return 0
 }
 
-# ── c9e9: shared GENUINELY-EMPTY-NET-MERGE exemption predicate ───────────────
+# ── c9e9: shared COMBINED-DIFF-EMPTY MERGE exemption predicate ───────────────
 # rc_diff_is_empty_net <sha>
 #
-#   A commit is EXEMPT from per-SHA review coverage IFF it is a MERGE commit whose
-#   COMBINED net diff is genuinely empty — i.e. it introduces NO net change over its
-#   parents (a clean 2-parent staged->main merge, a clean octopus). Such a commit
-#   carries no reviewable content, yet it fail-closes the coverage invariant and the
+#   A commit is EXEMPT from per-SHA review coverage IFF it is a MERGE commit that
+#   adds NO content of its OWN beyond its parents — i.e. its combined diff
+#   (`git diff-tree --cc`) is empty (a clean 2-parent staged->main merge, a clean
+#   octopus). NOTE: "combined-diff-empty" is NOT the same as "no net change over
+#   main": a clean --no-ff feature merge (feature adds X, main adds Y, no overlap)
+#   has an empty --cc yet introduces X relative to its first parent. The exemption
+#   is sound anyway because it covers ONLY the merge commit's own (zero) content —
+#   the merge's content-bearing PARENTS are independently enumerated by the
+#   base..head coverage/provenance walk and must EACH be proven reviewed (guarded
+#   by T13 / t15b). So this predicate must NEVER be read as "the merge carries no
+#   reachable new code"; it asserts only "the merge commit itself resolves no
+#   conflicts and introduces no own content". Such a merge carries no reviewable
+#   content of its own, yet it fail-closes the coverage invariant and the
 #   provenance walk because no MERGED PR covers it (A3b excludes the sub-PR whose
 #   merge_commit_sha IS that SHA) — a false wedge (bug c9e9). This is the ONE shared
 #   helper sourced by the coverage consumers (review-coverage-invariant.sh,

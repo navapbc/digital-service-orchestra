@@ -117,7 +117,13 @@ _mk_repo() { # _mk_repo <kind> <repodir>
 # ── per-consumer verdicts: echo "exempt" | "not" ─────────────────────────────
 _rci_verdict() { # <repo> <base> <feat>
     local r="$1" f="$3"
-    ( cd "$r" && DSO_GH_BIN="$_BIN/gh" GH_REPO="o/r" GITHUB_BASE_REF=main \
+    # Pin CLAUDE_PLUGIN_ROOT to the checkout under test so the consumer resolves
+    # review-coverage-lib.sh (incl. the newly-added rc_diff_is_empty_net) from THIS
+    # tree, not an ambient value leaked from the runner's session that would point
+    # at a stale lib and silently fall through to "not exempt". Hermetic regardless
+    # of the runner's environment (mirrors test-review-coverage-invariant.sh _run).
+    ( cd "$r" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        DSO_GH_BIN="$_BIN/gh" GH_REPO="o/r" GITHUB_BASE_REF=main \
         DSO_HEAD_SHA="$f" DSO_COVERAGE_INVARIANT_MODE=enforce GH_RETRY_MAX=1 \
         bash "$RCI" >/dev/null 2>&1 ) && echo exempt || echo not
 }
@@ -132,7 +138,10 @@ _vsp_verdict() { # <repo> <base> <feat>
 
 _fpa_verdict() { # <repo> <base> <feat>
     local r="$1" f="$3" out
-    out="$( cd "$r" && DSO_GH_BIN="$_BIN/gh" GH_REPO="o/r" DSO_AUDIT_HMAC_KEY=k \
+    # Pin CLAUDE_PLUGIN_ROOT to the checkout under test (see _rci_verdict) so FPA
+    # resolves the worktree's review-coverage-lib.sh with rc_diff_is_empty_net.
+    out="$( cd "$r" && CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        DSO_GH_BIN="$_BIN/gh" GH_REPO="o/r" DSO_AUDIT_HMAC_KEY=k \
         MOCK_SHA="$f" bash "$FPA" 2>/dev/null )"
     # A bypass marker for PR #77 means NOT exempt; no marker means exempt.
     if printf '%s' "$out" | grep -q '"pr":77'; then echo not; else echo exempt; fi
