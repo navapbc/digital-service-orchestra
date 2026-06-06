@@ -224,3 +224,22 @@ def test_schema_exhaustion_stderr_truncates_and_counts_overflow(tmp_path):
     assert "(+2 more)" in stderr_text, (
         f"Expected overflow suffix '(+2 more)' for 12 errors capped at 10; stderr={stderr_text!r}"
     )
+
+
+def test_schema_exhaustion_stderr_tolerates_non_string_errors(tmp_path):
+    """Non-string entries in _schema_result.errors must not crash the fail-closed path.
+
+    PR #684 review finding: `"; ".join(_err_lines[:10])` would raise TypeError on a
+    non-string entry (None/dict/int) and crash the fail-closed branch. The str()
+    coercion must keep the path graceful (still exits non-zero / fail-closed) while
+    surfacing the string entries.
+    """
+    errors = [{"unexpected": "dict"}, None, "a real error string", 42]
+    exit_code, stderr_text = _run_exhaustion_path(tmp_path, errors)
+
+    assert exit_code != 0, (
+        f"Expected non-zero (fail-closed) exit even with non-string error entries; got {exit_code}."
+    )
+    assert "a real error string" in stderr_text, (
+        f"Expected the string entry to still be surfaced; stderr={stderr_text!r}"
+    )
