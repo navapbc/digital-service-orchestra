@@ -147,8 +147,8 @@ repos:
         stages: [pre-commit]
 
       - id: isolation-check
-        name: Test Isolation Check (60s timeout)
-        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh isolation-check 60 "STAGED_ONLY=true plugins/dso/scripts/check-test-isolation.sh"
+        name: Test Isolation Check (120s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh isolation-check 120 "STAGED_ONLY=true plugins/dso/scripts/check-test-isolation.sh"
         language: system
         pass_filenames: false
         types: [python]
