@@ -182,7 +182,7 @@ DSO_WORKFLOW=$(.claude/scripts/dso read-config.sh dso.workflow 2>/dev/null); DSO
 ```
 
 - **`dso.workflow=local`** (default): dispatch the reviewer as described below, then run Step 6 (Record review).
-- **`dso.workflow=ci-pr`**: SKIP Step 5 AND Step 6 entirely — the local review is a no-op. CI enforces the review gate on the eventual session→main PR (the cumulative `llm-review` job), so dispatching a local reviewer here is redundant and local enforcement is already skipped. This mirrors REVIEW-WORKFLOW.md's `enforcement.strategy=ci` skip path (the legacy alias that `dso.workflow=ci-pr` superseded — see CLAUDE.md `rule:no-bypass-review`). Do NOT compute `REVIEWER_HASH` or call `record-review.sh`; proceed directly to Step 7 (Record test status).
+- **`dso.workflow=ci-pr`**: SKIP Step 5 AND Step 6 entirely — the local review is a no-op. CI enforces the review gate on the eventual session→main PR (the cumulative `llm-review` job), so dispatching a local reviewer here is redundant and local enforcement is already skipped. This mirrors REVIEW-WORKFLOW.md's CI-enforcement skip path (see CLAUDE.md `rule:no-bypass-review`). Do NOT compute `REVIEWER_HASH` or call `record-review.sh`; proceed directly to Step 7 (Record test status).
 
 Follow REVIEW-WORKFLOW.md Step 4 to dispatch the named `dso:code-reviewer-*` agent.
 
