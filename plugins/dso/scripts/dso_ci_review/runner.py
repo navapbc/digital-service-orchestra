@@ -3554,7 +3554,11 @@ def main() -> int:
                     # "exhausted" message and the actual violation unrecoverable.
                     # Truncate so a pathological error list cannot flood the log.
                     _err_lines = _schema_result.errors or []
-                    _err_preview = "; ".join(_err_lines[:10])
+                    # str()-coerce each entry (PR #684 review finding): errors is
+                    # typed list[str], but a defensive guard prevents a non-string
+                    # entry (None/dict/int) from raising TypeError in join and
+                    # crashing this fail-closed path.
+                    _err_preview = "; ".join(str(_e) for _e in _err_lines[:10])
                     if len(_err_lines) > 10:
                         _err_preview += f" (+{len(_err_lines) - 10} more)"
                     print(

@@ -1524,8 +1524,10 @@ _phase_merge() {
     # (jira-dig-2529, ~step-2.5 below; tested by t_phase_poll_behind_calls_update_branch)
     # — do not duplicate that (single source of truth).
     local _mergeable_json _mergeable="" _mq_try
+    local _mq_gh_rc=0
     for _mq_try in 1 2 3 4 5 6; do
-        _mergeable_json=$(gh pr view "$_pr_number" --json mergeable 2>/dev/null || true)
+        _mq_gh_rc=0
+        _mergeable_json=$(gh pr view "$_pr_number" --json mergeable 2>/dev/null) || _mq_gh_rc=$?
         _mergeable=$(printf '%s' "$_mergeable_json" | python3 -c "
 import json, sys
 try:
@@ -1536,6 +1538,16 @@ except Exception:
         [[ -n "$_mergeable" && "$_mergeable" != "UNKNOWN" ]] && break
         [[ "$_mq_try" == "6" ]] || sleep 5   # don't sleep after the final attempt
     done
+    # Fail closed on a STRUCTURAL read failure (PR #684 review finding): a 404
+    # (deleted PR), 401 (revoked/expired token), or API outage makes `gh pr view`
+    # exit non-zero with empty output. Do NOT fall through as if the PR were
+    # mergeable — an unresolved mergeability caused by a non-zero gh exit is a
+    # determinate error, not a transient UNKNOWN. A legitimately-UNKNOWN-then-
+    # timeout with gh rc 0 keeps the prior (non-blocking) behavior.
+    if [[ ( -z "$_mergeable" || "$_mergeable" == "UNKNOWN" ) && "$_mq_gh_rc" -ne 0 ]]; then
+        echo "ERROR: could not resolve PR #${_pr_number} mergeability — 'gh pr view' failed (rc=${_mq_gh_rc}: deleted PR, revoked/expired token, or API outage). Failing closed rather than proceeding on unknown mergeability." >&2
+        return 1
+    fi
 
     # R-C: a true CONFLICTING is a DETERMINATE operational error — staged content
     # conflicts with current main and rebase-merge cannot proceed. /dso:fp-recovery
