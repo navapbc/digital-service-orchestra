@@ -28,6 +28,8 @@ CI `llm-review` (ci.yml) has reported `failure` AND the engineer believes the bl
 2. The specific line(s) in `DESIGN.md` that triggered the finding.
 3. A concise rationale explaining why the finding is a false positive (not just "it looks fine").
 
+> **The supplied finding details are NEVER passed to the review sub-agent.** They are used only by the human/orchestrator to decide that fp-recovery is the right path, and for the auditable annotation (FP-RECOVERY-WORKFLOW Step 5b/6). The Step 2 re-review is **neutral** — it sees the diff alone, with no knowledge of the finding or the FP suspicion — so its verdict cannot be primed toward clearing. A true FP will not reappear; a legitimate concern will be independently re-raised. See FP-RECOVERY-WORKFLOW Step 2.
+
 **OVER_BOUND PRs are not eligible for FP-recovery.** If the PR's CI output contains an `OVER_BOUND:` marker (emitted when the PR exceeds the `max_files × max_calls` hard upper bound), reject immediately with:
 `OVER_BOUND PRs are not eligible for FP-recovery — these require admin attention (chunking budget exceeded, not a false-positive).`
 The CI reviewer never ran on an OVER_BOUND PR; there is no LLM finding to adjudicate. These PRs require admin review or must be split into smaller chunks. Use `${CLAUDE_PLUGIN_ROOT}/scripts/check-fp-recovery-eligibility.sh` (env: `DSO_CI_LOG=<path>`) to perform this gate programmatically.
@@ -36,7 +38,7 @@ The CI reviewer never ran on an OVER_BOUND PR; there is no LLM finding to adjudi
 
 ## What this skill does NOT do
 
-- Does NOT skip review — it dispatches a real `dso:code-reviewer-standard` at opus tier on the PR diff.
+- Does NOT skip review — it dispatches a real `dso:code-reviewer-standard` at opus tier on the PR diff, **neutrally** (the reviewer receives the diff only — never the prior finding or FP suspicion — so its verdict is unconditioned and cannot be primed toward clearing).
 - Does NOT merge — the autonomous agent runs as a non-bypass identity (`current_user_can_bypass: never`) and cannot bypass branch protection. It emits a clearance verdict + a **web-UI merge link**; a human (the named bypass actor) performs the override via the GitHub web UI.
 - Does NOT lower the merge bar — every bypass through this path has a real reviewer review behind it AND requires all other required checks green.
 - Does NOT apply to test failures (fix those normally) or intermittent CI failures (re-push / wait).
