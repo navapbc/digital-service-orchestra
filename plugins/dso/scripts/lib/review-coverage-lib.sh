@@ -143,6 +143,62 @@ rc_diff_is_tickets_only() {
     return 0
 }
 
+# ── c9e9: shared GENUINELY-EMPTY-NET-MERGE exemption predicate ───────────────
+# rc_diff_is_empty_net <sha>
+#
+#   A commit is EXEMPT from per-SHA review coverage IFF it is a MERGE commit whose
+#   COMBINED net diff is genuinely empty — i.e. it introduces NO net change over its
+#   parents (a clean 2-parent staged->main merge, a clean octopus). Such a commit
+#   carries no reviewable content, yet it fail-closes the coverage invariant and the
+#   provenance walk because no MERGED PR covers it (A3b excludes the sub-PR whose
+#   merge_commit_sha IS that SHA) — a false wedge (bug c9e9). This is the ONE shared
+#   helper sourced by the coverage consumers (review-coverage-invariant.sh,
+#   verify-session-provenance.sh, fp-recovery-audit-sweep.sh) so they compute the
+#   IDENTICAL exemption (DD6 equivalence test guards divergence).
+#
+#   SAFETY CRUX — rc-vs-emptiness disambiguation (preserve EXACTLY): emptiness ALONE
+#   never proves "genuinely empty". `git diff-tree --cc --no-commit-id --name-only`
+#   ALSO emits empty output when the SHA is uncomputable (bad sha, rc=128). So the
+#   exit code MUST be captured SEPARATELY from emptiness and checked === 0 before
+#   trusting the empty list. NEVER place diff-tree in a pipe that masks its rc.
+#     - merge commit, diff-tree rc==0, EMPTY file list   -> 0 EXEMPT (genuinely empty)
+#     - merge commit, diff-tree rc==0, NON-empty list     -> 1 NOT exempt (content/
+#       conflict-resolution/evil merge — has net change)
+#     - non-merge / single-parent SHA                     -> 1 NOT exempt (a single-
+#       parent content commit must be proven-reviewed like any SHA)
+#     - diff-tree rc!=0 (uncomputable / bad sha)          -> 2 ERROR — caller MUST
+#       fail closed (emptiness + rc!=0 = uncomputable, NEVER "genuinely empty")
+#
+#   FAIL-OPEN VECTORS this closes by construction: (1) inferring "empty" from a bad
+#   SHA's empty output (rc check blocks it); (2) exempting a content/evil merge that
+#   resolves conflicts with its own changes (non-empty list blocks it); (3) exempting
+#   a single-parent commit whose first-parent diff happens to be reported empty
+#   (the >=2-parent gate blocks it). Mirrors rc_diff_is_tickets_only's contract and
+#   the I-1 guard's discipline (emptiness is never silently read as exempt).
+#
+#   Returns: 0 EXEMPT (>=2-parent merge, diff-tree rc==0, empty combined diff)
+#            1 NOT exempt (non-merge, OR rc==0 with a non-empty combined diff)
+#            2 ERROR (diff-tree rc!=0 / bad sha) — caller MUST fail closed
+rc_diff_is_empty_net() {
+    local _sha="${1:-}" _files _rc _nparents
+    [[ -z "$_sha" ]] && return 2
+    # (a) Must be a merge commit: >=2 parents. `rev-list --parents -n1` prints the
+    # SHA followed by each parent SHA, so >=3 whitespace-separated words == >=2
+    # parents. A bad SHA makes rev-list fail -> ERROR (fail closed).
+    _nparents="$(git rev-list --parents -n1 "$_sha" 2>/dev/null)" || return 2
+    [[ -z "$_nparents" ]] && return 2
+    [[ "$(printf '%s' "$_nparents" | wc -w)" -ge 3 ]] || return 1   # not a merge -> NOT exempt
+    # (b)+(c) Combined diff over a merge. core.quotepath=false for literal paths,
+    # consistent with rc_diff_is_tickets_only. CRITICAL: capture rc SEPARATELY (own
+    # statement, NOT through a pipe) so an uncomputable diff is distinguishable from
+    # a genuinely-empty one.
+    _files="$(git -c core.quotepath=false diff-tree --cc --no-commit-id --name-only "$_sha" 2>/dev/null)"
+    _rc=$?
+    [[ $_rc -ne 0 ]] && return 2            # uncomputable / bad sha -> ERROR (fail closed)
+    [[ -z "$_files" ]] && return 0          # genuinely-empty net merge -> EXEMPT
+    return 1                                # non-empty combined diff -> NOT exempt
+}
+
 # rc_review_check_verdict  (check-runs JSON on STDIN)
 #   SINGLE SOURCE OF TRUTH for the poison-on-failure "did the review pass" verdict
 #   over a SHA's check-runs. Any failure-class conclusion (failure/cancelled/

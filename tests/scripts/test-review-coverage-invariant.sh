@@ -182,12 +182,15 @@ _reviewed_pulls 30 "$sha" > "$md/pulls_$sha"; _checks success > "$md/checks_$sha
 out="$(_run "$r" "$sha" "$md")"; rc=$?
 if [[ $rc -eq 0 ]] && grep -q "every SHA proven reviewed" <<<"$out"; then _pass "T10_covering_pr_head_eq_sha_is_reviewed"; else _fail "T10_covering_pr_head_eq_sha_is_reviewed" "rc=$rc out=$out"; fi
 
-# ── T11 (cca8 DD3): the clean-merge exemption was REMOVED. A clean merge commit
-#     with no covering PR now FALLS THROUGH to the normal coverage path and is
-#     flagged UNREVIEWED (fail-closed), rather than being silently exempted. Under
-#     the rebase-not-merge flow + required_linear_history no such merge commit
-#     reaches main, so this stricter behavior never wedges a real PR (exp L8); but
-#     if a merge commit DID appear it must be proven-reviewed like any SHA. ──
+# ── T11 (cca8 DD3 → c9e9 amendment): the clean-merge exemption was REMOVED in cca8,
+#     then NARROWLY RE-INTRODUCED in c9e9 as the genuinely-empty-net-merge exemption
+#     (shared rc_diff_is_empty_net). A clean 2-parent merge with a genuinely-EMPTY
+#     combined diff carries no reviewable content and no MERGED PR covers it (A3b
+#     excludes the sub-PR whose merge_commit_sha IS that SHA) — a false UNREVIEWED
+#     wedge (bug c9e9). It is now EXEMPT (exempt_empty_net). Its REVIEWED feature
+#     parent (feat-A) is independently verified in the same walk. So the run PASSES
+#     (rc=0) with exempt_empty_net=1 and verified=1 — NOT a block. (T12/T13 below are
+#     the negative controls: evil merge and unreviewed-parent still block.) ──
 r="$_WORK/t11"; mkdir -p "$r"; md="$_WORK/t11.mock"; mkdir -p "$md"
 git -C "$r" init -q -b main
 git -C "$r" config user.email t@e.st; git -C "$r" config user.name t; git -C "$r" config commit.gpgsign false
@@ -201,9 +204,9 @@ git -C "$r" merge -q --no-ff -m "Merge pull request #40 from feature" feature
 mergesha="$(git -C "$r" rev-parse HEAD)"
 # feat-A is covered by a reviewed merged PR; the merge commit has NO covering PR.
 _reviewed_pulls 40 "$featsha" > "$md/pulls_$featsha"; _checks success > "$md/checks_$featsha"
-printf '[]' > "$md/pulls_$mergesha"   # merge commit has NO covering PR → now UNREVIEWED (exemption removed)
+printf '[]' > "$md/pulls_$mergesha"   # merge commit has NO covering PR → exempt via empty-net (c9e9)
 out="$(_run "$r" "$mergesha" "$md")"; rc=$?
-if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${mergesha}" <<<"$out" && ! grep -q "exempt_merges" <<<"$out"; then _pass "T11_clean_merge_no_longer_exempt_blocks"; else _fail "T11_clean_merge_no_longer_exempt_blocks" "rc=$rc out=$out"; fi
+if [[ $rc -eq 0 ]] && grep -q "exempt_empty_net=1" <<<"$out" && grep -q "verified=1" <<<"$out" && ! grep -q "UNREVIEWED" <<<"$out"; then _pass "T11_clean_empty_net_merge_exempt"; else _fail "T11_clean_empty_net_merge_exempt" "rc=$rc out=$out"; fi
 
 # ── T12: an EVIL merge (manual edit in the merge commit → non-empty combined
 #     diff) requires review — fail-closed against laundering content through a
@@ -228,11 +231,13 @@ printf '[]' > "$md/pulls_$evilsha"   # no covering review for the evil merge
 out="$(_run "$r" "$evilsha" "$md")"; rc=$?
 if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${evilsha}" <<<"$out" && ! grep -q "exempt_merges" <<<"$out"; then _pass "T12_evil_merge_not_exempt"; else _fail "T12_evil_merge_not_exempt" "rc=$rc out=$out"; fi
 
-# ── T13: the anti-laundering guarantee — a CLEAN merge whose feature parent is
-#     UNREVIEWED BLOCKS. Post-cca8 BOTH the merge commit (exemption removed) and
-#     its unreviewed parent are independently enumerated in the base..head walk and
-#     caught (unreviewed=2, rc=1). This proves an unreviewed clean merge cannot
-#     reach the base under any path. ──
+# ── T13: the anti-laundering guarantee (c9e9) — a CLEAN empty-net merge whose
+#     feature parent is UNREVIEWED still BLOCKS. The empty-net exemption applies ONLY
+#     to the merge commit itself (its combined diff is empty); the unreviewed content
+#     parent (feat-A-unreviewed) is independently enumerated in the base..head walk
+#     and caught (unreviewed=1, rc=1). So the merge is exempt (exempt_empty_net=1) yet
+#     the run still FAILS on the parent — proving the exemption cannot launder
+#     unreviewed CONTENT through a clean merge. ──
 r="$_WORK/t13"; mkdir -p "$r"; md="$_WORK/t13.mock"; mkdir -p "$md"
 git -C "$r" init -q -b main
 git -C "$r" config user.email t@e.st; git -C "$r" config user.name t; git -C "$r" config commit.gpgsign false
@@ -245,9 +250,9 @@ git -C "$r" checkout -q main; git -C "$r" checkout -q -b staged
 git -C "$r" merge -q --no-ff -m "Merge pull request #42 from feature" feature
 mergesha="$(git -C "$r" rev-parse HEAD)"
 printf '[]' > "$md/pulls_$featsha"    # feature parent has NO covering review → must block
-printf '[]' > "$md/pulls_$mergesha"   # clean merge → no longer exempt; also UNREVIEWED
+printf '[]' > "$md/pulls_$mergesha"   # clean merge → exempt via empty-net (c9e9); parent still blocks
 out="$(_run "$r" "$mergesha" "$md")"; rc=$?
-if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${featsha}" <<<"$out" && grep -q "unreviewed=2" <<<"$out"; then _pass "T13_clean_merge_unreviewed_parent_blocks"; else _fail "T13_clean_merge_unreviewed_parent_blocks" "rc=$rc out=$out"; fi
+if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${featsha}" <<<"$out" && grep -q "unreviewed=1" <<<"$out" && grep -q "exempt_empty_net=1" <<<"$out"; then _pass "T13_clean_merge_unreviewed_parent_blocks"; else _fail "T13_clean_merge_unreviewed_parent_blocks" "rc=$rc out=$out"; fi
 
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"

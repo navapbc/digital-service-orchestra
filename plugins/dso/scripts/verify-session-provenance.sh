@@ -423,6 +423,26 @@ while IFS=' ' read -r sha subject; do
         continue
     fi
 
+    # Genuinely-empty-net merge exemption (c9e9). A >=2-parent merge whose COMBINED
+    # net diff is genuinely empty (e.g. a clean staged->main 2-parent merge / clean
+    # octopus) carries no reviewable application code, so provenance must NOT flag it
+    # unprovenanced — no MERGED PR covers it (A3b excludes the sub-PR whose
+    # merge_commit_sha IS this SHA). This transitively fixes the dispatcher's
+    # empty-net-diff guard, which consumes unprovenanced-shas.txt. Computed by the
+    # shared rc_diff_is_empty_net (review-coverage-lib.sh) so this gate agrees with the
+    # coverage invariant and the fp-recovery sweep (DD6). The helper uses bare `git`
+    # (cwd), so invoke it cd'd into GIT_REPO_PATH. Only rc 0 (proven empty-net)
+    # exempts; rc 1 (non-empty/non-merge) OR rc 2 (uncomputable) falls through to the
+    # normal covering-PR provenance path (which itself flags unprovenanced on doubt) —
+    # so an error here can never launder a SHA.
+    if declare -F rc_diff_is_empty_net >/dev/null 2>&1 \
+       && ( cd "$GIT_REPO_PATH" 2>/dev/null && rc_diff_is_empty_net "$sha" ); then
+        echo "commit $sha status=EMPTY_NET_MERGE; exempt (genuinely-empty net merge diff)"
+        _covered_shas+=("$sha")
+        _cache_set "$sha" "provenanced" || true
+        continue
+    fi
+
     # Identity-based admin exemption (ADR-0022): handled in the G3 covering-PR loop
     # below — a covering PR merged by a designated bypass-actor (server-set
     # merged_by ∈ set) counts as reviewed-equivalent there, so an admin web-UI
