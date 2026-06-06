@@ -303,7 +303,12 @@ errors = []
 # scores is DEPRECATED: tolerated with a warning during transition until reviewer
 # agents are updated (story f19a-c97e), at which point it will be rejected.
 required_top = {"findings", "summary"}
-optional_top = {"review_tier", "selected_tier", "escalate_review", "scores"}
+# fallback_hops (bug 284b): infra-emitted by dispatch.py (817/852) when a provider
+# fallback hop occurs — it is appended to the result dict AFTER the LLM output, so
+# the schema-correction loop cannot strip it; rejecting it here fails the gate
+# closed on a legitimate provenance key. Allowlisted (not stripped) per the 588e
+# panel: stripping unknown top-level keys would mask a malformed/empty payload.
+optional_top = {"review_tier", "selected_tier", "escalate_review", "scores", "fallback_hops"}
 allowed_top = required_top | optional_top
 actual_top = set(data.keys())
 extra = actual_top - allowed_top
