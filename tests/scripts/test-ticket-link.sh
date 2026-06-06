@@ -1305,4 +1305,190 @@ test_ticket_unlink_relates_to_removes_both_sides() {
 }
 test_ticket_unlink_relates_to_removes_both_sides
 
+# ── Test 16 (RED): canonical dispatcher --dry-run must NOT write a LINK event ──
+# Covers the CANONICAL dispatcher path ($TICKET_SCRIPT link ... --dry-run),
+# i.e. ticket_link() in ticket-lib-api.sh, NOT the legacy ticket-link.sh path.
+# Bug 3796-ccd3-863f-4d63: ticket_link() ignores --dry-run and writes a LINK event.
+echo ""
+echo "--- test_canonical_dispatcher_dry_run_no_link_event ---"
+test_canonical_dispatcher_dry_run_no_link_event() {
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "DryRun canonical source" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "DryRun canonical target" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "canonical dry-run: tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_canonical_dispatcher_dry_run_no_link_event"
+        return
+    fi
+
+    # Run via the CANONICAL dispatcher ($TICKET_SCRIPT, NOT $TICKET_LINK_SCRIPT)
+    local exit_code=0
+    local stdout_out
+    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" relates_to --dry-run 2>/dev/null) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "canonical dry-run: exits 0" "0" "$exit_code"
+
+    # Assert: output contains [DRY RUN] preview
+    if [[ "$stdout_out" =~ \[DRY\ RUN\] ]]; then
+        assert_eq "canonical dry-run: output contains [DRY RUN] preview" "has-dry-run" "has-dry-run"
+    else
+        assert_eq "canonical dry-run: output contains [DRY RUN] preview" "has-dry-run" "missing: $stdout_out"
+    fi
+
+    # Assert: NO LINK event written to disk (this is the failing assertion before the fix)
+    local link_count
+    link_count=$(_count_link_events "$tracker_dir" "$id1")
+    assert_eq "canonical dry-run: no LINK event written for id1" "0" "$link_count"
+
+    assert_pass_if_clean "test_canonical_dispatcher_dry_run_no_link_event"
+}
+test_canonical_dispatcher_dry_run_no_link_event
+
+# ── Test (RED): non-canonical relation 'blocked_by' must be REJECTED (Bug 61b8) ──
+# The bash dispatcher (ticket-link.sh) has a case guard, but the ticket-graph.py
+# --link path (add_dependency in _links.py) accepted any string verbatim.
+# Expected (after fix):
+#   - ticket link <id1> <id2> blocked_by exits NONZERO
+#   - No LINK event is written to disk for id1
+echo ""
+echo "--- test_ticket_link_rejects_non_canonical_relation ---"
+test_ticket_link_rejects_non_canonical_relation() {
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Relation-grammar source" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Relation-grammar target" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "relation-grammar: tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_link_rejects_non_canonical_relation"
+        return
+    fi
+
+    local before_count
+    before_count=$(_count_link_events "$tracker_dir" "$id1")
+
+    # Run ticket link with non-canonical relation 'blocked_by'
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" blocked_by 2>/dev/null) || exit_code=$?
+
+    # Assert: exits NONZERO (relation is rejected)
+    assert_ne "ticket link blocked_by: exits nonzero" "0" "$exit_code"
+
+    # Assert: no LINK event written to id1 dir
+    local after_count
+    after_count=$(_count_link_events "$tracker_dir" "$id1")
+    local new_events=$(( after_count - before_count ))
+    assert_eq "ticket link blocked_by: no LINK event written" "0" "$new_events"
+
+    assert_pass_if_clean "test_ticket_link_rejects_non_canonical_relation"
+}
+test_ticket_link_rejects_non_canonical_relation
+
+# ── Test (RED f5a8): unlink succeeds after compaction bakes LINK into SNAPSHOT ──
+# After ticket-compact.sh bakes a LINK event into a SNAPSHOT (compiled_state.deps[])
+# and deletes the original *-LINK.json file, `ticket unlink A B` must still succeed.
+# Before the fix: exits 1 with "no LINK event found" because _get_link_info only
+# globs *-LINK.json and never reads the SNAPSHOT deps[].
+# After the fix: reads the SNAPSHOT deps[], finds the link_uuid, and writes UNLINK.
+echo ""
+echo "--- test_ticket_unlink_after_compaction_succeeds ---"
+test_ticket_unlink_after_compaction_succeeds() {
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    local compact_script
+    compact_script="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)/plugins/dso/scripts/ticket-compact.sh"
+    if [ ! -f "$compact_script" ]; then
+        assert_eq "ticket-compact.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create two tickets
+    local id1 id2
+    id1=$(_create_ticket "$repo" "task" "Compaction unlink source")
+    id2=$(_create_ticket "$repo" "task" "Compaction unlink target")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    # Link id1 → id2 with depends_on
+    local link_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" depends_on 2>/dev/null) || link_exit=$?
+    if [ "$link_exit" -ne 0 ]; then
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: initial link exits 0" "0" "$link_exit"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    # Confirm LINK event file exists before compaction
+    local link_count_before
+    link_count_before=$(_count_link_events "$tracker_dir" "$id1")
+    assert_eq "test_ticket_unlink_after_compaction_succeeds: LINK event exists pre-compact" "1" "$link_count_before"
+
+    # Force compaction with threshold=1 so the LINK event is baked into SNAPSHOT
+    # and the *-LINK.json file is deleted. Use --skip-sync and --no-commit to avoid
+    # remote I/O and keep the test self-contained.
+    (cd "$repo" && PROJECT_ROOT="$repo" _TICKET_TEST_NO_SYNC=1 \
+        bash "$compact_script" "$id1" --threshold=1 --skip-sync --no-commit 2>/dev/null) || true
+
+    # Confirm LINK event file is now gone (compaction deleted it)
+    local link_count_after
+    link_count_after=$(_count_link_events "$tracker_dir" "$id1")
+    if [ "$link_count_after" -ne 0 ]; then
+        # Compaction didn't remove LINK files (unexpected) — skip gracefully.
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: LINK file deleted by compact" "0" "$link_count_after"
+        assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+        return
+    fi
+
+    # Confirm SNAPSHOT exists (compaction wrote it)
+    local snapshot_count
+    snapshot_count=$(find "$tracker_dir/$id1" -maxdepth 1 -name '*-SNAPSHOT.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+    assert_eq "test_ticket_unlink_after_compaction_succeeds: SNAPSHOT exists post-compact" "1" "$snapshot_count"
+
+    # When: ticket unlink id1 id2 (LINK file is gone, link_uuid only in SNAPSHOT deps[])
+    local unlink_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>/dev/null) || unlink_exit=$?
+
+    # Then: exits 0 (snapshot fallback finds the link_uuid)
+    assert_eq "test_ticket_unlink_after_compaction_succeeds: unlink exits 0" "0" "$unlink_exit"
+
+    # And: an UNLINK event was written
+    local unlink_count
+    unlink_count=$(_count_unlink_events "$tracker_dir" "$id1")
+    assert_eq "test_ticket_unlink_after_compaction_succeeds: UNLINK event written" "1" "$unlink_count"
+
+    # And: ticket show id1 no longer lists id2 as a dep
+    local show_out
+    show_out=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$id1" 2>/dev/null) || show_out=""
+    if echo "$show_out" | grep -q "$id2"; then
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: dep removed from ticket show" "not-present" "present"
+    else
+        assert_eq "test_ticket_unlink_after_compaction_succeeds: dep removed from ticket show" "not-present" "not-present"
+    fi
+
+    assert_pass_if_clean "test_ticket_unlink_after_compaction_succeeds"
+}
+test_ticket_unlink_after_compaction_succeeds
+
 print_summary

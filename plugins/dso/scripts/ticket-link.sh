@@ -116,11 +116,31 @@ for event_type, f in all_events:
             cancelled_uuids.add(link_uuid)
             active_links.pop(link_uuid, None)
 
-# Check if (target_id, relation) pair is net-active
+# Check if (target_id, relation) pair is net-active from LINK files
 for uuid, (tid, rel) in active_links.items():
     if tid == target_id and rel == relation:
         print('DUPLICATE')
         sys.exit(0)
+
+# ── SNAPSHOT fallback (f5a8) ──────────────────────────────────────────────────
+# ticket-compact.sh bakes LINK events into a SNAPSHOT compiled_state.deps[] and
+# deletes the source *-LINK.json files.  Fall back to scanning SNAPSHOT deps[]
+# for a matching (target_id, relation) entry whose link_uuid has not been
+# cancelled by a post-compaction UNLINK event.
+for snap_path in sorted(p.glob('*-SNAPSHOT.json')):
+    try:
+        with open(snap_path, encoding='utf-8') as fh:
+            snap = json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        continue
+    compiled = snap.get('data', {}).get('compiled_state', {})
+    for dep in compiled.get('deps', []):
+        dep_target = dep.get('target_id', '')
+        dep_uuid = dep.get('link_uuid', '')
+        dep_relation = dep.get('relation', '')
+        if dep_target == target_id and dep_relation == relation and dep_uuid and dep_uuid not in cancelled_uuids:
+            print('DUPLICATE')
+            sys.exit(0)
 
 print('NOT_FOUND')
 sys.exit(0)
@@ -251,6 +271,8 @@ all_events.sort(key=lambda x: (x[1].name.split('-')[0], _event_order.get(x[0], 9
 
 # Replay events to build net-active link set: maps uuid -> (target_id, relation)
 active_links: dict[str, tuple[str, str]] = {}
+# Collect cancelled uuids (from UNLINK events) for the SNAPSHOT fallback below.
+cancelled_uuids: set[str] = set()
 
 for event_type, f in all_events:
     try:
@@ -266,6 +288,7 @@ for event_type, f in all_events:
     elif event_type == 'UNLINK':
         link_uuid = data.get('link_uuid', '')
         if link_uuid:
+            cancelled_uuids.add(link_uuid)
             active_links.pop(link_uuid, None)
 
 # Return the uuid and relation for the net-active link matching target_id, if any.
@@ -279,6 +302,30 @@ for uuid, (tid, rel) in active_links.items():
 
 if found_uuid:
     print(found_uuid + ' ' + found_relation)
+    sys.exit(0)
+
+# ── SNAPSHOT fallback (f5a8) ──────────────────────────────────────────────────
+# ticket-compact.sh bakes LINK events into a SNAPSHOT compiled_state.deps[] and
+# deletes the original *-LINK.json files.  When no active LINK file was found
+# above, scan any *-SNAPSHOT.json for a matching dep entry.  A link that was
+# cancelled post-compaction will have an UNLINK event on disk (not compacted away
+# because UNLINKs are written after the SNAPSHOT) — subtract those via
+# cancelled_uuids before trusting a SNAPSHOT dep.
+for snap_path in sorted(p.glob('*-SNAPSHOT.json')):
+    try:
+        with open(snap_path, encoding='utf-8') as fh:
+            snap = json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        continue
+    compiled = snap.get('data', {}).get('compiled_state', {})
+    for dep in compiled.get('deps', []):
+        dep_target = dep.get('target_id', '')
+        dep_uuid = dep.get('link_uuid', '')
+        dep_relation = dep.get('relation', '')
+        if dep_target == target_id and dep_uuid and dep_uuid not in cancelled_uuids:
+            print(dep_uuid + ' ' + dep_relation)
+            sys.exit(0)
+
 sys.exit(0)
 PYEOF
 }
