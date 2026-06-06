@@ -512,6 +512,63 @@ def test_apply_honours_suppress_pair_drops_subsequent_inbound_via_computed_form(
     assert "SHOULD-BE-DROPPED" not in titles
 
 
+def test_inbound_create_dedups_against_binding_store(applier, mut_mod, fixture_repo):
+    """ticket 1577: an inbound CREATE for a Jira key already bound in the binding
+    store is deduped — mapping recorded, no phantom local ticket materialised.
+
+    Covers the narrow transient the snapshot differ's 4354 label stand-down
+    cannot: the fetched snapshot predates the dso-id:<local_id> label write-back,
+    so the differ mis-emits an inbound CREATE, but bindings.json already records
+    the binding. The applier-level guard catches it.
+    """
+
+    class _FakeBindingStore:
+        def get_local_id(self, jira_key):
+            return "uuid-bound-7" if jira_key == "DIG-77" else None
+
+    mutation = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-77",
+        payload={"fields": {"summary": "should NOT materialise", "issuetype": "Task"}},
+    )
+    result = applier._apply_typed(
+        mutation, repo_root=fixture_repo, binding_store=_FakeBindingStore()
+    )
+
+    # 1. Result signals a dedup skip bound to the pre-existing local id.
+    assert result.payload.get("dedup_skipped") is True
+    assert result.payload.get("local_id") == "uuid-bound-7"
+
+    # 2. mapping.json records uuid-bound-7 -> DIG-77.
+    mapping_file = fixture_repo / "bridge_state" / "mapping.json"
+    assert mapping_file.exists(), "dedup guard must write mapping.json"
+    mapping = json.loads(mapping_file.read_text())
+    assert mapping.get("uuid-bound-7") == "DIG-77"
+
+    # 3. No phantom local ticket materialised under the jira-key-derived id.
+    assert not (fixture_repo / ".tickets-tracker" / "jira-dig-77").exists(), (
+        "must not materialise a phantom local ticket when already bound"
+    )
+
+    # Regression guard: an UNBOUND inbound create still materialises normally —
+    # the stand-down is scoped to bound keys.
+    unbound = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-88",
+        payload={"fields": {"summary": "brand new", "issuetype": "Task"}},
+    )
+    applier._apply_typed(
+        unbound, repo_root=fixture_repo, binding_store=_FakeBindingStore()
+    )
+    assert (fixture_repo / ".tickets-tracker" / "jira-dig-88").exists(), (
+        "an unbound inbound create must still materialise a local ticket"
+    )
+
+
 # ---------------------------------------------------------------------------
 # 6. Payload shape tolerance (Defect 1)
 # ---------------------------------------------------------------------------
