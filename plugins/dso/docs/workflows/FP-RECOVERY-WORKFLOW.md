@@ -75,17 +75,23 @@ git diff "origin/${PR_BASE_REF}...${PR_HEAD_SHA}" --stat | tail -10
 
 The diff file is the input to the manual reviewer dispatch. Carry `ARTIFACTS_DIR` through to Step 2 as the `WORKFLOW_PLUGIN_ARTIFACTS_DIR` value.
 
-### Step 2: Dispatch `dso:code-reviewer-standard` at opus tier
+### Step 2: Dispatch `dso:code-reviewer-standard` at opus tier — NEUTRAL re-review (no priming)
 
 Use the Agent tool with the named DSO sub-agent. Override the model to `opus` regardless of what the agent file's frontmatter defaults to — opus's stronger reasoning is the whole point of this escape valve.
 
-Required dispatch shape:
+<HARD-GATE>
+**The reviewer dispatch MUST be neutral — the same standard review the code would get in the commit/local workflow.** Do NOT pass the prior CI finding text, the fact that any finding was raised, the FP suspicion, or any rationale into the reviewer's prompt. Priming the reviewer with "this is a suspected false positive, here is the finding and why it's wrong" biases it toward clearing and can rubber-stamp a *legitimate* finding into a bypass (observed: a primed dispatch and a neutral dispatch on the same diff both returned 0, but only the neutral result is trustworthy because it is unconditioned). The engineer's FP belief is the TRIGGER for invoking this workflow — it is **deliberately withheld** from the reviewer. The adjudication is purely: *does a fresh, context-free standard review independently produce a blocking finding?*
+- A true false positive will NOT reappear under a neutral review → clearance is trustworthy.
+- A legitimate concern WILL be independently re-raised → it is real; resolve it, do NOT bypass (see Step 4).
+</HARD-GATE>
+
+Required dispatch shape (neutral — no `ISSUE CONTEXT`, no finding text, no hypothesis):
 
 ```
 Agent tool:
   subagent_type: "dso:code-reviewer-standard"
   model: "opus"
-  description: "FP-recovery manual review of PR #<N>"
+  description: "FP-recovery neutral re-review of PR #<N>"
   prompt: |
     DIFF_FILE: <DIFF_FILE from Step 1>
     REPO_ROOT: <repo root>
@@ -96,16 +102,12 @@ Agent tool:
     === DIFF STAT ===
     <paste from Step 1>
 
-    === ISSUE CONTEXT ===
-    Manual FP-recovery dispatch. CI llm-review (ci.yml) reported a failing finding
-    that appears to be a false positive: <one-sentence description of the suspected FP>.
-
-    The CI finding's full text:
-    <paste the CI llm-review finding verbatim>
-
-    Apply the full standard-tier checklist. Verify every type / reachability claim
-    by reading the actual code via Read/Grep. Pay particular attention to the
-    Verify-Before-Assert and Caller-input verification gates.
+    Standard-tier review of this PR diff. Apply the full standard-tier checklist
+    to the ENTIRE diff. Verify every type / reachability claim by reading the
+    actual code via Read/Grep. Report ALL findings (critical / important /
+    fragile / minor / suggestion). Review this as a fresh first-pass review:
+    there is NO prior context, hypothesis, or suspected finding to confirm or
+    refute — surface anything that meets the scored-finding bar.
 ```
 
 This dispatches the real DSO reviewer agent (not a generic agent with the prompt inlined). The agent will:
@@ -140,9 +142,9 @@ The schema is documented in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/review-finding
 3. Zero findings with severity `fragile`.
 4. The manual review dispatch used ≥5 tool calls and ≥30s of runtime (proxy: did the reviewer actually do the work). Earlier 10/60 thresholds over-fired on focused reviews.
 
-If any criterion fails, do NOT force-merge. Either:
+If any criterion fails, do NOT force-merge. Because the Step 2 reviewer was **neutral** (it never saw the original CI finding), a re-raised `critical` / `important` / `fragile` finding is an INDEPENDENT confirmation that the concern is real — not a re-litigation of the suspected FP. Treat it as legitimate:
 - Fix the underlying issue and push a new commit (CI re-reviews).
-- File a bug describing the finding and the disagreement, then escalate to the maintainer.
+- Do NOT re-invoke fp-recovery on the same code hoping for a cleaner draw — a neutral reviewer that flags it is signal, not noise.
 
 If all four hold, you are **cleared to force-merge**.
 
