@@ -174,6 +174,16 @@ CLASSIFIER_OUTPUT=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$WORKTREE_ARTIFACTS" "$ORCHES
 
 ## Step 5 — Dispatch code-reviewer sub-agent
 
+**Workflow gate — the local code reviewer is dispatched ONLY when `dso.workflow=local`.**
+Read the canonical workflow knob before dispatching:
+
+```bash
+DSO_WORKFLOW=$(.claude/scripts/dso read-config.sh dso.workflow 2>/dev/null); DSO_WORKFLOW=${DSO_WORKFLOW:-local}
+```
+
+- **`dso.workflow=local`** (default): dispatch the reviewer as described below, then run Step 6 (Record review).
+- **`dso.workflow=ci-pr`**: SKIP Step 5 AND Step 6 entirely — the local review is a no-op. CI enforces the review gate on the eventual session→main PR (the cumulative `llm-review` job), so dispatching a local reviewer here is redundant and local enforcement is already skipped. This mirrors REVIEW-WORKFLOW.md's `enforcement.strategy=ci` skip path (the legacy alias that `dso.workflow=ci-pr` superseded — see CLAUDE.md `rule:no-bypass-review`). Do NOT compute `REVIEWER_HASH` or call `record-review.sh`; proceed directly to Step 7 (Record test status).
+
 Follow REVIEW-WORKFLOW.md Step 4 to dispatch the named `dso:code-reviewer-*` agent.
 
 **IMPORTANT**: Do NOT set `isolation: "worktree"` on this sub-agent. The reviewer must
@@ -194,6 +204,8 @@ of the sub-agent's CWD.
 ---
 
 ## Step 6 — Record review
+
+**Gated by Step 5's workflow check**: run this step ONLY when `dso.workflow=local`. Under `dso.workflow=ci-pr` this step is skipped (no reviewer was dispatched, so there is no `REVIEWER_HASH` to record) — review is enforced at the session→main PR instead.
 
 From the worktree context, record the review using the worktree's artifacts:
 
