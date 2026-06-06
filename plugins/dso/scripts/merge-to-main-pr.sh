@@ -1067,7 +1067,7 @@ _restage_assess() {
 # mutations and is validated by integration testing, not this unit suite.
 _restage_execute() {
     local _staged="${1:-}" _src="${2:-}" _db="${3:-${_DEFAULT_BRANCH:-main}}"
-    local _pr1 _pr2 _fresh _lk _lock
+    local _pr1 _pr2 _fresh _lockdir _waited=0
     _pr1="${DSO_RESTAGE_PR1_STATE:-$(gh pr list --head "$_src" --base "$_staged" --state all --json state --jq '.[0].state // ""' 2>/dev/null || true)}"
     _pr2="${DSO_RESTAGE_PR2_STATE:-$(gh pr list --head "$_staged" --base "$_db" --state all --json state --jq '.[0].state // ""' 2>/dev/null || true)}"
     _fresh="$(_restage_fresh_branch_name "$_src")"
@@ -1076,20 +1076,34 @@ _restage_execute() {
         echo "DRY-RUN: advisory only — no refs created/deleted. Set DSO_RESTAGE_EXECUTE=1 to perform the re-stage." >&2
         return 0
     fi
-    # --- EXECUTE: perform the re-stage under an exclusive lock (no cross-session race) ---
-    _lock="${TMPDIR:-/tmp}/dso-restage-${_db//\//_}.lock"
-    if ! exec {_lk}>"$_lock"; then echo "ERROR: cannot open re-stage lock $_lock" >&2; return 1; fi
-    if ! flock -w 60 "$_lk"; then echo "ERROR: another re-stage holds the lock — aborting to avoid a race" >&2; return 1; fi
+    # --- EXECUTE: perform the re-stage under an exclusive lock (no cross-session
+    # race). Portable mkdir-lock — flock(1) is util-linux and homebrew-only on
+    # Darwin (the primary dev platform); a RETURN trap releases it on every exit
+    # path so it is never leaked past the function (unlike a held fd). ---
+    _lockdir="${TMPDIR:-/tmp}/dso-restage-${_db//\//_}.lock.d"
+    while ! mkdir "$_lockdir" 2>/dev/null; do
+        _waited=$(( _waited + 1 ))
+        if (( _waited > 60 )); then echo "ERROR: another re-stage holds the lock ($_lockdir) — aborting to avoid a race" >&2; return 1; fi
+        sleep 1
+    done
+    # shellcheck disable=SC2064  # expand _lockdir NOW so the cleanup targets this path
+    trap "rmdir '$_lockdir' 2>/dev/null || true" RETURN
     git fetch origin "$_db" --quiet 2>/dev/null || true
     if ! git rev-parse --verify --quiet "$_src" >/dev/null && ! git rev-parse --verify --quiet "origin/$_src" >/dev/null; then
         echo "ERROR: source branch $_src not found locally or on origin — cannot re-stage" >&2; return 1
     fi
-    if ! git checkout -B "$_fresh" "$_src" 2>/dev/null; then
-        echo "ERROR: could not create fresh branch $_fresh from $_src" >&2; return 1
+    # -b (NOT -B): must not clobber an existing branch (e.g. a prior interrupted
+    # re-stage that already minted this name). -b fails if the branch exists.
+    if ! git checkout -b "$_fresh" "$_src" 2>/dev/null; then
+        echo "ERROR: could not create fresh branch $_fresh from $_src — it may already exist; abort (no clobber). Pick a new name and retry." >&2; return 1
     fi
-    if ! git rebase "origin/$_db" -X ours 2>/dev/null; then
+    # Rebase onto the default branch WITHOUT -X ours: a blanket 'ours' silently
+    # discards the feature's hunks on a real (non-version) content conflict — data
+    # loss. On ANY conflict, abort and leave resolution to the operator per the
+    # advisory plan above; the executor only auto-completes the clean (no-conflict) case.
+    if ! git rebase "origin/$_db" 2>/dev/null; then
         git rebase --abort 2>/dev/null || true
-        echo "ERROR: rebase of $_fresh onto origin/$_db failed (non-version conflict) — resolve manually" >&2; return 1
+        echo "ERROR: rebase of $_fresh onto origin/$_db conflicts — resolve it manually per the advisory plan above (do NOT blanket -X ours; it would discard feature work), then push $_fresh and re-run merge-to-main." >&2; return 1
     fi
     if ! git push --force-with-lease -u origin "$_fresh" 2>/dev/null; then
         echo "ERROR: push of fresh branch $_fresh failed" >&2; return 1
