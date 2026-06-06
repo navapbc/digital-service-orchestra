@@ -2100,6 +2100,8 @@ with open(out_path, 'w', encoding='utf-8') as f:
 # ── ticket_link ───────────────────────────────────────────────────────────────
 # In-process replacement for the `ticket link` dispatcher case.
 # Thin wrapper — delegates to ticket-graph.py for cycle detection.
+# --dry-run: position-independent flag; when present, delegates to ticket-link.sh
+#   which prints a [DRY RUN] preview without writing any event (bug 3796-ccd3).
 ticket_link() {
     if [ "${DSO_TICKET_LEGACY:-0}" = "1" ]; then
         bash "$_TICKETLIB_DIR/ticket-link.sh" link "$@"
@@ -2109,6 +2111,19 @@ ticket_link() {
     (
         set -euo pipefail
         unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # Parse --dry-run flag (position-independent) before arg-count check.
+        local dry_run=0
+        local real_args=()
+        local arg
+        for arg in "$@"; do
+            if [ "$arg" = "--dry-run" ]; then
+                dry_run=1
+            else
+                real_args+=("$arg")
+            fi
+        done
+        set -- "${real_args[@]+"${real_args[@]}"}"
 
         if [ $# -lt 3 ]; then
             echo "Usage: ticket link <id1> <id2> <relation>" >&2
@@ -2132,6 +2147,15 @@ ticket_link() {
         fi
         if ! tgt_id="$(_ticketlib_resolve_id "$tgt_id" "$TRACKER_DIR")"; then
             return 1
+        fi
+
+        # --dry-run: delegate to ticket-link.sh which owns the preview logic.
+        # This prints "[DRY RUN] Would create/promote/reject: ..." without writing
+        # any event (bug 3796-ccd3-863f-4d63: canonical path was ignoring --dry-run).
+        if [ "$dry_run" = "1" ]; then
+            TICKETS_TRACKER_DIR="$TRACKER_DIR" \
+                bash "$_TICKETLIB_DIR/ticket-link.sh" link "$src_id" "$tgt_id" "$relation" --dry-run
+            return $?
         fi
 
         # Relation validation is delegated to ticket-graph.py (single source of truth)
