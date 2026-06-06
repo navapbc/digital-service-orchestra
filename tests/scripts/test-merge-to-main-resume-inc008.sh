@@ -127,6 +127,76 @@ else
     BRANCH="$_saved_branch"
 fi
 
+# ── F6B3: _restage_recovery_plan — advisory re-stage plan (panel O1 "advisory first" + N2) ──
+# Pure function: emits the explicit re-stage plan WITHOUT executing anything. It must
+# (a) BLOCK spent-branch reuse, (b) name a fresh branch + rebase onto origin/<default>,
+# (c) name the orphaned staged ref and gate its deletion behind confirmation (the 0-ahead
+# "spent" signal cannot distinguish spent from not-yet-populated), (d) warn that SHAs
+# change so a full re-review is required. Capture stdout.
+if ! type _restage_recovery_plan >/dev/null 2>&1; then
+    _fail "restage_plan_defined" "_restage_recovery_plan not loaded"
+else
+    _pass "restage_plan_defined"
+    _plan="$(_restage_recovery_plan "staged-abc123def456-1780000000" "main" 2>&1)"
+    if grep -qiE "do not reuse|spent" <<<"$_plan"; then _pass "T20_blocks_spent_reuse"; else _fail "T20_blocks_spent_reuse" "must block spent-branch reuse: $_plan"; fi
+    if grep -qiE "fresh branch" <<<"$_plan"; then _pass "T21_fresh_branch"; else _fail "T21_fresh_branch" "must instruct a fresh branch"; fi
+    if grep -qE "rebase.*origin/main" <<<"$_plan"; then _pass "T22_rebase_onto_main"; else _fail "T22_rebase_onto_main" "must rebase onto origin/main"; fi
+    if grep -qF "staged-abc123def456-1780000000" <<<"$_plan"; then _pass "T23_names_staged_ref"; else _fail "T23_names_staged_ref" "must name the orphaned staged ref"; fi
+    if grep -qiE "confirm" <<<"$_plan"; then _pass "T24_deletion_gated"; else _fail "T24_deletion_gated" "staged-ref deletion must require confirmation"; fi
+    if grep -qiE "re-review|review again|SHAs change" <<<"$_plan"; then _pass "T25_rereview_warning"; else _fail "T25_rereview_warning" "must warn re-review is required"; fi
+    # advisory-only: the printed plan must not contain a bare executable git mutation line
+    if grep -qE "^[[:space:]]*git (push|branch -D|rebase)" <<<"$_plan"; then _fail "T26_advisory_only" "plan emitted a bare executable git mutation line (should be advisory text only)"; else _pass "T26_advisory_only"; fi
+fi
+
+# ── F6B3 incr-2: forge-proof spentness gate (panel cond: never delete on local 0-ahead) ──
+# _restage_staged_ref_safe_to_delete <pr1_state> <pr2_state>: a remote staged ref is
+# safe to delete ONLY when its source->staged PR1 MERGED (promotion completed) AND
+# there is no live staged->main PR2 (CLOSED or none). Fail-safe (return 1) on any
+# OPEN, CLOSED-without-merge PR1, or UNKNOWN/empty — so a concurrent session's
+# just-created (not-yet-populated) staged ref is never deleted.
+if ! type _restage_staged_ref_safe_to_delete >/dev/null 2>&1; then
+    _fail "safe_to_delete_defined" "_restage_staged_ref_safe_to_delete not loaded"
+else
+    _pass "safe_to_delete_defined"
+    if _restage_staged_ref_safe_to_delete "MERGED" ""; then _pass "T27_merged_nopr2_safe"; else _fail "T27_merged_nopr2_safe" "MERGED PR1 + no PR2 must be safe"; fi
+    if _restage_staged_ref_safe_to_delete "MERGED" "CLOSED"; then _pass "T28_merged_closedpr2_safe"; else _fail "T28_merged_closedpr2_safe" "MERGED PR1 + CLOSED PR2 must be safe"; fi
+    if ! _restage_staged_ref_safe_to_delete "MERGED" "OPEN"; then _pass "T29_open_pr2_unsafe"; else _fail "T29_open_pr2_unsafe" "a live (OPEN) PR2 must be UNSAFE"; fi
+    if ! _restage_staged_ref_safe_to_delete "OPEN" ""; then _pass "T30_open_pr1_unsafe"; else _fail "T30_open_pr1_unsafe" "an OPEN PR1 (concurrent setup) must be UNSAFE"; fi
+    if ! _restage_staged_ref_safe_to_delete "" ""; then _pass "T31_unknown_unsafe_failsafe"; else _fail "T31_unknown_unsafe_failsafe" "UNKNOWN/empty must fail-safe to UNSAFE"; fi
+    if ! _restage_staged_ref_safe_to_delete "CLOSED" ""; then _pass "T32_closed_unmerged_pr1_unsafe"; else _fail "T32_closed_unmerged_pr1_unsafe" "CLOSED-without-merge PR1 (content not landed) must be UNSAFE"; fi
+fi
+
+# ── F6B3 incr-2: fresh branch naming (never reuse the spent source) ──
+# _restage_fresh_branch_name <source_branch>: a trailing -N is incremented; otherwise
+# a -restage2 suffix is appended. Pure.
+if ! type _restage_fresh_branch_name >/dev/null 2>&1; then
+    _fail "fresh_name_defined" "_restage_fresh_branch_name not loaded"
+else
+    _pass "fresh_name_defined"
+    _n1="$(_restage_fresh_branch_name "story/588e-abec-221f-42c0/3ebb-resilience-dd123-6")"
+    if [[ "$_n1" == "story/588e-abec-221f-42c0/3ebb-resilience-dd123-7" ]]; then _pass "T33_increment_suffix"; else _fail "T33_increment_suffix" "got '$_n1'"; fi
+    _n2="$(_restage_fresh_branch_name "feat-x")"
+    if [[ "$_n2" == "feat-x-restage2" ]]; then _pass "T34_append_suffix"; else _fail "T34_append_suffix" "got '$_n2'"; fi
+    # never equal to the (spent) source
+    if [[ "$(_restage_fresh_branch_name "dd123-9")" != "dd123-9" ]]; then _pass "T35_never_equals_source"; else _fail "T35_never_equals_source" "fresh name must differ from spent source"; fi
+fi
+
+# ── F6B3 incr-2: _restage_assess (pure assessment; no mutation) ──
+# _restage_assess <staged_ref> <source> <default> <pr1_state> <pr2_state>: emits the
+# advisory plan + the computed fresh branch + a SAFE/UNSAFE deletion verdict (from the
+# forge-proof predicate). Pure — never mutates; injectable states make it testable.
+if ! type _restage_assess >/dev/null 2>&1; then
+    _fail "assess_defined" "_restage_assess not loaded"
+else
+    _pass "assess_defined"
+    _a_safe="$(_restage_assess "staged-x-1700000000" "story/x/dd123-6" "main" "MERGED" "" 2>&1)"
+    if grep -qF "dd123-7" <<<"$_a_safe"; then _pass "T36_assess_emits_fresh"; else _fail "T36_assess_emits_fresh" "must emit fresh branch dd123-7: $_a_safe"; fi
+    if grep -qiE "\bSAFE\b" <<<"$_a_safe" && ! grep -qiE "UNSAFE" <<<"$_a_safe"; then _pass "T37_assess_safe_verdict"; else _fail "T37_assess_safe_verdict" "MERGED+no-PR2 must read SAFE: $_a_safe"; fi
+    _a_unsafe="$(_restage_assess "staged-x-1700000000" "story/x/dd123-6" "main" "OPEN" "" 2>&1)"
+    if grep -qiE "UNSAFE" <<<"$_a_unsafe"; then _pass "T38_assess_unsafe_verdict"; else _fail "T38_assess_unsafe_verdict" "OPEN PR1 must read UNSAFE: $_a_unsafe"; fi
+    if grep -qiE "re-stage required" <<<"$_a_safe"; then _pass "T39_assess_includes_plan"; else _fail "T39_assess_includes_plan" "must include the advisory plan"; fi
+fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]]
