@@ -181,6 +181,22 @@ else
     if [[ "$(_restage_fresh_branch_name "dd123-9")" != "dd123-9" ]]; then _pass "T35_never_equals_source"; else _fail "T35_never_equals_source" "fresh name must differ from spent source"; fi
 fi
 
+# ── F6B3 incr-2: _restage_assess (pure assessment; no mutation) ──
+# _restage_assess <staged_ref> <source> <default> <pr1_state> <pr2_state>: emits the
+# advisory plan + the computed fresh branch + a SAFE/UNSAFE deletion verdict (from the
+# forge-proof predicate). Pure — never mutates; injectable states make it testable.
+if ! type _restage_assess >/dev/null 2>&1; then
+    _fail "assess_defined" "_restage_assess not loaded"
+else
+    _pass "assess_defined"
+    _a_safe="$(_restage_assess "staged-x-1700000000" "story/x/dd123-6" "main" "MERGED" "" 2>&1)"
+    if grep -qF "dd123-7" <<<"$_a_safe"; then _pass "T36_assess_emits_fresh"; else _fail "T36_assess_emits_fresh" "must emit fresh branch dd123-7: $_a_safe"; fi
+    if grep -qiE "\bSAFE\b" <<<"$_a_safe" && ! grep -qiE "UNSAFE" <<<"$_a_safe"; then _pass "T37_assess_safe_verdict"; else _fail "T37_assess_safe_verdict" "MERGED+no-PR2 must read SAFE: $_a_safe"; fi
+    _a_unsafe="$(_restage_assess "staged-x-1700000000" "story/x/dd123-6" "main" "OPEN" "" 2>&1)"
+    if grep -qiE "UNSAFE" <<<"$_a_unsafe"; then _pass "T38_assess_unsafe_verdict"; else _fail "T38_assess_unsafe_verdict" "OPEN PR1 must read UNSAFE: $_a_unsafe"; fi
+    if grep -qiE "re-stage required" <<<"$_a_safe"; then _pass "T39_assess_includes_plan"; else _fail "T39_assess_includes_plan" "must include the advisory plan"; fi
+fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]]

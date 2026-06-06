@@ -1042,6 +1042,71 @@ _restage_fresh_branch_name() {
     fi
 }
 
+# _restage_assess <staged_ref> <source> <default> <pr1_state> <pr2_state>
+# f6b3 incr-2: PURE assessment (no mutation) — emits the advisory plan, the computed
+# FRESH branch name, and a SAFE/UNSAFE deletion verdict from the forge-proof predicate.
+# States are passed in (the caller queries the forge) so this stays pure + testable.
+_restage_assess() {
+    local _staged="${1:-}" _src="${2:-}" _db="${3:-${_DEFAULT_BRANCH:-main}}" _pr1="${4:-}" _pr2="${5:-}"
+    _restage_recovery_plan "$_staged" "$_db"
+    printf 'Fresh branch (the spent source %s must NOT be reused): %s\n' "$_src" "$(_restage_fresh_branch_name "$_src")"
+    if _restage_staged_ref_safe_to_delete "$_pr1" "$_pr2"; then
+        printf 'Orphaned staged ref %s deletion: SAFE (forge-proof: PR1=%s, PR2=%s).\n' "$_staged" "${_pr1:-<none>}" "${_pr2:-<none>}"
+    else
+        printf 'Orphaned staged ref %s deletion: UNSAFE — it will be PRESERVED (PR1=%s, PR2=%s); only a MERGED PR1 with no live PR2 is deletable.\n' "$_staged" "${_pr1:-<none>}" "${_pr2:-<none>}"
+    fi
+}
+
+# _restage_execute <staged_ref> <source_branch> [default_branch]
+# f6b3 incr-2: the auto-re-stage. ADVISORY by default (assess + print; NO mutation).
+# Performs the destructive flow ONLY when DSO_RESTAGE_EXECUTE=1 (the explicit execute
+# flag), under flock (no cross-session race), with --force-with-lease, and deletes the
+# orphaned staged ref ONLY when the forge-proof predicate says SAFE. PR states are
+# read from the forge (overridable for tests via DSO_RESTAGE_PR1_STATE /
+# DSO_RESTAGE_PR2_STATE). NOTE: the DSO_RESTAGE_EXECUTE=1 path performs real git/gh
+# mutations and is validated by integration testing, not this unit suite.
+_restage_execute() {
+    local _staged="${1:-}" _src="${2:-}" _db="${3:-${_DEFAULT_BRANCH:-main}}"
+    local _pr1 _pr2 _fresh _lk _lock
+    _pr1="${DSO_RESTAGE_PR1_STATE:-$(gh pr list --head "$_src" --base "$_staged" --state all --json state --jq '.[0].state // ""' 2>/dev/null || true)}"
+    _pr2="${DSO_RESTAGE_PR2_STATE:-$(gh pr list --head "$_staged" --base "$_db" --state all --json state --jq '.[0].state // ""' 2>/dev/null || true)}"
+    _fresh="$(_restage_fresh_branch_name "$_src")"
+    _restage_assess "$_staged" "$_src" "$_db" "$_pr1" "$_pr2" >&2
+    if [[ "${DSO_RESTAGE_EXECUTE:-}" != "1" ]]; then
+        echo "DRY-RUN: advisory only — no refs created/deleted. Set DSO_RESTAGE_EXECUTE=1 to perform the re-stage." >&2
+        return 0
+    fi
+    # --- EXECUTE: perform the re-stage under an exclusive lock (no cross-session race) ---
+    _lock="${TMPDIR:-/tmp}/dso-restage-${_db//\//_}.lock"
+    if ! exec {_lk}>"$_lock"; then echo "ERROR: cannot open re-stage lock $_lock" >&2; return 1; fi
+    if ! flock -w 60 "$_lk"; then echo "ERROR: another re-stage holds the lock — aborting to avoid a race" >&2; return 1; fi
+    git fetch origin "$_db" --quiet 2>/dev/null || true
+    if ! git rev-parse --verify --quiet "$_src" >/dev/null && ! git rev-parse --verify --quiet "origin/$_src" >/dev/null; then
+        echo "ERROR: source branch $_src not found locally or on origin — cannot re-stage" >&2; return 1
+    fi
+    if ! git checkout -B "$_fresh" "$_src" 2>/dev/null; then
+        echo "ERROR: could not create fresh branch $_fresh from $_src" >&2; return 1
+    fi
+    if ! git rebase "origin/$_db" -X ours 2>/dev/null; then
+        git rebase --abort 2>/dev/null || true
+        echo "ERROR: rebase of $_fresh onto origin/$_db failed (non-version conflict) — resolve manually" >&2; return 1
+    fi
+    if ! git push --force-with-lease -u origin "$_fresh" 2>/dev/null; then
+        echo "ERROR: push of fresh branch $_fresh failed" >&2; return 1
+    fi
+    # Delete the orphaned staged ref ONLY when forge-proof safe (never on local 0-ahead).
+    if _restage_staged_ref_safe_to_delete "$_pr1" "$_pr2"; then
+        if git push origin --delete "$_staged" 2>/dev/null; then
+            echo "Deleted orphaned staged ref $_staged (forge-proof: PR1=$_pr1, PR2=$_pr2)." >&2
+        else
+            echo "WARNING: could not delete staged ref $_staged (left in place)." >&2
+        fi
+    else
+        echo "PRESERVING staged ref $_staged — UNSAFE to delete (PR1=$_pr1, PR2=$_pr2)." >&2
+    fi
+    echo "Re-staged onto fresh branch $_fresh — now run merge-to-main from $_fresh for a new PR1/PR2 (a full re-review is required; SHAs changed)." >&2
+}
+
 # resume_gc_stale_staged_state [state_dir]
 # 3ebb DD2 / INC-015 (b): the /tmp/merge-to-main-state-*.json files are a CACHE,
 # not the source of truth (GitHub + git are). Garbage-collect the cache entries
