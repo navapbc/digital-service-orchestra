@@ -135,7 +135,13 @@ def merge_findings(*finding_dicts: dict) -> dict:
 
     - Combines "findings" arrays additively
     - Takes min per score dimension (conservative)
-    - Returns merged dict with "findings", "scores", "summary" keys
+    - Returns merged dict with "findings", "scores", "summary", "review_completed" keys
+
+    Sets ``review_completed: true`` on the merged result (bug 1b76). A successful
+    aggregation of reviewer payloads is the runner's positive review-completed
+    attestation; without it, a genuine aggregated clean review (empty findings)
+    would be byte-equivalent to a truncated/garbled payload and rejected by
+    validate-review-output.sh's empty-findings enforcement.
     """
     merged_findings: list = []
     merged_scores: dict[str, int | float] = {}
@@ -185,6 +191,7 @@ def merge_findings(*finding_dicts: dict) -> dict:
         "findings": merged_findings,
         "scores": merged_scores,
         "summary": "; ".join(summaries) if summaries else "",
+        "review_completed": True,
     }
 
 

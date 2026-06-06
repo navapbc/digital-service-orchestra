@@ -72,7 +72,7 @@ _VALID_SEVERITIES: frozenset[str] = frozenset(
 
 # Canonical 5-value enum for finding `category`. MUST stay in sync with
 # valid_categories in validate-review-output.sh (currently sha256
-# cb48a66fc3292083). Used by the scoped exception in the frozen-field loop
+# 35dd40c9e6e83207). Used by the scoped exception in the frozen-field loop
 # below to allow correction iff the original category is off-enum.
 _VALID_CATEGORIES: frozenset[str] = frozenset(
     {"correctness", "design", "hygiene", "maintainability", "verification"}

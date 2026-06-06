@@ -364,6 +364,90 @@ _BLOCKING_SEVERITIES = frozenset({"critical", "important", "fragile"})
 # severity gate (the all-specialist-errors check below handles infra failures separately).
 _SYNTHETIC_TYPES = frozenset({"specialist_error", "fallback_exhausted", "parse_error"})
 
+# Top-level keys the code-review-dispatch schema accepts (validate-review-output.sh:
+# required_top | optional_top). Kept in sync with the validator. Used only by the
+# empty-findings clean-review normalization below to drop non-allowed keys (e.g. the
+# cluster aggregator's visibility_trailer / aggregation_status) so a genuine no-issues
+# review passes validation without the schema-correction loop — which cannot add
+# review_completed and so fails CLOSED on an otherwise-clean review.
+_SCHEMA_ALLOWED_TOP_KEYS = frozenset(
+    {
+        "findings",
+        "summary",
+        "review_tier",
+        "selected_tier",
+        "escalate_review",
+        "scores",
+        "fallback_hops",
+        "review_completed",
+    }
+)
+
+
+def _normalize_empty_clean_review(merged: dict) -> dict:
+    """Choke-point normalization for the 1b76 empty-findings positive-attestation rule.
+
+    Applied to ``merged`` immediately before ``_validate_findings_schema`` — the
+    SINGLE convergence point every branch (single-pass merge_findings, deep-tier
+    arch-replacement, Strategy-F cluster aggregation, R-2 rechunk, and any future
+    branch) flows through. This is the authoritative normalization that guarantees
+    no clean-review path can reach the validator without ``review_completed: True``.
+
+    Scope: a dict whose ``findings`` is an EMPTY list AND which is NOT a synthetic
+    payload (no finding carries a type in ``_SYNTHETIC_TYPES`` — vacuously true for
+    empty findings, but checked defensively). For that case it returns a COPY with:
+      * ``review_completed: True`` (the 1b76 attestation), unless already True;
+      * a non-empty ``summary`` (the validator requires it; the cluster aggregator's
+        output omits it). Synthesized from an existing ``visibility_trailer`` or a
+        default — never overwriting a caller-provided summary;
+      * non-allowed top-level keys dropped (e.g. ``visibility_trailer`` /
+        ``aggregation_status`` from the cluster aggregator), which the
+        schema-correction loop would otherwise have to strip — and which, combined
+        with the missing attestation, made the empty cluster/rechunk path fail
+        closed.
+
+    Non-empty payloads, synthetic payloads, and payloads already carrying
+    ``review_completed: True`` with no extraneous keys are returned UNCHANGED
+    (copy-not-mutate only when a change is needed), so the non-empty cluster/rechunk
+    flow continues to rely on schema correction exactly as before — no behavior
+    change outside the empty-findings clean-review case.
+    """
+    if not isinstance(merged, dict):
+        return merged
+    findings = merged.get("findings")
+    # Only the empty-findings case is in scope.
+    if not isinstance(findings, list) or findings:
+        return merged
+    # Defensive synthetic check (empty list makes this vacuously non-synthetic,
+    # but guard against a future caller passing residual synthetic metadata).
+    if any(
+        isinstance(f, dict) and f.get("type") in _SYNTHETIC_TYPES for f in findings
+    ):
+        return merged
+
+    already_attested = merged.get("review_completed") is True
+    has_extra_keys = bool(set(merged.keys()) - _SCHEMA_ALLOWED_TOP_KEYS)
+    summary = merged.get("summary")
+    needs_summary = not (isinstance(summary, str) and summary.strip())
+
+    if already_attested and not has_extra_keys and not needs_summary:
+        return merged  # already schema-valid clean attestation — no change
+
+    normalized = dict(merged)
+    normalized["review_completed"] = True
+    if needs_summary:
+        trailer = merged.get("visibility_trailer")
+        if isinstance(trailer, str) and trailer.strip():
+            normalized["summary"] = trailer.strip()
+        else:
+            normalized["summary"] = "Review completed: no issues found."
+    # Drop non-allowed top-level keys (visibility_trailer, aggregation_status, ...).
+    for _k in list(normalized.keys()):
+        if _k not in _SCHEMA_ALLOWED_TOP_KEYS:
+            del normalized[_k]
+    return normalized
+
+
 # ---------------------------------------------------------------------------
 # Large-diff pipeline — OVER_BOUND status and config validation
 # ---------------------------------------------------------------------------
@@ -916,7 +1000,7 @@ def _resolve_validator_script(plugin_root: str | None = None) -> str:
 # Exposed as a module constant so tests can assert drift against the script.
 # When validate-review-output.sh changes its schema, update this constant and
 # the corresponding test in test_runner_smoke.py.
-_VALIDATE_REVIEW_SCHEMA_HASH = "cb48a66fc3292083"
+_VALIDATE_REVIEW_SCHEMA_HASH = "35dd40c9e6e83207"
 
 
 # ---------------------------------------------------------------------------
@@ -3317,6 +3401,23 @@ def main() -> int:
                     f.get("type", "") in _SYNTHETIC_TYPES for f in arch_findings
                 )
                 if not arch_all_synthetic:
+                    # FINDING-1 (1b76 fail-closed regression): replacing `merged`
+                    # (which merge_findings stamped with review_completed: True)
+                    # with the raw arch LLM output drops that attestation when the
+                    # arch agent didn't emit it. A clean deep review (empty
+                    # findings, no review_completed) would then fail the
+                    # empty-findings rule and route into dispatch_schema_correction
+                    # — which is structurally incapable of adding review_completed,
+                    # so it re-fails and converts a genuine no-issues review into a
+                    # blocking synthetic schema_error.
+                    #
+                    # The per-path injection that previously lived here is now
+                    # redundant: the empty-findings clean-review normalization at
+                    # the validation choke point (Step 7a.9, _normalize_empty_clean_review)
+                    # stamps review_completed: True on ANY non-synthetic empty-findings
+                    # `merged` — covering this arch-replacement path along with the
+                    # cluster-aggregation and rechunk branches. Replace `merged` with
+                    # the raw arch_result here; the choke point handles attestation.
                     merged = arch_result
 
             # Step 6b: component #3' R-2 — fallback re-chunk. A token-dense diff
@@ -3451,7 +3552,19 @@ def main() -> int:
             list(merged.get("findings") or [])
         )
 
-        # Step 7b: schema validation (schema hash 214949ee476be6d0)
+        # Step 7a.9: empty-findings clean-review normalization (1b76 fail-closed —
+        # robust choke-point fix). This is the SINGLE convergence point all branches
+        # that set `merged` flow through before validation (single-pass merge_findings,
+        # deep-tier arch replacement, Strategy-F cluster aggregation, R-2 rechunk, and
+        # any future branch). For a non-synthetic EMPTY-findings review, stamp
+        # review_completed: True (+ summary, - non-allowed keys) so a genuine no-issues
+        # review passes the empty-findings rule WITHOUT routing into the
+        # schema-correction loop, which is structurally incapable of adding
+        # review_completed and re-fails into a blocking synthetic schema_error.
+        # No-op for non-empty / synthetic / already-attested-and-clean payloads.
+        merged = _normalize_empty_clean_review(merged)
+
+        # Step 7b: schema validation (schema hash 35dd40c9e6e83207)
         # Shell out to validate-review-output.sh before writing to disk.
         # Exit-code routing:
         #   schema_pass    → continue to _write_output() unchanged

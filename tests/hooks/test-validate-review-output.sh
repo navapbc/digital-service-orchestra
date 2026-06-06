@@ -212,7 +212,8 @@ assert_ne \
 
 VALID_CRD_FILE=$(write_fixture "valid-crd.json" '{
   "findings": [],
-  "summary": "Code is well-structured and tests are adequate."
+  "summary": "Code is well-structured and tests are adequate.",
+  "review_completed": true
 }')
 
 VALID_CRD_EXIT=$(run_script code-review-dispatch "$VALID_CRD_FILE")
@@ -233,7 +234,7 @@ assert_contains \
 # Then: exits 0 (scores tolerated during transition), SCHEMA_VALID: yes,
 #       and a DEPRECATION WARNING appears on stderr
 echo "=== test_code_review_dispatch_with_scores_key_deprecated ==="
-FIXTURE_FILE=$(write_fixture "scores-key-present.json" '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}')
+FIXTURE_FILE=$(write_fixture "scores-key-present.json" '{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found.","review_completed":true}')
 _STDERR_TMP=$(mktemp "${TMPDIR:-/tmp}/test-validate-review-output-stderr.XXXXXX")
 EXIT_CODE=0
 STDOUT_OUT=$(bash "$SCRIPT" code-review-dispatch "$FIXTURE_FILE" 2>"$_STDERR_TMP") || EXIT_CODE=$?
@@ -250,7 +251,7 @@ assert_contains "test_code_review_dispatch_with_scores_key_deprecated: stderr co
 # Then: exits 0 (fallback_hops is an allowlisted optional key) — a non-zero here is
 #       the schema-correction-exhausted fail-closed this regression test guards.
 echo "=== test_code_review_dispatch_with_fallback_hops_passes ==="
-FALLBACK_HOPS_FIXTURE=$(write_fixture "crd-fallback-hops.json" '{"findings":[],"summary":"All checks passed. No issues found.","fallback_hops":["anthropic->openai: rate_limited"]}')
+FALLBACK_HOPS_FIXTURE=$(write_fixture "crd-fallback-hops.json" '{"findings":[],"summary":"All checks passed. No issues found.","fallback_hops":["anthropic->openai: rate_limited"],"review_completed":true}')
 FALLBACK_HOPS_EXIT=$(run_script code-review-dispatch "$FALLBACK_HOPS_FIXTURE")
 assert_eq \
     "test_code_review_dispatch_with_fallback_hops_passes: fallback_hops top-level key is allowlisted, exits 0" \
@@ -278,6 +279,114 @@ assert_eq \
     "test_code_review_dispatch_with_findings_passes: code-review-dispatch with findings exits 0" \
     "0" \
     "$VALID_CRD_FINDINGS_EXIT"
+
+# ============================================================
+# 4a. code-review-dispatch: review_completed attestation (bug 1b76)
+# ============================================================
+#
+# A clean review (empty findings) is byte-equivalent to a truncated/garbled
+# payload unless the reviewer affirms completion with a POSITIVE, non-synthetic
+# attestation. The validator REQUIRES review_completed:true when findings is an
+# empty list AND the payload is not a synthetic-infra payload. This distinguishes
+# a completed no-issues review from a stripped/empty payload (588e panel O5-C2).
+
+# test_empty_findings_without_review_completed_rejected (RED)
+# Empty findings WITHOUT review_completed → fail-open guard; must exit non-zero.
+EMPTY_NO_ATTEST_FILE=$(write_fixture "empty-no-attest.json" '{
+  "findings": [],
+  "summary": "Code is well-structured and tests are adequate."
+}')
+EMPTY_NO_ATTEST_EXIT=$(run_script code-review-dispatch "$EMPTY_NO_ATTEST_FILE")
+assert_ne \
+    "test_empty_findings_without_review_completed_rejected: empty findings without review_completed exits non-zero" \
+    "0" \
+    "$EMPTY_NO_ATTEST_EXIT"
+
+# test_empty_findings_with_review_completed_true_passes
+# Empty findings WITH review_completed:true → genuine clean review, exits 0.
+EMPTY_ATTEST_TRUE_FILE=$(write_fixture "empty-attest-true.json" '{
+  "findings": [],
+  "summary": "Code is well-structured and tests are adequate.",
+  "review_completed": true
+}')
+EMPTY_ATTEST_TRUE_EXIT=$(run_script code-review-dispatch "$EMPTY_ATTEST_TRUE_FILE")
+assert_eq \
+    "test_empty_findings_with_review_completed_true_passes: empty findings with review_completed:true exits 0" \
+    "0" \
+    "$EMPTY_ATTEST_TRUE_EXIT"
+
+EMPTY_ATTEST_TRUE_OUTPUT=$(run_script_output code-review-dispatch "$EMPTY_ATTEST_TRUE_FILE")
+assert_contains \
+    "test_empty_findings_with_review_completed_true_schema_valid_yes: output contains SCHEMA_VALID: yes" \
+    "SCHEMA_VALID: yes" \
+    "$EMPTY_ATTEST_TRUE_OUTPUT"
+
+# test_empty_findings_with_review_completed_false_rejected
+# Empty findings WITH review_completed:false → not affirmed complete, exits non-zero.
+EMPTY_ATTEST_FALSE_FILE=$(write_fixture "empty-attest-false.json" '{
+  "findings": [],
+  "summary": "Code is well-structured and tests are adequate.",
+  "review_completed": false
+}')
+EMPTY_ATTEST_FALSE_EXIT=$(run_script code-review-dispatch "$EMPTY_ATTEST_FALSE_FILE")
+assert_ne \
+    "test_empty_findings_with_review_completed_false_rejected: empty findings with review_completed:false exits non-zero" \
+    "0" \
+    "$EMPTY_ATTEST_FALSE_EXIT"
+
+# test_review_completed_non_boolean_rejected
+# review_completed must be a JSON boolean — a string value is rejected.
+REVIEW_COMPLETED_NONBOOL_FILE=$(write_fixture "review-completed-nonbool.json" '{
+  "findings": [],
+  "summary": "Code is well-structured and tests are adequate.",
+  "review_completed": "true"
+}')
+REVIEW_COMPLETED_NONBOOL_EXIT=$(run_script code-review-dispatch "$REVIEW_COMPLETED_NONBOOL_FILE")
+assert_ne \
+    "test_review_completed_non_boolean_rejected: non-boolean review_completed exits non-zero" \
+    "0" \
+    "$REVIEW_COMPLETED_NONBOOL_EXIT"
+
+# test_nonempty_findings_without_review_completed_passes
+# NON-empty findings without review_completed → the validated findings are the
+# positive signal; review_completed is NOT required. Must remain exits 0.
+NONEMPTY_NO_ATTEST_FILE=$(write_fixture "nonempty-no-attest.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Test finding",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": "def foo():\n    pass"
+    }
+  ],
+  "summary": "One minor hygiene issue found in the module."
+}')
+NONEMPTY_NO_ATTEST_EXIT=$(run_script code-review-dispatch "$NONEMPTY_NO_ATTEST_FILE")
+assert_eq \
+    "test_nonempty_findings_without_review_completed_passes: non-empty findings without review_completed exits 0" \
+    "0" \
+    "$NONEMPTY_NO_ATTEST_EXIT"
+
+# test_empty_findings_synthetic_parse_error_exempt
+# An empty real-findings review carrying a synthetic-type entry (parse_error)
+# already carries a POSITIVE 'type' channel and is exempt from the
+# review_completed requirement. Must exit 0 without review_completed.
+SYNTHETIC_EXEMPT_FILE=$(write_fixture "synthetic-parse-error.json" '{
+  "findings": [
+    {
+      "type": "parse_error",
+      "description": "Reviewer output could not be parsed as JSON."
+    }
+  ],
+  "summary": "Synthetic infra-failure payload from parse_error path."
+}')
+SYNTHETIC_EXEMPT_EXIT=$(run_script code-review-dispatch "$SYNTHETIC_EXEMPT_FILE")
+assert_eq \
+    "test_empty_findings_synthetic_parse_error_exempt: synthetic parse_error payload exempt, exits 0" \
+    "0" \
+    "$SYNTHETIC_EXEMPT_EXIT"
 
 # ============================================================
 # 5. code-review-dispatch: invalid JSON fails
@@ -1237,7 +1346,8 @@ _snapshot_fail
 _REVIEW_TIER_VALID_FILE=$(write_fixture "review_tier_valid.json" '{
   "findings": [],
   "summary": "No issues found. Code is well-structured and tests are adequate.",
-  "review_tier": "standard"
+  "review_tier": "standard",
+  "review_completed": true
 }')
 _REVIEW_TIER_VALID_EXIT=$(run_script code-review-dispatch "$_REVIEW_TIER_VALID_FILE")
 assert_eq "test_review_tier_valid_value_passes" "0" "$_REVIEW_TIER_VALID_EXIT"
@@ -1349,7 +1459,8 @@ assert_pass_if_clean "test_escalate_review_valid_array_passes_validation"
 # Placed here as documentation of the contract; no _snapshot_fail needed.
 _ESC_ABSENT_FILE=$(write_fixture "escalate_review_absent.json" '{
   "findings": [],
-  "summary": "All dimensions clean; no escalation field present."
+  "summary": "All dimensions clean; no escalation field present.",
+  "review_completed": true
 }')
 _ESC_ABSENT_EXIT=$(run_script code-review-dispatch "$_ESC_ABSENT_FILE")
 assert_eq \
@@ -1409,7 +1520,8 @@ assert_pass_if_clean "test_escalate_review_element_missing_finding_index_fails_v
 # This test is GREEN immediately: absent optional fields are not flagged as errors.
 _AVC_ABSENT_FILE=$(write_fixture "approach_viability_concern_absent.json" '{
   "findings": [],
-  "summary": "No approach_viability_concern field present at all."
+  "summary": "No approach_viability_concern field present at all.",
+  "review_completed": true
 }')
 _AVC_ABSENT_EXIT=0
 bash "$SCRIPT" code-review-dispatch "$_AVC_ABSENT_FILE" >/dev/null 2>&1 || _AVC_ABSENT_EXIT=$?

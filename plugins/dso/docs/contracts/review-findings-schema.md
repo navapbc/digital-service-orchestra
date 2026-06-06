@@ -120,6 +120,24 @@ There is no line-based prefix for this signal. The JSON file itself is the recor
 
 ---
 
+## Top-Level Keys
+
+The reviewer output object (validated by `validate-review-output.sh code-review-dispatch`) has these top-level keys:
+
+| Key | Type | Required | Description |
+|---|---|---|---|
+| `findings` | array | Yes | Array of finding objects (may be empty). |
+| `summary` | string | Yes | 2–3 sentence assessment; minimum 10 non-whitespace characters. |
+| `review_completed` | boolean | Conditional | A positive attestation that a full review pass completed. **REQUIRED to be `true` when `findings` is an empty list and the payload is not synthetic** — this distinguishes a completed no-issues review from a truncated/garbled empty payload (bug 1b76). Reviewers always emit `"review_completed": true`. Not required when `findings` is non-empty (the validated findings are themselves the positive signal) or when the payload is synthetic; if present it must be boolean. |
+| `review_tier` / `selected_tier` | string | No | One of `light`, `standard`, `deep`. |
+| `escalate_review` | array | No | Per-finding escalation requests; see Escalation. |
+| `fallback_hops` | array | No | Infra-emitted provider-fallback provenance. |
+| `scores` | object | No | DEPRECATED; tolerated with a warning. |
+
+**Empty-findings enforcement (bug 1b76)**: A clean review (`"findings": []`) is byte-equivalent to a truncated/garbled empty payload unless it carries a positive, non-synthetic attestation. The validator REQUIRES `review_completed: true` on empty-findings payloads. **Synthetic exemption**: a payload whose `findings` contains an entry with `type` ∈ {`specialist_error`, `fallback_exhausted`, `parse_error`} already carries a positive `type` channel and is exempt from this requirement.
+
+---
+
 ## Field Definitions
 
 | Field | Type | Required | Description |
@@ -441,3 +459,4 @@ This contract is versioned. Breaking changes (field removal, enum value removal,
 - **2026-05-14**: Added `verification_evidence: {command, output}` field. Absence-claim detection via `absence-claim-anchors.json` pattern set. Soft-deprecation mode by default; hard enforcement via `absence-claim-enforcement-v1` sentinel file.
 - **2026-05-15**: Added runtime enforcement notes for ±5-line proximity matching (now enforced by `runner.py _suppress_defended_findings`, Story A 1ef8-79c4) and for `NEW_INTRODUCED` relation + escape_rationale validation (now enforced by `runner.py _apply_novelty_gate`, Story B 0b1b-8177).
 - **2026-05-19**: Added `suggestion` to the `severity` enum (R7 of project-audit-2026-05-19). `suggestion` is the auto-downgraded class produced by `runner.py _suppress_defended_findings` (`runner.py:1132`) and `runner.py _apply_novelty_gate` (`runner.py:1065`); reviewers do not emit it directly. Prior to this entry the enum table excluded `suggestion` even though the narrative sections at lines describing auto-downgrade behavior already referenced the value.
+- **2026-06-06**: Added the `review_completed` top-level boolean attestation key and the empty-findings enforcement rule (bug 1b76). When `findings` is an empty list and the payload is not synthetic, `validate-review-output.sh code-review-dispatch` now REQUIRES `review_completed: true` — a positive review-completed attestation that distinguishes a completed no-issues review from a truncated/garbled empty payload (588e panel O5-C2). Synthetic payloads (a finding whose `type` ∈ {`specialist_error`, `fallback_exhausted`, `parse_error`}) are exempt. Reviewer agents (generated from `reviewer-base.md`) now always emit `review_completed: true`. Schema hash updated to `35dd40c9e6e83207`.
