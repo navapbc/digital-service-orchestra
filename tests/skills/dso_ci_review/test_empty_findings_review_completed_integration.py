@@ -322,3 +322,360 @@ def test_deep_synthetic_arch_result_is_not_given_review_completed(tmp_path):
     assert "review_completed" not in arch_result, (
         "A synthetic arch_result must not carry review_completed"
     )
+
+
+# --------------------------------------------------------------------------- #
+# Test (c) + (d): cluster-aggregation and rechunk clean-review paths.
+#
+# These two paths set `merged` from `_dispatch_and_aggregate_clusters(...)`,
+# whose return shape is {findings, visibility_trailer, aggregation_status} —
+# WITHOUT review_completed. A clean (empty findings) review through either path
+# therefore reaches the validator without the 1b76 attestation and fails CLOSED
+# into dispatch_schema_correction (which cannot add the key), unless the runner
+# normalizes `merged` at the validation choke point.
+#
+# Test (c) (cluster aggregation) is the primary RED test for the incomplete-
+# coverage finding: it FAILS before the choke-point normalization and passes
+# after. Test (d) covers the rechunk-else branch.
+# --------------------------------------------------------------------------- #
+
+
+def _standard_tier_classification():
+    return {
+        "selected_tier": "standard",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 1,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 0,
+        "change_volume": 0,
+        "computed_total": 5,
+        "is_merge_commit": False,
+    }
+
+
+def _clean_aggregate_result(*args, **kwargs):
+    """A clean cluster aggregation: empty findings, NO review_completed.
+
+    Mirrors aggregate_cluster_findings() output shape for a no-issues review.
+    """
+    return {
+        "findings": [],
+        "visibility_trailer": "Reviewed 1 file(s); skipped 0.",
+        "aggregation_status": "ok",
+        "summary": "Aggregated cluster review: no issues found.",
+    }
+
+
+async def _empty_gather_clusters(*args, **kwargs):
+    """Return one clean (empty-findings) cluster result."""
+    return [{"cluster_id": ".", "file_paths": ["foo.py"], "findings": [], "status": "ok"}]
+
+
+def _common_env(diff_file, output_file, artifacts_dir):
+    return {
+        "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+        "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+        "WORKFLOW_PLUGIN_ARTIFACTS_DIR": artifacts_dir,
+        "CI_REVIEW_PROVIDER": "anthropic",
+        "ANTHROPIC_API_KEY": "test-key",
+        "CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT),
+        "GITHUB_EVENT_NAME": "",
+        "GITHUB_REF": "",
+        "GITHUB_TOKEN": "",
+        "GITHUB_SHA": "",
+        "PR_NUMBER": "",
+    }
+
+
+def _run_clean_cluster_aggregation_path(tmp_path):
+    """Drive runner.main() through the Strategy-F region-split cluster-aggregation
+    path with a CLEAN aggregation result (findings: [], NO review_completed).
+
+    Returns (exit_code, stderr_text, correction_calls, output_data).
+    """
+    import json as _json
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo.py b/foo.py\n+added line\n")
+    output_file = tmp_path / "findings.json"
+
+    correction_calls = []
+
+    def _spy_correction(*args, **kwargs):
+        correction_calls.append((args, kwargs))
+        return {
+            "findings": [
+                {
+                    "type": "parse_error",
+                    "severity": "critical",
+                    "category": "schema_error",
+                    "description": "Schema correction failed after attempts.",
+                    "finding_id": "schema_error_spy0001",
+                    "file": "",
+                    "cited_lines": [],
+                    "cited_excerpt": "",
+                    "reachability": "",
+                }
+            ],
+            "summary": "Schema correction applied: all attempts exhausted",
+        }
+
+    artifacts_dir = str(tmp_path / "artifacts")
+    os.makedirs(artifacts_dir, exist_ok=True)
+
+    _specs = [
+        {"cluster_dir": "a", "files": ["foo.py"]},
+        {"cluster_dir": "b", "files": ["bar.py"]},
+    ]
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict("os.environ", _common_env(diff_file, output_file, artifacts_dir)),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        # Force the region-split (cluster-aggregation) branch.
+        patch(
+            "dso_ci_review.runner._should_region_split_on_files",
+            return_value=True,
+        ),
+        patch(
+            "dso_ci_review.runner.run_region_split_strategy_f",
+            return_value=_specs,
+        ),
+        patch(
+            "dso_ci_review.runner._apply_large_diff_budget_gate",
+            return_value=(_specs, None),
+        ),
+        patch(
+            "dso_ci_review.runner._gather_clusters",
+            side_effect=_empty_gather_clusters,
+        ),
+        patch(
+            "dso_ci_review.runner._aggregate_cluster_findings",
+            side_effect=_clean_aggregate_result,
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_schema_correction",
+            side_effect=_spy_correction,
+        ),
+        patch(
+            "dso_ci_review.runner.get_schema_correction_max_attempts",
+            return_value=2,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    output_data = None
+    if output_file.exists():
+        try:
+            output_data = _json.loads(output_file.read_text())
+        except (ValueError, OSError):
+            output_data = None
+
+    return exit_code, stderr_capture.getvalue(), correction_calls, output_data
+
+
+def test_clean_cluster_aggregation_does_not_route_into_schema_correction(tmp_path):
+    """A clean cluster-aggregation review (findings: [], no review_completed) must PASS.
+
+    RED for the incomplete-coverage finding: the Strategy-F region-split path
+    sets `merged = _dispatch_and_aggregate_clusters(...)`, whose shape is
+    {findings, visibility_trailer, aggregation_status} with NO review_completed.
+    Before the choke-point normalization, the real validator rejects the empty
+    payload and the runner routes into dispatch_schema_correction — emitting a
+    synthetic schema_error and failing CLOSED on a genuine no-issues review.
+
+    After the fix (normalize `merged` at the validation boundary), schema
+    correction must NOT be reached and no synthetic schema_error may appear.
+    """
+    exit_code, stderr_text, correction_calls, output_data = (
+        _run_clean_cluster_aggregation_path(tmp_path)
+    )
+
+    assert correction_calls == [], (
+        "FAIL-CLOSED (incomplete 1b76 coverage): a clean cluster-aggregation review "
+        "(empty findings, no review_completed) routed into dispatch_schema_correction "
+        f"({len(correction_calls)} call(s)). The validation choke point must normalize "
+        f"`merged` to carry review_completed: True. stderr={stderr_text!r}"
+    )
+
+    findings = (output_data or {}).get("findings") or []
+    synthetic_schema_errors = [
+        f
+        for f in findings
+        if isinstance(f, dict)
+        and f.get("type") == "parse_error"
+        and f.get("category") == "schema_error"
+    ]
+    assert synthetic_schema_errors == [], (
+        "A clean no-issues cluster-aggregation review must NOT be converted into a "
+        f"blocking synthetic schema_error. Found: {synthetic_schema_errors!r}. "
+        f"stderr={stderr_text!r}"
+    )
+
+
+def _run_clean_rechunk_path(tmp_path):
+    """Drive runner.main() through the single-pass → rechunk-else path with a
+    CLEAN re-chunk aggregation result (findings: [], NO review_completed).
+
+    Single-pass returns a fallback_exhausted sentinel (no real findings), so the
+    rechunk fires and `merged = _rechunk_merged` (the _dispatch_and_aggregate_
+    clusters output, with no review_completed).
+
+    Returns (exit_code, stderr_text, correction_calls, output_data).
+    """
+    import json as _json
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo.py b/foo.py\n+added line\n")
+    output_file = tmp_path / "findings.json"
+
+    # Single-pass returns ONLY a fallback_exhausted sentinel (no real findings),
+    # so _pre_rechunk_real is empty and merged = _rechunk_merged (the else branch).
+    async def _exhausted_specialists(agents):
+        return [
+            {
+                "findings": [
+                    {
+                        "type": "fallback_exhausted",
+                        "severity": "critical",
+                        "category": "infra_error",
+                        "description": "context window exceeded",
+                        "finding_id": "fe_rechunk_0001",
+                    }
+                ],
+                "summary": "specialist: context exhausted",
+            }
+        ]
+
+    correction_calls = []
+
+    def _spy_correction(*args, **kwargs):
+        correction_calls.append((args, kwargs))
+        return {
+            "findings": [
+                {
+                    "type": "parse_error",
+                    "severity": "critical",
+                    "category": "schema_error",
+                    "description": "Schema correction failed after attempts.",
+                    "finding_id": "schema_error_spy0002",
+                    "file": "",
+                    "cited_lines": [],
+                    "cited_excerpt": "",
+                    "reachability": "",
+                }
+            ],
+            "summary": "Schema correction applied: all attempts exhausted",
+        }
+
+    artifacts_dir = str(tmp_path / "artifacts")
+    os.makedirs(artifacts_dir, exist_ok=True)
+
+    # >1 spec so _rechunk_on_fallback_exhausted returns specs (re-chunk fires).
+    _specs = [
+        {"cluster_dir": "a", "files": ["foo.py"]},
+        {"cluster_dir": "b", "files": ["bar.py"]},
+    ]
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict("os.environ", _common_env(diff_file, output_file, artifacts_dir)),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        # Single-pass branch (no region split on the primary gate).
+        patch(
+            "dso_ci_review.runner._should_region_split_on_files",
+            return_value=False,
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=_exhausted_specialists,
+        ),
+        # Re-chunk machinery: Strategy F yields >1 cluster so the rechunk fires.
+        patch(
+            "dso_ci_review.runner.run_region_split_strategy_f",
+            return_value=_specs,
+        ),
+        patch(
+            "dso_ci_review.runner._apply_large_diff_budget_gate",
+            return_value=(_specs, None),
+        ),
+        patch(
+            "dso_ci_review.runner._gather_clusters",
+            side_effect=_empty_gather_clusters,
+        ),
+        patch(
+            "dso_ci_review.runner._aggregate_cluster_findings",
+            side_effect=_clean_aggregate_result,
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_schema_correction",
+            side_effect=_spy_correction,
+        ),
+        patch(
+            "dso_ci_review.runner.get_schema_correction_max_attempts",
+            return_value=2,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    output_data = None
+    if output_file.exists():
+        try:
+            output_data = _json.loads(output_file.read_text())
+        except (ValueError, OSError):
+            output_data = None
+
+    return exit_code, stderr_capture.getvalue(), correction_calls, output_data
+
+
+def test_clean_rechunk_review_does_not_route_into_schema_correction(tmp_path):
+    """A clean rechunk-else review (findings: [], no review_completed) must PASS.
+
+    Covers the rechunk-else branch (`merged = _rechunk_merged`). After the
+    single-pass fallback_exhausted sentinel triggers the re-chunk, the merged
+    result is the clean cluster-aggregation dict with no review_completed. The
+    validation choke point must normalize it so no schema correction fires and
+    no synthetic schema_error is emitted.
+    """
+    exit_code, stderr_text, correction_calls, output_data = _run_clean_rechunk_path(
+        tmp_path
+    )
+
+    assert correction_calls == [], (
+        "FAIL-CLOSED (incomplete 1b76 coverage): a clean rechunk review "
+        "(empty findings, no review_completed) routed into dispatch_schema_correction "
+        f"({len(correction_calls)} call(s)). stderr={stderr_text!r}"
+    )
+
+    findings = (output_data or {}).get("findings") or []
+    synthetic_schema_errors = [
+        f
+        for f in findings
+        if isinstance(f, dict)
+        and f.get("type") == "parse_error"
+        and f.get("category") == "schema_error"
+    ]
+    assert synthetic_schema_errors == [], (
+        "A clean no-issues rechunk review must NOT be converted into a blocking "
+        f"synthetic schema_error. Found: {synthetic_schema_errors!r}. "
+        f"stderr={stderr_text!r}"
+    )
