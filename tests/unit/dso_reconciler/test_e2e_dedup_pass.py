@@ -8,7 +8,6 @@ dso-id label produces zero create_issue calls.
 from __future__ import annotations
 
 import importlib.util
-import json
 import sys
 import types
 from pathlib import Path
@@ -140,16 +139,24 @@ def _make_fake_concurrency() -> types.ModuleType:
 
 
 def test_pre_existing_dso_id_produces_zero_creates(tmp_path, differ, applier):
-    """Pre-existing issue with dso-id label → create_issue never called.
+    """A Jira issue already carrying a dso-id:<local_id> label → zero creates (end-to-end).
 
-    Pass sequence:
-      1. differ.compute_mutations(prev={}, next={"uuid-X": ...}) → [create uuid-X]
-      2. applier.apply([create uuid-X], ...) with fake client that returns PROJ-999
-         on JQL search for dso-id:uuid-X
-      3. Assertions:
-         - create_issue call count == 0  (dedup guard fired)
-         - mapping.json["uuid-X"] == "PROJ-999"
-         - manifest events contains {"event": "dedup-create-skipped", "local_id": "uuid-X"}
+    Production semantics since commit 1f0032df24 / bug 4354: the fetcher
+    snapshot stores Jira ``fields`` only (never the ``dso_local_id`` entity
+    property), so the snapshot differ recognises an already-bound issue by its
+    ``dso-id:<local_id>`` / ``dso-id-<local_id>`` label and STANDS DOWN — the
+    issue is owned by the binding-aware inbound/outbound differs. No inbound
+    CREATE is emitted, so apply() never materialises a phantom ``jira-dig-NNNN``
+    local ticket and never writes a ghost ``dso-id:`` label back to Jira.
+
+    This replaces an obsolete pre-4354 contract that asserted an applier-level
+    dedup guard (mapping.json + a ``dedup-create-skipped`` manifest event). That
+    guard never existed on the inbound-create path, and is unnecessary: dedup of
+    already-bound issues is the differ's job, exercised here end-to-end
+    (differ → applier). The earlier failing assertion (``mapping.json must be
+    written by the dedup guard``) wired an *inbound* create yet asserted
+    *outbound* dedup artifacts; the ``get_comments`` AttributeError it cited was
+    a caught symptom, not the cause. Regression history: bugs a666/b38a/38fd/4cc1.
     """
     fake_client = FakeAcliClient()
     fake_concurrency = _make_fake_concurrency()
@@ -160,13 +167,6 @@ def test_pre_existing_dso_id_produces_zero_creates(tmp_path, differ, applier):
     # env-derived (jira_url, user, api_token) credentials.
     fake_acli_mod.AcliClient = lambda **_: fake_client  # type: ignore[attr-defined]
 
-    # Step 1 — differ: prev=empty, next=has uuid-X → must produce a create mutation
-    prev_snapshot: dict = {}
-    next_snapshot: dict = {"uuid-X": {"summary": "Test ticket", "status": "open"}}
-    mutations = differ.compute_mutations(prev_snapshot, next_snapshot)
-
-    # Bug 85a1: mutations are typed Mutation dataclasses, not dicts.
-    # Accept both shapes for backward compat with the differ contract.
     def _mut_action(m):
         a = getattr(m, "action", None)
         if a is not None:
@@ -174,49 +174,56 @@ def test_pre_existing_dso_id_produces_zero_creates(tmp_path, differ, applier):
         return m.get("action") if isinstance(m, dict) else None
 
     def _mut_key(m):
-        return getattr(m, "target", None) or (m.get("key") if isinstance(m, dict) else None)
+        return getattr(m, "target", None) or (
+            m.get("key") if isinstance(m, dict) else None
+        )
+
+    # Step 1 — differ: a bound Jira issue (carries a dso-id:<local_id> label)
+    # present in the Jira snapshot but absent from the local snapshot must NOT
+    # produce an inbound create — the 4354 label stand-down.
+    prev_snapshot: dict = {}
+    next_snapshot: dict = {
+        "DIG-999": {
+            "summary": "Already mirrored",
+            "status": "open",
+            "labels": ["dso-id:jira-dig-999"],
+        }
+    }
+    mutations = differ.compute_mutations(prev_snapshot, next_snapshot)
 
     create_mutations = [
-        m for m in mutations if _mut_action(m) == "create" and _mut_key(m) == "uuid-X"
+        m for m in mutations if _mut_action(m) == "create" and _mut_key(m) == "DIG-999"
     ]
-    assert create_mutations, (
-        f"differ.compute_mutations must emit a create mutation for uuid-X; got {mutations}"
+    assert not create_mutations, (
+        "differ must stand down for a label-bound issue (bug 4354); "
+        f"got a create mutation: {mutations}"
     )
 
-    # Wire local_id on dict-shape mutations only; Mutation dataclasses are
-    # immutable and carry their own local_id field already.
-    for m in mutations:
-        if isinstance(m, dict) and m.get("action") == "create" and "local_id" not in m:
-            m["local_id"] = m["key"]
+    # Step 2 — apply the (create-free) mutation set: must be a no-op on Jira
+    # (no phantom create, no ghost label write-back).
+    with (
+        patch.object(applier, "_load_acli", return_value=fake_acli_mod),
+        patch.object(applier, "_load_concurrency", return_value=fake_concurrency),
+    ):
+        applier.apply(mutations, "pass-001", repo_root=tmp_path)
 
-    # Step 2 — apply: patch _load_acli and _load_concurrency so applier uses
-    # our fakes (no real AcliClient, no git subprocess in tmp_path).
-    with patch.object(applier, "_load_acli", return_value=fake_acli_mod), \
-         patch.object(applier, "_load_concurrency", return_value=fake_concurrency):
-        manifest_path = applier.apply(mutations, "pass-001", repo_root=tmp_path)
-
-    # Step 3 — assertions
-
-    # 3a. create_issue must not be called (dedup guard intercepts)
     assert fake_client.creates == [], (
-        "create_issue must NOT be called when dedup guard fires on a pre-existing dso-id label"
+        "a label-bound issue must never trigger create_issue"
     )
 
-    # 3b. mapping.json must record uuid-X → PROJ-999
-    mapping_file = tmp_path / "bridge_state" / "mapping.json"
-    assert mapping_file.exists(), "mapping.json must be written by the dedup guard"
-    mapping = json.loads(mapping_file.read_text())
-    assert mapping.get("uuid-X") == "PROJ-999", (
-        f"mapping.json must record uuid-X → PROJ-999; got {mapping}"
-    )
-
-    # 3c. manifest events must include dedup-create-skipped for uuid-X
-    manifest = json.loads(manifest_path.read_text())
-    events = manifest.get("events", [])
-    dedup_events = [
-        e for e in events
-        if e.get("event") == "dedup-create-skipped" and e.get("local_id") == "uuid-X"
+    # Step 3 — regression guard: a genuinely-unbound Jira issue (no dso-id
+    # label) STILL produces an inbound create. The stand-down is scoped to
+    # bound issues; without this, 4354 would over-suppress legitimate creates.
+    unbound_snapshot: dict = {
+        "DIG-888": {"summary": "Brand new", "status": "open", "labels": []}
+    }
+    unbound_mutations = differ.compute_mutations({}, unbound_snapshot)
+    unbound_creates = [
+        m
+        for m in unbound_mutations
+        if _mut_action(m) == "create" and _mut_key(m) == "DIG-888"
     ]
-    assert dedup_events, (
-        f"manifest events must include dedup-create-skipped for uuid-X; got {events}"
+    assert unbound_creates, (
+        "a genuinely-unbound Jira issue must still produce an inbound create; "
+        f"got {unbound_mutations}"
     )
