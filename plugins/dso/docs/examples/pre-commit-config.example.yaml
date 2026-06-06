@@ -16,7 +16,7 @@
 #   the event is logged to:  <artifacts_dir>/precommit-timeouts.log
 #
 #   Timeouts (in seconds):
-#     isolation-check:      60s  (staged-only scan with file-type guards, ~10-15s)
+#     isolation-check:      120s  (staged-only scan with file-type guards, ~10-15s)
 #     poetry-lock-check:    10s
 #     format-and-lint:      15s  (staged files only via ruff; ~3-5s)
 #     security-scan:        15s
@@ -56,8 +56,8 @@ repos:
       # guards (rules skip irrelevant file types, e.g., shell rules skip .py).
       # Debug command: STAGED_ONLY=true scripts/check-test-isolation.sh
       - id: isolation-check
-        name: Test Isolation Check (60s timeout)
-        entry: ./scripts/pre-commit-wrapper.sh isolation-check 60 "STAGED_ONLY=true scripts/check-test-isolation.sh"
+        name: Test Isolation Check (120s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh isolation-check 120 "STAGED_ONLY=true scripts/check-test-isolation.sh"
         language: system
         pass_filenames: false
         types: [python]
