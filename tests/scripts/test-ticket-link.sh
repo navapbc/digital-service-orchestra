@@ -1305,4 +1305,49 @@ test_ticket_unlink_relates_to_removes_both_sides() {
 }
 test_ticket_unlink_relates_to_removes_both_sides
 
+# ── Test 16 (RED): canonical dispatcher --dry-run must NOT write a LINK event ──
+# Covers the CANONICAL dispatcher path ($TICKET_SCRIPT link ... --dry-run),
+# i.e. ticket_link() in ticket-lib-api.sh, NOT the legacy ticket-link.sh path.
+# Bug 3796-ccd3-863f-4d63: ticket_link() ignores --dry-run and writes a LINK event.
+echo ""
+echo "--- test_canonical_dispatcher_dry_run_no_link_event ---"
+test_canonical_dispatcher_dry_run_no_link_event() {
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    local id1 id2
+    id1=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "DryRun canonical source" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+    id2=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "DryRun canonical target" 2>/dev/null | grep -o '[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}' | head -1)
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "canonical dry-run: tickets created" "non-empty" "empty"
+        assert_pass_if_clean "test_canonical_dispatcher_dry_run_no_link_event"
+        return
+    fi
+
+    # Run via the CANONICAL dispatcher ($TICKET_SCRIPT, NOT $TICKET_LINK_SCRIPT)
+    local exit_code=0
+    local stdout_out
+    stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" relates_to --dry-run 2>/dev/null) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "canonical dry-run: exits 0" "0" "$exit_code"
+
+    # Assert: output contains [DRY RUN] preview
+    if [[ "$stdout_out" =~ \[DRY\ RUN\] ]]; then
+        assert_eq "canonical dry-run: output contains [DRY RUN] preview" "has-dry-run" "has-dry-run"
+    else
+        assert_eq "canonical dry-run: output contains [DRY RUN] preview" "has-dry-run" "missing: $stdout_out"
+    fi
+
+    # Assert: NO LINK event written to disk (this is the failing assertion before the fix)
+    local link_count
+    link_count=$(_count_link_events "$tracker_dir" "$id1")
+    assert_eq "canonical dry-run: no LINK event written for id1" "0" "$link_count"
+
+    assert_pass_if_clean "test_canonical_dispatcher_dry_run_no_link_event"
+}
+test_canonical_dispatcher_dry_run_no_link_event
+
 print_summary
