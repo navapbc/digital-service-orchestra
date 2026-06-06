@@ -419,11 +419,23 @@ def _verify_created_issue(
     stdout: str,
     *,
     acli_cmd: list[str] | None = None,
+    client: Any = None,
 ) -> dict[str, Any]:
     """Parse ACLI create output, verify the issue exists, and return it.
 
     Uses direct REST GET (immediately consistent) instead of JQL search,
     which is subject to Jira Cloud's eventual-consistency index lag.
+
+    Credentials for the REST GET come ONLY from the explicit *client*
+    (AcliClient), never from ``os.environ`` (bug 7689). Reading ambient env
+    here made create-path test behaviour depend on whatever JIRA_* variables
+    happened to be set in the developer/CI process — tests that mocked only
+    ``subprocess.run`` silently switched to the urllib REST path. With the
+    credential source pinned to the caller's client, behaviour is determined
+    solely by what the caller passes: a client carrying creds → REST GET
+    (production: ``AcliClient.create_issue`` forwards ``client=self``, whose
+    creds are read from the environment at construction); no client / no creds
+    → the deterministic subprocess ``get_issue`` path.
     """
     created = json.loads(stdout)
     jira_key = created.get("key", "")
@@ -431,9 +443,9 @@ def _verify_created_issue(
         msg = f"ACLI create returned no key: {created}"
         raise RuntimeError(msg)
 
-    jira_url = os.environ.get("JIRA_URL", "")
-    jira_user = os.environ.get("JIRA_USER", "")
-    jira_token = os.environ.get("JIRA_API_TOKEN", "")
+    jira_url = getattr(client, "jira_url", "") or "" if client is not None else ""
+    jira_user = getattr(client, "user", "") or "" if client is not None else ""
+    jira_token = getattr(client, "api_token", "") or "" if client is not None else ""
     if jira_url and jira_user and jira_token:
         path = f"/rest/api/3/issue/{jira_key}"
         url = f"{jira_url.rstrip('/')}{path}"
@@ -533,7 +545,13 @@ def create_issue(
     # additionalAttributes.priority (the only ACLI-supported path).
     if priority is not None:
         created = _create_issue_from_json(
-            project, issue_type, summary, priority, acli_cmd=acli_cmd, **kwargs
+            project,
+            issue_type,
+            summary,
+            priority,
+            acli_cmd=acli_cmd,
+            client=client,
+            **kwargs,
         )
         # --from-json has no inline parent attachment — set_parent fallback.
         if parent_key and client is not None:
@@ -567,7 +585,7 @@ def create_issue(
             raise RuntimeError(msg)
 
     assert result is not None  # Guaranteed: either we have a result or raised above
-    return _verify_created_issue(result.stdout, acli_cmd=acli_cmd)
+    return _verify_created_issue(result.stdout, acli_cmd=acli_cmd, client=client)
 
 
 def _create_issue_no_json(
@@ -667,6 +685,7 @@ def _create_issue_from_json(
     priority: str | int | dict[str, Any],
     *,
     acli_cmd: list[str] | None = None,
+    client: Any = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Create a Jira issue using ``--from-json`` to set priority.
@@ -744,7 +763,7 @@ def _create_issue_from_json(
             raise RuntimeError(msg)
 
     assert result is not None  # Guaranteed: either we have a result or raised above
-    return _verify_created_issue(result.stdout, acli_cmd=acli_cmd)
+    return _verify_created_issue(result.stdout, acli_cmd=acli_cmd, client=client)
 
 
 def transition_issue(

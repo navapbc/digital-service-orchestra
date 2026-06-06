@@ -143,6 +143,79 @@ def test_create_issue_calls_acli_subprocess(acli: ModuleType) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Test 1b: _verify_created_issue must not branch on AMBIENT env credentials
+# (bug 7689). Verify behaviour is determined by the explicit client, never by
+# JIRA_URL/JIRA_USER/JIRA_API_TOKEN present in the process environment.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_verify_created_issue_ignores_ambient_env_creds(
+    acli: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No client → subprocess get_issue path, regardless of ambient JIRA_* env.
+
+    Regression for bug 7689: previously _verify_created_issue read JIRA_URL/
+    JIRA_USER/JIRA_API_TOKEN from os.environ and silently issued a urllib REST
+    GET when they were present — making create-path test behaviour depend on
+    ambient developer credentials. With no client supplied, verification must
+    use the deterministic subprocess get_issue path and never touch urllib.
+    """
+    monkeypatch.setenv("JIRA_URL", "https://ambient.example.com")
+    monkeypatch.setenv("JIRA_USER", "ambient@example.com")
+    monkeypatch.setenv("JIRA_API_TOKEN", "ambient-token-must-not-be-used")
+
+    created = json.dumps({"key": "PROJ-700"})
+    get_response = json.dumps(
+        [{"key": "PROJ-700", "summary": "Env-independent", "status": "To Do"}]
+    )
+    mock_get = MagicMock(returncode=0, stdout=get_response, stderr="")
+
+    def _fail_urlopen(*_a, **_k):
+        raise AssertionError(
+            "must not issue a urllib REST GET from ambient env creds (bug 7689)"
+        )
+
+    with (
+        patch("urllib.request.urlopen", side_effect=_fail_urlopen),
+        patch("subprocess.run", return_value=mock_get) as mock_run,
+    ):
+        result = acli._verify_created_issue(created)
+
+    assert mock_run.called, "must verify via subprocess get_issue when no client"
+    assert result.get("key") == "PROJ-700"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_verify_created_issue_uses_client_creds_for_rest(acli: ModuleType) -> None:
+    """A client carrying creds drives the immediately-consistent REST GET.
+
+    Preserves the production path (AcliClient.create_issue passes client=self,
+    whose creds come from the environment at construction) after bug 7689 moves
+    the credential source from os.environ to the explicit client.
+    """
+    client = acli.AcliClient(
+        jira_url="https://client.example.com",
+        user="client@example.com",
+        api_token="client-token",
+    )
+    created = json.dumps({"key": "PROJ-701"})
+
+    def _fail_subprocess(*_a, **_k):
+        raise AssertionError("must use client-cred REST GET, not subprocess")
+
+    with (
+        _mock_urlopen_verify("PROJ-701", summary="From client creds"),
+        patch("subprocess.run", side_effect=_fail_subprocess),
+    ):
+        result = acli._verify_created_issue(created, client=client)
+
+    assert result.get("key") == "PROJ-701"
+
+
+# ---------------------------------------------------------------------------
 # Test 2: update_issue routes status through transition_issue_by_name
 # ---------------------------------------------------------------------------
 
