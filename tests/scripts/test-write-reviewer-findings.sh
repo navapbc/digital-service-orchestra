@@ -82,7 +82,8 @@ OUT_OF_RANGE_JSON='{
     "verification": 5
   },
   "findings": [],
-  "summary": "Score 10 is out of range (max is 5)."
+  "summary": "Score 10 is out of range (max is 5).",
+  "review_completed": true
 }'
 
 # test_script_exists
@@ -162,7 +163,8 @@ assert_eq "test_no_pending_file_on_failure" "no_pending" "$actual"
 # Piping valid 2-key JSON should exit 0 and produce a hash.
 NEW_DIM_JSON='{
   "findings": [],
-  "summary": "Two-key schema is valid."
+  "summary": "Clean review schema is valid.",
+  "review_completed": true
 }'
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 new_hash_output=$(echo "$NEW_DIM_JSON" | "$SCRIPT" 2>/dev/null) && new_exit_code=0 || new_exit_code=$?
@@ -332,7 +334,8 @@ OLD_DIM_JSON='{
     "invalid_dim_e": 5
   },
   "findings": [],
-  "summary": "Scores key is deprecated but tolerated during transition."
+  "summary": "Scores key is deprecated but tolerated during transition.",
+  "review_completed": true
 }'
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 echo "$OLD_DIM_JSON" | "$SCRIPT" 2>/dev/null && old_exit_code=0 || old_exit_code=$?
@@ -346,7 +349,7 @@ assert_eq "test_write_old_dimension_names_deprecated: exits 0 (scores tolerated 
 echo "=== test_write_reviewer_two_key_schema_succeeds ==="
 TMPDIR_TEST=$(mktemp -d "${TMPDIR:-/tmp}/test-write-reviewer-XXXXXX")
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
-RESULT=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST" bash -c 'echo '"'"'{"findings":[],"summary":"All checks passed."}'"'"' | '"\"$SCRIPT\""'' 2>/dev/null) && TWO_KEY_EXIT=0 || TWO_KEY_EXIT=$?
+RESULT=$(WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST" bash -c 'echo '"'"'{"findings":[],"summary":"All checks passed.","review_completed":true}'"'"' | '"\"$SCRIPT\""'' 2>/dev/null) && TWO_KEY_EXIT=0 || TWO_KEY_EXIT=$?
 assert_eq "test_write_reviewer_two_key_schema_succeeds: exits 0" "0" "$TWO_KEY_EXIT"
 assert_ne "test_write_reviewer_two_key_schema_succeeds: outputs a hash" "" "$RESULT"
 
@@ -360,7 +363,7 @@ TMPDIR_TEST2=$(mktemp -d "${TMPDIR:-/tmp}/test-write-reviewer2-XXXXXX")
 trap 'rm -rf "$TMPDIR_TEST2"' EXIT
 _STDERR_WRF=$(mktemp "${TMPDIR:-/tmp}/test-write-reviewer-stderr.XXXXXX")
 THREE_KEY_EXIT=0
-WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST2" bash -c 'echo '"'"'{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found."}'"'"' | '"\"$SCRIPT\""'' 2>"$_STDERR_WRF" || THREE_KEY_EXIT=$?
+WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TMPDIR_TEST2" bash -c 'echo '"'"'{"scores":{"hygiene":5,"design":5,"maintainability":5,"correctness":5,"verification":5},"findings":[],"summary":"All checks passed. No issues found.","review_completed":true}'"'"' | '"\"$SCRIPT\""'' 2>"$_STDERR_WRF" || THREE_KEY_EXIT=$?
 SCORES_STDERR=$(cat "$_STDERR_WRF"); rm -f "$_STDERR_WRF"
 assert_eq "test_write_reviewer_scores_key_deprecated: exits 0 (scores tolerated during transition)" "0" "$THREE_KEY_EXIT"
 assert_contains "test_write_reviewer_scores_key_deprecated: stderr contains DEPRECATION WARNING" "DEPRECATION WARNING" "$SCORES_STDERR"

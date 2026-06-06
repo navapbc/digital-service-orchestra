@@ -13,10 +13,15 @@ set -euo pipefail
 #                          Required top-level keys: findings, summary
 #                          Required finding fields: severity, category, description, file, cited_lines, cited_excerpt
 #                          Conditional finding fields: reachability (required when severity in {critical, important, fragile})
-#                          Optional: review_tier, selected_tier, escalate_review
+#                          Optional: review_tier, selected_tier, escalate_review, review_completed
+#                          review_completed (boolean): REQUIRED to be true when findings is an
+#                            empty list and the payload is not synthetic — a positive attestation
+#                            that distinguishes a completed no-issues review from a truncated/
+#                            garbled empty payload (bug 1b76).
 #                          DEPRECATED (tolerated with warning): scores
 #                          Synthetic findings exempt from real-finding field requirements when
 #                          'type' is one of: specialist_error, fallback_exhausted, parse_error.
+#                            (also exempt from the empty-findings review_completed requirement)
 #   review-protocol        3053fa9a43e12b79   (REVIEW-SCHEMA.md base structure)
 #   plan-review            9dba6875b85b7bc3   (structured text verdict format)
 #
@@ -70,7 +75,7 @@ fi
 
 
 # --- Prompt-level schema hashes ---
-HASH_CODE_REVIEW_DISPATCH="cb48a66fc3292083"
+HASH_CODE_REVIEW_DISPATCH="35dd40c9e6e83207"
 HASH_REVIEW_PROTOCOL="3053fa9a43e12b79"
 HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 
@@ -108,11 +113,15 @@ Prompt IDs:
                          Conditional per finding: reachability (required when
                            severity ∈ {critical, important, fragile})
                          Optional top-level: review_tier, selected_tier,
-                           escalate_review
+                           escalate_review, review_completed
+                         review_completed (boolean): required true when findings
+                           is empty and payload is non-synthetic (bug 1b76 —
+                           positive attestation vs. truncated empty payload)
                          DEPRECATED (tolerated with warning): scores
                          Synthetic findings (type ∈ {specialist_error,
                            fallback_exhausted, parse_error}) are exempt from
-                           real-finding field requirements.
+                           real-finding field requirements (and from the empty-
+                           findings review_completed requirement).
 
   review-protocol        Schema hash: ${HASH_REVIEW_PROTOCOL}
                          Validates: REVIEW-SCHEMA.md JSON (subject, reviews[],
@@ -308,7 +317,7 @@ required_top = {"findings", "summary"}
 # the schema-correction loop cannot strip it; rejecting it here fails the gate
 # closed on a legitimate provenance key. Allowlisted (not stripped) per the 588e
 # panel: stripping unknown top-level keys would mask a malformed/empty payload.
-optional_top = {"review_tier", "selected_tier", "escalate_review", "scores", "fallback_hops"}
+optional_top = {"review_tier", "selected_tier", "escalate_review", "scores", "fallback_hops", "review_completed"}
 allowed_top = required_top | optional_top
 actual_top = set(data.keys())
 extra = actual_top - allowed_top
@@ -335,6 +344,14 @@ if "review_tier" in data:
 if "selected_tier" in data:
     if data["selected_tier"] not in ("light", "standard", "deep"):
         errors.append(f"'selected_tier' must be one of: light, standard, deep (got '{data['selected_tier']}')")
+
+# Validate review_completed if present: must be a JSON boolean (bug 1b76).
+# Empty-findings enforcement (below) requires review_completed === true; a
+# non-boolean value (e.g. the string "true") is rejected here.
+if "review_completed" in data and not isinstance(data["review_completed"], bool):
+    errors.append(
+        f"'review_completed' must be a JSON boolean, got: {type(data['review_completed']).__name__}"
+    )
 
 # Validate findings
 findings = data.get("findings")
@@ -439,6 +456,27 @@ else:
                     errors.append(f"{prefix}.verification_evidence: missing required field 'command'")
                 if "output" not in ve:
                     errors.append(f"{prefix}.verification_evidence: missing required field 'output'")
+
+# Empty-findings positive-attestation enforcement (bug 1b76).
+# A clean review (empty findings list) is byte-equivalent to a truncated/garbled
+# payload unless the reviewer affirms completion with a POSITIVE, non-synthetic
+# attestation. When findings is an EMPTY list AND the payload is not a synthetic-
+# infra payload, require review_completed === true. Synthetic payloads (a finding
+# whose 'type' is in synthetic_types) already carry a positive 'type' channel and
+# are exempt. Non-empty real findings are themselves the positive signal, so the
+# attestation is not required there. See 588e panel O5-C2.
+if isinstance(findings, list):
+    _synthetic_types = {"specialist_error", "fallback_exhausted", "parse_error"}
+    _is_synthetic_payload = any(
+        isinstance(f, dict) and f.get("type") in _synthetic_types for f in findings
+    )
+    if not findings and not _is_synthetic_payload:
+        if data.get("review_completed") is not True:
+            errors.append(
+                "clean review (empty findings) must set review_completed: true — a positive "
+                "review-completed attestation is required to distinguish a completed no-issues "
+                "review from a truncated/garbled payload (1b76)"
+            )
 
 # Validate summary
 summary = data.get("summary")

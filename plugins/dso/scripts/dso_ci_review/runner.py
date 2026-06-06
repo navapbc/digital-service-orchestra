@@ -916,7 +916,7 @@ def _resolve_validator_script(plugin_root: str | None = None) -> str:
 # Exposed as a module constant so tests can assert drift against the script.
 # When validate-review-output.sh changes its schema, update this constant and
 # the corresponding test in test_runner_smoke.py.
-_VALIDATE_REVIEW_SCHEMA_HASH = "cb48a66fc3292083"
+_VALIDATE_REVIEW_SCHEMA_HASH = "35dd40c9e6e83207"
 
 
 # ---------------------------------------------------------------------------
