@@ -443,9 +443,14 @@ def _verify_created_issue(
         msg = f"ACLI create returned no key: {created}"
         raise RuntimeError(msg)
 
-    jira_url = getattr(client, "jira_url", "") or "" if client is not None else ""
-    jira_user = getattr(client, "user", "") or "" if client is not None else ""
-    jira_token = getattr(client, "api_token", "") or "" if client is not None else ""
+    # Credentials come from the explicit client (AcliClient always sets these
+    # three attributes in __init__). Access them directly rather than via
+    # getattr-with-default so a malformed client (not None but missing an
+    # attribute) fails loudly instead of silently degrading to the subprocess
+    # path with a half-populated credential set.
+    jira_url = client.jira_url if client is not None else ""
+    jira_user = client.user if client is not None else ""
+    jira_token = client.api_token if client is not None else ""
     if jira_url and jira_user and jira_token:
         path = f"/rest/api/3/issue/{jira_key}"
         url = f"{jira_url.rstrip('/')}{path}"
