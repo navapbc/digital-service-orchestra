@@ -106,6 +106,27 @@ if [[ -f "$_MERGE_HELPERS_LIB" ]]; then
     source "$_MERGE_HELPERS_LIB"
 fi
 
+# 3ebb DD1/DD3: review-gate tristate lattice + universal in-channel escalation
+# (provides $TRISTATE_INDETERMINATE and tristate_indeterminate_escalation).
+# Script-relative so it resolves under test regardless of ambient CLAUDE_PLUGIN_ROOT.
+_REVIEW_TRISTATE_LIB="${DSO_REVIEW_TRISTATE_LIB:-$(dirname "${BASH_SOURCE[0]}")/lib/review-tristate-lib.sh}"
+if [[ -f "$_REVIEW_TRISTATE_LIB" ]]; then
+    # shellcheck disable=SC1090
+    source "$_REVIEW_TRISTATE_LIB"
+fi
+
+# _branch_is_staged_promotion [branch]  — 3ebb (PR2-phase predicate, single source
+# of truth). True when the (current) branch is a staged-* promotion ref — i.e. we
+# are in the PR2 (staged-*→main) phase. staged-* refs are push-protected by the
+# sub-PR ruleset (required_status_checks{review-sub-pr}, which only runs on
+# pull_request events), so the PR2 phase must never push/force-push them. Replaces
+# scattered `[[ "$BRANCH" == staged-* ]]` literals so the phase semantics cannot drift.
+# shellcheck disable=SC2120  # intentional optional arg: production callers use the
+# $BRANCH default; the test suite passes an explicit branch for isolation.
+_branch_is_staged_promotion() {
+    [[ "${1:-${BRANCH:-}}" == staged-* ]]
+}
+
 # --- Resolve default branch via resolver (F-05) ---
 # Cached per merge-to-main run in $GIT_DIR/dso-default-branch — written here so
 # subsequent invocations within the same run reuse the resolved value without
@@ -703,7 +724,7 @@ _phase_source_branch_version_bump() {
     # would be REJECTED by the sub-PR ruleset (required_status_checks{review-sub-pr};
     # do_not_enforce_on_create exempts create, NOT update) because the bump commit
     # has no passing review-sub-pr and the non-admin agent cannot bypass. Skip.
-    if [[ "$BRANCH" == staged-* ]]; then
+    if _branch_is_staged_promotion; then
         echo "INFO: BRANCH is staged-* (PR2 phase) — version bump already applied on the feature branch during PR1; skipping source-branch bump (two-tier flow)."
         if type _state_mark_complete >/dev/null 2>&1; then
             _state_mark_complete "source_branch_version_bump" 2>/dev/null || true
@@ -936,6 +957,70 @@ _resume_should_advance_to_staged() {
     [[ "${1:-1}" == "0" && "${2:-0}" != "0" && "${3:-0}" != "0" && "${3:-0}" =~ ^[0-9]+$ ]]
 }
 
+# resume_pr_query_trustworthy <gh_rc> <json_payload>
+# 3ebb DD2 — INC-008 GUARD (LOAD-BEARING). When --resume reconstructs pipeline
+# state from GitHub PR state, a PR-query result is trustworthy as AUTHORITATIVE
+# only when the call SUCCEEDED (rc 0) AND returned a well-formed JSON payload. A
+# non-zero rc, an empty payload, or malformed/truncated JSON (e.g. a page cut
+# short) is INDETERMINATE — the caller MUST re-fetch or escalate, and MUST NOT
+# treat a short/empty result as authoritative "no PRs". Acting on partial state
+# as authoritative-empty is the INC-008 stall (a duplicate staged-*+PR1, or a
+# lost live session). A legitimately-empty list ("[]", rc 0) is well-formed and
+# IS trusted — that is the case this guard deliberately distinguishes from a
+# truncated read.
+#   returns 0  = trustworthy (safe to parse, including a real empty list)
+#   returns 75 = INDETERMINATE (TRISTATE_INDETERMINATE — re-fetch/escalate)
+resume_pr_query_trustworthy() {
+    local _rc="${1:-1}" _json="${2:-}"
+    [[ "$_rc" == "0" ]] || return 75              # the call itself failed
+    [[ -n "$_json" ]] || return 75                # empty payload ≠ "[]"
+    printf '%s' "$_json" | python3 -c "import json,sys; json.load(sys.stdin)" >/dev/null 2>&1 || return 75
+    return 0
+}
+
+# resume_staged_ref_is_spent <commits_ahead_of_main>
+# 3ebb DD2 / INC-015: a staged-* ref is SPENT when it carries 0 commits ahead of
+# origin/main — its content already merged (a completed promotion) or it is an
+# empty placeholder. A spent staged-* must NOT be driven as a live PR2 source —
+# that produced the confusing 'No commits between main and staged-*' stall when a
+# worktree was left checked out on a leftover staged-* alongside a stale /tmp
+# state file. Fail-safe: a non-numeric/empty count is NOT spent (never skip/GC on
+# uncertainty — only a definitively-0 ahead-count is spent).
+#   returns 0 = spent (refuse as PR2 source / safe to GC its cache)
+#   returns 1 = not spent (live, or unknown)
+resume_staged_ref_is_spent() {
+    local _ahead="${1:-}"
+    [[ "$_ahead" =~ ^[0-9]+$ ]] || return 1
+    (( _ahead == 0 ))
+}
+
+# resume_gc_stale_staged_state [state_dir]
+# 3ebb DD2 / INC-015 (b): the /tmp/merge-to-main-state-*.json files are a CACHE,
+# not the source of truth (GitHub + git are). Garbage-collect the cache entries
+# for staged-* branches that are GONE from origin or SPENT (already merged), so a
+# later --resume can never reconstruct off a stale promotion's state. Best-effort;
+# never fails the run. state_dir defaults to /tmp (overridable for tests).
+# shellcheck disable=SC2120  # intentional optional arg: production callers use the
+# /tmp default; the test suite passes an explicit dir for hermetic isolation.
+resume_gc_stale_staged_state() {
+    local _dir="${1:-/tmp}" _db="${_DEFAULT_BRANCH:-main}" _sf _b _ahead
+    git fetch origin "$_db" --quiet 2>/dev/null || true
+    for _sf in "$_dir"/merge-to-main-state-staged-*.json; do
+        [[ -f "$_sf" ]] || continue
+        _b="${_sf##*/merge-to-main-state-}"; _b="${_b%.json}"
+        # Distinguish a TRANSIENT ls-remote failure (network/auth — fail-safe: do
+        # NOT GC a possibly-live ref's cache) from a TRULY-gone branch (call
+        # succeeded, empty output -> spent -> GC). Empty output alone is ambiguous.
+        local _lsr _lsr_rc
+        _lsr=$(git ls-remote --heads origin "$_b" 2>/dev/null); _lsr_rc=$?
+        if [[ "$_lsr_rc" -ne 0 ]]; then continue; fi            # transient failure -> keep cache (fail-safe)
+        if [[ -z "$_lsr" ]]; then rm -f "$_sf" 2>/dev/null || true; continue; fi  # truly gone -> spent -> GC
+        git fetch origin "$_b" --quiet 2>/dev/null || true
+        _ahead=$(git rev-list --count "origin/${_db}..origin/${_b}" 2>/dev/null || echo "")
+        if resume_staged_ref_is_spent "$_ahead"; then rm -f "$_sf" 2>/dev/null || true; fi
+    done
+}
+
 _phase_staged_intermediate() {
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "staged_intermediate" 2>/dev/null || true
@@ -946,7 +1031,7 @@ _phase_staged_intermediate() {
         echo "INFO: staged-intermediate phase skipped (STORY_PR_BASE set; story-PR mode)"
         return 0
     fi
-    if [[ "$BRANCH" == staged-* ]]; then
+    if _branch_is_staged_promotion; then
         echo "INFO: staged-intermediate phase skipped (BRANCH is already staged-*: $BRANCH)"
         return 0
     fi
@@ -1255,6 +1340,21 @@ _phase_merge() {
         _state_write_phase "merge" 2>/dev/null || true
     fi
 
+    # --- 1-2. Publish block (sync + source-branch version-bump + push) ---
+    # 3ebb / R-A: the PR2 phase (BRANCH=staged-*) MUST NOT run this block. staged was
+    # already created, pushed, and review-sub-pr-reviewed by PR1 (_phase_staged_
+    # intermediate); a staged-* ref is push-protected by the sub-PR ruleset
+    # (required_status_checks{review-sub-pr}, which only runs on pull_request events,
+    # so a push can NEVER satisfy it). Any push here is a no-op at best and a GH013
+    # rejection at worst. GitHub's PR2 rebase-merge replays staged onto CURRENT main
+    # at merge time, so the proactive sync/force-push is both unnecessary and
+    # impossible for staged-*. (Mirrors the existing staged-* skip for the version-
+    # bump push in _phase_source_branch_version_bump.) The a456-c689 "CI on the same
+    # base as merge" rationale is deliberately SCOPED OUT for staged-* here (not
+    # refuted): staged content was reviewed at PR1, and the existing auto-merge
+    # poll loop already refreshes a BEHIND base via `gh pr update-branch`
+    # (jira-dig-2529) so PR2 CI re-runs on the fresh base when needed.
+    if ! _branch_is_staged_promotion; then
     # --- 1. Sync against the default branch before push (a456-c689; cca8 DD1) ---
     # F-05: use resolved $_DEFAULT_BRANCH (master/develop/trunk-aware). Rebases
     # (not merges) so the head stays linear for required_linear_history.
@@ -1339,6 +1439,7 @@ _phase_merge() {
             return 1
         fi
     fi
+    fi  # end publish block — skipped for staged-* PR2 (3ebb / R-A)
 
     # --- 3. Derive PR title from last meaningful commit subject ---
     # Use _derive_pr_title so an upstream merge-back commit subject
@@ -1414,22 +1515,38 @@ _phase_merge() {
     # --- 5. Persist PR url + number to state file (best-effort) ---
     _state_write_pr_meta "$_final_url" "$_pr_number" 2>/dev/null || true
 
-    # --- 6. Detect CONFLICTING up-front via `gh pr view --json mergeable` ---
-    # If GitHub reports the PR as CONFLICTING, return 1 so the caller emits
-    # CONFLICT_DATA. We do not enqueue auto-merge for a known-conflicting PR.
-    local _mergeable_json _mergeable
-    _mergeable_json=$(gh pr view "$_pr_number" --json mergeable 2>/dev/null || true)
-    _mergeable=$(echo "$_mergeable_json" | python3 -c "
+    # --- 6. Resolve mergeability: poll until computed (N2), then fail-closed
+    # (determinately) on a true conflict (R-C). ---
+    # GitHub computes `mergeable` asynchronously; an immediate read can be
+    # UNKNOWN/empty right after PR-create — poll briefly until computed so a
+    # CONFLICTING is not silently missed. A BEHIND base is NOT handled here: the
+    # existing auto-merge poll loop already refreshes it via `gh pr update-branch`
+    # (jira-dig-2529, ~step-2.5 below; tested by t_phase_poll_behind_calls_update_branch)
+    # — do not duplicate that (single source of truth).
+    local _mergeable_json _mergeable="" _mq_try
+    for _mq_try in 1 2 3 4 5 6; do
+        _mergeable_json=$(gh pr view "$_pr_number" --json mergeable 2>/dev/null || true)
+        _mergeable=$(printf '%s' "$_mergeable_json" | python3 -c "
 import json, sys
 try:
-    d = json.load(sys.stdin)
-    print(d.get('mergeable', ''))
+    print(json.load(sys.stdin).get('mergeable', ''))
 except Exception:
     print('')
 " 2>/dev/null || true)
+        [[ -n "$_mergeable" && "$_mergeable" != "UNKNOWN" ]] && break
+        [[ "$_mq_try" == "6" ]] || sleep 5   # don't sleep after the final attempt
+    done
 
+    # R-C: a true CONFLICTING is a DETERMINATE operational error — staged content
+    # conflicts with current main and rebase-merge cannot proceed. /dso:fp-recovery
+    # cannot rebase staged for you, so this is NOT routed to the INDETERMINATE
+    # escalation surface (contractually for un-computable verdicts). Fail closed
+    # with a concrete re-stage RECOVERY; the caller still emits CONFLICT_DATA.
     if [[ "$_mergeable" == "CONFLICTING" ]]; then
-        echo "ERROR: PR #${_pr_number} is CONFLICTING — cannot enqueue auto-merge" >&2
+        echo "ERROR: PR #${_pr_number} (${BRANCH} -> ${_pr_base:-${_DEFAULT_BRANCH:-main}}) is CONFLICTING — content conflicts with current ${_DEFAULT_BRANCH:-main}; rebase-merge cannot proceed." >&2
+        if _branch_is_staged_promotion; then
+            echo "RECOVERY: re-stage — checkout the feature branch, rebase onto origin/${_DEFAULT_BRANCH:-main} (resolve conflicts), then re-run merge-to-main for a fresh staged ref + PR1/PR2. This is a DETERMINATE conflict, NOT a false-positive review finding — do NOT use /dso:fp-recovery." >&2
+        fi
         return 1
     fi
 
@@ -3112,7 +3229,31 @@ fi
 if type _state_get_field >/dev/null 2>&1; then
     _saved_staged=$(_state_get_field "staged_branch" "" 2>/dev/null || true)
     if [[ -n "$_saved_staged" && "$BRANCH" != "$_saved_staged" ]]; then
-        _pr1_open=$(gh pr list --head "$BRANCH" --base "$_saved_staged" --state open --json number --jq 'length' 2>/dev/null || echo "1")
+        # 3ebb DD2 / INC-008: read PR1 state from GitHub through the trustworthiness
+        # guard. A partial/failed read must NOT be collapsed into a count — treating
+        # it as "0 PRs" would advance onto unverified state (skip review); treating
+        # it as ">0" would mint a duplicate staged-*+PR1. Neither is safe to GUESS,
+        # so re-fetch once (cheap transient mitigation) and, if still indeterminate,
+        # HALT as INDETERMINATE rather than act on partial state.
+        _pr1_json=""; _pr1_rc=0
+        for _attempt in 1 2; do
+            _pr1_json=$(gh pr list --head "$BRANCH" --base "$_saved_staged" --state open --json number 2>/dev/null); _pr1_rc=$?
+            resume_pr_query_trustworthy "$_pr1_rc" "$_pr1_json" && break
+            if [[ "$_attempt" == "2" ]]; then
+                # 3ebb DD3: retry budget spent — route to /dso:fp-recovery in-channel
+                # (no manual git surgery) rather than guess from partial state.
+                if declare -F tristate_indeterminate_escalation >/dev/null 2>&1; then
+                    tristate_indeterminate_escalation "merge-to-main:resume-pr1-state" \
+                        "could not obtain a trustworthy PR1 state for ${BRANCH} -> ${_saved_staged} (rc=${_pr1_rc}) after a retry; refusing to advance to PR2 or re-create on partial GitHub state (INC-008)" \
+                        "$BRANCH"
+                else
+                    echo "INDETERMINATE: --resume could not obtain trustworthy PR1 state for ${BRANCH} (INC-008) — use /dso:fp-recovery." >&2
+                fi
+                exit "${TRISTATE_INDETERMINATE:-75}"
+            fi
+            sleep 1
+        done
+        _pr1_open=$(printf '%s' "$_pr1_json" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "1")
         _staged_exists=$(git ls-remote --heads origin "$_saved_staged" 2>/dev/null | wc -l | tr -d ' ')
         # Count session commits on the staged branch not reachable from main.
         # 0 ⇒ empty staged ref at main HEAD ⇒ do NOT advance (b7bf-c3b9). Any
@@ -3187,6 +3328,27 @@ fi
 # Skip the duplicate-PR guard when resuming with a recorded PR.
 if [[ -z "$_RESUME_STATE_PR_URL" ]]; then
     if ! _check_duplicate_pr; then
+        exit 1
+    fi
+fi
+
+# 3ebb DD2 / INC-015 (a): assert the current branch is a usable promotion source
+# before the PR1/PR2 phase. A worktree left checked out on a SPENT staged-* ref
+# (a leftover from an already-merged promotion — 0 commits ahead of origin/main)
+# must NOT be driven as a live PR2 source: that produced the confusing 'No commits
+# between main and staged-*' stall. This is a DETERMINATE operational error (wrong
+# checkout), NOT an INDETERMINATE verdict — so it gives a concrete recovery
+# (checkout the feature branch) and exits 1, and is deliberately NOT routed to
+# /dso:fp-recovery (fp-recovery cannot fix a wrong-branch checkout). The /tmp
+# state cache for spent staged refs is GC'd so a later --resume starts clean.
+if _branch_is_staged_promotion; then
+    git fetch origin "${_DEFAULT_BRANCH:-main}" "$BRANCH" --quiet 2>/dev/null || true
+    _cur_ahead=$(git rev-list --count "origin/${_DEFAULT_BRANCH:-main}..origin/${BRANCH}" 2>/dev/null \
+        || git rev-list --count "origin/${_DEFAULT_BRANCH:-main}..HEAD" 2>/dev/null || echo "")
+    if type resume_staged_ref_is_spent >/dev/null 2>&1 && resume_staged_ref_is_spent "$_cur_ahead"; then
+        type resume_gc_stale_staged_state >/dev/null 2>&1 && resume_gc_stale_staged_state 2>/dev/null || true
+        echo "ERROR [merge-to-main]: current branch '${BRANCH}' is a SPENT staged-* ref — its promotion already merged (0 commits ahead of origin/${_DEFAULT_BRANCH:-main}). This is the INC-015 stale-checkout stall, not a review problem." >&2
+        echo "RECOVERY: checkout your feature branch ('git checkout <your-branch>') and re-run merge-to-main. The stale /tmp state cache for spent staged refs has been cleared." >&2
         exit 1
     fi
 fi
