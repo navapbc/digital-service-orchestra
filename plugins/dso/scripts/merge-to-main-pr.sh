@@ -1324,6 +1324,83 @@ _restage_fresh_branch_name() {
     fi
 }
 
+# _restage_branch_name_taken <name>  — 3274 m2 (no-clobber predicate).
+# A candidate fresh-branch name is "taken" if a ref by that name exists LOCALLY
+# OR on origin (an interrupted prior re-stage may have minted the local branch,
+# pushed the remote branch, or both). Returns 0 (taken) / 1 (free). Pure read.
+_restage_branch_name_taken() {
+    local _name="${1:-}"
+    [[ -n "$_name" ]] || return 1
+    git rev-parse --verify --quiet "refs/heads/${_name}" >/dev/null 2>&1 && return 0
+    git rev-parse --verify --quiet "refs/remotes/origin/${_name}" >/dev/null 2>&1 && return 0
+    return 1
+}
+
+# _restage_pick_unused_fresh_name <source_branch> [max_attempts]  — 3274 m2.
+# The deterministic _restage_fresh_branch_name can collide with a name an
+# INTERRUPTED prior re-stage already minted (local or remote). Probe the
+# deterministic name first, then successive suffix-incremented candidates,
+# returning the FIRST unused name (no-clobber: never reuse/overwrite an
+# existing branch). Echoes the chosen name + returns 0; if all <max_attempts>
+# candidates collide, echoes nothing + returns 1 (caller aborts cleanly).
+# max_attempts defaults to 10. PURE except for read-only ref probes.
+_restage_pick_unused_fresh_name() {
+    local _src="${1:-}" _max="${2:-10}" _cand _i
+    _cand="$(_restage_fresh_branch_name "$_src")"
+    for (( _i = 0; _i < _max; _i++ )); do
+        if ! _restage_branch_name_taken "$_cand"; then
+            printf '%s\n' "$_cand"
+            return 0
+        fi
+        # Collision → advance to the next candidate by incrementing the suffix.
+        # _restage_fresh_branch_name on an already -<N> name yields -<N+1>; on a
+        # -restage2 name it would re-derive -restage2 (no trailing digits other
+        # than the embedded 2), so increment the trailing integer ourselves.
+        if [[ "$_cand" =~ ^(.*)-([0-9]+)$ ]]; then
+            _cand="${BASH_REMATCH[1]}-$(( BASH_REMATCH[2] + 1 ))"
+        else
+            _cand="${_cand}-2"
+        fi
+    done
+    return 1
+}
+
+# _restage_acquire_lock <lockdir> [max_wait_s]  — 3274 m3 (mkdir-lock staleness/PID recovery).
+# Acquire the mkdir-based re-stage lock with PID-staleness recovery. On acquire,
+# the holder PID is written into <lockdir>/pid so contenders can probe liveness.
+# On contention: if the recorded PID is provably DEAD (`kill -0` fails AND the
+# pid file is readable + numeric), the lock is treated as STALE and atomically
+# reclaimed (rmdir + re-mkdir). For a LIVE holder — or any case where liveness
+# cannot be determined (missing/empty/non-numeric pid file) — fall through to the
+# original spin/abort: FAIL-SAFE, never reclaim on doubt. Returns 0 on acquire,
+# 1 on abort (live holder held past max_wait_s, default 60).
+_restage_acquire_lock() {
+    local _lockdir="${1:-}" _max="${2:-60}" _waited=0 _pid
+    while ! mkdir "$_lockdir" 2>/dev/null; do
+        # Contention. Probe the recorded holder PID for staleness.
+        _pid=""
+        [[ -r "${_lockdir}/pid" ]] && _pid="$(cat "${_lockdir}/pid" 2>/dev/null || true)"
+        if [[ "$_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$_pid" 2>/dev/null; then
+            # Provably dead holder → STALE. Atomically reclaim: drop the stale
+            # lockdir, then loop to re-mkdir (re-mkdir, not a bare proceed, keeps
+            # the acquire atomic against a concurrent live contender).
+            rm -rf "$_lockdir" 2>/dev/null || true
+            continue
+        fi
+        # Live holder, or liveness indeterminate (missing/empty/non-numeric pid):
+        # FAIL-SAFE — keep spinning, then abort. Never reclaim on doubt.
+        _waited=$(( _waited + 1 ))
+        if (( _waited > _max )); then
+            echo "ERROR: another re-stage holds the lock ($_lockdir, pid=${_pid:-?}) — aborting to avoid a race" >&2
+            return 1
+        fi
+        sleep 1
+    done
+    # Acquired. Record our PID so a later contender can detect a stale holder.
+    printf '%s\n' "$$" > "${_lockdir}/pid" 2>/dev/null || true
+    return 0
+}
+
 # _restage_assess <staged_ref> <source> <default> <pr1_state> <pr2_state>
 # f6b3 incr-2: PURE assessment (no mutation) — emits the advisory plan, the computed
 # FRESH branch name, and a SAFE/UNSAFE deletion verdict from the forge-proof predicate.
@@ -1349,7 +1426,7 @@ _restage_assess() {
 # mutations and is validated by integration testing, not this unit suite.
 _restage_execute() {
     local _staged="${1:-}" _src="${2:-}" _db="${3:-${_DEFAULT_BRANCH:-main}}"
-    local _pr1 _pr2 _fresh _lockdir _waited=0
+    local _pr1 _pr2 _fresh _lockdir
     _pr1="${DSO_RESTAGE_PR1_STATE:-$(gh pr list --head "$_src" --base "$_staged" --state all --json state --jq '.[0].state // ""' 2>/dev/null || true)}"
     _pr2="${DSO_RESTAGE_PR2_STATE:-$(gh pr list --head "$_staged" --base "$_db" --state all --json state --jq '.[0].state // ""' 2>/dev/null || true)}"
     _fresh="$(_restage_fresh_branch_name "$_src")"
@@ -1363,11 +1440,10 @@ _restage_execute() {
     # Darwin (the primary dev platform); a RETURN trap releases it on every exit
     # path so it is never leaked past the function (unlike a held fd). ---
     _lockdir="${TMPDIR:-/tmp}/dso-restage-${_db//\//_}.lock.d"
-    while ! mkdir "$_lockdir" 2>/dev/null; do
-        _waited=$(( _waited + 1 ))
-        if (( _waited > 60 )); then echo "ERROR: another re-stage holds the lock ($_lockdir) — aborting to avoid a race" >&2; return 1; fi
-        sleep 1
-    done
+    # 3274 m3: acquire with PID-staleness recovery (a killed prior holder leaves a
+    # stale lockdir; reclaim it iff the recorded PID is provably dead — fail-safe
+    # otherwise: a live or indeterminate holder still spins/aborts).
+    _restage_acquire_lock "$_lockdir" 60 || return 1
     # shellcheck disable=SC2064  # expand _lockdir NOW so the cleanup targets this path
     trap "rmdir '$_lockdir' 2>/dev/null || true" RETURN
     git fetch origin "$_db" --quiet 2>/dev/null || true
@@ -1410,10 +1486,19 @@ _restage_execute() {
         return 0
     fi
 
-    # -b (NOT -B): must not clobber an existing branch (e.g. a prior interrupted
-    # re-stage that already minted this name). -b fails if the branch exists.
+    # 3274 m2: the deterministic fresh name can collide with one an INTERRUPTED
+    # prior re-stage already minted (local or remote). Probe for the next-unused
+    # name (bounded retry) BEFORE checkout; abort cleanly only if all candidates
+    # collide. No-clobber preserved (the picker never returns an existing name).
+    _fresh="$(_restage_pick_unused_fresh_name "$_src" 10)" || {
+        echo "ERROR: could not find an unused fresh branch name for $_src after 10 attempts (all candidates exist locally or on origin) — abort (no clobber). Clean up stale re-stage branches and retry." >&2
+        return 1
+    }
+    # -b (NOT -B): must not clobber an existing branch. The picker guarantees
+    # $_fresh is unused, so -b succeeds; if it nonetheless fails (a concurrent
+    # minting raced us), abort rather than clobber.
     if ! git checkout -b "$_fresh" "$_src" 2>/dev/null; then
-        echo "ERROR: could not create fresh branch $_fresh from $_src — it may already exist; abort (no clobber). Pick a new name and retry." >&2; return 1
+        echo "ERROR: could not create fresh branch $_fresh from $_src — it may have been created concurrently; abort (no clobber). Retry." >&2; return 1
     fi
     # Rebase onto the default branch WITHOUT -X ours: a blanket 'ours' silently
     # discards the feature's hunks on a real (non-version) content conflict — data
