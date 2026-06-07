@@ -92,7 +92,7 @@ fi
 # Full two-tier config reused across tests: sub-PR ruleset (staged-*, review-sub-pr)
 # + main ruleset (check-staged-head, llm-review). The main ruleset deliberately does
 # NOT include review-sub-pr (which would deadlock staged-*→main PRs).
-GOOD_RULESETS_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"review-sub-pr"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"check-staged-head"},{"context":"llm-review"}]}}]}]}'
+GOOD_RULESETS_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"review-sub-pr"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"check-staged-head"},{"context":"llm-review"},{"context":"review-gate"}]}},{"type":"required_linear_history"}]}]}'
 
 # ── test_no_subpr_ruleset_exits_with_message ──────────────────────────────────
 echo ""
@@ -155,7 +155,7 @@ echo ""
 echo "--- test_main_requires_subpr_check_is_deadlock ---"
 _snapshot_fail
 
-DEADLOCK_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"review-sub-pr"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"check-staged-head"},{"context":"llm-review"},{"context":"review-sub-pr"}]}}]}]}'
+DEADLOCK_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"review-sub-pr"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"check-staged-head"},{"context":"llm-review"},{"context":"review-sub-pr"},{"context":"review-gate"}]}}]}]}'
 stub_bin_deadlock="$(_make_stub_bin "deadlock" "$DEADLOCK_JSON")"
 
 deadlock_output=""
@@ -186,6 +186,46 @@ assert_contains "test_main_missing_staged_head_exits_nonzero: output mentions ch
     "check-staged-head" "$nostaged_output"
 assert_pass_if_clean "test_main_missing_staged_head_exits_nonzero"
 
+# ── test_main_missing_review_gate_exits_nonzero (830c DD4) ───────────────────
+echo ""
+echo "--- test_main_missing_review_gate_exits_nonzero ---"
+_snapshot_fail
+
+# main has check-staged-head + llm-review + linear, but NO review-gate (the enforced
+# fail-closed summary gate). Preflight must reject — an unreviewed SHA could reach main.
+NO_REVIEW_GATE_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"review-sub-pr"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"check-staged-head"},{"context":"llm-review"}]}},{"type":"required_linear_history"}]}]}'
+stub_bin_norg="$(_make_stub_bin "norg" "$NO_REVIEW_GATE_JSON")"
+
+norg_output=""
+norg_exit=0
+norg_output="$(env PATH="$stub_bin_norg:$PATH" bash "$SCRIPT_UNDER_TEST" 2>&1)" || norg_exit=$?
+
+assert_ne "test_main_missing_review_gate_exits_nonzero: exits non-zero when main lacks review-gate" \
+    "0" "$norg_exit"
+assert_contains "test_main_missing_review_gate_exits_nonzero: output mentions review-gate" \
+    "review-gate" "$norg_output"
+assert_pass_if_clean "test_main_missing_review_gate_exits_nonzero"
+
+# ── test_main_missing_linear_exits_nonzero (830c DD4 / cca8) ─────────────────
+echo ""
+echo "--- test_main_missing_linear_exits_nonzero ---"
+_snapshot_fail
+
+# main fully configured EXCEPT no required_linear_history. Post-cutover, the main
+# ruleset MUST be linear (rebase-not-merge) — preflight must reject its absence.
+NO_LINEAR_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"review-sub-pr"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"check-staged-head"},{"context":"llm-review"},{"context":"review-gate"}]}}]}]}'
+stub_bin_nolin="$(_make_stub_bin "nolin" "$NO_LINEAR_JSON")"
+
+nolin_output=""
+nolin_exit=0
+nolin_output="$(env PATH="$stub_bin_nolin:$PATH" bash "$SCRIPT_UNDER_TEST" 2>&1)" || nolin_exit=$?
+
+assert_ne "test_main_missing_linear_exits_nonzero: exits non-zero when main lacks required_linear_history" \
+    "0" "$nolin_exit"
+assert_contains "test_main_missing_linear_exits_nonzero: output mentions linear" \
+    "linear" "$nolin_output"
+assert_pass_if_clean "test_main_missing_linear_exits_nonzero"
+
 # ── test_reads_check_name_from_config ────────────────────────────────────────
 echo ""
 echo "--- test_reads_check_name_from_config ---"
@@ -196,7 +236,7 @@ custom_config="$TMPDIR_BASE/dso-config.conf"
 printf 'dso.review.check_name=My_Custom_Check\n' > "$custom_config"
 
 # staged-* ruleset uses the custom name from config; main ruleset complete
-CUSTOM_CHECK_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"My_Custom_Check"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"check-staged-head"},{"context":"llm-review"}]}}]}]}'
+CUSTOM_CHECK_JSON='{"rulesets":[{"name":"sub-pr","conditions":{"ref_name":{"include":["refs/heads/staged-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"My_Custom_Check"}]}}]},{"name":"main","conditions":{"ref_name":{"include":["refs/heads/main"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"check-staged-head"},{"context":"llm-review"},{"context":"review-gate"}]}},{"type":"required_linear_history"}]}]}'
 stub_bin_custom="$(_make_stub_bin "custom" "$CUSTOM_CHECK_JSON")"
 
 custom_output=""

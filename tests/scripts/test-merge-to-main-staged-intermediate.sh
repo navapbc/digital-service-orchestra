@@ -82,12 +82,18 @@ else
     _fail "test_staged_name_format" "expected staged-<sha>-<unix_ts> format"
 fi
 
-# ── Test 8: PR1 title and body reference both branches ───────────────────────
+# ── Test 8: PR1 title is DESCRIPTIVE (830c DD1) ──────────────────────────────
+# The PR1 title is derived from the branch's meaningful commit subject via
+# _derive_pr_title (the helper PR2 uses), with the `staged:` prefix retained — NOT
+# the old generic `staged: <branch> -> <staged-branch>` arrow form. The behavioral
+# assertion (gh pr create --title argv) lives in test-merge-to-main-pr.sh
+# (t_pr1_title_is_descriptive); this source-pattern check guards the wiring.
 # shellcheck disable=SC2016  # intentional: matching literal in source file
-if grep -q 'staged: \${BRANCH} -> \${_staged_branch}' "$TARGET_SCRIPT"; then
+if grep -q 'staged: ${_pr1_subject}' "$TARGET_SCRIPT" \
+   && grep -q '_pr1_subject="$(_derive_pr_title "$BRANCH")"' "$TARGET_SCRIPT"; then
     _pass "test_pr1_title_format"
 else
-    _fail "test_pr1_title_format" "expected PR1 title to reference both branches"
+    _fail "test_pr1_title_format" "expected PR1 title derived via _derive_pr_title with staged: prefix"
 fi
 
 # ── Test 9: BRANCH is repointed after PR1 merges ─────────────────────────────

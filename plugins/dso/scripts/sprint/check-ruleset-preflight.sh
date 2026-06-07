@@ -18,9 +18,10 @@ set -euo pipefail
 # Validation conditions (all must pass):
 #   1. A Ruleset matching staged-* requires the sub-PR review check (default review-sub-pr)
 #      and has no required_linear_history (PR1 session→staged gate).
-#   2. A Ruleset matching main requires check-staged-head + llm-review, does NOT require the
-#      sub-PR check (it never runs on staged-*→main; would deadlock PR2), and has no
-#      required_linear_history (PR2 staged→main gate).
+#   2. A Ruleset matching main requires check-staged-head + llm-review + review-gate (the
+#      3ee4 enforce-flip swapped review-gate IN for merge-pipeline-checks), does NOT require
+#      the sub-PR check (it never runs on staged-*→main; would deadlock PR2), and HAS
+#      required_linear_history (the cca8 rebase-not-merge cutover requires it on main).
 #
 # Reads dso.review.check_name from dso-config.conf for the sub-PR check; falls back to 'review-sub-pr'.
 
@@ -242,12 +243,23 @@ if "check-staged-head" not in main_checks:
     print("MAIN_MISSING_STAGED_HEAD"); sys.exit(0)
 if "llm-review" not in main_checks:
     print("MAIN_MISSING_LLM_REVIEW"); sys.exit(0)
+# 830c DD4: the main ruleset must require `review-gate` — the single always-runs,
+# fail-closed per-SHA coverage+dangling summary gate that the 3ee4 enforce-flip
+# swapped IN for the no-op merge-pipeline-checks umbrella. Its absence means an
+# unreviewed SHA could reach main with no blocking required check.
+if "review-gate" not in main_checks:
+    print("MAIN_MISSING_REVIEW_GATE"); sys.exit(0)
 # review-sub-pr triggers on base != main, so it never runs on a staged-*→main PR;
 # requiring it on the main ruleset would leave PR2 permanently pending (deadlock).
 if subpr_check in main_checks:
     print("MAIN_HAS_SUBPR"); sys.exit(0)
-if _has_linear(main_rs):
-    print("MAIN_HAS_LINEAR"); sys.exit(0)
+# cca8 / 830c DD4: the main ruleset MUST now have required_linear_history — the
+# rebase-not-merge cutover eliminates the merge-commit provenance-ambiguity class by
+# construction. This assertion was INVERTED by the cutover: it previously failed when
+# main had linear history; main now REQUIRES it. (The sub-PR ruleset must still NOT be
+# linear — asserted above via SUBPR_HAS_LINEAR.)
+if not _has_linear(main_rs):
+    print("MAIN_MISSING_LINEAR"); sys.exit(0)
 
 print("OK")
 PYEOF
@@ -255,11 +267,11 @@ PYEOF
 
 case "$_PRELIGHT_RESULT" in
     OK)
-        echo "GitHub Ruleset preflight check: success (two-tier promotion model)"
-        echo "  - Sub-PR ruleset (staged-*) requires '$CHECK_NAME': found"
-        echo "  - Main ruleset requires check-staged-head + llm-review: found"
+        echo "GitHub Ruleset preflight check: success (two-tier promotion model, enforced)"
+        echo "  - Sub-PR ruleset (staged-*) requires '$CHECK_NAME', not linear: found"
+        echo "  - Main ruleset requires check-staged-head + llm-review + review-gate: found"
         echo "  - Main ruleset does not require the sub-PR check (no PR2 deadlock): confirmed"
-        echo "  - No linear_history constraint on either ruleset: confirmed"
+        echo "  - Main ruleset has required_linear_history (rebase-not-merge cutover): confirmed"
         exit 0
         ;;
     FETCH_PARSE_ERROR)
@@ -296,13 +308,19 @@ case "$_PRELIGHT_RESULT" in
         echo "ERROR: The main Ruleset does not require 'llm-review' (the staged→main integration review)." >&2
         exit 1
         ;;
+    MAIN_MISSING_REVIEW_GATE)
+        echo "ERROR: The main Ruleset does not require 'review-gate' (the always-runs, fail-closed per-SHA coverage+dangling summary gate)." >&2
+        echo "  Without it, an unreviewed SHA could reach main with no blocking required check. Provision via provision-ruleset.sh (required-checks.txt lists review-gate)." >&2
+        exit 1
+        ;;
     MAIN_HAS_SUBPR)
         echo "ERROR: The main Ruleset requires '$CHECK_NAME', which never runs on a staged-*→main PR." >&2
         echo "  This would leave PR2 permanently pending (deadlock). Remove the sub-PR check from the main ruleset." >&2
         exit 1
         ;;
-    MAIN_HAS_LINEAR)
-        echo "ERROR: The main Ruleset contains a 'required_linear_history' rule (blocks merge-commit promotion)." >&2
+    MAIN_MISSING_LINEAR)
+        echo "ERROR: The main Ruleset is missing 'required_linear_history' (the rebase-not-merge cutover requires it on main)." >&2
+        echo "  Merge commits could reach main, re-opening the merge-commit provenance-ambiguity class. Provision it via provision-ruleset.sh." >&2
         exit 1
         ;;
     *)
