@@ -183,8 +183,10 @@ CONFLICT_DATA <json>
 - `git-rebase-recovery` — squash-rebase recovery path after merge failure
 
 **PR merge mode** (`merge-to-main-pr.sh`):
-- `pr-auto-merge` — GitHub PR auto-merge returned `CONFLICTING`
-- `gh-pr-create` — PR was created but merge failed due to conflicts
+- `pr-create-failed` — the push/`gh pr create` step failed; no PR was created
+- `pr-conflict` — the PR was created and `gh pr view --json mergeable` returned `CONFLICTING`
+
+> **Not a `CONFLICT_DATA` value:** a PUSH-time source-branch divergence is emitted on a SEPARATE top-level `SOURCE_BRANCH_DIVERGED:` line (carrying `{classification: spent|concurrent, recommended_command, rollback}`), **never** under the `CONFLICT_DATA:` prefix. It is **not** a working-tree conflict and must **not** be routed to this skill — the `end-session` / `debug-everything` consumer prompts handle it directly (run the `recommended_command`; never auto-force-push).
 
 ### Shared helper
 

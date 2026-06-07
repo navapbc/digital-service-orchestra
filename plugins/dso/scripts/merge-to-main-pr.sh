@@ -447,9 +447,20 @@ _phase_prebump_feature_sync() {
     # DD2 idempotency / in-flight-review guard: if the source branch is already on the
     # remote, PR1 may be in flight — rewriting+force-pushing would re-credit a review
     # onto a new SHA. NEVER do that. Skip (resume-safe).
+    #
+    # ef39 v1 DD2: narrow the skip from "origin/$BRANCH exists" to "_branch_is_spent is
+    # FALSE" — i.e. only skip the rebase when there is GENUINE in-flight review (the PR1
+    # is not merged, or forge state is indeterminate). _branch_is_spent fails CLOSED to
+    # NOT-SPENT on a CLOSED-unmerged / OPEN / unreadable PR state, so the skip is taken
+    # (no force-push) on any uncertainty — the same conservative direction as before.
+    # A SPENT branch (PR1 merged, reused) is NOT under in-flight review, so the original
+    # skip no longer applies; the divergence classifier (DD1) handles the spent case.
     if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-        echo "INFO: prebump-sync skipped — origin/$BRANCH already exists (never force-push under in-flight review)"
-        return 0
+        if ! _branch_is_spent "$BRANCH"; then
+            echo "INFO: prebump-sync skipped — origin/$BRANCH exists and is NOT spent (genuine in-flight review; never force-push under in-flight review)"
+            return 0
+        fi
+        echo "INFO: prebump-sync: origin/$BRANCH exists but is SPENT (PR1 merged) — not under in-flight review; proceeding (the divergence classifier governs the spent case)."
     fi
 
     # Ensure the pinned SHA is available locally (fail closed if it cannot be obtained;
@@ -994,6 +1005,155 @@ resume_staged_ref_is_spent() {
     (( _ahead == 0 ))
 }
 
+# _branch_is_spent <branch>  — ef39 v1 shared safety primitive (used by DD0, DD1, DD2).
+# A branch is SPENT iff BOTH hold:
+#   (1) Patch-equivalence (topology): zero of origin/<branch>'s commits are absent
+#       from origin/<default> —
+#         git rev-list --count --right-only --cherry-pick origin/<default>...origin/<branch>
+#       returns 0. --cherry-pick drops commits whose PATCH already exists on the
+#       left side, so this correctly covers REBASE-merge and SQUASH-merge promotions
+#       where the branch's ORIGINAL SHAs are NOT ancestors of the default branch (the
+#       naive `merge-base --is-ancestor` test is dead-on-arrival on this rebase-merge
+#       repo — it always reports NOT-spent for a rebase/squash-merged branch).
+#   (2) Forge-proof: `gh pr list --head <branch> --state merged` returns a merged PR.
+#
+# FAIL-CLOSED to NOT-SPENT (return 1) on EITHER condition false OR on ANY forge-read
+# indeterminacy (gh non-zero, empty, or unparseable output) — INC-008: a partial
+# forge read is INDETERMINATE, never authoritative-empty. A spent verdict can gate a
+# destructive/refusal path, so the conservative direction is NOT-SPENT.
+#
+# Args: $1 = branch name (required). Optional $2 = default branch (defaults to
+#       $_DEFAULT_BRANCH or "main").
+# Returns: 0 = SPENT; 1 = NOT-SPENT (or indeterminate, fail-closed).
+_branch_is_spent() {
+    local _branch="${1:-}"
+    local _db="${2:-${_DEFAULT_BRANCH:-main}}"
+    [[ -n "$_branch" ]] || return 1
+
+    # --- (1) Patch-equivalence topology check (fail-closed to NOT-spent). ---
+    # Ensure both remote refs are present locally so the rev-list range resolves;
+    # a failed fetch must NOT be read as "0 unmatched commits" (that would falsely
+    # report SPENT). Verify both refs exist after the fetch; bail to NOT-spent if not.
+    git fetch origin "$_db" "$_branch" --quiet 2>/dev/null || true
+    git rev-parse --verify --quiet "origin/${_db}" >/dev/null 2>&1 || return 1
+    git rev-parse --verify --quiet "origin/${_branch}" >/dev/null 2>&1 || return 1
+
+    local _unmatched _rc=0
+    _unmatched=$(git rev-list --count --right-only --cherry-pick \
+        "origin/${_db}...origin/${_branch}" 2>/dev/null) || _rc=$?
+    # Non-zero git exit or non-numeric output ⇒ indeterminate ⇒ NOT-spent.
+    [[ "$_rc" -eq 0 ]] || return 1
+    [[ "$_unmatched" =~ ^[0-9]+$ ]] || return 1
+    # Any branch commit absent from main (patch-wise) ⇒ NOT spent.
+    (( _unmatched == 0 )) || return 1
+
+    # --- (2) Forge-proof: a MERGED PR for this head (fail-closed on indeterminacy). ---
+    local _merged_json _gh_rc=0
+    _merged_json=$(gh pr list --head "$_branch" --state merged --json number \
+        --jq 'length' 2>/dev/null) || _gh_rc=$?
+    # gh non-zero (auth/network/outage), empty, or non-numeric ⇒ INDETERMINATE ⇒ NOT-spent.
+    [[ "$_gh_rc" -eq 0 ]] || return 1
+    [[ -n "$_merged_json" ]] || return 1
+    [[ "$_merged_json" =~ ^[0-9]+$ ]] || return 1
+    (( _merged_json >= 1 )) || return 1
+
+    return 0
+}
+
+# _emit_source_branch_diverged <classification> <recommended_command> <rollback>
+# ef39 v1 DD3 (actionable signal). Emits a DISTINCT top-level signal line — NOT under
+# the CONFLICT_DATA: prefix (consumers route on that prefix to /dso:resolve-conflicts,
+# which is the WRONG handler for a push-divergence). Carries a JSON object so
+# consumers can route on `classification` and surface the exact recovery command.
+#
+# Args: $1 = classification ("spent" | "concurrent")
+#       $2 = recommended_command (exact manual recovery command string)
+#       $3 = rollback (recovery/rollback recipe string)
+# Output: a single `SOURCE_BRANCH_DIVERGED: <json>` line on stdout.
+_emit_source_branch_diverged() {
+    local _classification="${1:-}" _recommended="${2:-}" _rollback="${3:-}"
+    local _payload
+    _payload=$(CLS="$_classification" CMD="$_recommended" RBK="$_rollback" \
+        python3 -c '
+import json, os
+print(json.dumps({
+    "classification": os.environ.get("CLS", ""),
+    "recommended_command": os.environ.get("CMD", ""),
+    "rollback": os.environ.get("RBK", ""),
+}))' 2>/dev/null || printf '{"classification":"%s"}' "$_classification")
+    printf 'SOURCE_BRANCH_DIVERGED: %s\n' "$_payload"
+}
+
+# _classify_branch_divergence <branch>  — ef39 v1 DD1 (pre-push divergence classifier).
+# Fetches origin/<branch> and classifies the local-vs-origin relationship into the
+# FULL state set, ROUTING to existing helpers (never deleting the staged ref — that
+# stays behind the forge-proof _restage_staged_ref_safe_to_delete). The classifier
+# itself performs NO destructive auto-execution in v1 (DD6 auto-restage is v2/3274).
+#
+# Echoes one classification token on stdout (for testability) and returns a code:
+#   absent     rc 0  — origin/<branch> does not exist (first push) → happy path
+#   ff         rc 0  — origin/<branch> is an ancestor of HEAD (local FF) → normal push
+#   behind     rc 0  — origin strictly ahead (HEAD is ancestor of origin) → defer to
+#                      _fetch_and_rebase_branch / _sync_branch_against_default
+#   unrelated  rc 1  — no common ancestor → existing _sync_branch_against_default guard
+#   spent      rc 1  — diverged AND _branch_is_spent → emits SOURCE_BRANCH_DIVERGED
+#                      (classification:spent) + STOP (v1; v2 auto-invokes _restage_execute)
+#   concurrent rc 1  — diverged AND NOT spent → GENUINE concurrent work → FAIL-CLOSED,
+#                      emits SOURCE_BRANCH_DIVERGED (classification:concurrent) + STOP
+#
+# Arg: $1 = branch (defaults to $BRANCH). Note: emits the signal on the spent/
+#      concurrent paths but never on the routable (absent/ff/behind) paths.
+_classify_branch_divergence() {
+    local _branch="${1:-$BRANCH}"
+    local _db="${_DEFAULT_BRANCH:-main}"
+
+    git fetch origin "$_branch" --quiet 2>/dev/null || true
+
+    # origin/<branch> absent → first push, happy path.
+    if ! git rev-parse --verify --quiet "origin/${_branch}" >/dev/null 2>&1; then
+        echo "absent"
+        return 0
+    fi
+
+    # Local is a fast-forward of origin (origin tip is an ancestor of HEAD) → normal push.
+    if git merge-base --is-ancestor "origin/${_branch}" HEAD 2>/dev/null; then
+        echo "ff"
+        return 0
+    fi
+
+    # Behind: HEAD is an ancestor of origin/<branch> (origin strictly ahead) → defer to
+    # the existing fetch+rebase helpers (no double-handling here).
+    if git merge-base --is-ancestor HEAD "origin/${_branch}" 2>/dev/null; then
+        echo "behind"
+        return 0
+    fi
+
+    # Unrelated histories: no common ancestor → existing guard fails closed.
+    if [[ -z "$(git merge-base HEAD "origin/${_branch}" 2>/dev/null || true)" ]]; then
+        echo "unrelated"
+        return 1
+    fi
+
+    # Genuinely DIVERGED (both sides have unique commits). Distinguish SPENT
+    # (PR1 merged; branch reused/rewritten) from GENUINE concurrent work.
+    if _branch_is_spent "$_branch" "$_db"; then
+        local _fresh
+        _fresh="$(_restage_fresh_branch_name "$_branch")"
+        echo "spent"
+        _emit_source_branch_diverged "spent" \
+            "git checkout -b ${_fresh} origin/${_db} && git cherry-pick <your-feature-commits> && .claude/scripts/dso merge-to-main.sh" \
+            "git checkout ${_branch} (your local commits are intact; no refs were mutated)"
+        return 1
+    fi
+
+    # Diverged + NOT spent ⇒ GENUINE concurrent commits on origin. NEVER auto-force-push.
+    echo "concurrent"
+    _emit_source_branch_diverged "concurrent" \
+        "git fetch origin ${_branch} && git rebase origin/${_branch} (resolve conflicts), then re-run .claude/scripts/dso merge-to-main.sh" \
+        "git checkout ${_branch} (your local commits are intact; no refs were mutated)"
+    return 1
+}
+
 # _restage_recovery_plan <staged_ref> <default_branch>
 # f6b3 — panel O1 (advisory-first) + N2 (blocking recovery message). Emits the
 # explicit re-stage plan for a DETERMINATE PR2 conflict (the staged ref is stale vs
@@ -1092,6 +1252,42 @@ _restage_execute() {
     if ! git rev-parse --verify --quiet "$_src" >/dev/null && ! git rev-parse --verify --quiet "origin/$_src" >/dev/null; then
         echo "ERROR: source branch $_src not found locally or on origin — cannot re-stage" >&2; return 1
     fi
+
+    # ef39 v1 DD5 (rollback / always:patch-before-destructive): record the original
+    # checkout (branch name + HEAD SHA) BEFORE any mutation so EVERY error path can
+    # restore it and delete the just-minted fresh branch (unambiguous — this function
+    # created it). _restage_rollback is a local helper closing over these locals.
+    local _orig_branch _orig_head
+    _orig_branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)   # empty on detached HEAD
+    _orig_head=$(git rev-parse --verify --quiet HEAD 2>/dev/null || true)
+    _restage_rollback() {
+        # Return to the original checkout, then delete the fresh branch we minted.
+        if [[ -n "$_orig_branch" ]]; then
+            git checkout --quiet "$_orig_branch" 2>/dev/null || true
+        elif [[ -n "$_orig_head" ]]; then
+            git checkout --quiet "$_orig_head" 2>/dev/null || true
+        fi
+        # Only delete the fresh branch if it is NOT the branch we are now on.
+        if git rev-parse --verify --quiet "$_fresh" >/dev/null 2>&1; then
+            git branch -D "$_fresh" 2>/dev/null || true
+        fi
+    }
+
+    # ef39 v1 DD5: empty-fresh-branch guard. A SPENT branch with zero commits absent
+    # from the default branch (patch-equivalent) would produce an EMPTY fresh branch
+    # and an empty PR. Treat that as an explicit no-op, not a re-stage. (Forge-proof
+    # spent verdicts route here, but a 0-unmatched topology is the canonical empty case.)
+    git fetch origin "$_src" --quiet 2>/dev/null || true
+    local _src_ref="origin/$_src"
+    git rev-parse --verify --quiet "$_src_ref" >/dev/null 2>&1 || _src_ref="$_src"
+    local _unmatched
+    _unmatched=$(git rev-list --count --right-only --cherry-pick \
+        "origin/${_db}...${_src_ref}" 2>/dev/null || echo "")
+    if [[ "$_unmatched" =~ ^[0-9]+$ ]] && (( _unmatched == 0 )); then
+        echo "NO-OP: $_src is patch-equivalent to origin/$_db (0 unmatched commits) — nothing to re-stage; refusing to create an empty fresh branch / empty PR." >&2
+        return 0
+    fi
+
     # -b (NOT -B): must not clobber an existing branch (e.g. a prior interrupted
     # re-stage that already minted this name). -b fails if the branch exists.
     if ! git checkout -b "$_fresh" "$_src" 2>/dev/null; then
@@ -1103,10 +1299,14 @@ _restage_execute() {
     # advisory plan above; the executor only auto-completes the clean (no-conflict) case.
     if ! git rebase "origin/$_db" 2>/dev/null; then
         git rebase --abort 2>/dev/null || true
-        echo "ERROR: rebase of $_fresh onto origin/$_db conflicts — resolve it manually per the advisory plan above (do NOT blanket -X ours; it would discard feature work), then push $_fresh and re-run merge-to-main." >&2; return 1
+        echo "ERROR: rebase of $_fresh onto origin/$_db conflicts — resolve it manually per the advisory plan above (do NOT blanket -X ours; it would discard feature work), then push $_fresh and re-run merge-to-main." >&2
+        _restage_rollback   # DD5: restore original checkout + delete the minted fresh branch
+        return 1
     fi
     if ! git push --force-with-lease -u origin "$_fresh" 2>/dev/null; then
-        echo "ERROR: push of fresh branch $_fresh failed" >&2; return 1
+        echo "ERROR: push of fresh branch $_fresh failed" >&2
+        _restage_rollback   # DD5: restore original checkout + delete the minted fresh branch
+        return 1
     fi
     # Delete the orphaned staged ref ONLY when forge-proof safe (never on local 0-ahead).
     if _restage_staged_ref_safe_to_delete "$_pr1" "$_pr2"; then
@@ -1450,6 +1650,24 @@ _publish_rebased_branch() {
     local _branch="$1"
     local _lease_sha
     _lease_sha=$(git rev-parse "refs/remotes/origin/${_branch}" 2>/dev/null || echo "")
+
+    # ef39 v1 DD2 AUDIT (sibling-site, the e1bf "fixed one site not the sibling"
+    # lesson — audited, the _branch_is_spent predicate deliberately NOT mirrored here):
+    # This site is NOT a "skip the rebase under in-flight review" decision (that is
+    # _phase_prebump_feature_sync, where the DD2 _branch_is_spent predicate DOES gate
+    # the skip). By the time control reaches here, _SYNCED_VIA_REBASE==1 — the linear
+    # pre-push sync has ALREADY deliberately rebased the branch onto origin/<default>
+    # (cca8 DD1), so the local head intentionally diverges from origin/<branch>. The
+    # whole purpose of this function is to publish that rewritten head. The concurrent-
+    # writer hazard the DD2 predicate guards against is ALREADY handled here by
+    # `--force-with-lease` against an EXPLICIT lease SHA captured with NO preceding
+    # fetch (below) — a genuine concurrent writer is detected by the lease and the push
+    # is rejected, the correct fail-closed direction. Adding a _branch_is_spent==FALSE
+    # refusal here would block the legitimate (common) rebase-then-publish path for
+    # every NON-spent branch — exactly the in-flight case this function exists to serve.
+    # The spent-branch reuse hazard is governed UPSTREAM by DD0 (promotion-start refusal)
+    # + DD1 (the pre-push divergence classifier), which STOP before bump/publish runs.
+
     # Explicitly check the subshell so a failed force-push propagates to the
     # caller unambiguously (a function whose last command is a subshell already
     # returns the subshell's status, but the explicit `if`/`return` leaves no
@@ -3495,6 +3713,60 @@ if _branch_is_staged_promotion; then
         type resume_gc_stale_staged_state >/dev/null 2>&1 && resume_gc_stale_staged_state 2>/dev/null || true
         echo "ERROR [merge-to-main]: current branch '${BRANCH}' is a SPENT staged-* ref — its promotion already merged (0 commits ahead of origin/${_DEFAULT_BRANCH:-main}). This is the INC-015 stale-checkout stall, not a review problem." >&2
         echo "RECOVERY: checkout your feature branch ('git checkout <your-branch>') and re-run merge-to-main. The stale /tmp state cache for spent staged refs has been cleared." >&2
+        exit 1
+    fi
+fi
+
+# --- ef39 v1: DD0 (reuse-prevention) + DD1 (divergence classifier) + DD4 (resume parity) ---
+# Runs on a NON-staged source branch only (a staged-* PR2 source is governed by the
+# INC-015 spent check above + the two-tier promotion rules). Skipped when resuming an
+# already-created PR (_RESUME_STATE_PR_URL set), where the push has already happened.
+#
+# DD0 (prevention, headline): if the source branch is SPENT (PR1 already merged),
+# REFUSE to reuse it — start from a fresh branch off origin/<default>. The refusal
+# still applies when new commits were added to a spent branch: any same-branch re-push
+# trips the merged-PR hook, and review credit must not carry across a reused branch.
+# Smallest blast radius (a refusal mutates nothing) and makes heal a rare fallback.
+#
+# DD1 (divergence classifier): route the pre-push state. The classifier only ROUTES —
+# it never deletes the staged ref (deletion stays behind the forge-proof
+# _restage_staged_ref_safe_to_delete) and never auto-executes a destructive re-stage
+# (DD6 auto-restage is v2, hard-blocked by 3274). On a SPENT or GENUINE-concurrent
+# divergence it emits SOURCE_BRANCH_DIVERGED + STOPS (no destructive auto-execution).
+#
+# DD4 (resume parity): this block also runs on --resume (when no PR is yet recorded),
+# so a --resume after an idempotent-skipped bump does not re-attempt a doomed push.
+if [[ -z "$_RESUME_STATE_PR_URL" ]] && ! _branch_is_staged_promotion; then
+    # DD0: spent-branch reuse prevention at promotion START.
+    if _branch_is_spent "$BRANCH"; then
+        _ef39_fresh="$(_restage_fresh_branch_name "$BRANCH")"
+        echo "ERROR [merge-to-main]: source branch '${BRANCH}' is SPENT — its PR1 already merged to origin/${_DEFAULT_BRANCH:-main}. A spent branch must NOT be reused for a follow-up promotion (a same-branch re-push trips the merged-PR hook, and prior review credit must not carry across a reused branch)." >&2
+        echo "RECOVERY: start from a FRESH branch off origin/${_DEFAULT_BRANCH:-main}, e.g.: git checkout -b ${_ef39_fresh} origin/${_DEFAULT_BRANCH:-main} && git cherry-pick <your-feature-commits> && .claude/scripts/dso merge-to-main.sh" >&2
+        _emit_source_branch_diverged "spent" \
+            "git checkout -b ${_ef39_fresh} origin/${_DEFAULT_BRANCH:-main} && git cherry-pick <your-feature-commits> && .claude/scripts/dso merge-to-main.sh" \
+            "git checkout ${BRANCH} (your local commits are intact; no refs were mutated)"
+        exit 1
+    fi
+
+    # DD1: classify the pre-push divergence and ROUTE. absent/ff/behind are routable
+    # (the existing publish/sync helpers handle them); spent/concurrent/unrelated STOP
+    # here with an actionable signal (the classifier already emitted it for spent/
+    # concurrent). v1 NEVER auto-executes a destructive re-stage (DD6 is v2/3274).
+    _ef39_class_rc=0
+    _ef39_class="$(_classify_branch_divergence "$BRANCH")" || _ef39_class_rc=$?
+    if [[ "$_ef39_class_rc" -ne 0 ]]; then
+        case "$_ef39_class" in
+            unrelated)
+                echo "ERROR [merge-to-main]: source branch '${BRANCH}' has UNRELATED history to origin/${BRANCH} (no common ancestor) — refusing to force a rebase. Resolve manually." >&2
+                ;;
+            spent|concurrent)
+                # SOURCE_BRANCH_DIVERGED already emitted by the classifier. STOP (v1).
+                echo "ERROR [merge-to-main]: source branch '${BRANCH}' diverged from origin/${BRANCH} (classification: ${_ef39_class}) — stopping without a destructive auto-restage (v1). See the SOURCE_BRANCH_DIVERGED signal above for the exact recovery command." >&2
+                ;;
+            *)
+                echo "ERROR [merge-to-main]: source branch '${BRANCH}' divergence classification failed (${_ef39_class}) — stopping (fail-closed)." >&2
+                ;;
+        esac
         exit 1
     fi
 fi
