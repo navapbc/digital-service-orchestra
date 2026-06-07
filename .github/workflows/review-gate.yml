@@ -10,17 +10,17 @@ name: review-gate
 # success only if the script decides it, never the GH scheduler. The job has NO
 # code_changed/path skip: it runs on every base==main PR (DD1).
 #
-# ROLLOUT (current): MODE=warn — it LOGS sub-check violations (::warning::) but does
-# NOT block, and is NOT yet a required status check. It SHADOWS the existing
-# advisory review-coverage-invariant / dangling-references workflows so warn-mode
-# behavior can be compared against the real outcome on live PR2 traffic before
-# cutover. GO-LIVE is the enforce-flip (story 3ee4), an admin step:
-#   1. flip DSO_REVIEW_GATE_MODE to `enforce` below;
-#   2. add `review-gate` to .github/required-checks.txt and REMOVE the superseded
-#      merge-pipeline-checks (+ the standalone coverage/dangling contexts);
-#   3. provision `review-gate` into the live MAIN ruleset (admin token) — the W1
-#      round-trip drift test then keeps required-checks.txt == live in sync.
-# Until step 2/3, this check is advisory (visible, non-blocking).
+# ROLLOUT (current): MODE=enforce — a sub-check violation or precondition (exit 78)
+# makes the gate RED and blocks merge. The enforce-flip (story 3ee4) completed the
+# three-step go-live:
+#   1. DSO_REVIEW_GATE_MODE flipped to `enforce` below;
+#   2. `review-gate` added to .github/required-checks.txt and the superseded
+#      merge-pipeline-checks removed from the MAIN ruleset required set (the
+#      standalone coverage/dangling contexts were never individually required — I-4);
+#   3. `review-gate` provisioned into the live MAIN ruleset (admin token) — the W1
+#      round-trip drift test (R5/R8) keeps required-checks.txt == live in sync.
+# The prior warn-mode shadow showed ZERO false BLOCKs on live PR2 traffic before
+# this cutover.
 
 on:
   pull_request:
@@ -77,9 +77,10 @@ jobs:
           # (Admin exemption is identity-based per ADR-0022: a covering PR merged by
           # a designated bypass-actor — ruleset.bypass_user_ids — is reviewed-
           # equivalent inside rc_sha_is_reviewed. No ledger env, no signing key.)
-          # ROLLOUT KNOB — flip to `enforce` at go-live (see header). This single
-          # knob is propagated to BOTH sub-checks by review-gate.sh.
-          DSO_REVIEW_GATE_MODE: warn
+          # ROLLOUT KNOB — flipped to `enforce` at go-live (story 3ee4). This single
+          # knob is propagated to BOTH sub-checks by review-gate.sh. In enforce mode
+          # a sub-check precondition (exit 78) or violation makes the gate RED.
+          DSO_REVIEW_GATE_MODE: enforce
         run: |
           # review-gate.sh maps each sub-check's precondition (exit 78) through
           # precondition-gate.sh with the gate mode internally, so in warn mode the

@@ -15,7 +15,13 @@
 #
 # Ownership:
 #   ci.yml                     — Actionlint, ShellCheck, Lint Python (ruff), Hook Tests,
-#                                Script Tests, llm-review, merge-pipeline-checks
+#                                Script Tests, llm-review
+#   review-gate.yml            — review-gate (the always-runs, fail-closed per-SHA
+#                                coverage + dangling summary gate; story 3ee4 swapped
+#                                it IN, replacing the no-op merge-pipeline-checks
+#                                umbrella. merge-pipeline-checks the *job* is retained
+#                                in ci.yml — it still fires on the sub-PR path — it is
+#                                only removed from the MAIN ruleset required set here.)
 #   ticket-platform-matrix.yml — Ticket tests (linux-bash4), Ticket tests (macos-bash3),
 #                                Ticket tests (alpine-busybox)
 
@@ -26,7 +32,7 @@ Lint Python (ruff)
 Hook Tests
 Script Tests
 llm-review
-merge-pipeline-checks
+review-gate
 
 # ── ticket-platform-matrix.yml checks ────────────────────────────────────────
 Ticket tests (linux-bash4)

@@ -24,8 +24,14 @@ CHECKS_FILE="$REPO_ROOT/.github/required-checks.txt"
 # ruleset would deadlock every PR to main. Enforcement of review-sub-pr lives
 # on the sub-PR ruleset (16961402), populated by provision-ruleset.sh from
 # the sub-PR branch-patterns source-of-truth file (config/sub-pr-branch-patterns.txt).
+#
+# review-gate (story 3ee4) is the always-runs, fail-closed per-SHA coverage +
+# dangling summary gate that replaced the no-op merge-pipeline-checks umbrella on
+# the MAIN ruleset. merge-pipeline-checks is intentionally NOT in this list: the
+# job is retained in ci.yml (it still fires on the sub-PR path) but is no longer a
+# required context on the main ruleset, so this bootstrap must not re-add it.
 REQUIRED_ENTRIES=(
-    "merge-pipeline-checks"
+    "review-gate"
 )
 
 # Parse arguments
