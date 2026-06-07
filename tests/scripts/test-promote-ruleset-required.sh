@@ -90,7 +90,7 @@ assert_pass_if_clean "test_unknown_arg_exits_1"
 _snapshot_fail
 _dr_tmpdir="$(_make_tmpdir)"
 mkdir -p "$_dr_tmpdir/.github"
-printf 'review-sub-pr\nmerge-pipeline-checks\n' > "$_dr_tmpdir/.github/required-checks.txt"
+printf 'review-sub-pr\nreview-gate\n' > "$_dr_tmpdir/.github/required-checks.txt"
 
 # Minimal gh stub (only repo view for auto-detect; not used when --repo is explicit)
 _gh_stub="$_dr_tmpdir/gh"
@@ -112,10 +112,11 @@ _dr_out="$(DSO_DRY_RUN=1 PATH="$_dr_tmpdir:$PATH" bash "$SCRIPT" \
 
 assert_eq "test_dry_run_stage_outputs: exits 0" "0" "$_dr_exit"
 # The observation-window ruleset targets main, so it stages only MAIN_STAGED_CHECKS
-# (merge-pipeline-checks). review-sub-pr is staged into the sub-PR ruleset directly
-# via --promote-to-required (no observation window for sub-PR checks).
-assert_contains "test_dry_run_stage_outputs: mentions merge-pipeline-checks" \
-    "merge-pipeline-checks" "$_dr_out"
+# (review-gate — swapped IN for merge-pipeline-checks at the story-3ee4 enforce-flip).
+# review-sub-pr is staged into the sub-PR ruleset directly via --promote-to-required
+# (no observation window for sub-PR checks).
+assert_contains "test_dry_run_stage_outputs: mentions review-gate" \
+    "review-gate" "$_dr_out"
 # Negative assertion: review-sub-pr must NOT appear in the main observation payload,
 # or it will deadlock every PR to main once enforcement promotes.
 _review_subpr_absent="yes"
@@ -135,7 +136,7 @@ assert_pass_if_clean "test_dry_run_stage_outputs"
 _snapshot_fail
 _dp_tmpdir="$(_make_tmpdir)"
 mkdir -p "$_dp_tmpdir/.github"
-printf 'review-sub-pr\nmerge-pipeline-checks\n' > "$_dp_tmpdir/.github/required-checks.txt"
+printf 'review-sub-pr\nreview-gate\n' > "$_dp_tmpdir/.github/required-checks.txt"
 
 # Write ruleset JSON fixtures to files (avoids heredoc variable-expansion issues)
 _ruleset_list_file="$_dp_tmpdir/ruleset-list.json"
