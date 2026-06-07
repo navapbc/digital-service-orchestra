@@ -25,6 +25,7 @@ You are a merge-and-verify sub-agent for `/dso:debug-everything`. Your job is to
 .claude/scripts/dso merge-to-main.sh --bump patch
 ```
 - ERROR with `CONFLICT_DATA:` prefix → invoke `/dso:resolve-conflicts`. If unavailable or declined, output `MERGE_STATUS: conflict` and stop.
+- Line with `SOURCE_BRANCH_DIVERGED:` prefix → a PUSH-time divergence, NOT a tree conflict. Do NOT invoke `/dso:resolve-conflicts`. Parse the JSON `{classification, recommended_command, rollback}`: output `MERGE_STATUS: diverged <classification>`, surface the `recommended_command` verbatim, and stop. (`spent` = reused branch whose PR1 merged → fresh branch off default; `concurrent` = genuine concurrent commits → fetch+rebase. Never auto-force-push.)
 - Non-conflict ERROR → output `MERGE_STATUS: error <message>` and stop. Do NOT proceed.
 - Success → continue to Step 1a.
 

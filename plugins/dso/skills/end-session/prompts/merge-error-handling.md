@@ -19,9 +19,24 @@ If the script reports ERROR with a `CONFLICT_DATA:` prefix:
 
 > **CRITICAL**: When resolving conflicts that involve `.tickets-tracker/` event files, do NOT use `git merge -X ours` — that would silently discard incoming ticket events from main and corrupt the event log. Resolve `.tickets-tracker/` conflicts per-file using `git checkout --ours` on each conflicted JSON event file individually (they are append-only and safe to accept ours per-file). `/dso:resolve-conflicts` handles this automatically.  <!-- # tickets-boundary-ok: data-integrity warning prose, not direct access -->
 
+## SOURCE_BRANCH_DIVERGED: push-divergence (NOT a merge conflict)
+
+If the script reports a line beginning with the `SOURCE_BRANCH_DIVERGED:` prefix, the source branch has DIVERGED from `origin/<branch>` at PUSH time — this is **not** a working-tree merge conflict. Do **NOT** invoke `/dso:resolve-conflicts` (it resolves conflict markers in the tree; there are none here). The line carries a JSON object:
+
+```
+SOURCE_BRANCH_DIVERGED: {"classification":"spent|concurrent","recommended_command":"<exact cmd>","rollback":"<recipe>"}
+```
+
+Handle by `classification`:
+
+1. `spent` — the branch's PR1 already merged; the branch is being reused. Run the `recommended_command` verbatim (it cuts a FRESH branch off `origin/<default>`, re-applies the feature commits, and re-runs merge-to-main). Never force-push the spent branch.
+2. `concurrent` — `origin/<branch>` has genuine concurrent commits. Run the `recommended_command` verbatim (fetch + rebase + re-run). Never auto-force-push.
+
+In both cases the working tree was not mutated (`rollback` documents the safe restore). Present the `recommended_command` to the user and proceed only after it succeeds. Do NOT continue to Step 12 until the merge completes.
+
 ## Non-conflict ERROR
 
-If the script reports an ERROR without the `CONFLICT_DATA:` prefix:
+If the script reports an ERROR without the `CONFLICT_DATA:` or `SOURCE_BRANCH_DIVERGED:` prefix:
 
 1. Diagnose the main repo state before giving up:
    ```bash
