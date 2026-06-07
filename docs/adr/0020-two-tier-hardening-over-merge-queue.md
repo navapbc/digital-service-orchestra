@@ -1,6 +1,6 @@
 # Two-Tier Flow Hardening over GitHub Merge Queue
 
-- Status: **accepted** (supersedes ADR-0019)
+- Status: **accepted — enforce-flip executed 2026-06-07** (supersedes ADR-0019; see *Execution results* below)
 - Deciders: @joeoakhart
 - Date: 2026-06-03
 
@@ -72,6 +72,20 @@ After review #4 (code-grounded), two parallel reviews (grounding + historical-go
 ### Decisive finding
 
 The deterministic coverage gate that Option A (and MQ) relies on is **necessary but not sufficient as wired**: flipping `DSO_COVERAGE_INVARIANT_MODE=enforce` and adding the check to `required-checks.txt` does NOT make it a hard gate, because the **workflow wrapper passes unconditionally on exit 78**. A token-scope regression or transient API failure — a realistic production event — silently disables the gate. This is the **same "silently passes" failure class we pivoted away from MQ to avoid**, and it must be fixed in both `review-coverage-invariant.yml` and `dangling-references.yml` (gate the exit-78 path on mode: in `enforce`, exit 78 must **block** or fail-closed) **before** the enforce-flip (A-5). Added as a hard prerequisite in the plan; verification re-run as part of A-5.
+
+## Execution results (enforce-flip go-live, 2026-06-07, epic 588e)
+
+The plan executed end-to-end. Outcomes:
+
+- **Enforce-flip landed (story 3ee4).** `review-gate` (the single always-runs, fail-closed per-SHA coverage + dangling **inline** summary check — one script, no independently-skippable jobs) was flipped to `enforce`, swapped IN for the no-op `merge-pipeline-checks` umbrella on both `.github/required-checks.txt` and the live `main` ruleset (15629023), via an atomic surgical PATCH. Landed through the two-tier flow as PR #701.
+- **Live verification (E-series).** **E6′** confirmed: pre-provision the R8 round-trip detected `live != required-checks.txt` and went RED; post-provision R5/R8 green (live ↔ file parity). **Clean reviewed PR2 passes (no false wedge):** PR #701 merged to `main` with `review-gate` (enforce) PASS and **no override** (merged by the non-bypass agent identity). **Un-provable content fail-closed-BLOCKED:** an earlier PR2 (#699) was correctly RED-blocked by `review-gate` on a SHA it could not prove reviewed. **Ticket-only / inert exemption** preserved (diff-scoped, via the shared `rc_diff_is_tickets_only`).
+- **exit-78 silent-pass fix (the decisive finding above) shipped** in all three carriers (`review-coverage-invariant.yml`, `dangling-references.yml`, `ruleset-invariants.yml`) and the R8 `_live_round_trip` fail-closes under enforce, so a PAT scope-strip/expiry cannot silently re-open the gate (story a85d).
+- **Linear-history cutover (cca8).** `required_linear_history` is live on the `main` ruleset and `allowed_merge_methods=[rebase]`; PR #701 landed linearly (rebase). The merge-commit-rejection mechanism was live-verified via the `lintest/**` throwaway ruleset (a merge-commit push was REJECTED). The `_is_clean_merge` clean-merge exemption was removed (DD3, proven unreachable, exp L8); merge commits now fall through to the normal fail-closed coverage path. e1bf (the PR2-phase `staged-*` force-push GH013 wedge) was fixed as a cutover prerequisite before the linear-history flip.
+- **Coverage-walk × rebase interaction found and fixed (bug 374f).** cca8's rebase-not-merge makes a rebase-merged PR's `merge_commit_sha` the rebased 1-parent tip (under `merge-to-main`, always the version-bump commit). The A3b self-merge guard — written for ≥2-parent merge nodes — wrongly excluded that 1-parent tip's covering PR, marking it UNREVIEWED and wedging every promotion under enforce. Fixed by narrowing A3b to genuine merge nodes via a shared `rc_a3b_should_exclude` (single source of truth, used by both `rc_sha_is_reviewed` and `verify-session-provenance.sh` so the twins cannot diverge — bug 98d9). Found via the enforce-flip's own PR2; cleared via a 4-lens panel + convergence; the FP-amplified `review-sub-pr` on the fix PR was cleared via FP-recovery (neutral opus re-review, 0 findings).
+- **Review-semantics (E1):** per-SHA coverage (not per-file) — recorded in §"Review-semantics decision" above; held under enforce.
+- **E7 (dangling matcher) GO:** the `sg`-based matcher shipped enforced inline within `review-gate` (no advisory-only fallback needed).
+- **Identity-based admin exemption (ADR-0022)** replaced the HMAC admin-exemption ledger: a covering PR merged by the designated bypass-actor (`ruleset.bypass_user_id`, server-set `merged_by.id`) is reviewed-equivalent in both Goal-1 gates — forge-proof (the agent is `current_user_can_bypass: never`), single-override.
+- **Panel/cost record:** the 3-lens panel + convergence reviewer governed every plan/ADR decision. The merge-queue alternative (ADR-0019) stays REJECTED — `llm-review` is `pull_request`-guarded and never reports on `merge_group` (it would not gate the combined candidate); linear-history-over-MQ confirmed. Operational-cost evidence: ticket 0734. The fail-open holes 1b76 (empty findings + valid summary) and c9e9 (PR2 re-review of FP-recovered content / empty-net merge) were fixed during execution.
 
 ## Consequences
 

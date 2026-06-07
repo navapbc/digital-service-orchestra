@@ -6278,6 +6278,58 @@ t_pr1_staged_intermediate_enqueues_auto_merge() {
 }
 t_pr1_staged_intermediate_enqueues_auto_merge
 
+# ── t_pr1_title_is_descriptive (830c DD1) ─────────────────────────────────────
+# PR1's `gh pr create --title` must be DESCRIPTIVE — derived from the branch's
+# meaningful commit subject via _derive_pr_title (keeping the `staged:` prefix) —
+# NOT the generic `staged: <branch> -> <staged-branch>` arrow form. Asserts the
+# captured pr-create argv: title starts with `staged: ` and does NOT contain the
+# branch-arrow ` -> staged` substring.
+t_pr1_title_is_descriptive() {
+    local _T branch _argv _pr1_create _title_ok _arrow_absent
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr1-title.XXXXXX")"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-pr1-title"
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+    git -C "$_T" remote add origin https://github.com/x/y.git 2>/dev/null \
+        || git -C "$_T" remote set-url origin https://github.com/x/y.git
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" >/dev/null 2>&1
+            _create_staged_ref() { echo "staged-test-123"; }
+            _phase_source_branch_version_bump() { return 0; }
+            _state_write_phase() { return 0; }
+            _state_set_field() { return 0; }
+            _state_init() { return 0; }
+            _PLUGIN_ROOT="'"$_T"'/noplugin"
+            unset STORY_PR_BASE
+            BRANCH="'"$branch"'"
+            _phase_staged_intermediate >/dev/null 2>&1 || true
+        ' "$PR_SCRIPT"
+    ) || true
+
+    _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
+    _pr1_create="$(echo "$_argv" | grep -E "^pr create .*--base staged-test-123" | head -1)"
+
+    # Title carries the staged: prefix (filterable) ...
+    _title_ok="false"
+    if echo "$_pr1_create" | grep -qE -- "--title staged: "; then _title_ok="true"; fi
+    # ... and is NOT the generic branch-arrow form.
+    _arrow_absent="true"
+    if echo "$_pr1_create" | grep -qE -- "--title staged: ${branch} -> "; then _arrow_absent="false"; fi
+
+    assert_eq "t_pr1_title_is_descriptive: PR1 title keeps the staged: prefix" "true" "$_title_ok"
+    assert_eq "t_pr1_title_is_descriptive: PR1 title is NOT the branch-arrow form" "true" "$_arrow_absent"
+}
+t_pr1_title_is_descriptive
+
 # ---------------------------------------------------------------------------
 # end of file
 print_summary

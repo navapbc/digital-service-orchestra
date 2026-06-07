@@ -323,11 +323,14 @@ t10_output="$(
 )"
 t10_exit=$?
 assert_eq "test_create_sprint_draft_pr_default_body_regression: exit code" "0" "$t10_exit"
-if gh_was_called_with "Long-lived sprint draft PR. Epic: epic-001."; then
+# 830c DD2: the default body documents the long-lived umbrella lifecycle and still
+# interpolates {{PRIMARY_TICKET_ID}} -> epic-001. Assert the descriptive default body
+# with the interpolated id (proves both the new body AND placeholder substitution).
+if gh_was_called_with "sprint draft umbrella** for epic epic-001."; then
     (( PASS++ ))
 else
     (( FAIL++ ))
-    echo "FAIL: test_create_sprint_draft_pr_default_body_regression: default body not preserved" >&2
+    echo "FAIL: test_create_sprint_draft_pr_default_body_regression: default umbrella body not preserved/interpolated" >&2
 fi
 
 echo ""

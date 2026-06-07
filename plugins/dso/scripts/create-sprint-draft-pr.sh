@@ -11,7 +11,14 @@
 #   EPIC_TITLE               — optional human-readable epic title for PR title
 #   DRAFT_PR_TITLE_PREFIX    — PR title prefix (default: Sprint:)
 #   DRAFT_PR_BODY_TEMPLATE   — PR body template; {{PRIMARY_TICKET_ID}} is interpolated
-#                              (default: "Long-lived sprint draft PR. Epic: {{PRIMARY_TICKET_ID}}.")
+#                              (default documents the long-lived umbrella lifecycle below)
+#
+# Lifecycle (830c DD2): this draft is the umbrella for the sprint's two-tier flow.
+# Individual stories/tasks reach `main` via their OWN staged-*→main PR2s; the umbrella
+# draft is NOT itself merged. It is intentionally LONG-LIVED for the sprint's duration
+# and is closed at session end (/dso:end-session, sprint Phase I) or on epic completion.
+# The script is RETAINED under Option A (the two-tier flow is kept; it is NOT the
+# retired merge-queue path).
 #
 # Exit codes:
 #   0 — PR exists (or was just created)
@@ -37,7 +44,15 @@ fi
 
 EPIC_TITLE="${EPIC_TITLE:-sprint}"
 DRAFT_PR_TITLE_PREFIX="${DRAFT_PR_TITLE_PREFIX:-Sprint:}"
-_DEFAULT_BODY='Long-lived sprint draft PR. Epic: {{PRIMARY_TICKET_ID}}.'
+# Descriptive default body documenting the long-lived umbrella lifecycle (830c DD2).
+# shellcheck disable=SC2016  # {{PRIMARY_TICKET_ID}} is a literal template placeholder, interpolated below
+_DEFAULT_BODY='Long-lived **sprint draft umbrella** for epic {{PRIMARY_TICKET_ID}}.
+
+This draft is the umbrella for the two-tier promotion flow during this sprint. Individual
+stories/tasks land on `main` via their own staged-*→main PRs; **this draft is not itself
+merged**. It is intentionally long-lived for the duration of the sprint and is closed at
+session end (`/dso:end-session`) or when the epic completes — safe to leave open while the
+sprint is active.'
 DRAFT_PR_BODY_TEMPLATE="${DRAFT_PR_BODY_TEMPLATE:-$_DEFAULT_BODY}"
 
 # ── Check for existing open PR on this branch ────────────────────────────────
