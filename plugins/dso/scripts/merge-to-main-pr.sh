@@ -1262,8 +1262,15 @@ _phase_staged_intermediate() {
     fi
 
     # 3. Open PR1: BRANCH → staged_branch. review-sub-pr workflow will fire.
-    local _pr1_title _pr1_body _pr1_url _pr1_number
-    _pr1_title="staged: ${BRANCH} -> ${_staged_branch}"
+    # DD1 (830c): derive a DESCRIPTIVE PR1 title from the branch's meaningful commit
+    # subject (reuse _derive_pr_title — the same helper PR2 uses, which skips the
+    # `chore: bump version` commit and merge-backs), keeping the `staged:` prefix for
+    # filterability. The prior `staged: <branch> -> <staged-branch>` arrow form was a
+    # generic, non-descriptive title. _derive_pr_title falls back to `[<branch>] ...`
+    # when no branch-local non-merge subject exists, so this is always non-empty.
+    local _pr1_title _pr1_body _pr1_url _pr1_number _pr1_subject
+    _pr1_subject="$(_derive_pr_title "$BRANCH")"
+    _pr1_title="staged: ${_pr1_subject}"
     _pr1_body=$(cat <<EOF
 ## Staged promotion (PR-C two-PR flow)
 

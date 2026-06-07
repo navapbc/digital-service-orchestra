@@ -1,6 +1,6 @@
 # Workflow-Stability Hardening (v4)
 
-A set of changes that close the chronic-instability and Goal-1 / Goal-4 holes documented in `docs/handoff/workflow-stability-plan-v4-handoff.md`. Two behaviors (net-diff integration review, provenance candidate scoping) are **live** in the pipeline; the new **checks** ship in `warn`/advisory mode and become required via a documented admin go-live step. This doc is the map; see `CI-INTEGRATION.md` for the surrounding integration-review architecture.
+A set of changes that close the chronic-instability and Goal-1 / Goal-4 holes documented in `docs/handoff/workflow-stability-plan-v4-handoff.md`. Two behaviors (net-diff integration review, provenance candidate scoping) are **live** in the pipeline; the new **checks** shipped in `warn`/advisory mode and have since gone **live (enforce)** — converged into the required `review-gate` summary check via the 3ee4 enforce-flip (see *Admin go-live — COMPLETED* below). This doc is the map; see `CI-INTEGRATION.md` for the surrounding integration-review architecture.
 
 ## Mechanisms
 
@@ -14,15 +14,17 @@ A set of changes that close the chronic-instability and Goal-1 / Goal-4 holes do
 | **Post-hoc bypass audit** (Goal-6b) | `scripts/ci/fp-recovery-audit-sweep.sh` emits HMAC-signed markers for merged `main` PRs lacking a passing review check, so a web-UI bypass cannot silently leave the audit trail. | manual / scheduled |
 | **Config drift** | `provision-ruleset.sh` emits config matching live; `tests/scripts/test-ruleset-provisioner-roundtrip.sh` (run by `ruleset-invariants.yml`) drift-locks `provisioner == required-checks.txt == live`. | live + enforcing |
 
-## Admin go-live for the `warn`-mode checks
+## Admin go-live — COMPLETED (3ee4 enforce-flip, epic 588e)
 
-Each new-check workflow runs advisory until an admin promotes it:
+> **STATUS: LIVE.** The warn-mode rollout converged into the single `review-gate` summary check, which was flipped to **enforce** and made a required check on the live `main` ruleset by the Option-A enforce-flip (story 3ee4). The coverage invariant and dangling-references logic now run **inline inside `review-gate`** (one script, no independently-skippable jobs) rather than as separate individually-required contexts — per invariant I-4, `review-gate` SUBSUMES them, so they are NOT added to `required-checks.txt` individually. The live `main` ruleset also gained `required_linear_history` (cca8 rebase-not-merge cutover) and dropped the no-op `merge-pipeline-checks`.
 
-1. Flip the workflow's `DSO_*_MODE` env (e.g. `DSO_COVERAGE_INVARIANT_MODE`, `DSO_DANGLING_MODE`) to `enforce`.
-2. Add the check's job name (e.g. `review-coverage-invariant`, `dangling-references`) to `.github/required-checks.txt`.
-3. Provision it into the live MAIN ruleset (needs an admin token). The round-trip drift test then keeps `required-checks.txt == live` in sync going forward.
+The go-live executed (now historical, retained for the runbook record):
 
-Until steps 2–3, a failing check is visible but non-blocking.
+1. Flipped `DSO_REVIEW_GATE_MODE` to `enforce` in `review-gate.yml`.
+2. Swapped `.github/required-checks.txt`: `merge-pipeline-checks` OUT, `review-gate` IN (`llm-review` retained).
+3. Provisioned the live MAIN ruleset (admin token): `review-gate` IN / `merge-pipeline-checks` OUT + `required_linear_history` added, atomic surgical PATCH. The R5/R8 round-trip drift test keeps `required-checks.txt == live` in sync going forward.
+
+Live-validated: a fully-reviewed PR2 passed the enforced gate with no override; an un-provable SHA was fail-closed-BLOCKED; a coverage-walk edge (rebase version-bump tip) was fixed (bug 374f, shared `rc_a3b_should_exclude`). Rollback runbook: `docs/runbooks/rulesets-rollback.md`. See ADR-0020 for the full execution record.
 
 ## Goal-4 containment (identity-based)
 

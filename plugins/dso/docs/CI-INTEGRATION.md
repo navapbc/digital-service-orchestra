@@ -177,7 +177,9 @@ This script is called by Phase F during story PR creation to set `STORY_PR_BASE`
 
 ## merge-pipeline-checks umbrella job
 
-`merge-pipeline-checks` is a dedicated CI job in `ci.yml` that provides a **stable required-check name** for branch protection, decoupled from the conditional steps it wraps.
+> **STATUS (post-3ee4 enforce-flip, epic 588e):** `merge-pipeline-checks` is **no longer a required check on the `main` ruleset**. The Option-A enforce-flip swapped it OUT and `review-gate` IN — the single always-runs, fail-closed per-SHA coverage + dangling summary gate is now the required gate on every `base==main` PR (see **review-gate** below and `WORKFLOW-STABILITY-CHECKS.md`). The `merge-pipeline-checks` **job is retained in `ci.yml`** because its `red-test-blocker` step still fires on the session/sub-PR path; it simply no longer appears in `.github/required-checks.txt` or the live `main` ruleset's required set. The umbrella-pattern description below remains accurate for the *job mechanics*, not for its (former) required-check role on main.
+
+`merge-pipeline-checks` is a dedicated CI job in `ci.yml`. It historically provided a **stable required-check name** for branch protection, decoupled from the conditional steps it wraps; that required-check role on `main` is now held by `review-gate`.
 
 ### Purpose and umbrella pattern
 
@@ -222,11 +224,13 @@ When a RED marker is intentional — for example, a task intentionally left in R
 
 See `${CLAUDE_PLUGIN_ROOT}/scripts/scan-red-markers.sh` for the full contract (argument validation, git-context resolution priority, TMPDIR fallback for test harnesses, conflict-marker detection, and grammar spec).
 
-### Required-check registration and S_migration cutover
+### Required-check registration
 
-The umbrella job name `merge-pipeline-checks` is registered in `.github/required-checks.txt`. This file is the canonical source of truth for required-check names consumed by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`, which configures main-branch protection via the GitHub API.
+`.github/required-checks.txt` is the canonical source of truth for required-check names, consumed by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`, which configures main-branch protection via the GitHub API. **As of the 3ee4 enforce-flip the main required set lists `review-gate` (NOT `merge-pipeline-checks`)** alongside `llm-review`, `check-staged-head`, `ruleset-design-invariants`, the lint/test contexts, and `Ticket tests (...)`. The live `main` ruleset additionally carries `required_linear_history` (the cca8 rebase-not-merge cutover). The W1 round-trip drift test (R5 offline + R8 live) keeps `required-checks.txt` == the live ruleset in sync.
 
-**Cutover handoff to S_migration:** adding the job to `ci.yml` and `required-checks.txt` is a necessary prerequisite, but branch protection enforcement is not live until `provision-ruleset.sh` is run (S_migration phase). The S_migration run adds `merge-pipeline-checks` to the main branch's required status checks. Until that run, the job fires on PRs and reports results, but a failing check does not block merge. After S_migration, failure blocks merge.
+## review-gate — the always-runs fail-closed required gate
+
+`review-gate` (`.github/workflows/review-gate.yml`) is the single required summary check on every `base==main` PR. It runs `scripts/ci/review-gate.sh`, which invokes the per-SHA coverage invariant AND the dangling-references check **inline in one process** — so a sub-check can never independently skip-to-success (a `needs:`/`if: failure()` aggregation greens on a SKIPPED upstream; one script cannot). It has no `code_changed` path skip. `DSO_REVIEW_GATE_MODE: enforce` makes a sub-check violation or precondition (exit 78) RED. This replaced the no-op `merge-pipeline-checks` umbrella as the always-runs fail-closed gate (closes the E3 no-op-umbrella hole). The per-SHA coverage proof exempts only SHAs whose entire diff is within the ticket store; a covering PR merged by the designated bypass-actor is reviewed-equivalent (ADR-0022).
 
 ## Sub-PR cutover migration runbook
 
