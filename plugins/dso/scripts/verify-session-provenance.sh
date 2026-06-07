@@ -605,13 +605,21 @@ for pr in pr_list:
     # CANNOT launder, because G3 below independently verifies that each kept
     # covering PR review check actually PASSED. Do NOT re-add the blanket A3a.
     # A3b: self-merge guard (a SHA cannot be provenanced by the merge commit it
-    # itself produced).
-    if pr.get('merge_commit_sha') == sha_under_review:
-        continue
+    # itself produced) — but NOT decided here (bug 374f). GitHub sets a rebase/
+    # squash-merged PR's merge_commit_sha to the rebased 1-parent TIP (under
+    # merge-to-main, the version-bump tip); an unconditional exclusion here would
+    # falsely drop that reviewed tip and force a needless re-review. Emit a per-PR
+    # mcs_match flag instead; the bash loop routes it through the SHARED
+    # rc_a3b_should_exclude (single source of truth, also used by
+    # review-coverage-lib.sh::rc_sha_is_reviewed) which excludes only genuine
+    # >=2-parent merge nodes, fail-closed on unknown topology. G3 below still
+    # verifies each kept covering PR's review actually passed, so this cannot launder.
     # NOTE: merged_by is NOT read here — the /commits/{sha}/pulls list representation
     # omits it (null). The identity check (ADR-0022) fetches merged_by from the
     # single-PR GET, on the bypass path only.
-    print(number if number is not None else '')
+    if number is not None:
+        mcs_match = 1 if pr.get('merge_commit_sha') == sha_under_review else 0
+        print(f'{number}\t{mcs_match}')
 " 2>/dev/null)" || covering_prs=""
 
     # G3 fix: verify that each covering PR's review-sub-pr check actually
@@ -620,8 +628,15 @@ for pr in pr_list:
     # failed review would incorrectly count as "covered."
     _verified_covering=0
     if [[ -n "$covering_prs" ]]; then
-        while IFS= read -r _cov_pr; do
+        while IFS=$'\t' read -r _cov_pr _cov_mcs_match; do
             [[ -z "$_cov_pr" ]] && continue
+            # A3b (bug 374f, SHARED): exclude a covering PR whose merge_commit_sha ==
+            # this SHA only when the SHA is a genuine merge node. rc_a3b_should_exclude
+            # (review-coverage-lib.sh) is the single source of truth — identical to
+            # rc_sha_is_reviewed's A3b so the two Goal-1 filters cannot diverge.
+            if rc_a3b_should_exclude "$sha" "${_cov_mcs_match:-0}"; then
+                continue
+            fi
             if (( _api_call_count >= GH_BUDGET )); then
                 if (( _budget_exhausted == 0 )); then
                     echo "BUDGET_EXHAUSTED during G3 review-check verification" >&2

@@ -231,6 +231,42 @@ print('failed' if fail else ('passed' if ok else 'not_found'))
 " 2>/dev/null
 }
 
+# ── A3b self-merge guard — SHARED decision (bug 374f) ─────────────────────────
+# rc_a3b_should_exclude <sha> <mcs_match>
+#
+# A3b excludes a covering MERGED PR from providing review provenance for <sha> when
+# that PR's merge_commit_sha == <sha> — but ONLY for a GENUINE merge node. A3b was
+# written for merge-commit semantics: a >=2-parent merge node whose combined diff the
+# sub-PR review never saw cannot be self-proven by its producing PR. After cca8 DD1
+# (rebase-not-merge) GitHub sets a rebase/squash-merged PR's merge_commit_sha to the
+# rebased 1-parent TIP — a real commit patch-identical to reviewed sub-PR content
+# (under merge-to-main, always the version-bump tip). Excluding THAT wrongly marks it
+# UNREVIEWED and wedged every promotion under enforce (bug 374f). So: exclude ONLY when
+# <sha> is NOT a proven 1-parent commit. A proven 1-parent rebase/squash tip keeps its
+# covering evidence; the caller's G3 still re-verifies the review actually passed, so
+# this cannot launder.
+#
+# DIVERGENCE-PROOF: this is the SINGLE source of the A3b decision. BOTH Goal-1
+# covering-PR filters route through it — rc_sha_is_reviewed (below) and the G3 routine
+# in verify-session-provenance.sh (which sources this lib). Do not re-inline the guard
+# in either caller; that is exactly the twin-divergence hazard bug 374f closed.
+#
+# Parent count is local git topology (authoritative offline; no API/rate-limit cost,
+# consistent with rc_diff_is_*). FAIL-CLOSED: only an EXACTLY-1-parent result keeps the
+# evidence; >=2 parents (true merge), 0 parents (root / shallow-clone boundary where a
+# real merge can report 0), or empty output (commit absent) all EXCLUDE — preserving the
+# pre-374f exclusion rather than loosening the guarantee.
+#
+#   args: <sha> <mcs_match: 1 if covering PR's merge_commit_sha == sha, else 0>
+#   exit: 0 = EXCLUDE this covering PR ; 1 = KEEP it
+rc_a3b_should_exclude() {
+    local _sha="${1:-}" _mcs_match="${2:-0}" _pc
+    [[ "$_mcs_match" == "1" ]] || return 1   # not a self-merge match -> keep
+    _pc="$(git rev-list --parents -n1 "$_sha" 2>/dev/null | awk 'NR==1{print NF-1}')"
+    [[ "$_pc" == "1" ]] && return 1          # exactly 1 parent (rebase/squash tip) -> keep
+    return 0                                 # >=2 / 0 / unknown -> exclude (fail-closed)
+}
+
 rc_sha_is_reviewed() {
     local repo="$1" sha="$2" pr_under_review="${3:-0}"
     local pulls_json covering check_json verdict cov_pr cov_head
@@ -263,27 +299,42 @@ for pr in prs:
     # A1 self-exclusion: the PR under review cannot provide its own provenance.
     if pur > 0 and pr.get('number') == pur:
         continue
-    # A3b self-merge guard only. The blanket A3a (head == sha_u) is intentionally
+    # A3b self-merge guard. The blanket A3a (head == sha_u) is intentionally
     # NOT applied: a DIFFERENT merged sub-PR whose head IS sha_under_review is the
     # VALID covering evidence (the common case — a sub-PR's own head commit).
     # Excluding it would return false-UNREVIEWED for every sub-PR head SHA and,
     # in enforce mode, block every legitimate staged->main merge. G3 below
     # independently re-verifies the covering PR's review check actually PASSED, so
-    # keeping it cannot launder. (Mirrors the W4 fix in verify-session-provenance.sh.)
-    if pr.get('merge_commit_sha') == sha_u:
-        continue
+    # keeping it cannot launder.
+    #
+    # A3b itself (bug 374f) is NOT decided in Python: GitHub sets a rebase/squash-
+    # merged PR's merge_commit_sha to the rebased 1-parent TIP (under merge-to-main,
+    # the version-bump tip), so an unconditional merge_commit_sha==sha exclusion here
+    # wrongly marks that tip UNREVIEWED and wedges every promotion under enforce. We
+    # only emit a per-PR mcs_match flag; the bash caller routes it through the SHARED
+    # rc_a3b_should_exclude (single source of truth, also used by the G3 routine in
+    # verify-session-provenance.sh), which excludes only genuine >=2-parent merge
+    # nodes and fails closed on unknown topology. G3 still re-verifies the review.
+    mcs_match = 1 if pr.get('merge_commit_sha') == sha_u else 0
     # NOTE: merged_by is intentionally NOT read here — the /commits/{sha}/pulls list
     # representation does not include it (null). The identity-exemption check (ADR-0022)
     # fetches merged_by from the single-PR GET, on the bypass path only.
     if head:
-        print(f\"{pr.get('number','')}\t{head}\")
+        print(f\"{pr.get('number','')}\t{head}\t{mcs_match}\")
 " 2>/dev/null)"
     local _filter_rc=$?
     [[ $_filter_rc -eq 3 ]] && return 2          # parse error -> fail closed
     [[ -z "$covering" ]] && return 1             # no covering merged PR -> not reviewed
 
-    while IFS=$'\t' read -r cov_pr cov_head; do
+    while IFS=$'\t' read -r cov_pr cov_head cov_mcs_match; do
         [[ -z "$cov_head" ]] && continue
+        # A3b (narrowed, bug 374f): exclude this covering PR only if its merge_commit_sha
+        # == the SHA under review AND that SHA is a genuine merge node. Shared decision —
+        # see rc_a3b_should_exclude (single source of truth; the twin in
+        # verify-session-provenance.sh calls the same function).
+        if rc_a3b_should_exclude "$sha" "$cov_mcs_match"; then
+            continue
+        fi
         check_json="$(_rc_gh_with_backoff api "repos/${repo}/commits/${cov_head}/check-runs")" || return 2
         verdict="$(printf '%s' "$check_json" | rc_review_check_verdict)"
         case "$verdict" in
