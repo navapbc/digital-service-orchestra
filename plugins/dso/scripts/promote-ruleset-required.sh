@@ -39,15 +39,17 @@ NON_INTERACTIVE=0
 # The check-contexts that this script manages, partitioned by target ruleset.
 # Each ruleset gets only the checks that are emitted on PRs it covers:
 #
-#   merge-pipeline-checks → fires on session→main PRs, belongs on the
-#                           main-branch ruleset.
-#   review-sub-pr         → fires only on PRs targeting sub-PR branches,
-#                           belongs on the sub-PR ruleset.
+#   review-gate   → the always-runs, fail-closed per-SHA coverage + dangling
+#                   summary gate; fires on every base==main PR, belongs on the
+#                   main-branch ruleset. Swapped IN for the no-op
+#                   merge-pipeline-checks umbrella at the story-3ee4 enforce-flip.
+#   review-sub-pr → fires only on PRs targeting sub-PR branches, belongs on the
+#                   sub-PR ruleset.
 #
 # Adding review-sub-pr to the main-branch ruleset would deadlock every PR
 # to main (the check never reports on those PRs).
 MAIN_STAGED_CHECKS=(
-    "merge-pipeline-checks"
+    "review-gate"
 )
 SUB_PR_STAGED_CHECKS=(
     "review-sub-pr"

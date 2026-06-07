@@ -173,10 +173,11 @@ assert_pass_if_clean "test_empty_workflows_dir_with_checks_exits_nonzero"
 
 UPDATE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/update-required-checks-manifest.sh"
 
-# -- test_update_manifest_adds_merge_pipeline_checks --------------------------
-# update-required-checks-manifest.sh adds 'merge-pipeline-checks' to the
-# main-branch manifest when it is missing. review-sub-pr is intentionally NOT
-# in REQUIRED_ENTRIES — see the rationale comment in
+# -- test_update_manifest_adds_review_gate ------------------------------------
+# update-required-checks-manifest.sh adds 'review-gate' to the main-branch
+# manifest when it is missing (story 3ee4 swapped review-gate IN for the no-op
+# merge-pipeline-checks umbrella). review-sub-pr is intentionally NOT in
+# REQUIRED_ENTRIES — see the rationale comment in
 # update-required-checks-manifest.sh (it fires only on PRs targeting sub-PR
 # branches and would deadlock every PR to main if required there).
 _snapshot_fail
@@ -192,20 +193,26 @@ EOF
 
 rc6=0
 bash "$UPDATE_SCRIPT" --checks-file "$MANIFEST6" 2>/dev/null || rc6=$?
-assert_eq "test_update_manifest_adds_merge_pipeline_checks exit" "0" "$rc6"
+assert_eq "test_update_manifest_adds_review_gate exit" "0" "$rc6"
 
-# Verify 'merge-pipeline-checks' was added to the manifest.
+# Verify 'review-gate' was added to the manifest.
 added6=false
-grep -q 'merge-pipeline-checks' "$MANIFEST6" 2>/dev/null && added6=true
-assert_eq "test_update_manifest_adds_merge_pipeline_checks entry-present" "true" "$added6"
+grep -qx 'review-gate' "$MANIFEST6" 2>/dev/null && added6=true
+assert_eq "test_update_manifest_adds_review_gate entry-present" "true" "$added6"
+
+# Negative assertion: the superseded merge-pipeline-checks must NOT be re-added
+# by this script — it is no longer a required context on the main ruleset.
+mpc_absent6=true
+grep -qx 'merge-pipeline-checks' "$MANIFEST6" 2>/dev/null && mpc_absent6=false
+assert_eq "test_update_manifest_adds_review_gate merge-pipeline-checks absent" "true" "$mpc_absent6"
 
 # Negative assertion: review-sub-pr must NOT be added by this script — it
 # belongs on the sub-PR ruleset, not the main-branch manifest.
 not_added6=true
 grep -q '^review-sub-pr$' "$MANIFEST6" 2>/dev/null && not_added6=false
-assert_eq "test_update_manifest_adds_merge_pipeline_checks review-sub-pr absent" "true" "$not_added6"
+assert_eq "test_update_manifest_adds_review_gate review-sub-pr absent" "true" "$not_added6"
 
-assert_pass_if_clean "test_update_manifest_adds_merge_pipeline_checks"
+assert_pass_if_clean "test_update_manifest_adds_review_gate"
 
 # -- test_update_manifest_idempotent ------------------------------------------
 # update-required-checks-manifest.sh is a no-op when both entries already
@@ -218,7 +225,7 @@ MANIFEST7="$(mktemp "$TMP_DIR7/required-checks.XXXXXX")"
 cat > "$MANIFEST7" <<'EOF'
 # pre-populated checks
 review-sub-pr
-merge-pipeline-checks
+review-gate
 ShellCheck
 EOF
 
