@@ -254,6 +254,51 @@ printf '[]' > "$md/pulls_$mergesha"   # clean merge → exempt via empty-net (c9
 out="$(_run "$r" "$mergesha" "$md")"; rc=$?
 if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${featsha}" <<<"$out" && grep -q "unreviewed=1" <<<"$out" && grep -q "exempt_empty_net=1" <<<"$out"; then _pass "T13_clean_merge_unreviewed_parent_blocks"; else _fail "T13_clean_merge_unreviewed_parent_blocks" "rc=$rc out=$out"; fi
 
+# ── T14 (bug 374f): a 1-parent REBASE/SQUASH tip that IS a covering merged PR's
+#     merge_commit_sha must be recognized as REVIEWED. After cca8 DD1 (rebase-not-
+#     merge), GitHub sets a rebase-merged PR's merge_commit_sha to the rebased tip
+#     (a real 1-parent commit; under merge-to-main always the version-bump tip).
+#     The pre-374f A3b guard excluded it unconditionally -> false UNREVIEWED ->
+#     wedged every promotion under enforce. The narrowed A3b excludes only genuine
+#     merge nodes (>=2 parents), so this 1-parent tip keeps its covering-PR proof
+#     (G3 still verifies the review actually passed). Expect rc=0, verified. ──
+r="$_WORK/t14"; mkdir -p "$r"; sf="$_WORK/t14.shas"; md="$_WORK/t14.mock"; mkdir -p "$md"
+_mk_repo "$r" "$sf" "rebased-tip"          # single 1-parent reachable commit
+sha="$(sed -n 1p "$sf")"
+# Covering merged PR #50 whose merge_commit_sha IS this 1-parent tip (rebase merge),
+# head=cov50 with a passing review check.
+printf '[{"number":50,"state":"closed","merged_at":"2026-01-01T00:00:00Z","head":{"sha":"cov50"},"merge_commit_sha":"%s"}]' "$sha" > "$md/pulls_$sha"
+_checks success > "$md/checks_cov50"
+out="$(_run "$r" "$sha" "$md")"; rc=$?
+if [[ $rc -eq 0 ]] && grep -q "every SHA proven reviewed" <<<"$out" && ! grep -q "UNREVIEWED" <<<"$out"; then _pass "T14_rebase_tip_eq_merge_commit_sha_reviewed"; else _fail "T14_rebase_tip_eq_merge_commit_sha_reviewed" "rc=$rc out=$out"; fi
+
+# ── T15 (bug 374f anti-laundering guard): a >=2-parent EVIL merge (non-empty
+#     combined diff) that IS a covering merged PR's merge_commit_sha must STILL be
+#     excluded by A3b and BLOCK — the narrowed guard must not open a merge-commit
+#     laundering hole. Even with a covering PR (review success) whose merge_commit_sha
+#     equals the merge node, the >=2-parent merge is excluded; its non-empty combined
+#     diff was never reviewed -> UNREVIEWED. (Reviewed feature parent verifies.) ──
+r="$_WORK/t15"; mkdir -p "$r"; md="$_WORK/t15.mock"; mkdir -p "$md"
+git -C "$r" init -q -b main
+git -C "$r" config user.email t@e.st; git -C "$r" config user.name t; git -C "$r" config commit.gpgsign false
+printf 'base\n' > "$r/base.txt"; git -C "$r" add base.txt; git -C "$r" commit -qm base
+git -C "$r" init -q --bare "$r/origin.git"; git -C "$r" remote add origin "$r/origin.git"; git -C "$r" push -q origin main
+git -C "$r" checkout -q -b feature
+printf 'feat\n' > "$r/feat.txt"; git -C "$r" add feat.txt; git -C "$r" commit -qm "feat-A"
+featsha="$(git -C "$r" rev-parse HEAD)"
+git -C "$r" checkout -q main; git -C "$r" checkout -q -b staged
+git -C "$r" merge -q --no-ff --no-commit feature >/dev/null 2>&1 || true
+printf 'evil-injected\n' > "$r/base.txt"   # content in neither parent → evil (non-empty) merge
+git -C "$r" add base.txt
+git -C "$r" commit -qm "Merge pull request #51 (evil)"
+evilsha="$(git -C "$r" rev-parse HEAD)"
+_reviewed_pulls 40 "$featsha" > "$md/pulls_$featsha"; _checks success > "$md/checks_$featsha"
+# Covering merged PR #51 whose merge_commit_sha IS the >=2-parent evil merge, review success.
+printf '[{"number":51,"state":"closed","merged_at":"2026-01-01T00:00:00Z","head":{"sha":"cov51"},"merge_commit_sha":"%s"}]' "$evilsha" > "$md/pulls_$evilsha"
+_checks success > "$md/checks_cov51"
+out="$(_run "$r" "$evilsha" "$md")"; rc=$?
+if [[ $rc -eq 1 ]] && grep -q "UNREVIEWED ${evilsha}" <<<"$out"; then _pass "T15_evil_merge_eq_merge_commit_sha_still_blocks"; else _fail "T15_evil_merge_eq_merge_commit_sha_still_blocks" "rc=$rc out=$out"; fi
+
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
