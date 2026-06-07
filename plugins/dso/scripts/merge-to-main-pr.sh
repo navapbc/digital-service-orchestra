@@ -989,6 +989,128 @@ resume_pr_query_trustworthy() {
     return 0
 }
 
+# _resolve_merged_pr1_staged_base <source_branch>
+# Bug 6d7f-bade-2350-4eaf — durable, LEVEL-TRIGGERED resolution of the
+# already-merged PR1 staged base from GitHub state (the 3ebb DD2 out-of-band-merge
+# intent), used as the cache-miss fallback in the advance-to-PR2 block. The prior
+# advance path read the staged ref ONLY from the /tmp state cache
+# (`_state_get_field staged_branch`); when the cache is absent/cleared the input was
+# empty, the advance block was skipped, and control fell through to
+# _phase_staged_intermediate, which UNCONDITIONALLY minted a NEW staged ref + a
+# duplicate PR1. This helper reconstructs the staged base from the forge so the
+# merged-PR1 → advance-to-PR2 transition survives a lost cache.
+#
+# Resolution (base resolved from baseRefName, NOT commit topology — so web-UI
+# MERGE-COMMIT, rebase-merge, and squash-merge styles all resolve identically; the
+# downstream PR2 _fetch_and_rebase_branch path still applies, satisfying
+# required_linear_history on PR2):
+#   1. gh pr list --head <branch> --state merged
+#        --json number,baseRefName,mergeCommit,mergedAt
+#   2. Filter to merged PRs whose baseRefName starts with `staged-`.
+#   3. Among those bases, keep only the ones that STILL exist on origin AND carry
+#      work (origin/<default>..origin/<base> commit count > 0).
+#   4. If >=2 DISTINCT live-with-work staged bases remain → AMBIGUOUS → INDETERMINATE.
+#      If exactly 1 → echo it (rc 0).  If 0 → rc 1 (no resolution; caller proceeds).
+#
+# FAIL-CLOSED (INC-008): an indeterminate/partial/failed forge read is NOT collapsed
+# into "no merged PR" (that would let the mint site run and duplicate the staged
+# ref). It is routed through resume_pr_query_trustworthy + tristate_indeterminate_
+# escalation → /dso:fp-recovery and the function EXITS TRISTATE_INDETERMINATE (75).
+# Picks the MOST RECENT by mergedAt when several merged PRs target the SAME base.
+#
+# Args:   $1 = source branch (required; a non-staged worktree/feature branch).
+# Stdout: the resolved staged-* base ref name (only on rc 0).
+# Returns: 0 = resolved exactly one live staged base;
+#          1 = no merged staged-PR1 base resolvable (caller proceeds normally);
+#          exits 75 = INDETERMINATE (ambiguous bases, or untrustworthy forge read).
+_resolve_merged_pr1_staged_base() {
+    local _branch="${1:-}"
+    [[ -n "$_branch" ]] || return 1
+
+    # --- Forge read (bounded transient retry; INC-008 trustworthiness guard). ---
+    local _json="" _gh_rc=0 _attempt
+    for _attempt in 1 2; do
+        _json=$(gh pr list --head "$_branch" --state merged \
+            --json number,baseRefName,mergeCommit,mergedAt 2>/dev/null); _gh_rc=$?
+        resume_pr_query_trustworthy "$_gh_rc" "$_json" && break
+        if [[ "$_attempt" == "2" ]]; then
+            if declare -F tristate_indeterminate_escalation >/dev/null 2>&1; then
+                tristate_indeterminate_escalation "merge-to-main:resolve-merged-pr1-base" \
+                    "could not obtain a trustworthy merged-PR1 list for head ${_branch} (rc=${_gh_rc}) after a retry; refusing to resolve a staged base or mint a new staged ref on partial GitHub state (INC-008)" \
+                    "$_branch"
+            else
+                echo "INDETERMINATE: could not obtain trustworthy merged-PR1 list for ${_branch} (INC-008) — use /dso:fp-recovery." >&2
+            fi
+            exit "${TRISTATE_INDETERMINATE:-75}"
+        fi
+        sleep 1
+    done
+
+    # --- Extract distinct staged-* bases, most-recent mergedAt first. ---
+    # The payload is trustworthy JSON at this point. Emit one base ref per line,
+    # de-duplicated, ordered by descending mergedAt (so the first line is the most
+    # recent base when several merged PRs target the SAME base).
+    local _bases
+    _bases=$(printf '%s' "$_json" | python3 -c "
+import json, sys
+try:
+    prs = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+staged = [p for p in prs
+          if str(p.get('baseRefName', '')).startswith('staged-')]
+# Most-recent mergedAt first (lexicographic on ISO-8601 == chronological).
+staged.sort(key=lambda p: str(p.get('mergedAt', '')), reverse=True)
+seen = []
+for p in staged:
+    b = p.get('baseRefName', '')
+    if b and b not in seen:
+        seen.append(b)
+        print(b)
+" 2>/dev/null || true)
+
+    # No merged staged-PR1 at all → no resolution; caller proceeds normally.
+    [[ -n "$_bases" ]] || return 1
+
+    # --- Keep only bases that STILL exist on origin AND carry work. ---
+    # origin/<default>..origin/<base> > 0 commits. A failed fetch / missing ref /
+    # non-numeric count drops the base from the live set (it is not a usable PR2
+    # source). Preserve mergedAt order so the most recent is first.
+    local _db="${_DEFAULT_BRANCH:-main}"
+    local _live=() _base _ahead
+    while IFS= read -r _base; do
+        [[ -n "$_base" ]] || continue
+        git ls-remote --heads origin "$_base" 2>/dev/null | grep -q . || continue
+        git fetch origin "$_db" "$_base" --quiet 2>/dev/null || true
+        _ahead=$(git rev-list --count "origin/${_db}..origin/${_base}" 2>/dev/null || echo "")
+        [[ "$_ahead" =~ ^[0-9]+$ ]] || continue
+        (( _ahead > 0 )) || continue
+        _live+=("$_base")
+    done <<< "$_bases"
+
+    # Zero live-with-work staged bases → no resolution (caller proceeds normally).
+    if (( ${#_live[@]} == 0 )); then
+        return 1
+    fi
+
+    # >=2 DISTINCT live-with-work staged bases for the same head → AMBIGUOUS.
+    # Refuse to guess which is the canonical PR1 base → INDETERMINATE (INC-008).
+    if (( ${#_live[@]} >= 2 )); then
+        if declare -F tristate_indeterminate_escalation >/dev/null 2>&1; then
+            tristate_indeterminate_escalation "merge-to-main:resolve-merged-pr1-base" \
+                "found ${#_live[@]} distinct live staged-* bases with work for head ${_branch} (${_live[*]}); cannot determine the canonical PR1 base — refusing to advance or mint on an ambiguous forge state (INC-008)" \
+                "$_branch"
+        else
+            echo "INDETERMINATE: ${#_live[@]} ambiguous live staged-* bases for ${_branch} (${_live[*]}) — use /dso:fp-recovery." >&2
+        fi
+        exit "${TRISTATE_INDETERMINATE:-75}"
+    fi
+
+    # Exactly one live staged base (most-recent mergedAt) → resolved.
+    printf '%s\n' "${_live[0]}"
+    return 0
+}
+
 # resume_staged_ref_is_spent <commits_ahead_of_main>
 # 3ebb DD2 / INC-015: a staged-* ref is SPENT when it carries 0 commits ahead of
 # origin/main — its content already merged (a completed promotion) or it is an
@@ -1398,6 +1520,29 @@ _phase_staged_intermediate() {
     if [[ "$_origin_url" != *"github.com"* ]]; then
         echo "INFO: staged-intermediate phase skipped (origin '$_origin_url' is not a github.com remote)"
         return 0
+    fi
+
+    # Mint-site refusal guard (bug 6d7f-bade-2350-4eaf, defense-in-depth). Before
+    # minting a NEW staged ref, check GitHub for an already-merged PR1 whose staged
+    # base is still live and carries work. If one resolves, a prior PR1 already
+    # promoted this source into a staged ref — minting a SECOND ref + PR1 would
+    # duplicate the promotion (the exact 6d7f defect). REFUSE to mint and emit an
+    # actionable signal routing the operator to resume the EXISTING staged base.
+    # This guarantees no second staged ref even if a future resume path regresses.
+    # The helper itself fails closed to INDETERMINATE (exit 75) on an ambiguous or
+    # untrustworthy forge read, so this guard never guesses.
+    if type _resolve_merged_pr1_staged_base >/dev/null 2>&1; then
+        local _existing_staged_base=""
+        _existing_staged_base=$(_resolve_merged_pr1_staged_base "$BRANCH") || true
+        if [[ -n "$_existing_staged_base" ]]; then
+            echo "ERROR: refusing to mint a new staged ref for ${BRANCH}: an already-merged PR1 promoted it into staged base '${_existing_staged_base}', which still exists and carries work." >&2
+            echo "ERROR: minting a second staged ref would duplicate the promotion (bug 6d7f). Resume the existing staged base instead:" >&2
+            echo "       .claude/scripts/dso merge-to-main.sh --resume   # advances PR2 from ${_existing_staged_base}" >&2
+            _emit_source_branch_diverged "staged_pr1_already_merged" \
+                "git fetch origin ${_existing_staged_base} && .claude/scripts/dso merge-to-main.sh --resume" \
+                "no refs were mutated; the existing staged base ${_existing_staged_base} is intact"
+            return 1
+        fi
     fi
 
     # 1. Create the staged-* ref pointing at origin/main HEAD.
@@ -3592,6 +3737,22 @@ fi
 # sitting at main HEAD — the empty-staged advance that lost a live session's work.
 if type _state_get_field >/dev/null 2>&1; then
     _saved_staged=$(_state_get_field "staged_branch" "" 2>/dev/null || true)
+    # Bug 6d7f-bade-2350-4eaf: cache-miss fallback. When the /tmp state cache is
+    # absent/cleared, _saved_staged is empty and the advance block below is skipped —
+    # control then falls through to _phase_staged_intermediate, which mints a NEW
+    # staged ref + a duplicate PR1. Reconstruct the merged-PR1 staged base from
+    # GitHub state (level-triggered) when BRANCH is a non-staged source branch, then
+    # feed the EXISTING _resume_should_advance_to_staged gate below (no decision
+    # logic is duplicated). An untrustworthy/ambiguous forge read inside the helper
+    # fails closed to INDETERMINATE (exit 75) rather than guessing.
+    if [[ -z "$_saved_staged" ]] && ! _branch_is_staged_promotion "$BRANCH" \
+        && type _resolve_merged_pr1_staged_base >/dev/null 2>&1; then
+        _resolved_base=$(_resolve_merged_pr1_staged_base "$BRANCH") && [[ -n "$_resolved_base" ]] \
+            && _saved_staged="$_resolved_base"
+        if [[ -n "$_saved_staged" ]]; then
+            echo "INFO: --resume: state cache absent — resolved merged-PR1 staged base ${_saved_staged} from GitHub for ${BRANCH} (level-triggered advance-to-PR2)" >&2
+        fi
+    fi
     if [[ -n "$_saved_staged" && "$BRANCH" != "$_saved_staged" ]]; then
         # 3ebb DD2 / INC-008: read PR1 state from GitHub through the trustworthiness
         # guard. A partial/failed read must NOT be collapsed into a count — treating

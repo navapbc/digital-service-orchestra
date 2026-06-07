@@ -83,7 +83,15 @@ case "\$1" in
   pr)
     case "\$2" in
       list)
-        # Used by duplicate-PR guard — return empty.
+        # Used by the duplicate-PR guard AND the 6d7f merged-PR1 mint-site refusal
+        # guard. A real `gh pr list --json ...` returns a JSON array ("[]" when no
+        # PRs match) on success — NEVER an empty string (an empty string + rc 0 is
+        # the INC-008 "indeterminate/partial read" signal the resolver fails closed
+        # on). Emit "[]" for the --json query so this fixture models a clean
+        # no-merged-PR1 forge state (the normal first-run mint path proceeds).
+        if [[ "\$*" == *"--json"* ]]; then
+          echo "[]"
+        fi
         exit 0
         ;;
       create)
