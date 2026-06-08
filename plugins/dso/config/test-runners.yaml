@@ -1,0 +1,54 @@
+# test-runners.yaml — harness manifest for the DSO test-runner registry.
+#
+# Mirrors the flat named-strategy style of sibling template-registry.yaml.
+# Each entry carries:
+#   id              — authoritative harness identifier (consumed by sc-1 corpus + sc-3 test)
+#   kind            — "engine" (standalone runner) or "wrapper" (delegates to an engine)
+#   invocation      — structured block describing how this harness is invoked
+#   verdict_adapter — NAME/PATH reference to a future sc-3 adapter (no adapter body here;
+#                     adapter logic is deferred to sc-3 per Scope OUT)
+#   delegate_engine — (wrappers only) id of the engine this wrapper delegates to
+
+harnesses:
+  - id: bash-runner.sh
+    kind: engine
+    invocation:
+      method: composite-command
+      command: test-batched.sh --runner=bash
+      description: >
+        Invoked as the test-batched.sh --runner=bash composite command template.
+        test-batched.sh dispatches individual bash test scripts via the bash
+        runner, collecting PASSED/FAILED counts from each script's output.
+    verdict_adapter: adapters/bash-runner-verdict-adapter
+
+  - id: suite-engine.sh
+    kind: engine
+    invocation:
+      method: direct-file-args
+      description: >
+        Invoked directly with test file paths as positional arguments.
+        Runs scripts in parallel with configurable timeout and fail-fast
+        support; aggregates pass/fail counts from all test scripts.
+    verdict_adapter: adapters/suite-engine-verdict-adapter
+
+  - id: validate.sh
+    kind: wrapper
+    delegate_engine: bash-runner.sh
+    invocation:
+      method: direct-invoke
+      description: >
+        Top-level validation wrapper. Delegates test execution to
+        bash-runner.sh (via test-batched.sh --runner=bash). Runs the
+        full validation suite including lint, format-check, and test gates.
+    verdict_adapter: adapters/validate-verdict-adapter
+
+  - id: run-hook-tests.sh
+    kind: wrapper
+    delegate_engine: suite-engine.sh
+    invocation:
+      method: direct-invoke
+      description: >
+        Hook test wrapper. Delegates execution to suite-engine.sh for
+        parallel hook test discovery and execution. Aggregates hook test
+        results from the tests/hooks/ directory.
+    verdict_adapter: adapters/run-hook-tests-verdict-adapter
