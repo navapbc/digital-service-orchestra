@@ -104,4 +104,18 @@ else
     assert_eq "test_behavioral_testing_standard_has_rule5_heading" "present" "missing"
 fi
 
+# ===========================================================================
+# test: all composed reviewer tiers reference behavioral-testing-standard.md.
+# Epic 7412 / task 1cd8 injected the standard's VALID-test-patterns guidance into
+# reviewer-base.md so EVERY reviewer tier (not just test-quality) stops false-flagging
+# legitimate tests — the largest FP source per the 2026-06-08 analysis. The base is
+# composed into every tier by build-review-agents.sh, so each composed agent must now
+# carry the reference (structural/Rule-5 referential-integrity check).
+# ===========================================================================
+echo "--- reviewer tiers inherit the standard via reviewer-base ---"
+for _rv in code-reviewer-standard code-reviewer-light \
+           code-reviewer-deep-verification code-reviewer-deep-correctness; do
+    assert_agent_references_standard "$_rv"
+done
+
 print_summary
