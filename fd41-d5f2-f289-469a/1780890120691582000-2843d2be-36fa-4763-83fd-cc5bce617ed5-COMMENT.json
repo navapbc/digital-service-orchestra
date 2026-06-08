@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"REMEDIATION_CYCLE:3 plan-review revision — AC7 allowlist check changed to grep -Fq 'tests/runners/' (anchored, no substring false-positive) per Task Design reviewer suggestion"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1780890120691582000,"uuid":"2843d2be-36fa-4763-83fd-cc5bce617ed5"}
