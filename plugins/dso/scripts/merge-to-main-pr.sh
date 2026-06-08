@@ -1445,7 +1445,11 @@ _restage_execute() {
     # otherwise: a live or indeterminate holder still spins/aborts).
     _restage_acquire_lock "$_lockdir" 60 || return 1
     # shellcheck disable=SC2064  # expand _lockdir NOW so the cleanup targets this path
-    trap "rmdir '$_lockdir' 2>/dev/null || true" RETURN
+    # 6da6: rm -rf (not rmdir) — _restage_acquire_lock writes a `pid` file INTO the
+    # lockdir, so rmdir (empty-dirs-only) silently fails and leaks a stale lock past
+    # the function. rm -rf removes the dir + pid atomically, matching the stale-lock
+    # reclaim path above (which already uses rm -rf), so the lock is never leaked.
+    trap "rm -rf '$_lockdir' 2>/dev/null || true" RETURN
     git fetch origin "$_db" --quiet 2>/dev/null || true
     if ! git rev-parse --verify --quiet "$_src" >/dev/null && ! git rev-parse --verify --quiet "origin/$_src" >/dev/null; then
         echo "ERROR: source branch $_src not found locally or on origin — cannot re-stage" >&2; return 1
