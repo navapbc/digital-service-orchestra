@@ -148,6 +148,40 @@ If any criterion fails, do NOT force-merge. Because the Step 2 reviewer was **ne
 
 If all four hold, you are **cleared to force-merge**.
 
+### Step 4.5: Record the override in the FP ledger (mandatory)
+
+Before handing off the merge, record the false positive in the durable, queryable FP
+ledger. This is the audit trail the 2026-06-08 FP-analysis found missing — without it,
+each future FP-rate / root-cause review must reverse-engineer findings from scattered
+(sometimes unrecoverable) PR comments.
+
+Record the **ORIGINAL blocking finding** (the one you judged an FP in Step 0/1 — *not*
+the neutral re-review, which is 0-findings by definition here) plus a structured
+root-cause category. You already read the original finding when deciding fp-recovery was
+the right path; reuse it now. Pick `--fp-category` from the FP taxonomy in
+`${CLAUDE_PLUGIN_ROOT}/docs/contracts/fp-recovery-ledger-schema.md` (T1..T10 / TX).
+
+```bash
+LEDGER_WRITE="${CLAUDE_PLUGIN_ROOT}/scripts/ci/fp-recovery-ledger-write.sh"  # shim-exempt: doc example, explicit plugin-root invocation
+bash "$LEDGER_WRITE" \
+  --pr "<PR_NUMBER>" \
+  --fp-category "<T1..T10|TX>" \
+  --fp-rationale "<one-sentence why it is an FP — same text as the Step 5b annotation>" \
+  --original-summary "<<=30-word summary of what the blocking finding claimed>" \
+  --original-severity "<critical|important|fragile>" \
+  --original-class "<verification|correctness|security|design|...>" \
+  --original-location "<file:line from the blocking finding>" \
+  --neutral-reviewer-hash "<REVIEWER_HASH from Step 2>" \
+  --cleared-by "<the bypass actor's github login>"
+```
+
+The writer appends one JSONL record to `$DSO_FP_LEDGER_PATH` (default
+`<repo>/docs/audits/fp-recovery-ledger.jsonl`). It is pure reporting — not on the
+bypass-propagation path (ADR-0022), so no signing key. A non-zero exit is **non-blocking
+for the merge** but must be surfaced (a mis-call should not silently drop the record);
+re-run with corrected arguments. Required args: `--pr`, `--fp-category`,
+`--fp-rationale`, `--original-summary`.
+
 ### Step 5: Confirm other required checks are green, then hand off a web-UI merge link
 
 **The autonomous agent does NOT merge.** Under the Goal-4 containment model the dev
