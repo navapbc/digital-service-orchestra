@@ -382,6 +382,28 @@ t_restage_execute_empty_fresh_branch_is_noop() {
     assert_eq "t_restage_noop_no_fresh_branch" "FRESH_ABSENT" "$(printf '%s' "$_out" | grep -o 'FRESH_\(EXISTS\|ABSENT\)' | head -n1)"
 }
 
+# 6da6 (test hermeticity): _restage_execute acquires a mkdir-lock and releases it via a
+# RETURN trap. The trap MUST fully remove the lock directory — including the pid file
+# written into it on acquire — so no stale lock survives the call. A leaked lockdir
+# (rmdir silently fails on the non-empty pid-containing dir) accumulates a stale lock
+# whose dead PID, once reused/appears-live, makes the NEXT acquire spin 60s then abort
+# (RC=1, no NO-OP) — the exact non-hermetic failure of the no-op tests above. Assert the
+# observable post-condition: after a no-op _restage_execute returns, the lock dir is GONE.
+t_restage_execute_releases_lock_on_return() {
+    local _T _W _lock _released
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-ef39.XXXXXX")"; trap "rm -rf '$_T'" RETURN
+    _W="$(_build_topology_fixture "$_T" spent merged)"
+    # _restage_execute keys the lock on the default branch ('main' here): see
+    # _lockdir="${TMPDIR:-/tmp}/dso-restage-${_db//\//_}.lock.d" in merge-to-main-pr.sh.
+    _lock="${TMPDIR:-/tmp}/dso-restage-main.lock.d"
+    rm -rf "$_lock"  # clean precondition (defend against an earlier leaked run)
+    _run_in_fixture "$_T" "$_W" \
+        "DSO_RESTAGE_EXECUTE=1 _restage_execute '' '$BRANCH_NAME' 'main' >/dev/null 2>&1" >/dev/null 2>&1
+    _released="leaked"; [[ ! -e "$_lock" ]] && _released="released"
+    rm -rf "$_lock"  # cleanup regardless of verdict (keep the suite hermetic)
+    assert_eq "t_restage_execute_releases_lock_on_return" "released" "$_released"
+}
+
 # Run all.
 t_spent_rebase_merged_with_merged_pr_is_spent
 t_spent_squash_merged_with_merged_pr_is_spent
@@ -395,5 +417,6 @@ t_classify_behind_defers
 t_classify_diverged_not_spent_is_concurrent_signal
 t_classify_diverged_spent_is_spent_signal
 t_restage_execute_empty_fresh_branch_is_noop
+t_restage_execute_releases_lock_on_return
 
 print_summary
