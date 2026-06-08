@@ -119,7 +119,12 @@ else
     _pass "predicate_defined"
     if _branch_is_staged_promotion "staged-abc123def456-1780000000"; then _pass "T15_staged_is_promotion"; else _fail "T15_staged_is_promotion" "staged-* must be a promotion (true)"; fi
     if ! _branch_is_staged_promotion "story/588e-abec-221f-42c0/feat-x"; then _pass "T16_feature_branch_not_promotion"; else _fail "T16_feature_branch_not_promotion" "a feature branch must NOT be a promotion (false)"; fi
-    if ! _branch_is_staged_promotion ""; then _pass "T17_empty_not_promotion"; else _fail "T17_empty_not_promotion" "empty must be false"; fi
+    # 702c: isolate BRANCH for the empty-EXPLICIT-arg case. The predicate uses
+    # ${1:-${BRANCH:-}}, and Bash ${1:-default} substitutes the default for an
+    # explicit "" as well as for no-arg — so an ambient BRANCH=staged-* (left by
+    # PR_LIB_MODE=1 sourcing or a prior test) would leak in and make T17 false-FAIL.
+    # The no-arg $BRANCH fallback is intentional and covered by T18/T19 below.
+    if ! BRANCH='' _branch_is_staged_promotion ""; then _pass "T17_empty_not_promotion"; else _fail "T17_empty_not_promotion" "empty must be false"; fi
     # default arg reads $BRANCH (save/restore)
     _saved_branch="${BRANCH:-}"
     BRANCH="staged-zzz-1"; if _branch_is_staged_promotion; then _pass "T18_default_reads_BRANCH_staged"; else _fail "T18_default_reads_BRANCH_staged" "default should read \$BRANCH"; fi
