@@ -918,6 +918,48 @@ jobs:
               ;;
           esac
 
+      # bug 2195 (epic 7412): wire the review-convergence brake. review-convergence-check.sh
+      # was built + tested but invoked nowhere, so the review loop had no oscillation
+      # brake (a finding cleared in one cycle then re-flagged in a later cycle) or
+      # cycle-cap signal — the FP-amplification pattern the 2026-06-08 FP-analysis found
+      # across PRs #633/#641/#643/#647/#649/#684. ADVISORY (warn-only, NOT in
+      # required-checks.txt) per the workflow-stability warn-first convention; admin
+      # go-live = make the step fail on exit 1 + add to required-checks. History persists
+      # across this PR's review cycles via an accumulating cache (unique key per run,
+      # restored from the latest same-PR prefix).
+      - name: Restore review-convergence history
+        if: always() && needs.changes.outputs.code_changed == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/dso-convergence
+          key: dso-convergence-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            dso-convergence-${{ github.event.pull_request.number }}-
+
+      - name: Review convergence check (advisory — bug 2195)
+        if: always() && needs.changes.outputs.code_changed == 'true'
+        shell: bash
+        env:
+          DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
+        run: |
+          set +e
+          mkdir -p "${{ runner.temp }}/dso-convergence"
+          export DSO_CONVERGENCE_HISTORY="${{ runner.temp }}/dso-convergence/pr-${{ github.event.pull_request.number }}.history"
+          export DSO_CI_REVIEW_FINDINGS_PATH="${DSO_CI_REVIEW_FINDINGS_PATH:-/tmp/findings.json}"
+          if [[ ! -f "$DSO_CI_REVIEW_FINDINGS_PATH" ]]; then
+            echo "convergence: no findings file (review skipped or not yet written) — nothing to record"
+            exit 0
+          fi
+          bash plugins/dso/scripts/ci/review-convergence-check.sh
+          _rc=$?
+          case "$_rc" in
+            0) echo "convergence: OK (no oscillation; cycle cap not exceeded)" ;;
+            1) echo "::warning::review-convergence brake (advisory): oscillation or cycle-cap detected on this PR at cycle ${DSO_REVIEW_CYCLE:-1} — investigate FP-amplification (bug 2195 / WORKFLOW-STABILITY-CHECKS.md). Non-blocking today." ;;
+            78) echo "convergence: precondition not met (history/cycle env absent) — skipped" ;;
+            *) echo "::warning::review-convergence check exited ${_rc} (advisory, non-blocking)" ;;
+          esac
+          exit 0
+
       - name: Assert review liveness
         # F3 fix: the prior gate (`if: code_changed == 'true'`) made this
         # safety net invisible when the upstream classifier said "no
