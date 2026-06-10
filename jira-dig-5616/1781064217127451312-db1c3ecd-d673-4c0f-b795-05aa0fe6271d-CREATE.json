@@ -1,0 +1,1 @@
+{"timestamp": 1781064217127451312, "uuid": "db1c3ecd-d673-4c0f-b795-05aa0fe6271d", "event_type": "CREATE", "env_id": "reconciler", "author": "reconciler", "data": {"id": "jira-dig-5616", "ticket_type": "task", "title": "stalecache probe", "description": "", "parent_id": "", "tags": ["rebar-id:1eb9-948e-3360-43e6", "imported:reconciler-bootstrap"], "priority": 2}}
