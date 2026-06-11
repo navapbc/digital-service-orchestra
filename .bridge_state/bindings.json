@@ -1933,10 +1933,12 @@
       "updated_at": "2026-06-06T01:21:05.431495+00:00"
     },
     "5045-c1fd-a2b5-4efb": {
+      "absent_404_count": 1,
       "created_at": "2026-06-05T18:28:01.051185+00:00",
       "jira_key": "DIG-5363",
+      "last_get_pass": "2026-06-11T23-38-52",
       "state": "confirmed",
-      "updated_at": "2026-06-05T18:28:01.051185+00:00"
+      "updated_at": "2026-06-11T23:39:33.343528+00:00"
     },
     "5078-537c-42a1-40b5": {
       "created_at": "2026-06-03T00:00:31.782784+00:00",
@@ -2083,10 +2085,12 @@
       "updated_at": "2026-06-04T19:35:29.232686+00:00"
     },
     "555b-2d71-16fb-4c6c": {
+      "absent_404_count": 1,
       "created_at": "2026-06-06T06:33:21.015252+00:00",
       "jira_key": "DIG-5571",
+      "last_get_pass": "2026-06-11T23-38-52",
       "state": "confirmed",
-      "updated_at": "2026-06-06T06:33:21.015252+00:00"
+      "updated_at": "2026-06-11T23:39:33.643176+00:00"
     },
     "55a5-8118-d104-409f": {
       "created_at": "2026-06-02T01:04:53.745277+00:00",
@@ -2191,10 +2195,12 @@
       "updated_at": "2026-05-28T22:58:02.168192+00:00"
     },
     "5b4a-fae6-f2dd-4cc2": {
+      "absent_404_count": 1,
       "created_at": "2026-06-05T18:28:01.588706+00:00",
       "jira_key": "DIG-5364",
+      "last_get_pass": "2026-06-11T23-38-52",
       "state": "confirmed",
-      "updated_at": "2026-06-05T18:28:01.588706+00:00"
+      "updated_at": "2026-06-11T23:39:33.812930+00:00"
     },
     "5b87-836f-0f29-448c": {
       "created_at": "2026-06-02T22:13:15.416588+00:00",
@@ -4399,10 +4405,12 @@
       "updated_at": "2026-06-02T03:36:13.209799+00:00"
     },
     "b5fe-1164-8c11-4826": {
+      "absent_404_count": 1,
       "created_at": "2026-06-05T18:28:04.766126+00:00",
       "jira_key": "DIG-5365",
+      "last_get_pass": "2026-06-11T23-38-52",
       "state": "confirmed",
-      "updated_at": "2026-06-05T18:28:04.766126+00:00"
+      "updated_at": "2026-06-11T23:39:34.113774+00:00"
     },
     "b7bf-c3b9-e470-46a0": {
       "created_at": "2026-06-02T18:21:55.802338+00:00",
@@ -6342,6 +6350,96 @@
       "state": "confirmed",
       "updated_at": "2026-06-11T22:04:02.139706+00:00"
     },
+    "jira-dig-5663": {
+      "created_at": "2026-06-11T23:40:01.749612+00:00",
+      "jira_key": "DIG-5663",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:01.749612+00:00"
+    },
+    "jira-dig-5664": {
+      "created_at": "2026-06-11T23:40:02.490278+00:00",
+      "jira_key": "DIG-5664",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:02.490278+00:00"
+    },
+    "jira-dig-5665": {
+      "created_at": "2026-06-11T23:40:03.247840+00:00",
+      "jira_key": "DIG-5665",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:03.247840+00:00"
+    },
+    "jira-dig-5666": {
+      "created_at": "2026-06-11T23:40:03.862739+00:00",
+      "jira_key": "DIG-5666",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:03.862739+00:00"
+    },
+    "jira-dig-5667": {
+      "created_at": "2026-06-11T23:40:04.486753+00:00",
+      "jira_key": "DIG-5667",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:04.486753+00:00"
+    },
+    "jira-dig-5668": {
+      "created_at": "2026-06-11T23:40:05.158933+00:00",
+      "jira_key": "DIG-5668",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:05.158933+00:00"
+    },
+    "jira-dig-5669": {
+      "created_at": "2026-06-11T23:40:05.756537+00:00",
+      "jira_key": "DIG-5669",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:05.756537+00:00"
+    },
+    "jira-dig-5670": {
+      "created_at": "2026-06-11T23:40:06.391492+00:00",
+      "jira_key": "DIG-5670",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:06.391492+00:00"
+    },
+    "jira-dig-5671": {
+      "created_at": "2026-06-11T23:40:07.139188+00:00",
+      "jira_key": "DIG-5671",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:07.139188+00:00"
+    },
+    "jira-dig-5672": {
+      "created_at": "2026-06-11T23:40:07.786926+00:00",
+      "jira_key": "DIG-5672",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:07.786926+00:00"
+    },
+    "jira-dig-5673": {
+      "created_at": "2026-06-11T23:40:08.458217+00:00",
+      "jira_key": "DIG-5673",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:08.458217+00:00"
+    },
+    "jira-dig-5674": {
+      "created_at": "2026-06-11T23:40:11.993959+00:00",
+      "jira_key": "DIG-5696",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:11.993959+00:00"
+    },
+    "jira-dig-5675": {
+      "created_at": "2026-06-11T23:40:17.889134+00:00",
+      "jira_key": "DIG-5697",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:17.889134+00:00"
+    },
+    "jira-dig-5676": {
+      "created_at": "2026-06-11T23:40:22.927471+00:00",
+      "jira_key": "DIG-5698",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:22.927471+00:00"
+    },
+    "jira-dig-5677": {
+      "created_at": "2026-06-11T23:40:25.578985+00:00",
+      "jira_key": "DIG-5677",
+      "state": "confirmed",
+      "updated_at": "2026-06-11T23:40:25.578985+00:00"
+    },
     "w21-bsnz": {
       "created_at": "2026-05-28T23:02:37.755487+00:00",
       "jira_key": "DIG-4721",
@@ -7397,7 +7495,22 @@
     "DIG-5655": "jira-dig-5655",
     "DIG-5656": "jira-dig-5656",
     "DIG-5657": "jira-dig-5657",
-    "DIG-5658": "jira-dig-5658"
+    "DIG-5658": "jira-dig-5658",
+    "DIG-5663": "jira-dig-5663",
+    "DIG-5664": "jira-dig-5664",
+    "DIG-5665": "jira-dig-5665",
+    "DIG-5666": "jira-dig-5666",
+    "DIG-5667": "jira-dig-5667",
+    "DIG-5668": "jira-dig-5668",
+    "DIG-5669": "jira-dig-5669",
+    "DIG-5670": "jira-dig-5670",
+    "DIG-5671": "jira-dig-5671",
+    "DIG-5672": "jira-dig-5672",
+    "DIG-5673": "jira-dig-5673",
+    "DIG-5677": "jira-dig-5677",
+    "DIG-5696": "jira-dig-5674",
+    "DIG-5697": "jira-dig-5675",
+    "DIG-5698": "jira-dig-5676"
   },
   "version": 1
 }
