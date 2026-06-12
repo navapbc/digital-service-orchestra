@@ -23,6 +23,30 @@
       "last_jira_key": "DIG-5339",
       "local_id": "c289-bd53-ff87-44d9",
       "retired_at": "2026-06-05T21:59:27.091630+00:00"
+    },
+    "DIG-5363": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5363",
+      "local_id": "5045-c1fd-a2b5-4efb",
+      "retired_at": "2026-06-12T01:31:34.618239+00:00"
+    },
+    "DIG-5364": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5364",
+      "local_id": "5b4a-fae6-f2dd-4cc2",
+      "retired_at": "2026-06-12T01:31:34.902495+00:00"
+    },
+    "DIG-5365": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5365",
+      "local_id": "b5fe-1164-8c11-4826",
+      "retired_at": "2026-06-12T01:31:35.046762+00:00"
+    },
+    "DIG-5571": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5571",
+      "local_id": "555b-2d71-16fb-4c6c",
+      "retired_at": "2026-06-12T01:31:34.724717+00:00"
     }
   },
   "version": 1
