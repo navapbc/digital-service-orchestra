@@ -1933,12 +1933,12 @@
       "updated_at": "2026-06-06T01:21:05.431495+00:00"
     },
     "5045-c1fd-a2b5-4efb": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-05T18:28:01.051185+00:00",
       "jira_key": "DIG-5363",
-      "last_get_pass": "2026-06-11T23-38-52",
+      "last_get_pass": "2026-06-12T00-10-46",
       "state": "confirmed",
-      "updated_at": "2026-06-11T23:39:33.343528+00:00"
+      "updated_at": "2026-06-12T00:11:25.122833+00:00"
     },
     "5078-537c-42a1-40b5": {
       "created_at": "2026-06-03T00:00:31.782784+00:00",
@@ -2085,12 +2085,12 @@
       "updated_at": "2026-06-04T19:35:29.232686+00:00"
     },
     "555b-2d71-16fb-4c6c": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-06T06:33:21.015252+00:00",
       "jira_key": "DIG-5571",
-      "last_get_pass": "2026-06-11T23-38-52",
+      "last_get_pass": "2026-06-12T00-10-46",
       "state": "confirmed",
-      "updated_at": "2026-06-11T23:39:33.643176+00:00"
+      "updated_at": "2026-06-12T00:11:25.395989+00:00"
     },
     "55a5-8118-d104-409f": {
       "created_at": "2026-06-02T01:04:53.745277+00:00",
@@ -2195,12 +2195,12 @@
       "updated_at": "2026-05-28T22:58:02.168192+00:00"
     },
     "5b4a-fae6-f2dd-4cc2": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-05T18:28:01.588706+00:00",
       "jira_key": "DIG-5364",
-      "last_get_pass": "2026-06-11T23-38-52",
+      "last_get_pass": "2026-06-12T00-10-46",
       "state": "confirmed",
-      "updated_at": "2026-06-11T23:39:33.812930+00:00"
+      "updated_at": "2026-06-12T00:11:25.549697+00:00"
     },
     "5b87-836f-0f29-448c": {
       "created_at": "2026-06-02T22:13:15.416588+00:00",
@@ -4405,12 +4405,12 @@
       "updated_at": "2026-06-02T03:36:13.209799+00:00"
     },
     "b5fe-1164-8c11-4826": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-05T18:28:04.766126+00:00",
       "jira_key": "DIG-5365",
-      "last_get_pass": "2026-06-11T23-38-52",
+      "last_get_pass": "2026-06-12T00-10-46",
       "state": "confirmed",
-      "updated_at": "2026-06-11T23:39:34.113774+00:00"
+      "updated_at": "2026-06-12T00:11:25.679160+00:00"
     },
     "b7bf-c3b9-e470-46a0": {
       "created_at": "2026-06-02T18:21:55.802338+00:00",
@@ -6440,6 +6440,90 @@
       "state": "confirmed",
       "updated_at": "2026-06-11T23:40:25.578985+00:00"
     },
+    "jira-dig-5682": {
+      "created_at": "2026-06-12T00:11:53.426308+00:00",
+      "jira_key": "DIG-5715",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:11:53.426308+00:00"
+    },
+    "jira-dig-5683": {
+      "created_at": "2026-06-12T00:12:01.438009+00:00",
+      "jira_key": "DIG-5716",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:01.438009+00:00"
+    },
+    "jira-dig-5684": {
+      "created_at": "2026-06-12T00:12:07.184916+00:00",
+      "jira_key": "DIG-5717",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:07.184916+00:00"
+    },
+    "jira-dig-5685": {
+      "created_at": "2026-06-12T00:12:11.777437+00:00",
+      "jira_key": "DIG-5718",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:11.777437+00:00"
+    },
+    "jira-dig-5686": {
+      "created_at": "2026-06-12T00:12:16.708517+00:00",
+      "jira_key": "DIG-5719",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:16.708517+00:00"
+    },
+    "jira-dig-5687": {
+      "created_at": "2026-06-12T00:12:22.572633+00:00",
+      "jira_key": "DIG-5720",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:22.572633+00:00"
+    },
+    "jira-dig-5688": {
+      "created_at": "2026-06-12T00:12:27.665563+00:00",
+      "jira_key": "DIG-5721",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:27.665563+00:00"
+    },
+    "jira-dig-5689": {
+      "created_at": "2026-06-12T00:12:32.636154+00:00",
+      "jira_key": "DIG-5722",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:32.636154+00:00"
+    },
+    "jira-dig-5690": {
+      "created_at": "2026-06-12T00:12:39.537677+00:00",
+      "jira_key": "DIG-5723",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:39.537677+00:00"
+    },
+    "jira-dig-5691": {
+      "created_at": "2026-06-12T00:12:44.562825+00:00",
+      "jira_key": "DIG-5724",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:44.562825+00:00"
+    },
+    "jira-dig-5692": {
+      "created_at": "2026-06-12T00:12:49.049432+00:00",
+      "jira_key": "DIG-5725",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:49.049432+00:00"
+    },
+    "jira-dig-5693": {
+      "created_at": "2026-06-12T00:12:54.048499+00:00",
+      "jira_key": "DIG-5726",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:54.048499+00:00"
+    },
+    "jira-dig-5694": {
+      "created_at": "2026-06-12T00:12:58.960265+00:00",
+      "jira_key": "DIG-5727",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:12:58.960265+00:00"
+    },
+    "jira-dig-5695": {
+      "created_at": "2026-06-12T00:13:03.761054+00:00",
+      "jira_key": "DIG-5728",
+      "state": "confirmed",
+      "updated_at": "2026-06-12T00:13:03.761054+00:00"
+    },
     "w21-bsnz": {
       "created_at": "2026-05-28T23:02:37.755487+00:00",
       "jira_key": "DIG-4721",
@@ -7510,7 +7594,21 @@
     "DIG-5677": "jira-dig-5677",
     "DIG-5696": "jira-dig-5674",
     "DIG-5697": "jira-dig-5675",
-    "DIG-5698": "jira-dig-5676"
+    "DIG-5698": "jira-dig-5676",
+    "DIG-5715": "jira-dig-5682",
+    "DIG-5716": "jira-dig-5683",
+    "DIG-5717": "jira-dig-5684",
+    "DIG-5718": "jira-dig-5685",
+    "DIG-5719": "jira-dig-5686",
+    "DIG-5720": "jira-dig-5687",
+    "DIG-5721": "jira-dig-5688",
+    "DIG-5722": "jira-dig-5689",
+    "DIG-5723": "jira-dig-5690",
+    "DIG-5724": "jira-dig-5691",
+    "DIG-5725": "jira-dig-5692",
+    "DIG-5726": "jira-dig-5693",
+    "DIG-5727": "jira-dig-5694",
+    "DIG-5728": "jira-dig-5695"
   },
   "version": 1
 }
