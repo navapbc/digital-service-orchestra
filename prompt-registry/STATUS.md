@@ -110,11 +110,22 @@ operation-signal source files with no inbound `source_ref`.
 
 ## Anti-pattern audits (bot-psychologist)
 
-Six independent bot-psychologist audits have run across the registry (17-point
-taxonomy, KERNEL minimal-fix, 20% rule, affirmative framing). Fixes applied
-include: expanded `outputs.format` vocabulary; declared failure shapes;
-positional-bias/instruction-locality co-location; affirmative reframing of
-clustered prohibitions; and a data-not-instructions guard on prompts that ingest
-arbitrary text. A recommended follow-up remains: extend that instruction-leaking
-guard registry-wide, and run a fresh audit over the ~24 prompts added during the
-de-consolidation pass.
+Seven independent bot-psychologist audits have run across the registry (17-point
+taxonomy, KERNEL minimal-fix, 20% rule, affirmative framing). The seventh covered
+the ~24 prompts added during the de-consolidation and, crucially, **confirmed
+every de-consolidated prompt is genuinely distinct in process AND criteria — no
+accidental duplicates** (the closest pairs — test-quality vs deep-verification,
+advanced vs escalated lenses, the two scenario/finding filters — were each
+verified non-duplicate). Fixes applied across the audits include: expanded
+`outputs.format` vocabulary (incl. `jsonl`); declared failure shapes; positional-
+bias / instruction-locality co-location; affirmative reframing of clustered
+prohibitions; dropped sibling-lens cross-references; a uniform output-block anchor
+across the investigator family; and data-not-instructions guards on the
+highest-exposure untrusted-input prompts.
+
+**Outstanding follow-up (explicit):** the data-not-instructions guard should be
+extended registry-wide to *every* prompt that ingests untrusted external content
+— all `review-code-*` diff reviewers, `review-against-standards`,
+`evaluate-visual-design`, `filter-failure-scenarios`, `analyze-task-list-gaps`,
+`triage-bloat-candidates`, and the exploration/research prompts. Only the two
+most-exposed were patched here; the sweep is the next quality task.
