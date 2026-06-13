@@ -21,9 +21,9 @@ inputs:
 outputs:
   format: structured-block
   schema: >
-    Per issue: STATUS (RESOLVED|STILL_PRESENT|INCONCLUSIVE), TIER_USED (1|2|3),
-    EVIDENCE (API response / automation output / screenshot), NOTES; plus an
-    overall target-health verdict.
+    Per issue: STATUS (RESOLVED|STILL_PRESENT|INCONCLUSIVE), TIER_USED
+    (1|2|3|SKIPPED), EVIDENCE (API response / automation output / screenshot),
+    NOTES; plus an overall target-health verdict.
 tools:
   required:
     - the running application and the available automation (HTTP client and/or browser driver)
@@ -75,7 +75,7 @@ Per issue:
 ```
 ISSUE: <description>
 STATUS: RESOLVED | STILL_PRESENT | INCONCLUSIVE
-TIER_USED: 1 | 2 | 3
+TIER_USED: 1 | 2 | 3 | SKIPPED
 EVIDENCE: <API response, automation output, or screenshot reference>
 NOTES: <context>
 ```
