@@ -1,193 +1,120 @@
 # Prompt Registry — Status & Continuation
 
 This registry decomposes the project's agent, skill, and workflow definitions into
-discrete, generic, single-operation prompts. This file tracks coverage, the
-remaining source inventory, and the review verdicts.
+discrete, generic, single-operation prompts.
+
+## Distinctness principle (load-bearing)
+
+**Prompts that share an output contract but apply a different process or criteria
+are DISTINCT and each gets its own file.** A correctness checklist, a security
+red-team sweep, and a performance analysis all emit a findings array — they are
+three different operations, not one with a parameter. Likewise an execution-path
+bug trace vs. a timeline-reconstruction trace. Two prompts are the *same*
+operation only when their process AND criteria are identical (differing solely in
+dispatch mechanics or model). The registry does not consolidate distinct
+processes; it captures each one. Routing across related prompts is handled by
+`SELECTOR.md` index docs, which point to the prompts without combining them.
 
 ## Coverage
 
-**49 prompts across 10 categories**, all passing `scripts/validate-registry.sh`
-(frontmatter contract, category/directory agreement, self-sufficient body), plus
-two lens catalogs that parameterize the base prompts instead of duplicating them.
+**73 prompts across 10 categories**, all passing `scripts/validate-registry.sh`.
 
-| Category | Count | Prompts |
-|----------|-------|---------|
-| classification | 6 | classify-into-taxonomy, assess-complexity-tier, detect-resource-interactions, triage-test-infeasibility, triage-merge-conflicts, score-value-effort |
-| review | 14 | review-code-diff, review-against-standards, filter-false-positive-findings, detect-scope-drift, arbitrate-findings-at-cycle-end, check-complexity-gate, evaluate-visual-design, red-team-find-gaps, assess-integration-feasibility, review-plan-for-readiness, check-criteria-verifiable, enumerate-failure-scenarios, reconcile-committee-review, detect-coverage-omissions (+ LENSES.md) |
-| exploration | 5 | locate-code-by-intent, research-question-on-web, search-for-prior-art, decompose-exploration-question, scan-for-pattern-occurrences |
-| generation | 5 | update-project-documentation, write-behavioral-test, write-plain-language-copy, design-ui-for-requirement, scaffold-integration-harness |
-| verification | 6 | verify-claim-second-source, audit-process-compliance, verify-acceptance-criteria, adjudicate-evidence-claim, verify-fix-end-to-end, audit-unverified-assumptions |
-| remediation | 3 | resolve-review-findings, apply-fix-across-occurrences, resolve-merge-conflicts |
-| diagnosis | 2 | diagnose-llm-behavior, investigate-bug-root-cause (+ INVESTIGATION-LENSES.md, incl. cluster mode) |
-| decomposition | 3 | decompose-work-into-tasks, decompose-into-vertical-slices, split-large-change-for-review |
-| planning | 4 | select-implementation-approach, propose-implementation-approaches, classify-remediation-scope, prioritize-items-into-tiers |
-| transformation | 1 | repair-output-to-schema |
+| Category | Count |
+|----------|-------|
+| review | 26 |
+| diagnosis | 10 |
+| classification | 7 |
+| exploration | 6 |
+| generation | 6 |
+| verification | 6 |
+| planning | 4 |
+| remediation | 4 |
+| decomposition | 3 |
+| transformation | 1 |
 
-## Lens approach
+Selectors: `review/SELECTOR.md` and `diagnosis/SELECTOR.md` index the related
+review and investigation prompts and describe composition patterns (deep review =
+run the specialists in parallel then synthesize; security = red-team then
+blue-team; advanced/escalated investigation = parallel lenses then empirical
+confirm).
 
-The project's many reviewer variants (~12) and investigator variants (9) are not
-separate operations — they are **lenses** (focus/depth/technique) on two base
-prompts. Rather than mint near-duplicate files, the registry captures them as
-parameter values:
+## Distinct families captured (the reversal)
 
-- `review/LENSES.md` — depth (light/standard/deep), specialist (correctness,
-  verification, hygiene, design, maintainability, performance, test-quality),
-  security red/blue pair, and synthesis lenses for `review-code-diff` via a
-  `review_focus` input.
-- `diagnosis/INVESTIGATION-LENSES.md` — depth (basic→escalated) and technique
-  (code-tracer/historical/empirical/web) lenses for `investigate-bug-root-cause`
-  via `investigation_depth` / `investigation_technique` inputs.
+An earlier pass wrongly collapsed two families into one base prompt each plus a
+"lens" catalog. That destroyed the per-variant IP and has been reversed — every
+variant is now its own self-contained prompt:
 
-This is the deliberate reuse choice flagged in the original plan: parameterize the
-base contract, don't duplicate it.
+- **Reviewers (10):** review-code-light, review-code-diff (standard),
+  review-code-performance, review-test-quality, review-code-deep-correctness,
+  review-code-deep-hygiene, review-code-deep-verification,
+  review-code-deep-architecture, review-security-red-team,
+  review-security-blue-team.
+- **Investigators (9):** investigate-bug-root-cause (basic/universal),
+  investigate-bug-intermediate, investigate-bug-advanced-code-tracer,
+  investigate-bug-advanced-historical, investigate-bug-escalated-code-tracer,
+  investigate-bug-escalated-empirical, investigate-bug-escalated-history,
+  investigate-bug-escalated-web, investigate-bug-cluster.
 
-## Source inventory — coverage status
+Other distinct operations extracted in the same pass: review-refactor-conformance,
+analyze-task-list-gaps, filter-failure-scenarios, triage-bloat-candidates,
+apply-bloat-removals, curate-incident-corpus, scan-ci-for-failures.
 
-All **53 agent definitions** map to a registry prompt or a lens:
+## Genuine duplicates NOT separated (per the distinctness rule)
 
-- Captured as distinct prompts: bug-classifier, complexity-evaluator,
-  cross-epic-interaction-classifier, bot-psychologist, code-reviewer (base),
-  code-reviewer-arbiter, code-reviewer-verifier, blue-team-filter,
-  scope-drift-reviewer, red-test-evaluator, completion-verifier,
-  second-source-verifier, task-decomposer, story-decomposer, doc-writer,
-  gov-copy-writer, ui-designer, visual-evaluator, red-test-writer,
-  schema-correction, approach-proposer, approach-decision-maker,
-  conflict-analyzer, verification-remediation-planner, intent-search,
-  investigator (base), feasibility-reviewer, plan-review, red-team-reviewer,
-  architectural-probe.
-- Captured as **lenses** (not duplicated): the 12 `code-reviewer-*` tier/specialist
-  variants → `review/LENSES.md`; the 9 `investigator-*` variants →
-  `diagnosis/INVESTIGATION-LENSES.md`.
-- Intentionally not extracted: `bloat-blue-team`/`bloat-resolver` and
-  `huge-diff-*` (lenses of `review-against-standards` / `review-code-diff` — the
-  bloat pair maps to a review + a transformation that the existing prompts cover
-  with a `review_focus`), and `inference-incident-curator` (project-bookkeeping
-  specific). Add as lenses if a consumer needs them.
+These are the *same* operation (identical process AND criteria) and are
+intentionally not given their own prompt — separating them would be duplication,
+which the rule forbids just as it forbids consolidating distinct ones:
 
-Reusable **shared prompts** captured: prior-art-search, value-effort-scorer,
-complexity-gate, exploration-decomposition, large-diff-splitting-guide,
-verifiable-sc-check. The remaining shared files
-(behavioral-testing-standard, anti-patterns, prohibited-fix-patterns, doc-router,
-named-agent-dispatch, worktree-dispatch, single-agent-integrate,
-ci-skeleton-templates, empirical-validation, scale-inference)
-are **guidance standards, not single-operation prompts** — they are best
-referenced by prompts (as `standards` inputs to `review-against-standards`) than
-turned into standalone operations, per the one-operation-per-prompt rule.
+- `agents/ci/code-reviewer-*` — identical criteria to the top-level reviewers;
+  they differ only in dispatch harness (CI has no tool access). Same operation,
+  different I/O channel.
+- `huge-diff-reviewer-light` / `huge-diff-reviewer-standard` — explicitly
+  "identical behavior to code-reviewer-light/standard but on opus." Same process,
+  different model/context.
+- `investigator-intermediate-fallback` — explicitly "investigation depth and
+  quality match investigator-intermediate; only the persona framing differs."
+- `docs/workflows/prompts/reviewer-delta-*` and `investigator-delta-*` — build
+  fragments composed into the agents above, not separate operations.
 
-The **skills** (sprint, brainstorm, preplanning, debug-everything, etc.) are
-multi-step orchestrations, not single operations — the orchestration logic itself
-is out of scope. However, several skills carry discrete sub-agent prompts under
-`skills/*/prompts/` and `docs/workflows/prompts/` that ARE single operations. A
-coverage sweep (role-frame + output-contract signal detection across all 431
-`plugins/dso/**/*.md`, minus already-captured sources) surfaced these; manual
-verification extracted six genuinely-new ones: `resolve-review-findings`,
-`apply-fix-across-occurrences`, `resolve-merge-conflicts`,
-`scan-for-pattern-occurrences`, `verify-fix-end-to-end`, and
-`enumerate-failure-scenarios`. Three candidates were verified **not** new and were
-documented rather than duplicated: `cluster-investigation` (a cluster mode of
-`investigate-bug-root-cause`, added to INVESTIGATION-LENSES.md), `gap-analysis`
-(`red-team-find-gaps` with an implementation-task gap taxonomy), and `gha-scanner`
-(orchestration + ticket-bookkeeping coupled; thin generic kernel). The
-`agents/ci/*` and `docs/workflows/prompts/reviewer-delta-*` files are CI/delta
-renderings of reviewers already captured via `review-code-diff` + LENSES.
+If a consumer needs a model/harness variant, it selects the matching prompt and
+overrides `model_hint` / tool availability.
 
-To make this repeatable, a future pass should add a `source_ref:` frontmatter
-field (origin path / `lens:<base>` / `excluded:<reason>`) and a
-`coverage-report.sh` that prints source files with operation signals and no
-inbound `source_ref` — the live miss list.
+## Source inventory
 
-A deeper **section-level** scan (operation signals inside orchestration/SKILL
-bodies, not just `prompts/` subdirs — the layer file-level detection structurally
-misses) surfaced four more embedded operations, all verified distinct and
-extracted: `prioritize-items-into-tiers` (from prioritize-epics' coarse+granular
-sort), `reconcile-committee-review` (the score-aggregation + conflict-detection
-pattern repeated across six skills' `review-criteria.md`), `detect-coverage-
-omissions` (scrutiny Part A), and `audit-unverified-assumptions` (scrutiny
-inference-signal scan). The scrutiny "LLM-Instruction Signal Detection" was
-verified NOT new (it is `classify-into-taxonomy` over surface categories).
+All 53 top-level agents are now individual prompts (or, for the four duplicates
+above, the canonical prompt they duplicate). Reusable shared prompts captured:
+prior-art-search, value-effort-scorer, complexity-gate, exploration-decomposition,
+large-diff-splitting-guide, verifiable-sc-check. Skill-embedded sub-agent prompts
+captured across both a file-level coverage sweep and a section-level scan. The
+remaining shared files (behavioral-testing-standard, anti-patterns,
+prohibited-fix-patterns, doc-router, named-agent-dispatch, worktree-dispatch,
+single-agent-integrate, ci-skeleton-templates, empirical-validation,
+scale-inference) are guidance *standards* consumed as `standards` inputs, not
+single operations. SKILL.md bodies are multi-step orchestrations.
+
+To make coverage auditable rather than estimated, a future pass should add a
+`source_ref:` frontmatter field and a `coverage-report.sh` that lists
+operation-signal source files with no inbound `source_ref`.
 
 ## Review verdict (interface contracts, separation, reusability, portability, reliability)
 
-- **Interface contracts** — PASS. `validate-registry.sh` enforces required
-  frontmatter keys, category/directory agreement, and output-contract +
-  constraints sections. 49/49 prompts pass, 0 violations.
-- **Separation of concerns** — PASS. One named operation per prompt; reviews emit
-  findings (no fixing), verifications decide (no modifying), diagnoses find root
-  cause (no implementing), decompositions draft (no creating).
-- **Reusability** — PASS. Contracts are parameterized (taxonomy, severity scale,
-  tier vocabulary, standards, doc schema, precedence ladder, lens) and the
-  reviewer/investigator families collapse onto two parameterized bases.
-- **Portability** — PASS. No project scripts, ticket CLI, or
-  worktree/orchestrator mechanics survive in prompt bodies; domain terms appear
-  only as illustrative examples or in this meta-doc.
-- **Reliability** — PASS. Output shapes are machine-checkable; classifiers define
-  closed value sets with an escape value; reviews/verifications use
-  evidence-or-abstain discipline (absence is INCONCLUSIVE/FAIL, never inferred);
-  fail-open vs. fail-closed is stated explicitly per prompt.
+- **Interface contracts** — PASS. `validate-registry.sh`: 73/73, 0 violations.
+- **Separation of concerns** — PASS. One named operation per prompt; distinct
+  processes are distinct files.
+- **Reusability** — PASS. Contracts parameterized; domain coupling genericized.
+- **Portability** — PASS. No project scripts/CLI/mechanics survive in prompt
+  bodies; project-specific criteria (banned tools, locking, encapsulated
+  subsystems) genericized while preserving the substantive check.
+- **Reliability** — PASS. Machine-checkable output shapes; closed value sets;
+  evidence-or-abstain discipline; explicit fail-open vs. fail-closed.
 
-## Anti-pattern pass (bot-psychologist lens) — completed
+## Anti-pattern audits (bot-psychologist)
 
-Three independent bot-psychologist audits were run over the full set (general
-agents primed with the 17-point taxonomy, KERNEL minimal-fix, the 20% rule, and
-the affirmative-framing audit), each instructed to prefer precision over quantity
-and to quote-and-fix. They returned ~20 high-confidence findings (no invented
-ones); the legitimate ones were applied as minimal fixes (commit "Refine prompts
-per bot-psychologist anti-pattern audit"):
-
-- **Contract drift** — the README `outputs.format` vocabulary was expanded to
-  match registry usage (`yaml`, `structured-block`, `structured-artifact`);
-  `detect-resource-interactions` now declares its failure shape;
-  `adjudicate-evidence-claim` honors its overridable `rulings` input and fixed a
-  hardcoded example boolean.
-- **Positional bias / instruction locality** — `review-code-diff` restates the
-  no-`critical`-on-unverified-out-of-diff-claim rule at the severity-assignment
-  site; `assess-complexity-tier` co-locates the confidence cap with its
-  definition.
-- **#17 Pink-Elephant / #8 Verbosity** — clustered `DO NOT` blocks in
-  `diagnose-llm-behavior`, `repair-output-to-schema`, `write-behavioral-test`,
-  and `arbitrate-findings-at-cycle-end` were consolidated into affirmative
-  specifications, keeping hard prohibitions terse.
-- **Portability** — `write-plain-language-copy` dropped government/federal
-  framing; the two base prompts were decoupled from the lens-catalog filenames
-  (enumerated lens values remain inline).
-
-Findings deliberately **not** applied (with rationale): the `structured-block`
-format was kept (and the vocabulary widened instead) since it is an established
-convention across the registry; `classify-into-taxonomy`'s escape-value
-restatement was kept as sanctioned reinforcement of a hard final-format
-constraint (20% rule); `filter-false-positive-findings`'s reject criteria were
-kept since they are the operative filter definition and already lead with the
-affirmative survive-condition.
-
-After refinement, all 49 prompts pass `validate-registry.sh` and a portability
-sweep shows no residual domain leaks in prompt bodies.
-
-A fourth bot-psychologist audit was run over the six later-added prompts
-(red-team-find-gaps, assess-integration-feasibility, review-plan-for-readiness,
-check-criteria-verifiable, scaffold-integration-harness,
-split-large-change-for-review). It found four legitimate defects, all fixed:
-`red-team-find-gaps` carried a fix-action `type` field that conflicted with its
-find-only operation and was undeclared in the schema (dropped; `taxonomy_category`
-is the gap type, severity enum added to the schema); and two review prompts used
-`major` instead of the registry's shared `important` severity (aligned).
-
-A fifth audit covered the six coverage-sweep prompts (resolve-review-findings,
-apply-fix-across-occurrences, resolve-merge-conflicts, scan-for-pattern-occurrences,
-verify-fix-end-to-end, enumerate-failure-scenarios). It confirmed all six are
-genuinely distinct from existing prompts (no duplicates) and found two
-structured-output-collapse issues, both fixed: `verify-fix-end-to-end` emitted a
-`SKIPPED` tier not present in its output contract (added to the schema), and
-`resolve-review-findings` did not specify when `TESTING_MODES: n/a` applies
-(clarified to "only when zero Fix actions were taken").
-
-A sixth audit covered the four section-level prompts (prioritize-items-into-tiers,
-reconcile-committee-review, detect-coverage-omissions, audit-unverified-assumptions),
-confirmed all four distinct, and surfaced a **#14 Instruction Leaking** gap: the
-two prompts that ingest arbitrary text operands (`detect-coverage-omissions`,
-`audit-unverified-assumptions`) lacked a data-not-instructions guard — added to
-both. It also tightened `reconcile-committee-review`'s open `pattern` field to a
-short-label-with-examples form. **Recommended follow-up:** a registry-wide
-instruction-leaking sweep — every review/classification/verification prompt that
-ingests untrusted content (e.g. review-against-standards, classify-into-taxonomy,
-research-question-on-web) should carry the same explicit data-not-instructions
-guard; only the two newest were patched here to keep this change scoped.
+Six independent bot-psychologist audits have run across the registry (17-point
+taxonomy, KERNEL minimal-fix, 20% rule, affirmative framing). Fixes applied
+include: expanded `outputs.format` vocabulary; declared failure shapes;
+positional-bias/instruction-locality co-location; affirmative reframing of
+clustered prohibitions; and a data-not-instructions guard on prompts that ingest
+arbitrary text. A recommended follow-up remains: extend that instruction-leaking
+guard registry-wide, and run a fresh audit over the ~24 prompts added during the
+de-consolidation pass.
