@@ -27,7 +27,9 @@ outputs:
   format: json
   schema: >
     {verdict: PASS|REVISE, failing_dimensions: [{reviewer, dimension, score}],
-    conflicts: [{reviewers, target, pattern, resolution: critical-wins|escalate|caller-chooses}]}.
+    conflicts: [{reviewers, target, pattern (short label, e.g.
+    expand_vs_reduce|strict_vs_flexible|add_vs_remove), resolution:
+    critical-wins|escalate|caller-chooses}]}.
 tools:
   required: []
   optional: []
