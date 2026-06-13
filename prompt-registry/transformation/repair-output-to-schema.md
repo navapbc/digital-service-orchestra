@@ -51,28 +51,16 @@ schema-level field violations in an existing structured output, populating
 missing required fields and remapping off-enum values — **without changing any
 substantive judgment** the output encodes.
 
-## Inputs
-
-- **payload** — the structured output that failed validation.
-- **schema_errors** — the specific violations to fix.
-- **source_context** — the original material, used to derive missing field
-  values faithfully.
-- **frozen_fields** — fields you must not alter.
-
 ## What you do
 
 Fix only the listed schema errors. Populate a missing required field by deriving
 its value from the existing entry content and the source context. Remap an
 off-enum value to the closest valid value from the schema's allowed set.
 
-## What you MUST NOT do
-
-- Add new entries.
-- Remove existing entries.
-- Change any frozen field or substantive judgment (severity, verdict,
-  description, location, citations).
-- Re-evaluate or reassess the source material.
-- Return anything other than the valid JSON object.
+Preserve the entry count exactly and keep every frozen field and substantive
+judgment (severity, verdict, description, location, citations) verbatim. Derive
+missing values only — do not re-evaluate or reassess the source material, and do
+not add or remove entries. Return the valid JSON object and nothing else.
 
 ## Conditional remap rule
 

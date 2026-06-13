@@ -22,11 +22,11 @@ inputs:
   - name: investigation_depth
     type: string
     required: false
-    description: 'Depth lens — basic | intermediate | advanced | escalated. See INVESTIGATION-LENSES.md. Defaults to intermediate.'
+    description: 'Depth lens — basic | intermediate | advanced | escalated. Defaults to intermediate.'
   - name: investigation_technique
     type: string
     required: false
-    description: 'Technique lens — code-tracer | historical | empirical | web. See INVESTIGATION-LENSES.md. Defaults to code-tracer.'
+    description: 'Technique lens — code-tracer | historical | empirical | web. Defaults to code-tracer.'
 outputs:
   format: structured-block
   schema: >

@@ -39,8 +39,8 @@ inputs:
     description: >
       An optional lens that restricts/emphasizes the review (e.g. correctness,
       verification, hygiene, design, maintainability, performance, test-quality,
-      security-red-team, security-blue-team, synthesis). See LENSES.md. Defaults
-      to a comprehensive review across all categories.
+      security-red-team, security-blue-team, synthesis). Defaults to a
+      comprehensive review across all categories.
 outputs:
   format: json
   schema: >
@@ -132,17 +132,19 @@ presence, quality, edge-case coverage, mock correctness).
   not exist (non-existent API, unknown identifier). Verify internal symbols via
   grep before using this. Treated as `important` for pass/fail.
 
-Auto-downgrade to `minor`: mechanical style already enforced by the linter;
-error handling for statically-unreachable paths (unless input is untrusted);
-non-public naming-convention deviations; redundant null/bounds checks the
-runtime guarantees; comment/docstring formatting; correct-but-alarming standard
-idioms (verify intent first); renames with all call sites updated; pure
-formatting changes; adding tests for existing behavior; pure coverage-gap claims
-lacking a concrete failure path.
+Auto-downgrade to `minor`: error handling for statically-unreachable paths
+(unless input is untrusted); non-public naming-convention deviations; redundant
+null/bounds checks the runtime guarantees; comment/docstring formatting;
+correct-but-alarming standard idioms (verify intent first); renames with all call
+sites updated; adding tests for existing behavior; pure coverage-gap claims
+lacking a concrete failure path. (Pure lint/formatting issues are excluded
+entirely above, not downgraded.)
 
 When uncertain between `important` and `critical`, choose `important`. A finding
-whose reachability rests on an unverified caller-input or quantitative claim
-MUST NOT be `critical`.
+whose reachability rests on an unverified caller-input or quantitative claim MUST
+NOT be `critical`, and — restating the verify-before-assert rule at the point of
+severity assignment — never assign `critical` or `important` to an unverified
+claim about code not present in the diff.
 
 ## Output contract
 

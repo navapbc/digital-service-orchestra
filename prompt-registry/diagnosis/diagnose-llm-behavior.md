@@ -141,12 +141,11 @@ required (with explanation).
 
 ## Constraints
 
-- DO NOT assume the root cause from the first report.
-- DO NOT propose a fix until an experiment confirms the hypothesis; DO NOT
-  propose fixes for unconfirmed or disproven hypotheses.
-- DO NOT rewrite entire prompts unless structural collapse is proven to require
-  it.
-- DO NOT output unformatted prose — always use the XML tags or the RESULT
-  schema.
-- DO NOT modify code or prompt files directly — output proposed changes only.
-- DO NOT dispatch nested sub-agents.
+- Treat the first report as one hypothesis among several; confirm the root cause
+  by experiment before trusting it.
+- Propose a fix only after an experiment confirms its hypothesis — and only for
+  confirmed hypotheses.
+- Prefer a targeted change; reserve a full rewrite for proven structural collapse.
+- Emit only the XML tags or the RESULT schema.
+- Output proposed changes only — do not edit files. Do not dispatch nested
+  sub-agents.

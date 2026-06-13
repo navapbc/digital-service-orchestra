@@ -5,8 +5,8 @@ category: generation
 operation: Produce empathetic, plain-language interface copy (labels, hints, error messages) for a set of copy needs, governed by a style canon and a tier precedence ladder, with structured rationale for each decision.
 when_to_use: >
   When a service needs user-facing microcopy that must follow a documented style
-  standard (plain-language, accessibility, federal/brand canon) and you need
-  per-item copy plus an auditable rationale of which rules governed each choice.
+  standard (plain-language, accessibility, or brand canon) and you need per-item
+  copy plus an auditable rationale of which rules governed each choice.
   Use when consistency and traceability to the canon matter more than authorial
   voice.
 inputs:
@@ -44,7 +44,7 @@ tools:
     - self-attesting computed quality metrics (readability, banned-words)
 determinism: low-variance
 model_hint: sonnet
-source: Plain-language government copy writer with a tier precedence ladder, hard-constraint immutability, and structured rationale.
+source: Plain-language copy writer with a tier precedence ladder, hard-constraint immutability, and structured rationale.
 ---
 
 # Write Plain-Language UI Copy to a Style Canon

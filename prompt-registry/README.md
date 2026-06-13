@@ -67,7 +67,7 @@ inputs:                            # the input contract
     required: true
     description: What it is and any shape constraints.
 outputs:                           # the output contract
-  format: single-line-token|json|markdown|xml-blocks
+  format: single-line-token|json|yaml|markdown|xml-blocks|structured-block|structured-artifact
   schema: >
     Exact description of the output shape. For review prompts this is an array
     of {finding, severity, ...}. For classification, the closed value set.
