@@ -100,16 +100,22 @@ second person to the executing model.
 - **Severity scale for reviews.** Reviews use a single shared severity scale
   (`critical`, `important`, `minor`, `nit`) unless the caller supplies its own.
 
-## Lenses vs. prompts
+## Distinct operations are distinct prompts
 
-Some source families differ only by *focus*, not by operation — e.g. a dozen
-code-review variants that all emit the same findings array, or nine bug
-investigators that share one root-cause contract. These are captured as **lenses**
-(parameter values on a base prompt), not as separate files. See
-[`review/LENSES.md`](./review/LENSES.md) and
-[`diagnosis/INVESTIGATION-LENSES.md`](./diagnosis/INVESTIGATION-LENSES.md). When
-adding a new variant, prefer a lens (a `review_focus` / `investigation_depth`
-value) over a near-duplicate prompt.
+Prompts that share an output schema but apply a **different process or criteria**
+are distinct operations and each gets its own file — never combine them. A dozen
+code reviewers (light, correctness, security red-team, performance, test-quality,
+…) all emit a findings array, but each runs a different checklist and severity
+policy; the nine bug investigators share a root-cause schema but apply different
+techniques (execution tracing vs. timeline reconstruction vs. empirical
+instrumentation). These are separate prompts. Two source files map to the *same*
+prompt only when their process AND criteria are identical (differing solely in
+dispatch harness or model).
+
+Routing across related prompts is handled by `SELECTOR.md` index docs (e.g.
+[`review/SELECTOR.md`](./review/SELECTOR.md),
+[`diagnosis/SELECTOR.md`](./diagnosis/SELECTOR.md)), which point to the individual
+prompts and describe composition patterns — without consolidating them.
 
 ## Status
 
