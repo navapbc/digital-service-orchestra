@@ -6,18 +6,19 @@ remaining source inventory, and the review verdicts.
 
 ## Coverage
 
-**39 prompts across 9 categories**, all passing `scripts/validate-registry.sh`
+**45 prompts across 10 categories**, all passing `scripts/validate-registry.sh`
 (frontmatter contract, category/directory agreement, self-sufficient body), plus
 two lens catalogs that parameterize the base prompts instead of duplicating them.
 
 | Category | Count | Prompts |
 |----------|-------|---------|
 | classification | 6 | classify-into-taxonomy, assess-complexity-tier, detect-resource-interactions, triage-test-infeasibility, triage-merge-conflicts, score-value-effort |
-| review | 11 | review-code-diff, review-against-standards, filter-false-positive-findings, detect-scope-drift, arbitrate-findings-at-cycle-end, check-complexity-gate, evaluate-visual-design, red-team-find-gaps, assess-integration-feasibility, review-plan-for-readiness, check-criteria-verifiable (+ LENSES.md) |
-| exploration | 4 | locate-code-by-intent, research-question-on-web, search-for-prior-art, decompose-exploration-question |
+| review | 12 | review-code-diff, review-against-standards, filter-false-positive-findings, detect-scope-drift, arbitrate-findings-at-cycle-end, check-complexity-gate, evaluate-visual-design, red-team-find-gaps, assess-integration-feasibility, review-plan-for-readiness, check-criteria-verifiable, enumerate-failure-scenarios (+ LENSES.md) |
+| exploration | 5 | locate-code-by-intent, research-question-on-web, search-for-prior-art, decompose-exploration-question, scan-for-pattern-occurrences |
 | generation | 5 | update-project-documentation, write-behavioral-test, write-plain-language-copy, design-ui-for-requirement, scaffold-integration-harness |
-| verification | 4 | verify-claim-second-source, audit-process-compliance, verify-acceptance-criteria, adjudicate-evidence-claim |
-| diagnosis | 2 | diagnose-llm-behavior, investigate-bug-root-cause (+ INVESTIGATION-LENSES.md) |
+| verification | 5 | verify-claim-second-source, audit-process-compliance, verify-acceptance-criteria, adjudicate-evidence-claim, verify-fix-end-to-end |
+| remediation | 3 | resolve-review-findings, apply-fix-across-occurrences, resolve-merge-conflicts |
+| diagnosis | 2 | diagnose-llm-behavior, investigate-bug-root-cause (+ INVESTIGATION-LENSES.md, incl. cluster mode) |
 | decomposition | 3 | decompose-work-into-tasks, decompose-into-vertical-slices, split-large-change-for-review |
 | planning | 3 | select-implementation-approach, propose-implementation-approaches, classify-remediation-scope |
 | transformation | 1 | repair-output-to-schema |
@@ -74,16 +75,32 @@ referenced by prompts (as `standards` inputs to `review-against-standards`) than
 turned into standalone operations, per the one-operation-per-prompt rule.
 
 The **skills** (sprint, brainstorm, preplanning, debug-everything, etc.) are
-multi-step orchestrations, not single operations. Their embedded discrete
-operations are already covered by the agent-derived prompts above; the
-orchestration logic itself is intentionally out of scope for a registry of
-single-operation prompts.
+multi-step orchestrations, not single operations — the orchestration logic itself
+is out of scope. However, several skills carry discrete sub-agent prompts under
+`skills/*/prompts/` and `docs/workflows/prompts/` that ARE single operations. A
+coverage sweep (role-frame + output-contract signal detection across all 431
+`plugins/dso/**/*.md`, minus already-captured sources) surfaced these; manual
+verification extracted six genuinely-new ones: `resolve-review-findings`,
+`apply-fix-across-occurrences`, `resolve-merge-conflicts`,
+`scan-for-pattern-occurrences`, `verify-fix-end-to-end`, and
+`enumerate-failure-scenarios`. Three candidates were verified **not** new and were
+documented rather than duplicated: `cluster-investigation` (a cluster mode of
+`investigate-bug-root-cause`, added to INVESTIGATION-LENSES.md), `gap-analysis`
+(`red-team-find-gaps` with an implementation-task gap taxonomy), and `gha-scanner`
+(orchestration + ticket-bookkeeping coupled; thin generic kernel). The
+`agents/ci/*` and `docs/workflows/prompts/reviewer-delta-*` files are CI/delta
+renderings of reviewers already captured via `review-code-diff` + LENSES.
+
+To make this repeatable, a future pass should add a `source_ref:` frontmatter
+field (origin path / `lens:<base>` / `excluded:<reason>`) and a
+`coverage-report.sh` that prints source files with operation signals and no
+inbound `source_ref` — the live miss list.
 
 ## Review verdict (interface contracts, separation, reusability, portability, reliability)
 
 - **Interface contracts** — PASS. `validate-registry.sh` enforces required
   frontmatter keys, category/directory agreement, and output-contract +
-  constraints sections. 39/39 prompts pass, 0 violations.
+  constraints sections. 45/45 prompts pass, 0 violations.
 - **Separation of concerns** — PASS. One named operation per prompt; reviews emit
   findings (no fixing), verifications decide (no modifying), diagnoses find root
   cause (no implementing), decompositions draft (no creating).
@@ -132,7 +149,7 @@ constraint (20% rule); `filter-false-positive-findings`'s reject criteria were
 kept since they are the operative filter definition and already lead with the
 affirmative survive-condition.
 
-After refinement, all 39 prompts pass `validate-registry.sh` and a portability
+After refinement, all 45 prompts pass `validate-registry.sh` and a portability
 sweep shows no residual domain leaks in prompt bodies.
 
 A fourth bot-psychologist audit was run over the six later-added prompts
@@ -143,3 +160,12 @@ split-large-change-for-review). It found four legitimate defects, all fixed:
 find-only operation and was undeclared in the schema (dropped; `taxonomy_category`
 is the gap type, severity enum added to the schema); and two review prompts used
 `major` instead of the registry's shared `important` severity (aligned).
+
+A fifth audit covered the six coverage-sweep prompts (resolve-review-findings,
+apply-fix-across-occurrences, resolve-merge-conflicts, scan-for-pattern-occurrences,
+verify-fix-end-to-end, enumerate-failure-scenarios). It confirmed all six are
+genuinely distinct from existing prompts (no duplicates) and found two
+structured-output-collapse issues, both fixed: `verify-fix-end-to-end` emitted a
+`SKIPPED` tier not present in its output contract (added to the schema), and
+`resolve-review-findings` did not specify when `TESTING_MODES: n/a` applies
+(clarified to "only when zero Fix actions were taken").

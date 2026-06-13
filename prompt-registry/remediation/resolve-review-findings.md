@@ -88,7 +88,7 @@ changes and return `FAIL` with the error summary.
 RESULT: FIXES_APPLIED | FAIL | ESCALATE
 FILES_MODIFIED: <comma-separated list, or "none">
 FINDINGS_ADDRESSED: N fixed, M defended, K deferred
-TESTING_MODES: red=N1 update=N2 green=N3   (or "n/a")
+TESTING_MODES: red=N1 update=N2 green=N3   ("n/a" only when zero Fix actions were taken)
 REMAINING_CRITICAL: <descriptions if FAIL/ESCALATE, else "none">
 ESCALATION_REASON: <reason if ESCALATE, else "none">
 ```
