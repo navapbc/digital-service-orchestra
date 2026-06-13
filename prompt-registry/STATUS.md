@@ -6,19 +6,19 @@ remaining source inventory, and the review verdicts.
 
 ## Coverage
 
-**33 prompts across 9 categories**, all passing `scripts/validate-registry.sh`
+**39 prompts across 9 categories**, all passing `scripts/validate-registry.sh`
 (frontmatter contract, category/directory agreement, self-sufficient body), plus
 two lens catalogs that parameterize the base prompts instead of duplicating them.
 
 | Category | Count | Prompts |
 |----------|-------|---------|
 | classification | 6 | classify-into-taxonomy, assess-complexity-tier, detect-resource-interactions, triage-test-infeasibility, triage-merge-conflicts, score-value-effort |
-| review | 7 | review-code-diff, review-against-standards, filter-false-positive-findings, detect-scope-drift, arbitrate-findings-at-cycle-end, check-complexity-gate, evaluate-visual-design (+ LENSES.md) |
+| review | 11 | review-code-diff, review-against-standards, filter-false-positive-findings, detect-scope-drift, arbitrate-findings-at-cycle-end, check-complexity-gate, evaluate-visual-design, red-team-find-gaps, assess-integration-feasibility, review-plan-for-readiness, check-criteria-verifiable (+ LENSES.md) |
 | exploration | 4 | locate-code-by-intent, research-question-on-web, search-for-prior-art, decompose-exploration-question |
-| generation | 4 | update-project-documentation, write-behavioral-test, write-plain-language-copy, design-ui-for-requirement |
+| generation | 5 | update-project-documentation, write-behavioral-test, write-plain-language-copy, design-ui-for-requirement, scaffold-integration-harness |
 | verification | 4 | verify-claim-second-source, audit-process-compliance, verify-acceptance-criteria, adjudicate-evidence-claim |
 | diagnosis | 2 | diagnose-llm-behavior, investigate-bug-root-cause (+ INVESTIGATION-LENSES.md) |
-| decomposition | 2 | decompose-work-into-tasks, decompose-into-vertical-slices |
+| decomposition | 3 | decompose-work-into-tasks, decompose-into-vertical-slices, split-large-change-for-review |
 | planning | 3 | select-implementation-approach, propose-implementation-approaches, classify-remediation-scope |
 | transformation | 1 | repair-output-to-schema |
 
@@ -52,21 +52,23 @@ All **53 agent definitions** map to a registry prompt or a lens:
   gov-copy-writer, ui-designer, visual-evaluator, red-test-writer,
   schema-correction, approach-proposer, approach-decision-maker,
   conflict-analyzer, verification-remediation-planner, intent-search,
-  investigator (base).
+  investigator (base), feasibility-reviewer, plan-review, red-team-reviewer,
+  architectural-probe.
 - Captured as **lenses** (not duplicated): the 12 `code-reviewer-*` tier/specialist
   variants → `review/LENSES.md`; the 9 `investigator-*` variants →
   `diagnosis/INVESTIGATION-LENSES.md`.
-- Intentionally not extracted: `bloat-blue-team`/`bloat-resolver`,
-  `huge-diff-*`, `architectural-probe`, `inference-incident-curator`,
-  `feasibility-reviewer`, `plan-review`, `red-team-reviewer` — these are either
-  project-bookkeeping-specific or thin variants of `review-against-standards` /
-  `review-code-diff` lenses. Add as lenses if a consumer needs them.
+- Intentionally not extracted: `bloat-blue-team`/`bloat-resolver` and
+  `huge-diff-*` (lenses of `review-against-standards` / `review-code-diff` — the
+  bloat pair maps to a review + a transformation that the existing prompts cover
+  with a `review_focus`), and `inference-incident-curator` (project-bookkeeping
+  specific). Add as lenses if a consumer needs them.
 
 Reusable **shared prompts** captured: prior-art-search, value-effort-scorer,
-complexity-gate, exploration-decomposition. The remaining shared files
+complexity-gate, exploration-decomposition, large-diff-splitting-guide,
+verifiable-sc-check. The remaining shared files
 (behavioral-testing-standard, anti-patterns, prohibited-fix-patterns, doc-router,
 named-agent-dispatch, worktree-dispatch, single-agent-integrate,
-verifiable-sc-check, ci-skeleton-templates, empirical-validation, scale-inference)
+ci-skeleton-templates, empirical-validation, scale-inference)
 are **guidance standards, not single-operation prompts** — they are best
 referenced by prompts (as `standards` inputs to `review-against-standards`) than
 turned into standalone operations, per the one-operation-per-prompt rule.
@@ -81,7 +83,7 @@ single-operation prompts.
 
 - **Interface contracts** — PASS. `validate-registry.sh` enforces required
   frontmatter keys, category/directory agreement, and output-contract +
-  constraints sections. 33/33 prompts pass, 0 violations.
+  constraints sections. 39/39 prompts pass, 0 violations.
 - **Separation of concerns** — PASS. One named operation per prompt; reviews emit
   findings (no fixing), verifications decide (no modifying), diagnoses find root
   cause (no implementing), decompositions draft (no creating).
@@ -130,5 +132,14 @@ constraint (20% rule); `filter-false-positive-findings`'s reject criteria were
 kept since they are the operative filter definition and already lead with the
 affirmative survive-condition.
 
-After refinement, all 33 prompts pass `validate-registry.sh` and a portability
+After refinement, all 39 prompts pass `validate-registry.sh` and a portability
 sweep shows no residual domain leaks in prompt bodies.
+
+A fourth bot-psychologist audit was run over the six later-added prompts
+(red-team-find-gaps, assess-integration-feasibility, review-plan-for-readiness,
+check-criteria-verifiable, scaffold-integration-harness,
+split-large-change-for-review). It found four legitimate defects, all fixed:
+`red-team-find-gaps` carried a fix-action `type` field that conflicted with its
+find-only operation and was undeclared in the schema (dropped; `taxonomy_category`
+is the gap type, severity enum added to the schema); and two review prompts used
+`major` instead of the registry's shared `important` severity (aligned).
