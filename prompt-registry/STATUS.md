@@ -6,21 +6,21 @@ remaining source inventory, and the review verdicts.
 
 ## Coverage
 
-**45 prompts across 10 categories**, all passing `scripts/validate-registry.sh`
+**49 prompts across 10 categories**, all passing `scripts/validate-registry.sh`
 (frontmatter contract, category/directory agreement, self-sufficient body), plus
 two lens catalogs that parameterize the base prompts instead of duplicating them.
 
 | Category | Count | Prompts |
 |----------|-------|---------|
 | classification | 6 | classify-into-taxonomy, assess-complexity-tier, detect-resource-interactions, triage-test-infeasibility, triage-merge-conflicts, score-value-effort |
-| review | 12 | review-code-diff, review-against-standards, filter-false-positive-findings, detect-scope-drift, arbitrate-findings-at-cycle-end, check-complexity-gate, evaluate-visual-design, red-team-find-gaps, assess-integration-feasibility, review-plan-for-readiness, check-criteria-verifiable, enumerate-failure-scenarios (+ LENSES.md) |
+| review | 14 | review-code-diff, review-against-standards, filter-false-positive-findings, detect-scope-drift, arbitrate-findings-at-cycle-end, check-complexity-gate, evaluate-visual-design, red-team-find-gaps, assess-integration-feasibility, review-plan-for-readiness, check-criteria-verifiable, enumerate-failure-scenarios, reconcile-committee-review, detect-coverage-omissions (+ LENSES.md) |
 | exploration | 5 | locate-code-by-intent, research-question-on-web, search-for-prior-art, decompose-exploration-question, scan-for-pattern-occurrences |
 | generation | 5 | update-project-documentation, write-behavioral-test, write-plain-language-copy, design-ui-for-requirement, scaffold-integration-harness |
-| verification | 5 | verify-claim-second-source, audit-process-compliance, verify-acceptance-criteria, adjudicate-evidence-claim, verify-fix-end-to-end |
+| verification | 6 | verify-claim-second-source, audit-process-compliance, verify-acceptance-criteria, adjudicate-evidence-claim, verify-fix-end-to-end, audit-unverified-assumptions |
 | remediation | 3 | resolve-review-findings, apply-fix-across-occurrences, resolve-merge-conflicts |
 | diagnosis | 2 | diagnose-llm-behavior, investigate-bug-root-cause (+ INVESTIGATION-LENSES.md, incl. cluster mode) |
 | decomposition | 3 | decompose-work-into-tasks, decompose-into-vertical-slices, split-large-change-for-review |
-| planning | 3 | select-implementation-approach, propose-implementation-approaches, classify-remediation-scope |
+| planning | 4 | select-implementation-approach, propose-implementation-approaches, classify-remediation-scope, prioritize-items-into-tiers |
 | transformation | 1 | repair-output-to-schema |
 
 ## Lens approach
@@ -96,11 +96,21 @@ field (origin path / `lens:<base>` / `excluded:<reason>`) and a
 `coverage-report.sh` that prints source files with operation signals and no
 inbound `source_ref` — the live miss list.
 
+A deeper **section-level** scan (operation signals inside orchestration/SKILL
+bodies, not just `prompts/` subdirs — the layer file-level detection structurally
+misses) surfaced four more embedded operations, all verified distinct and
+extracted: `prioritize-items-into-tiers` (from prioritize-epics' coarse+granular
+sort), `reconcile-committee-review` (the score-aggregation + conflict-detection
+pattern repeated across six skills' `review-criteria.md`), `detect-coverage-
+omissions` (scrutiny Part A), and `audit-unverified-assumptions` (scrutiny
+inference-signal scan). The scrutiny "LLM-Instruction Signal Detection" was
+verified NOT new (it is `classify-into-taxonomy` over surface categories).
+
 ## Review verdict (interface contracts, separation, reusability, portability, reliability)
 
 - **Interface contracts** — PASS. `validate-registry.sh` enforces required
   frontmatter keys, category/directory agreement, and output-contract +
-  constraints sections. 45/45 prompts pass, 0 violations.
+  constraints sections. 49/49 prompts pass, 0 violations.
 - **Separation of concerns** — PASS. One named operation per prompt; reviews emit
   findings (no fixing), verifications decide (no modifying), diagnoses find root
   cause (no implementing), decompositions draft (no creating).
@@ -149,7 +159,7 @@ constraint (20% rule); `filter-false-positive-findings`'s reject criteria were
 kept since they are the operative filter definition and already lead with the
 affirmative survive-condition.
 
-After refinement, all 45 prompts pass `validate-registry.sh` and a portability
+After refinement, all 49 prompts pass `validate-registry.sh` and a portability
 sweep shows no residual domain leaks in prompt bodies.
 
 A fourth bot-psychologist audit was run over the six later-added prompts
@@ -169,3 +179,15 @@ structured-output-collapse issues, both fixed: `verify-fix-end-to-end` emitted a
 `SKIPPED` tier not present in its output contract (added to the schema), and
 `resolve-review-findings` did not specify when `TESTING_MODES: n/a` applies
 (clarified to "only when zero Fix actions were taken").
+
+A sixth audit covered the four section-level prompts (prioritize-items-into-tiers,
+reconcile-committee-review, detect-coverage-omissions, audit-unverified-assumptions),
+confirmed all four distinct, and surfaced a **#14 Instruction Leaking** gap: the
+two prompts that ingest arbitrary text operands (`detect-coverage-omissions`,
+`audit-unverified-assumptions`) lacked a data-not-instructions guard — added to
+both. It also tightened `reconcile-committee-review`'s open `pattern` field to a
+short-label-with-examples form. **Recommended follow-up:** a registry-wide
+instruction-leaking sweep — every review/classification/verification prompt that
+ingests untrusted content (e.g. review-against-standards, classify-into-taxonomy,
+research-question-on-web) should carry the same explicit data-not-instructions
+guard; only the two newest were patched here to keep this change scoped.
