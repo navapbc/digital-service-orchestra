@@ -27,7 +27,7 @@ outputs:
   schema: >
     VERDICT (PASS|REVISE); SCORES per dimension (feasibility, completeness, yagni,
     codebase_alignment, each 1-5); FINDINGS for any dimension under 4, each with
-    dimension, severity (critical|major|minor), description, and a suggestion.
+    dimension, severity (critical|important|minor), description, and a suggestion.
 tools:
   required: []
   optional:
@@ -74,13 +74,13 @@ SCORES:
 - yagni: N/5
 - codebase_alignment: N/5
 FINDINGS:
-FINDING: [dimension] [severity: critical|major|minor]
+FINDING: [dimension] [severity: critical|important|minor]
 <description of the issue>
 SUGGESTION: <how to fix it>
 ```
 
 List a finding for any dimension scoring below 4. `VERDICT` is `REVISE` when any
-dimension has a critical/major finding; otherwise `PASS`.
+dimension has a critical/important finding; otherwise `PASS`.
 
 ## Constraints
 

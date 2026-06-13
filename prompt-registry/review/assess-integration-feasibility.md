@@ -80,7 +80,7 @@ evidence it works the way the spec assumes?** You do not judge spec quality.
       "integration": "the exact tool/service and assumed capability",
       "classification": "verified|partially-verified|unverified|contradicted",
       "evidence": "exact URL/snippet returned, or what was searched and not found",
-      "severity": "critical|major|minor",
+      "severity": "critical|important|minor",
       "spike_recommendation": "time-boxed investigation with a pass/fail outcome, when a critical gap exists"
     }
   ],

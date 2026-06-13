@@ -28,8 +28,9 @@ inputs:
 outputs:
   format: json
   schema: >
-    {findings: [{type, target_item_id|null, title, description, rationale,
-    taxonomy_category, severity}]}. Empty array only when no genuine gap exists.
+    {findings: [{target_item_id|null, title, description, rationale,
+    taxonomy_category, severity: critical|important|minor}]}. Empty array only
+    when no genuine gap exists.
 tools:
   required: []
   optional:
@@ -87,7 +88,6 @@ anchored one.
 {
   "findings": [
     {
-      "type": "new_item|add_consideration|add_dependency|split_item|escalate",
       "target_item_id": "<id, or null for a plan-wide finding>",
       "title": "short title",
       "description": "the gap and why it matters",
