@@ -19,10 +19,13 @@ emit() { printf '%s\n' "$1"; }
 
 while IFS= read -r -d '' file; do
     base="$(basename "$file")"
-    # Skip non-prompt docs.
+    # Skip non-prompt docs. Prompts live in category subdirectories; any .md
+    # directly under the registry root is meta-documentation, not a prompt.
     case "$base" in
-        README.md|_TEMPLATE.md) continue ;;
+        README.md|_TEMPLATE.md|STATUS.md) continue ;;
     esac
+    parent_dir="$(dirname "$file")"
+    [[ "$parent_dir" == "$REGISTRY_ROOT" ]] && continue
     file_count=$((file_count + 1))
     rel="${file#"$REGISTRY_ROOT"/}"
 
