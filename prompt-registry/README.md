@@ -99,7 +99,19 @@ second person to the executing model.
 - **Severity scale for reviews.** Reviews use a single shared severity scale
   (`critical`, `important`, `minor`, `nit`) unless the caller supplies its own.
 
+## Lenses vs. prompts
+
+Some source families differ only by *focus*, not by operation — e.g. a dozen
+code-review variants that all emit the same findings array, or nine bug
+investigators that share one root-cause contract. These are captured as **lenses**
+(parameter values on a base prompt), not as separate files. See
+[`review/LENSES.md`](./review/LENSES.md) and
+[`diagnosis/INVESTIGATION-LENSES.md`](./diagnosis/INVESTIGATION-LENSES.md). When
+adding a new variant, prefer a lens (a `review_focus` / `investigation_depth`
+value) over a near-duplicate prompt.
+
 ## Status
 
-This registry is under active extraction. Source material is being decomposed
-incrementally; each prompt is committed as it is genericized and contract-checked.
+See [`STATUS.md`](./STATUS.md) for current coverage, the source-inventory map, the
+five-criteria review verdict, and the anti-pattern pass. Run
+`scripts/validate-registry.sh` to check the interface contract across all prompts.

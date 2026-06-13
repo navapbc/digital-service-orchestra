@@ -21,8 +21,16 @@ while IFS= read -r -d '' file; do
     base="$(basename "$file")"
     # Skip non-prompt docs. Prompts live in category subdirectories; any .md
     # directly under the registry root is meta-documentation, not a prompt.
+    # README/_TEMPLATE/STATUS plus ALL-CAPS catalog docs (e.g. LENSES.md,
+    # INVESTIGATION-LENSES.md) are meta-documentation, not prompts. Prompt
+    # files use lowercase kebab-case stems; catalog docs use an all-caps stem.
+    stem="${base%.md}"
     case "$base" in
         README.md|_TEMPLATE.md|STATUS.md) continue ;;
+    esac
+    case "$stem" in
+        *[a-z]*) ;;            # lowercase in the stem → a prompt file
+        *) continue ;;          # all-caps stem → a catalog/meta doc
     esac
     parent_dir="$(dirname "$file")"
     [[ "$parent_dir" == "$REGISTRY_ROOT" ]] && continue

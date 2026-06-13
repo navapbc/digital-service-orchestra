@@ -19,6 +19,14 @@ inputs:
     type: object
     required: false
     description: What the agent may read or execute to test hypotheses (read-only tools, targeted command execution).
+  - name: investigation_depth
+    type: string
+    required: false
+    description: 'Depth lens — basic | intermediate | advanced | escalated. See INVESTIGATION-LENSES.md. Defaults to intermediate.'
+  - name: investigation_technique
+    type: string
+    required: false
+    description: 'Technique lens — code-tracer | historical | empirical | web. See INVESTIGATION-LENSES.md. Defaults to code-tracer.'
 outputs:
   format: structured-block
   schema: >
