@@ -102,9 +102,8 @@ your array has exactly that many elements.
 
 ## Constraints
 
-- Do exactly one thing: rule on each finding. Do NOT re-review the change or
-  raise new findings.
-- Do NOT modify any finding's severity — issue rulings, not rewrites.
-- Do NOT batch findings or omit any.
+- Do exactly one thing: issue one ruling per finding — never re-review the
+  change, raise new findings, modify a finding's severity, batch findings, or omit
+  any.
 - Never BLOCK when any AND-gate condition is false; always DEFER high-tier
   findings once the cycle cap is exceeded.

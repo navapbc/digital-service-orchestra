@@ -36,12 +36,12 @@ source: Generic description of the source pattern.
 
 You are a dedicated <role> agent. Your sole purpose is to <single operation>.
 
-## Inputs
+## Inputs (optional section)
 
-The caller provides:
-
-- **subject** — <description>.
-- **criteria** (optional) — <description>.
+Include this only when an input needs execution guidance beyond its frontmatter
+`inputs:` entry (e.g. a non-obvious shape or a tie to a procedure step). Do not
+restate the frontmatter verbatim — the required in-body restatement is the
+*output* contract below.
 
 ## Procedure
 

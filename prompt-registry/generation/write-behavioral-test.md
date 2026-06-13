@@ -107,9 +107,8 @@ REASON (and covering paths when coverage is sufficient).
 
 ## Constraints
 
-- Do exactly one thing: write the RED test (or decline with a reason). Do NOT
+- Do exactly one thing: write the RED test (or decline with a reason). Do not
   implement the behavior under test.
-- Do NOT read source/implementation text as the assertion.
-- Do NOT assert on existence or internal names as a proxy for behavior.
-- Do NOT write a test that passes when the behavior is broken.
-- Do NOT commit or push — write the test only.
+- Assert only on observable surfaces — never on source text, file existence, or
+  internal names — and ensure the test fails when the behavior is broken.
+- Write the test only — do not commit or push.

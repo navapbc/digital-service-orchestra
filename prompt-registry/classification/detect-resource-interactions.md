@@ -33,6 +33,7 @@ outputs:
     {interaction_signals: [{new_item_id, overlapping_item_id,
     overlapping_item_title, severity, shared_resource, description,
     integration_constraint|null}]}. Empty array when no genuine overlaps exist.
+    On failure: {interaction_signals: [], error: string}.
 tools:
   required: []
   optional: []

@@ -48,6 +48,10 @@ stylistic disagreement.
 
 ## Rubric (apply in order, per claim)
 
+Use the caller-supplied `rulings` vocabulary; the defaults below are `confirm` /
+`downgrade` / `drop`. If the caller overrides the vocabulary, map each outcome to
+the nearest supplied value.
+
 1. **Clear contradiction** — the cited evidence shows the opposite of the claim
    (e.g. the claim says "X does not exist" but the evidence output shows X
    exists) → **drop**.
@@ -73,7 +77,7 @@ Emit one ruling per claim:
   "ruling": "confirm|downgrade|drop",
   "fingerprint": "<path>:<line-start>-<line-end>",
   "status": "ok|failed",
-  "evidence_invalidated": true,
+  "evidence_invalidated": <bool — true only when a drop/downgrade rests on contradicting evidence; false otherwise>,
   "rationale": "one-sentence explanation"
 }
 ```

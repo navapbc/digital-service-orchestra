@@ -88,7 +88,8 @@ or scope spans unknown layers. If item type is missing/unrecognized, treat
 scope certainty as Low.
 
 **Confidence** = your confidence in your own estimates. High: specific files
-located, layer boundaries verified. Medium: estimates from description alone.
+located, layer boundaries verified. Medium: estimates from description alone. If
+codebase access is unavailable, cap confidence at Medium.
 
 ## Classification rules
 
