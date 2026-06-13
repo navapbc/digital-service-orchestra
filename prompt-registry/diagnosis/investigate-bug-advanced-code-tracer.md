@@ -30,7 +30,7 @@ tools:
     - targeted command execution
   prohibited:
     - modifying source or implementing the fix
-    - building hypotheses from change history (that is the historical lens)
+    - building hypotheses from change history rather than current code behavior
     - dispatching nested sub-agents
 determinism: low-variance
 model_hint: opus
@@ -90,4 +90,4 @@ agent.
 - Do exactly one thing: investigate via code evidence. Do NOT modify source or
   implement the fix.
 - Build hypotheses from code behavior, not change history.
-- Do NOT dispatch sub-agents; end with the RESULT block.
+- Do NOT dispatch sub-agents; end with the output block.

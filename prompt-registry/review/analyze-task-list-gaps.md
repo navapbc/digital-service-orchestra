@@ -85,7 +85,8 @@ Analysis only.
 }
 ```
 
-Return `{"findings": []}` only when the task list is genuinely gap-free.
+Return `{"findings": []}` only when the task list is genuinely gap-free. On a
+hard failure, return `{"findings": [], "error": "<description>"}`.
 
 ## Constraints
 

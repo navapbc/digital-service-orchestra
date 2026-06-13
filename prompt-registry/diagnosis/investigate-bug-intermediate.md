@@ -100,4 +100,4 @@ ranked, each evidence-cited).
 
 - Do exactly one thing: investigate. Do NOT modify source or implement the fix.
 - Do NOT skip hypothesis elimination. Do NOT run the full test suite — only
-  targeted commands. End with the RESULT block.
+  targeted commands. End with the output block.

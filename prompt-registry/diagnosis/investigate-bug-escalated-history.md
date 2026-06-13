@@ -95,4 +95,4 @@ hypothesis_tests:
 - Do exactly one thing: escalated history investigation. Do NOT modify source,
   implement the fix, or run git bisect (propose only).
 - Go deeper than the advanced historical pass; do not duplicate its hypotheses.
-- Do NOT dispatch sub-agents; end with the RESULT block.
+- Do NOT dispatch sub-agents; end with the output block.
