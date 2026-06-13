@@ -33,14 +33,6 @@ inputs:
     description: >
       Whether read-only inspection (Read/Grep/Glob) of surrounding code is
       available for grounding findings. Required to verify absence claims.
-  - name: review_focus
-    type: string
-    required: false
-    description: >
-      An optional lens that restricts/emphasizes the review (e.g. correctness,
-      verification, hygiene, design, maintainability, performance, test-quality,
-      security-red-team, security-blue-team, synthesis). Defaults to a
-      comprehensive review across all categories.
 outputs:
   format: json
   schema: >
