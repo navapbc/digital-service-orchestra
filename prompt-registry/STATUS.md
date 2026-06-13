@@ -96,17 +96,39 @@ single-operation prompts.
   evidence-or-abstain discipline (absence is INCONCLUSIVE/FAIL, never inferred);
   fail-open vs. fail-closed is stated explicitly per prompt.
 
-## Anti-pattern pass (bot-psychologist lens)
+## Anti-pattern pass (bot-psychologist lens) — completed
 
-Applying the 17-point taxonomy to the full set, the live risk remains **#17
-Pink-Elephant (negative-instruction priming)**: the source agents cluster
-`DO NOT / NEVER` constraints, and naive extraction carries that framing in.
-Mitigation applied uniformly: every `Constraints` section **leads with an
-affirmative** "Do exactly one thing: <operation>" before any prohibition, and
-hard prohibitions (output format, no-mutation, no nested dispatch) are kept terse
-rather than elaborated into failure narratives. Secondary check for **#1
-Structured Output Collapse**: every prompt that emits JSON states the exact schema
-in-body and marks which fields are required, so an empty-but-valid result is
-distinguishable from a truncated one (e.g. `review_completed: true`). No #3
-(truncation) or #16 (locality) risk: each prompt is self-contained and restates
-its contract in-body.
+Three independent bot-psychologist audits were run over the full set (general
+agents primed with the 17-point taxonomy, KERNEL minimal-fix, the 20% rule, and
+the affirmative-framing audit), each instructed to prefer precision over quantity
+and to quote-and-fix. They returned ~20 high-confidence findings (no invented
+ones); the legitimate ones were applied as minimal fixes (commit "Refine prompts
+per bot-psychologist anti-pattern audit"):
+
+- **Contract drift** — the README `outputs.format` vocabulary was expanded to
+  match registry usage (`yaml`, `structured-block`, `structured-artifact`);
+  `detect-resource-interactions` now declares its failure shape;
+  `adjudicate-evidence-claim` honors its overridable `rulings` input and fixed a
+  hardcoded example boolean.
+- **Positional bias / instruction locality** — `review-code-diff` restates the
+  no-`critical`-on-unverified-out-of-diff-claim rule at the severity-assignment
+  site; `assess-complexity-tier` co-locates the confidence cap with its
+  definition.
+- **#17 Pink-Elephant / #8 Verbosity** — clustered `DO NOT` blocks in
+  `diagnose-llm-behavior`, `repair-output-to-schema`, `write-behavioral-test`,
+  and `arbitrate-findings-at-cycle-end` were consolidated into affirmative
+  specifications, keeping hard prohibitions terse.
+- **Portability** — `write-plain-language-copy` dropped government/federal
+  framing; the two base prompts were decoupled from the lens-catalog filenames
+  (enumerated lens values remain inline).
+
+Findings deliberately **not** applied (with rationale): the `structured-block`
+format was kept (and the vocabulary widened instead) since it is an established
+convention across the registry; `classify-into-taxonomy`'s escape-value
+restatement was kept as sanctioned reinforcement of a hard final-format
+constraint (20% rule); `filter-false-positive-findings`'s reject criteria were
+kept since they are the operative filter definition and already lead with the
+affirmative survive-condition.
+
+After refinement, all 33 prompts pass `validate-registry.sh` and a portability
+sweep shows no residual domain leaks in prompt bodies.
