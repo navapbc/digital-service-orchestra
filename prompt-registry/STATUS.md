@@ -123,9 +123,13 @@ prohibitions; dropped sibling-lens cross-references; a uniform output-block anch
 across the investigator family; and data-not-instructions guards on the
 highest-exposure untrusted-input prompts.
 
-**Outstanding follow-up (explicit):** the data-not-instructions guard should be
-extended registry-wide to *every* prompt that ingests untrusted external content
-— all `review-code-*` diff reviewers, `review-against-standards`,
-`evaluate-visual-design`, `filter-failure-scenarios`, `analyze-task-list-gaps`,
-`triage-bloat-candidates`, and the exploration/research prompts. Only the two
-most-exposed were patched here; the sweep is the next quality task.
+**Instruction-leaking guard — DONE (registry-wide).** A standardized
+data-not-instructions guard now sits in every prompt whose input is
+externally-authored untrusted content (63 of 73): all review and diagnosis
+prompts, the analytical classification/verification/exploration prompts, the
+findings/conflict-ingesting remediation prompts, and the diff-ingesting
+transformation/generation/decomposition prompts. The 10 prompts without it are
+the generative/planning/spec-driven ones whose input is the operator's legitimate
+brief (not untrusted data), where the guard would be semantically wrong. Coverage
+is verifiable: `grep -L` for the guard across the registry returns exactly that
+spec-driven set.
