@@ -10,7 +10,7 @@ set -uo pipefail
 REGISTRY_ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 REQUIRED_KEYS=(id title category operation when_to_use inputs outputs tools determinism model_hint source)
-VALID_CATEGORIES="classification review exploration generation verification transformation diagnosis decomposition planning"
+VALID_CATEGORIES="classification review exploration generation verification transformation diagnosis decomposition planning remediation"
 
 fail_count=0
 file_count=0
