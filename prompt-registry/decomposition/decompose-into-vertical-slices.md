@@ -39,7 +39,7 @@ tools:
     - duplicating work already covered by existing_work
 determinism: low-variance
 model_hint: opus
-source: Epic-to-story decomposer producing INVEST vertical slices with success-criteria coverage.
+source: Initiative-to-story decomposer producing INVEST vertical slices with success-criteria coverage.
 ---
 
 # Decompose an Initiative Into Vertical-Slice Stories
