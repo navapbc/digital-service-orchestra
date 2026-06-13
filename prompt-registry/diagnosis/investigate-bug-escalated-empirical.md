@@ -89,7 +89,7 @@ tradeoffs_considered: <prose>
 recommendation: <preferred fix + why>
 lens: empirical
 veto_issued: true | false
-veto_target: <contradicted hypothesis, if veto_issued>
+veto_target: <contradicted hypothesis when veto_issued: true, else null>
 artifact_revert_confirmed: true
 hypothesis_tests:
   - {hypothesis, test, observed, verdict}
@@ -103,4 +103,4 @@ candidate is that superseding cause.
 - Do exactly one thing: empirically validate/veto. Every candidate's evidence must
   be empirical — code reading alone is insufficient.
 - Revert ALL instrumentation before reporting; confirm a clean working tree.
-- Do NOT dispatch sub-agents; end with the RESULT block.
+- Do NOT dispatch sub-agents; end with the output block.

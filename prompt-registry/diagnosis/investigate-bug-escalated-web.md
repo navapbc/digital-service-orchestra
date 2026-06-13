@@ -88,4 +88,4 @@ hypothesis_tests:
   implement the fix.
 - Cite only sources you actually fetched; ≥1 candidate must reference an external
   source.
-- Do NOT dispatch sub-agents; end with the RESULT block.
+- Do NOT dispatch sub-agents; end with the output block.

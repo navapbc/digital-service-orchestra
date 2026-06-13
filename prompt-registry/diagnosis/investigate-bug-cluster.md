@@ -21,9 +21,9 @@ inputs:
 outputs:
   format: structured-block
   schema: >
-    A unified RESULT when one cause explains all failures; otherwise per-track
-    RESULTs, each naming the failures it explains and its attribution_basis. Each
-    track carries the universal RESULT fields.
+    A unified block when one cause explains all failures; otherwise one block per
+    track. Each block: ROOT_CAUSE, confidence, covers[], proposed_fixes[],
+    hypothesis_tests[] (+ attribution_basis on split tracks).
 tools:
   required:
     - read-only inspection (Read, Grep)
@@ -90,4 +90,4 @@ each with `covers: [...]` and `attribution_basis: <how failures were assigned>`.
 - Do exactly one thing: cluster diagnosis. Do NOT modify source or implement
   fixes.
 - Prefer a unified root cause; split only on clear evidence of separate defects.
-- Do NOT dispatch sub-agents; end with the RESULT block(s).
+- Do NOT dispatch sub-agents; end with the output block(s).

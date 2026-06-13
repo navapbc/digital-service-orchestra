@@ -88,4 +88,4 @@ hypothesis_tests:
 - Do exactly one thing: escalated code-evidence investigation. Do NOT modify
   source or implement the fix.
 - Extend/contradict prior hypotheses; never restate disproved ones.
-- Do NOT dispatch sub-agents; end with the RESULT block.
+- Do NOT dispatch sub-agents; end with the output block.

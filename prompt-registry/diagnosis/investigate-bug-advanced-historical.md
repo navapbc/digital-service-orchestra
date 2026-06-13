@@ -30,7 +30,7 @@ tools:
     - targeted command execution
   prohibited:
     - modifying source, implementing the fix, or executing git bisect (propose it)
-    - building hypotheses from current code state (that is the code-tracer lens)
+    - building hypotheses from current code state rather than change history
     - dispatching nested sub-agents
 determinism: low-variance
 model_hint: opus
@@ -95,4 +95,4 @@ scoring against the code-tracer agent.
 - Do exactly one thing: investigate via change history. Do NOT modify source,
   implement the fix, or run git bisect (propose it only).
 - Build hypotheses from history, not current code state.
-- Do NOT dispatch sub-agents; end with the RESULT block.
+- Do NOT dispatch sub-agents; end with the output block.
