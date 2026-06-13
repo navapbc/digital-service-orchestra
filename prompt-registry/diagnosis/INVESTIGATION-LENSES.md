@@ -35,6 +35,22 @@ corresponding guidance below.
   statically-plausible root cause can still be wrong at runtime. It must always
   confirm any temporary instrumentation was reverted before reporting.
 
+## Cluster mode (input cardinality)
+
+A separate axis from depth/technique: investigate **multiple related failures as
+one problem** to determine whether they share a common root cause or have
+independent ones. Apply the base contract with these additions:
+
+- Map symptoms across all inputs together before drawing conclusions; run the
+  five-whys from the most common shared symptom.
+- Attempt a single shared root cause first; split into per-root-cause tracks only
+  when evidence clearly shows separate defects, and prefer a unified hypothesis
+  when in doubt.
+- Each split track names which failures it explains and on what basis.
+
+This is a mode of `investigate-bug-root-cause`, not a separate prompt — pass the
+set of failures as the `symptom` input and request cluster handling.
+
 ## How to invoke
 
 1. Pick depth by complexity (`basic` → `escalated`).

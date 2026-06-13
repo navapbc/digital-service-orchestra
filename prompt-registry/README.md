@@ -41,6 +41,7 @@ edits beyond filling in its declared inputs.
 | `diagnosis/` | Find the root cause of an observed failure | A confirmed root cause with supporting evidence |
 | `decomposition/` | Break one large item into smaller well-formed items | An ordered set of child items |
 | `planning/` | Choose among options or sequence work before building | A decision record or ordered plan with rationale |
+| `remediation/` | Resolve identified problems by applying changes | The applied change plus a result/summary of what was done |
 
 Categories are chosen by **output shape and intent**, not by domain. A prompt
 that "reviews architecture" and one that "reviews test quality" both live in
@@ -56,7 +57,7 @@ frontmatter contract:
 ---
 id: kebab-case-unique-id          # stable identifier
 title: Human Readable Title
-category: classification|review|exploration|generation|verification|transformation|diagnosis|decomposition|planning
+category: classification|review|exploration|generation|verification|transformation|diagnosis|decomposition|planning|remediation
 operation: One sentence naming the single operation performed.
 when_to_use: >
   The selection signal — what must be true of the caller's situation for this
