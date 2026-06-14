@@ -34,6 +34,10 @@ while IFS= read -r -d '' file; do
     esac
     parent_dir="$(dirname "$file")"
     [[ "$parent_dir" == "$REGISTRY_ROOT" ]] && continue
+    # Only files inside a valid category directory are prompts. Reference content
+    # (standards/, scripts/) lives in its own directories and is not a prompt.
+    parent_cat="$(basename "$parent_dir")"
+    grep -qw "$parent_cat" <<<"$VALID_CATEGORIES" || continue
     file_count=$((file_count + 1))
     rel="${file#"$REGISTRY_ROOT"/}"
 

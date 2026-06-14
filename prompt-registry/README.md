@@ -18,9 +18,14 @@ edits beyond filling in its declared inputs.
 2. **Explicit contract.** Inputs, outputs, and tool use are declared in
    frontmatter and restated in the body. A caller can satisfy the contract
    without reading the prose.
-3. **Portable.** No references to a specific repository, ticket CLI, file
-   layout, or company. Domain specifics arrive through declared inputs, never
-   hardcoded.
+3. **Portable in mechanism, concrete in knowledge.** Strip project *plumbing* —
+   repo paths, CLI/script names, file layouts, company names — so the prompt runs
+   anywhere. Do NOT strip the evaluation *knowledge*: the rubrics, checklists,
+   taxonomies, severity calibration, decision tables, and standards ARE the value
+   of the prompt and must be embedded inline. Parameters are for genuinely
+   per-use variation (the specific artifact under review, the acceptance criteria
+   for *this* work) — never for the reusable criteria themselves. A prompt whose
+   criteria live only in a caller-supplied input is hollow.
 4. **Deterministic output shape.** The output format (text token, JSON object,
    findings array, XML blocks) is fixed and machine-checkable. Reviews and
    verifications emit a findings array; classifications emit a closed value
@@ -87,9 +92,17 @@ second person to the executing model.
 
 ## Authoring rules
 
-- **Genericize ruthlessly.** Replace any project-specific path, command, or
-  schema with a declared input. If the original said "run `dso ticket show`,"
-  the prompt instead declares a `subject` input and lets the caller supply it.
+- **Genericize mechanism, embed knowledge.** Replace project-specific paths,
+  commands, and script names with declared inputs (e.g. if the original said "run
+  `dso ticket show`," declare a `subject` input). Do NOT do this to evaluation
+  knowledge: rubrics, checklists, taxonomies, and severity calibration must be
+  written into the prompt body, not pushed out to a caller-supplied input. The
+  source agents' hard-won criteria are the reason the prompt has value — losing
+  them to "genericization" is the same mistake as collapsing distinct prompts.
+  When a real, named project standard exists (a testing standard, a fix-pattern
+  catalog, a classification registry), capture it as concrete registry content
+  (see `standards/`) and embed the operative criteria in the prompts that apply
+  it — reference is not a substitute for embedding.
 - **Restate the contract in the body.** The body must contain an explicit
   output-format section so the prompt works even if frontmatter is stripped.
 - **No prompt-to-prompt references.** Do not name sibling prompts or assume a
