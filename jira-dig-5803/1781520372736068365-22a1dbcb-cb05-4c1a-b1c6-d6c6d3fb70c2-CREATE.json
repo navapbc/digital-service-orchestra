@@ -1,0 +1,1 @@
+{"timestamp": 1781520372736068365, "uuid": "22a1dbcb-cb05-4c1a-b1c6-d6c6d3fb70c2", "event_type": "CREATE", "env_id": "reconciler", "author": "reconciler", "data": {"id": "jira-dig-5803", "ticket_type": "task", "title": "rebar link-sync probe A (auto-delete)", "description": "", "parent_id": "", "tags": ["imported:reconciler-bootstrap"], "priority": 2}}
