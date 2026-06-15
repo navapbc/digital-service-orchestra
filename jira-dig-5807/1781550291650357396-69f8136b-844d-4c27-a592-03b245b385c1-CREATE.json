@@ -1,0 +1,1 @@
+{"timestamp": 1781550291650357396, "uuid": "69f8136b-844d-4c27-a592-03b245b385c1", "event_type": "CREATE", "env_id": "reconciler", "author": "reconciler", "data": {"id": "jira-dig-5807", "ticket_type": "task", "title": "rebar link-sync roundtrip A (auto-delete)", "description": "", "parent_id": "", "tags": ["imported:reconciler-bootstrap"], "priority": 2}}
