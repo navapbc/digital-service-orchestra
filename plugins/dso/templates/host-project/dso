@@ -7,6 +7,8 @@
 # DSO_ROOT resolution order:
 #   1. $CLAUDE_PLUGIN_ROOT environment variable
 #   2. dso.plugin_root key in .claude/dso-config.conf at the git repo root
+#      (a stale/foreign marketplace home-cache path here is ignored when it has
+#       no plugin sentinel on this machine, falling through to step 2.5)
 #   2.5. Self-detect: home-directory marketplace cache install (sentinel check)
 #   3. Self-detect: in-repo plugin directory via sentinel .claude-plugin/plugin.json
 #   4. Exit non-zero with an error naming the config key and file
@@ -31,6 +33,28 @@ if [ -z "$DSO_ROOT" ]; then
         # Resolve relative paths against REPO_ROOT (d145-1b1e)
         if [ -n "$DSO_ROOT" ] && [ "${DSO_ROOT#/}" = "$DSO_ROOT" ]; then
             DSO_ROOT="$REPO_ROOT/$DSO_ROOT"
+        fi
+        # Self-heal a stale/foreign marketplace home-cache path. A committed
+        # dso.plugin_root naming <some-home>/.claude/plugins/marketplaces/
+        # digital-service-orchestra/plugins/dso is valid only on the machine that
+        # wrote it; legacy configs (written before bug 9841-4169) embed the
+        # installing developer's $HOME and break every other clone and fresh git
+        # worktree. If the configured path has the marketplace-cache shape but
+        # lacks the plugin sentinel on this machine, discard it so the home-cache
+        # autodetect (step 2.5) resolves the correct local path. Scoped to the
+        # marketplace suffix so explicit custom paths are never second-guessed.
+        # Path components split to avoid check-plugin-self-ref literal detection.
+        if [ -n "$DSO_ROOT" ]; then
+            _DSO_P="plugins"; _DSO_N="dso"
+            _DSO_MP_SUFFIX=".claude/${_DSO_P}/marketplaces/digital-service-orchestra/${_DSO_P}/${_DSO_N}"
+            case "${DSO_ROOT%/}" in
+                */"$_DSO_MP_SUFFIX")
+                    if [ ! -f "$DSO_ROOT/.claude-plugin/plugin.json" ]; then
+                        DSO_ROOT=""
+                    fi
+                    ;;
+            esac
+            unset _DSO_P _DSO_N _DSO_MP_SUFFIX
         fi
     fi
 fi
