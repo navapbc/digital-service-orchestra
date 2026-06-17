@@ -677,6 +677,114 @@ test_shim_autodetects_home_cache_plugin_root() {
         "$fake_cache_dir" "$actual_dso_root"
 }
 
+# test_shim_self_heals_foreign_home_cache_config
+# A committed dso.plugin_root that points at a DIFFERENT machine's marketplace
+# home-cache path (the legacy bug: the installing developer's absolute $HOME was
+# written into the config and inherited by every other clone / fresh worktree).
+# Because the configured path has the marketplace-cache shape but no plugin
+# sentinel on this machine, the shim must DISCARD it and fall through to the
+# home-cache autodetect (step 2.5), resolving the correct LOCAL path.
+test_shim_self_heals_foreign_home_cache_config() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_shim_self_heals_foreign_home_cache_config (shim exists)" "exists" "missing"
+        return
+    fi
+
+    local fake_repo="$TMPDIR_BASE/fake-selfheal-repo"
+    local fake_home="$TMPDIR_BASE/fake-selfheal-home"
+    local fake_cache_dir="$fake_home/.claude/plugins/marketplaces/digital-service-orchestra/plugins/dso"
+    # Valid local home-cache (has the sentinel) — what autodetect should resolve to.
+    mkdir -p "$fake_repo/.claude" "$fake_cache_dir/.claude-plugin"
+    echo '{}' > "$fake_cache_dir/.claude-plugin/plugin.json"
+    # Foreign home-cache path written into the committed config. It has the
+    # marketplace-cache shape but does NOT exist on this machine (no sentinel).
+    local foreign_cache="/Users/someoneelse/.claude/plugins/marketplaces/digital-service-orchestra/plugins/dso"
+    printf 'dso.plugin_root=%s\n' "$foreign_cache" > "$fake_repo/.claude/dso-config.conf"
+    git -C "$fake_repo" init -q
+
+    local actual_dso_root
+    actual_dso_root=$(
+        env -i HOME="$fake_home" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+            bash --noprofile --norc -c "
+                set -uo pipefail
+                cd '$fake_repo'
+                . '$SHIM' --lib 2>/dev/null
+                printf '%s' \"\${DSO_ROOT:-UNSET}\"
+            "
+    ) || true
+
+    # Self-heal: the foreign config path is discarded; step 2.5 resolves the local cache.
+    assert_eq "test_shim_self_heals_foreign_home_cache_config (resolves local cache)" \
+        "$fake_cache_dir" "$actual_dso_root"
+}
+
+# test_shim_keeps_valid_home_cache_config
+# When the committed dso.plugin_root names the marketplace home-cache path AND
+# that path is valid on THIS machine (sentinel present), the shim must keep it.
+# The self-heal must only discard paths that are invalid here.
+test_shim_keeps_valid_home_cache_config() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_shim_keeps_valid_home_cache_config (shim exists)" "exists" "missing"
+        return
+    fi
+
+    local fake_repo="$TMPDIR_BASE/fake-validcache-repo"
+    local fake_home="$TMPDIR_BASE/fake-validcache-home"
+    local fake_cache_dir="$fake_home/.claude/plugins/marketplaces/digital-service-orchestra/plugins/dso"
+    mkdir -p "$fake_repo/.claude" "$fake_cache_dir/.claude-plugin"
+    echo '{}' > "$fake_cache_dir/.claude-plugin/plugin.json"
+    # Config points at the (valid, local) home-cache path.
+    printf 'dso.plugin_root=%s\n' "$fake_cache_dir" > "$fake_repo/.claude/dso-config.conf"
+    git -C "$fake_repo" init -q
+
+    local actual_dso_root
+    actual_dso_root=$(
+        env -i HOME="$fake_home" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+            bash --noprofile --norc -c "
+                set -uo pipefail
+                cd '$fake_repo'
+                . '$SHIM' --lib 2>/dev/null
+                printf '%s' \"\${DSO_ROOT:-UNSET}\"
+            "
+    ) || true
+
+    assert_eq "test_shim_keeps_valid_home_cache_config (valid cache config preserved)" \
+        "$fake_cache_dir" "$actual_dso_root"
+}
+
+# test_shim_keeps_custom_config_path_verbatim
+# Regression guard: the self-heal is scoped to the marketplace-cache shape only.
+# An arbitrary custom dso.plugin_root that does NOT match that suffix must be
+# used verbatim even when it does not exist — preserving the "config wins"
+# contract (ADR 0001) for explicit operator-chosen paths.
+test_shim_keeps_custom_config_path_verbatim() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_shim_keeps_custom_config_path_verbatim (shim exists)" "exists" "missing"
+        return
+    fi
+
+    local custom_path="/opt/vendor/dso-plugin"
+    local fake_repo="$TMPDIR_BASE/fake-custompath-repo"
+    mkdir -p "$fake_repo/.claude"
+    printf 'dso.plugin_root=%s\n' "$custom_path" > "$fake_repo/.claude/dso-config.conf"
+    git -C "$fake_repo" init -q
+
+    # Empty fake HOME so step 2.5 cannot fire — proves the value came from config.
+    local actual_dso_root
+    actual_dso_root=$(
+        env -i HOME="$FAKE_HOME_EMPTY" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+            bash --noprofile --norc -c "
+                set -uo pipefail
+                cd '$fake_repo'
+                . '$SHIM' --lib 2>/dev/null
+                printf '%s' \"\${DSO_ROOT:-UNSET}\"
+            "
+    ) || true
+
+    assert_eq "test_shim_keeps_custom_config_path_verbatim (custom path preserved)" \
+        "$custom_path" "$actual_dso_root"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_shim_preserves_claude_plugin_root_when_preset
 test_shim_does_not_clobber_preset_with_config_value
@@ -688,5 +796,8 @@ test_shim_sentinel_requires_plugin_json
 test_shim_sentinel_exports_claude_plugin_root
 test_discover_agents_resolves_routing_via_sentinel
 test_shim_autodetects_home_cache_plugin_root
+test_shim_self_heals_foreign_home_cache_config
+test_shim_keeps_valid_home_cache_config
+test_shim_keeps_custom_config_path_verbatim
 
 print_summary
