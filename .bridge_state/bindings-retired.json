@@ -180,6 +180,18 @@
       "local_id": "jira-dig-5711",
       "retired_at": "2026-06-29T13:35:58.780011+00:00"
     },
+    "DIG-5757": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5757",
+      "local_id": "jira-dig-5712",
+      "retired_at": "2026-06-29T16:21:15.073830+00:00"
+    },
+    "DIG-5758": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5758",
+      "local_id": "jira-dig-5713",
+      "retired_at": "2026-06-29T16:21:15.288450+00:00"
+    },
     "DIG-5760": {
       "absent_404_count": 3,
       "last_jira_key": "DIG-5760",
@@ -203,6 +215,60 @@
       "last_jira_key": "DIG-5763",
       "local_id": "b5fe-1164-8c11-4826",
       "retired_at": "2026-06-29T09:58:11.987715+00:00"
+    },
+    "DIG-5797": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5797",
+      "local_id": "jira-dig-5797",
+      "retired_at": "2026-06-29T16:21:15.546919+00:00"
+    },
+    "DIG-5798": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5798",
+      "local_id": "jira-dig-5798",
+      "retired_at": "2026-06-29T16:21:15.678777+00:00"
+    },
+    "DIG-5801": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5801",
+      "local_id": "jira-dig-5801",
+      "retired_at": "2026-06-29T16:21:15.826911+00:00"
+    },
+    "DIG-5802": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5802",
+      "local_id": "jira-dig-5802",
+      "retired_at": "2026-06-29T16:21:15.954526+00:00"
+    },
+    "DIG-5803": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5803",
+      "local_id": "jira-dig-5803",
+      "retired_at": "2026-06-29T16:21:16.088746+00:00"
+    },
+    "DIG-5804": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5804",
+      "local_id": "jira-dig-5804",
+      "retired_at": "2026-06-29T16:21:16.212548+00:00"
+    },
+    "DIG-5806": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5806",
+      "local_id": "jira-dig-5776",
+      "retired_at": "2026-06-29T16:21:15.411449+00:00"
+    },
+    "DIG-5811": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5811",
+      "local_id": "jira-dig-5807",
+      "retired_at": "2026-06-29T16:21:16.358163+00:00"
+    },
+    "DIG-5812": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5812",
+      "local_id": "jira-dig-5808",
+      "retired_at": "2026-06-29T16:21:16.450111+00:00"
     }
   },
   "version": 1
