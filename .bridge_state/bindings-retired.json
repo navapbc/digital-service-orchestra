@@ -72,6 +72,114 @@
       "local_id": "jira-dig-5617",
       "retired_at": "2026-06-29T09:58:12.267608+00:00"
     },
+    "DIG-5637": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5637",
+      "local_id": "jira-dig-5618",
+      "retired_at": "2026-06-29T13:35:53.894988+00:00"
+    },
+    "DIG-5638": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5638",
+      "local_id": "jira-dig-5619",
+      "retired_at": "2026-06-29T13:35:54.074413+00:00"
+    },
+    "DIG-5645": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5645",
+      "local_id": "jira-dig-5626",
+      "retired_at": "2026-06-29T13:35:54.462597+00:00"
+    },
+    "DIG-5646": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5646",
+      "local_id": "jira-dig-5627",
+      "retired_at": "2026-06-29T13:35:54.690976+00:00"
+    },
+    "DIG-5648": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5648",
+      "local_id": "jira-dig-5629",
+      "retired_at": "2026-06-29T13:35:54.936385+00:00"
+    },
+    "DIG-5651": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5651",
+      "local_id": "jira-dig-5632",
+      "retired_at": "2026-06-29T13:35:55.179705+00:00"
+    },
+    "DIG-5654": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5654",
+      "local_id": "jira-dig-5654",
+      "retired_at": "2026-06-29T13:35:55.402466+00:00"
+    },
+    "DIG-5655": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5655",
+      "local_id": "jira-dig-5655",
+      "retired_at": "2026-06-29T13:35:55.800011+00:00"
+    },
+    "DIG-5656": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5656",
+      "local_id": "jira-dig-5656",
+      "retired_at": "2026-06-29T13:35:56.006318+00:00"
+    },
+    "DIG-5657": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5657",
+      "local_id": "jira-dig-5657",
+      "retired_at": "2026-06-29T13:35:56.186251+00:00"
+    },
+    "DIG-5658": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5658",
+      "local_id": "jira-dig-5658",
+      "retired_at": "2026-06-29T13:35:56.408675+00:00"
+    },
+    "DIG-5696": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5696",
+      "local_id": "jira-dig-5674",
+      "retired_at": "2026-06-29T13:35:56.775067+00:00"
+    },
+    "DIG-5697": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5697",
+      "local_id": "jira-dig-5675",
+      "retired_at": "2026-06-29T13:35:57.198156+00:00"
+    },
+    "DIG-5698": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5698",
+      "local_id": "jira-dig-5676",
+      "retired_at": "2026-06-29T13:35:57.421837+00:00"
+    },
+    "DIG-5725": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5725",
+      "local_id": "jira-dig-5692",
+      "retired_at": "2026-06-29T13:35:57.805377+00:00"
+    },
+    "DIG-5726": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5726",
+      "local_id": "jira-dig-5693",
+      "retired_at": "2026-06-29T13:35:58.221651+00:00"
+    },
+    "DIG-5727": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5727",
+      "local_id": "jira-dig-5694",
+      "retired_at": "2026-06-29T13:35:58.625068+00:00"
+    },
+    "DIG-5756": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5756",
+      "local_id": "jira-dig-5711",
+      "retired_at": "2026-06-29T13:35:58.780011+00:00"
+    },
     "DIG-5760": {
       "absent_404_count": 3,
       "last_jira_key": "DIG-5760",
