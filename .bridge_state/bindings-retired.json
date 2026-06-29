@@ -42,11 +42,29 @@
       "local_id": "b5fe-1164-8c11-4826",
       "retired_at": "2026-06-12T01:31:35.046762+00:00"
     },
+    "DIG-5570": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5570",
+      "local_id": "2e4d-412f-fa26-4a0f",
+      "retired_at": "2026-06-29T06:01:45.267282+00:00"
+    },
     "DIG-5571": {
       "absent_404_count": 3,
       "last_jira_key": "DIG-5571",
       "local_id": "555b-2d71-16fb-4c6c",
       "retired_at": "2026-06-12T01:31:34.724717+00:00"
+    },
+    "DIG-5760": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5760",
+      "local_id": "5045-c1fd-a2b5-4efb",
+      "retired_at": "2026-06-29T06:01:45.686690+00:00"
+    },
+    "DIG-5761": {
+      "absent_404_count": 3,
+      "last_jira_key": "DIG-5761",
+      "local_id": "555b-2d71-16fb-4c6c",
+      "retired_at": "2026-06-29T06:01:46.081188+00:00"
     }
   },
   "version": 1
