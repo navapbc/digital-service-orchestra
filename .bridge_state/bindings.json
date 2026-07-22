@@ -6672,6 +6672,24 @@
       "state": "confirmed",
       "updated_at": "2026-07-12T03:08:10.268063+00:00"
     },
+    "jira-dig-5867": {
+      "created_at": "2026-07-22T23:41:11.695317+00:00",
+      "jira_key": "DIG-5867",
+      "state": "confirmed",
+      "updated_at": "2026-07-22T23:41:11.695317+00:00"
+    },
+    "jira-dig-5868": {
+      "created_at": "2026-07-22T23:41:12.088416+00:00",
+      "jira_key": "DIG-5868",
+      "state": "confirmed",
+      "updated_at": "2026-07-22T23:41:12.088416+00:00"
+    },
+    "jira-dig-5869": {
+      "created_at": "2026-07-22T23:41:12.476618+00:00",
+      "jira_key": "DIG-5869",
+      "state": "confirmed",
+      "updated_at": "2026-07-22T23:41:12.476618+00:00"
+    },
     "w21-bsnz": {
       "created_at": "2026-05-28T23:02:37.755487+00:00",
       "jira_key": "DIG-4721",
@@ -7782,7 +7800,10 @@
     "DIG-5859": "jira-dig-5807",
     "DIG-5860": "jira-dig-5808",
     "DIG-5865": "jira-dig-5861",
-    "DIG-5866": "jira-dig-5862"
+    "DIG-5866": "jira-dig-5862",
+    "DIG-5867": "jira-dig-5867",
+    "DIG-5868": "jira-dig-5868",
+    "DIG-5869": "jira-dig-5869"
   },
   "version": 1
 }
