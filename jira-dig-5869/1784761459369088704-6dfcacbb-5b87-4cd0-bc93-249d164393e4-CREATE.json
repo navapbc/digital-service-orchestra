@@ -1,0 +1,1 @@
+{"timestamp": 1784761459369088704, "uuid": "6dfcacbb-5b87-4cd0-bc93-249d164393e4", "event_type": "CREATE", "env_id": "reconciler", "author": "reconciler", "data": {"id": "jira-dig-5869", "ticket_type": "task", "title": "rebar capability probe retry-uuid-5555", "description": "", "parent_id": "", "tags": ["imported:reconciler-bootstrap"], "priority": 2}}
