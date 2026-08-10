@@ -6319,44 +6319,44 @@
       "updated_at": "2026-06-10T05:53:37.472031+00:00"
     },
     "jira-dig-5654": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T16:21:19.582426+00:00",
       "jira_key": "DIG-5838",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:41.395046+00:00"
+      "updated_at": "2026-08-10T21:40:02.255832+00:00"
     },
     "jira-dig-5655": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T16:21:20.034179+00:00",
       "jira_key": "DIG-5839",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:41.583093+00:00"
+      "updated_at": "2026-08-10T21:40:02.685269+00:00"
     },
     "jira-dig-5656": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T16:21:20.526078+00:00",
       "jira_key": "DIG-5840",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:41.747990+00:00"
+      "updated_at": "2026-08-10T21:40:02.861966+00:00"
     },
     "jira-dig-5657": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T16:21:20.933916+00:00",
       "jira_key": "DIG-5841",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:41.889172+00:00"
+      "updated_at": "2026-08-10T21:40:03.294670+00:00"
     },
     "jira-dig-5658": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T16:21:21.415794+00:00",
       "jira_key": "DIG-5842",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:42.021114+00:00"
+      "updated_at": "2026-08-10T21:40:03.739390+00:00"
     },
     "jira-dig-5663": {
       "created_at": "2026-06-11T23:40:01.749612+00:00",
@@ -6617,116 +6617,116 @@
       "updated_at": "2026-06-12T01:32:42.833034+00:00"
     },
     "jira-dig-5776": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T18:09:08.337057+00:00",
       "jira_key": "DIG-5852",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:42.355883+00:00"
+      "updated_at": "2026-08-10T21:40:03.997782+00:00"
     },
     "jira-dig-5797": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T18:09:09.163425+00:00",
       "jira_key": "DIG-5853",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:42.734113+00:00"
+      "updated_at": "2026-08-10T21:40:04.198779+00:00"
     },
     "jira-dig-5798": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T18:09:09.761069+00:00",
       "jira_key": "DIG-5854",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:42.909732+00:00"
+      "updated_at": "2026-08-10T21:40:04.680930+00:00"
     },
     "jira-dig-5801": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T18:09:10.390793+00:00",
       "jira_key": "DIG-5855",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:43.085555+00:00"
+      "updated_at": "2026-08-10T21:40:05.110905+00:00"
     },
     "jira-dig-5802": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T18:09:11.154349+00:00",
       "jira_key": "DIG-5856",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:43.248101+00:00"
+      "updated_at": "2026-08-10T21:40:05.543149+00:00"
     },
     "jira-dig-5803": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T18:09:11.882977+00:00",
       "jira_key": "DIG-5857",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:43.434369+00:00"
+      "updated_at": "2026-08-10T21:40:05.731357+00:00"
     },
     "jira-dig-5804": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T18:09:12.702108+00:00",
       "jira_key": "DIG-5858",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:43.665273+00:00"
+      "updated_at": "2026-08-10T21:40:05.897059+00:00"
     },
     "jira-dig-5807": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T18:09:13.317116+00:00",
       "jira_key": "DIG-5859",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:43.846928+00:00"
+      "updated_at": "2026-08-10T21:40:06.078639+00:00"
     },
     "jira-dig-5808": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-06-29T18:09:14.085388+00:00",
       "jira_key": "DIG-5860",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:43.982563+00:00"
+      "updated_at": "2026-08-10T21:40:06.459640+00:00"
     },
     "jira-dig-5861": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-07-12T03:08:07.020938+00:00",
       "jira_key": "DIG-5865",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:44.120409+00:00"
+      "updated_at": "2026-08-10T21:40:06.656352+00:00"
     },
     "jira-dig-5862": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-07-12T03:08:10.268063+00:00",
       "jira_key": "DIG-5866",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:44.267094+00:00"
+      "updated_at": "2026-08-10T21:40:06.924976+00:00"
     },
     "jira-dig-5867": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-07-22T23:41:11.695317+00:00",
       "jira_key": "DIG-5867",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:44.402101+00:00"
+      "updated_at": "2026-08-10T21:40:07.127762+00:00"
     },
     "jira-dig-5868": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-07-22T23:41:12.088416+00:00",
       "jira_key": "DIG-5868",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:44.537059+00:00"
+      "updated_at": "2026-08-10T21:40:07.328814+00:00"
     },
     "jira-dig-5869": {
-      "absent_404_count": 1,
+      "absent_404_count": 2,
       "created_at": "2026-07-22T23:41:12.476618+00:00",
       "jira_key": "DIG-5869",
-      "last_get_pass": "2026-07-24T01-36-36",
+      "last_get_pass": "2026-08-10T21-39-06",
       "state": "confirmed",
-      "updated_at": "2026-07-24T01:37:44.708536+00:00"
+      "updated_at": "2026-08-10T21:40:07.513768+00:00"
     },
     "w21-bsnz": {
       "created_at": "2026-05-28T23:02:37.755487+00:00",
