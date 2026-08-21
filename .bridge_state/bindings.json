@@ -6756,6 +6756,12 @@
       "state": "confirmed",
       "updated_at": "2026-08-21T13:02:19.799824+00:00"
     },
+    "jira-dig-5926": {
+      "created_at": "2026-08-21T13:57:31.182537+00:00",
+      "jira_key": "DIG-5926",
+      "state": "confirmed",
+      "updated_at": "2026-08-21T13:57:31.182537+00:00"
+    },
     "w21-bsnz": {
       "created_at": "2026-05-28T23:02:37.755487+00:00",
       "jira_key": "DIG-4721",
@@ -7880,7 +7886,8 @@
     "DIG-5918": "jira-dig-5918",
     "DIG-5921": "jira-dig-5921",
     "DIG-5924": "jira-dig-5924",
-    "DIG-5925": "jira-dig-5925"
+    "DIG-5925": "jira-dig-5925",
+    "DIG-5926": "jira-dig-5926"
   },
   "version": 1
 }
